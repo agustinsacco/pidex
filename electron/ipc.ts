@@ -12,6 +12,7 @@ import {
   readConfigFile,
   writeConfigFile,
 } from './pi/agent-settings'
+import { piProcessEnv } from './pi/shell-env'
 import { listSessions, readSessionTree, workspaceStats } from './pi/session-scanner'
 import { watchWorkspaceSessions } from './pi/session-watcher'
 import { appendBranchJump, appendLabel, forkSessionAt } from './pi/session-writer'
@@ -102,6 +103,10 @@ export function registerIpcHandlers(): void {
       binaryPath = health.binaryPath
     }
 
+    // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
+    // to find node under a version manager, not the GUI-inherited one.
+    const spawnEnv = stub ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv()
+
     const session = registry.create(options.workspacePath, {
       binaryPath,
       prefixArgs,
@@ -113,8 +118,7 @@ export function registerIpcHandlers(): void {
       thinkingLevel: options.thinkingLevel,
       // The bundled artifacts extension rides along in every session.
       ...(stub ? {} : { extensions: [artifactsExtensionPath()] }),
-      // The stub runs under Electron's Node; keep it out of the app's UI mode.
-      ...(stub ? { env: { ELECTRON_RUN_AS_NODE: '1' } } : {}),
+      env: spawnEnv,
     })
 
     const contents = event.sender
