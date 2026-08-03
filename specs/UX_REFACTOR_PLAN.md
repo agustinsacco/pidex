@@ -117,6 +117,49 @@ useful and pi-specific.
 
 Files: `src/features/sessions/Sidebar.tsx`.
 
+### B0 · Chat header icons and right-pane surface are wrong — **P0**
+Closest read of `terminal-pane.png` / `artifact-panel.png` /
+`files-diff-pane.png`. Three separate defects:
+
+**(a) No terminal button in the header.** The reference header shows four
+icons at top-right: **`>_` terminal · `⊡` files/side-panel · 🌐 globe ·
+`⋮` kebab**. pidex renders files, changes, artifacts, kebab — and **no
+terminal at all**. The terminal is currently reachable only through the
+command palette or `⌘\`` (which is *also* broken, see A2), so on a fresh
+launch it is effectively undiscoverable. This is the defect behind the
+report.
+
+**(b) The right pane is a flush column; the reference is a floating card.**
+Reference: the pane is inset with a visible **gutter** between it and the
+chat, has **rounded corners on all four sides**, its own subtle border and
+a slightly raised surface — it reads as a panel resting on the app
+background. pidex renders `border-l` flush to the window edge, square
+corners, full bleed. This is the single biggest reason the panes look
+unlike the screenshots.
+
+**(c) Pane chrome is inconsistent between the four panes.** Files and
+Changes share a `PaneTab` header (`RightPane.tsx:37-48`); Terminal and
+Artifacts each early-return with their **own** bespoke header
+(`RightPane.tsx:19-33`). So header height, close-button placement and
+expand affordance differ depending on which pane is open. The reference
+uses one consistent shell: **title on the left, pane-specific actions in
+the middle, `↗` expand and `✕` close always at the far right.**
+
+Fix as one pass:
+- add the terminal icon button to the chat header (first of the four,
+  matching reference order) and give every pane button an active state
+- introduce a single `<PaneShell title actions>` component; Files, Changes,
+  Terminal and Artifacts all render inside it and contribute only their
+  own action buttons
+- restyle the pane container as a floating card: wrapper padding for the
+  gutter, `rounded-xl`, `border`, `bg-surface`, subtle shadow
+- keep `↗` expand + `✕` close in the shell, not per-pane
+
+Files: `src/features/chat/ChatView.tsx`,
+`src/features/files/RightPane.tsx` → new `src/components/PaneShell.tsx`,
+`TerminalPane.tsx`, `ArtifactsPane.tsx`, `FilesPane.tsx`,
+`FilesChangedPane.tsx`, `src/app/App.tsx` (gutter padding).
+
 ### B4b · Home screen has no model / thinking / mode controls — **P1**
 Reference `home-light` and `home-populated` both show a full control row
 **below the home composer**: `Manual` (or `Bypass permissions`) · `+` ·
@@ -251,7 +294,7 @@ Spinners, shimmer, pulse and toast slides ignore
 
 | Batch | Contents | Risk |
 |---|---|---|
-| **1** | A1, A2, D1 | trivial, global, immediate payoff |
+| **1** | A1, A2, **B0**, D1 | cursor, shortcut, terminal button + pane shell |
 | **2** | A3, B4, B5 | sidebar rebuild in one pass |
 | **3** | B1, C2, C4, C3 | chat surface polish |
 | **4** | **B4b**, B3, C1, C6 | home screen: pickers, stats, chips |
