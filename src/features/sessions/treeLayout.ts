@@ -8,6 +8,12 @@ import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
 
 export type DisplayNodeKind = 'root' | 'user' | 'marker' | 'summary' | 'compaction'
 
+/** A model / thinking-level switch recorded before this node. */
+export interface ConfigChange {
+  kind: 'model' | 'thinking'
+  label: string
+}
+
 export interface DisplayNode {
   id: string
   kind: DisplayNodeKind
@@ -21,6 +27,11 @@ export interface DisplayNode {
   isLeaf: boolean
   /** Entries collapsed between this node and its display parent. */
   collapsedAbove: number
+  /**
+   * model_change / thinking_level_change entries collapsed on the edge above
+   * this node — shown as chips so config switches stay visible in the tree.
+   */
+  configChanges: ConfigChange[]
   timestamp: string
 }
 
@@ -100,7 +111,21 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
     entry: SessionTreeEntry
     displayParentId: string
     collapsed: number
+    /** Config switches seen while collapsing the chain above this node. */
+    pendingConfig: ConfigChange[]
     depth: number
+  }
+
+  /** Describe a config-change entry as a chip label, or null if it isn't one. */
+  const configChangeFor = (entry: SessionTreeEntry): ConfigChange | null => {
+    if (entry.type === 'model_change') {
+      const name = entry.modelId ?? 'unknown model'
+      return { kind: 'model', label: entry.provider ? `${entry.provider}/${name}` : name }
+    }
+    if (entry.type === 'thinking_level_change') {
+      return { kind: 'thinking', label: `thinking: ${entry.thinkingLevel ?? 'off'}` }
+    }
+    return null
   }
 
   const nodeById = new Map<string, DisplayNode>()
@@ -113,6 +138,7 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
     onActivePath: true,
     isLeaf: false,
     collapsedAbove: 0,
+    configChanges: [],
     timestamp: '',
   }
   nodes.push(rootNode)
@@ -140,6 +166,7 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
         onActivePath: activePath.has(entry.id),
         isLeaf: entry.id === effectiveLeaf,
         collapsedAbove: state.collapsed,
+        configChanges: state.pendingConfig,
         timestamp: entry.timestamp,
       }
       nodes.push(node)
@@ -158,7 +185,13 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
         return
       }
       for (const kid of kids) {
-        walk({ entry: kid, displayParentId: entry.id, collapsed: 0, depth: state.depth + 1 })
+        walk({
+          entry: kid,
+          displayParentId: entry.id,
+          collapsed: 0,
+          pendingConfig: [],
+          depth: state.depth + 1,
+        })
       }
       // Center over display children (fall back to slot when none surfaced).
       const childNodes = edges
@@ -171,7 +204,11 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
       return
     }
 
-    // Collapsed entry: pass through, accumulating the count.
+    // Collapsed entry: pass through, accumulating the count and carrying any
+    // model / thinking-level switch down to the next visible node.
+    const change = configChangeFor(entry)
+    const pendingConfig = change ? [...state.pendingConfig, change] : state.pendingConfig
+
     const kids = children.get(entry.id) ?? []
     if (kids.length === 0) {
       // Invisible tail — nothing to draw.
@@ -182,13 +219,14 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
         entry: kid,
         displayParentId: state.displayParentId,
         collapsed: state.collapsed + 1,
+        pendingConfig,
         depth: state.depth,
       })
     }
   }
 
   for (const root of roots) {
-    walk({ entry: root, displayParentId: '__root__', collapsed: 0, depth: 1 })
+    walk({ entry: root, displayParentId: '__root__', collapsed: 0, pendingConfig: [], depth: 1 })
   }
 
   // Root centers over its children.

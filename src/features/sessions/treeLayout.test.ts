@@ -75,6 +75,56 @@ describe('buildTreeLayout', () => {
     expect(u1.isLeaf).toBe(true)
   })
 
+  it('surfaces model and thinking-level switches as chips on the next node', () => {
+    const tree: SessionTree = {
+      sessionId: 's',
+      cwd: '/x',
+      leafId: 'u2',
+      entries: [
+        entry({ id: 'u1', role: 'user', preview: 'first' }),
+        entry({ id: 'a1', parentId: 'u1', role: 'assistant' }),
+        entry({
+          id: 'm1',
+          parentId: 'a1',
+          type: 'model_change',
+          provider: 'anthropic',
+          modelId: 'claude-sonnet-4-5',
+        }),
+        entry({ id: 't1', parentId: 'm1', type: 'thinking_level_change', thinkingLevel: 'high' }),
+        entry({ id: 'u2', parentId: 't1', role: 'user', preview: 'second' }),
+      ],
+    }
+    const layout = buildTreeLayout(tree)
+    // The config entries stay collapsed (not standalone nodes)…
+    expect(layout.nodes.some((n) => n.id === 'm1' || n.id === 't1')).toBe(false)
+    // …but their labels ride along on the following user message.
+    const u2 = layout.nodes.find((n) => n.id === 'u2')!
+    expect(u2.configChanges).toEqual([
+      { kind: 'model', label: 'anthropic/claude-sonnet-4-5' },
+      { kind: 'thinking', label: 'thinking: high' },
+    ])
+  })
+
+  it('does not leak config chips across sibling branches', () => {
+    const tree: SessionTree = {
+      sessionId: 's',
+      cwd: '/x',
+      leafId: 'u3',
+      entries: [
+        entry({ id: 'u1', role: 'user', preview: 'root' }),
+        // Branch point: two children, only one preceded by a model change.
+        entry({ id: 'm1', parentId: 'u1', type: 'model_change', modelId: 'gpt-4o' }),
+        entry({ id: 'u2', parentId: 'm1', role: 'user', preview: 'branch A' }),
+        entry({ id: 'u3', parentId: 'u1', role: 'user', preview: 'branch B' }),
+      ],
+    }
+    const layout = buildTreeLayout(tree)
+    expect(layout.nodes.find((n) => n.id === 'u2')!.configChanges).toEqual([
+      { kind: 'model', label: 'gpt-4o' },
+    ])
+    expect(layout.nodes.find((n) => n.id === 'u3')!.configChanges).toEqual([])
+  })
+
   it('shows branch summaries as summary nodes', () => {
     const tree: SessionTree = {
       sessionId: 's',

@@ -16,20 +16,55 @@ function agentDir(): string {
 }
 
 /**
+ * Result of reading one config file. `malformed` distinguishes "the file is
+ * there but we could not parse it" from "there is no file" — the difference
+ * matters before writing, because merging a patch onto a failed read would
+ * silently discard everything the user had configured.
+ */
+interface ReadResult {
+  settings: PiAgentSettings
+  exists: boolean
+  malformed: boolean
+  error?: string
+}
+
+/**
  * Read pi's settings.json (global, merged with the workspace override).
- * Read-only here; explicit editing UI lands in P6 settings.
+ * Unparseable files degrade to empty for display, but `malformed` is
+ * reported so callers can refuse to write over them.
  */
 export async function readAgentSettings(workspacePath?: string): Promise<PiAgentSettings> {
   const global = await readJson(join(agentDir(), 'settings.json'))
-  const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : {}
-  return { ...global, ...project }
+  const project = workspacePath
+    ? await readJson(join(workspacePath, '.pi', 'settings.json'))
+    : { settings: {}, exists: false, malformed: false }
+  return { ...global.settings, ...project.settings }
 }
 
-async function readJson(path: string): Promise<PiAgentSettings> {
+/** Read + report whether either scope's file is currently unparseable. */
+export async function checkAgentSettings(
+  workspacePath?: string,
+): Promise<{ global: ReadResult; project: ReadResult | null }> {
+  const global = await readJson(join(agentDir(), 'settings.json'))
+  const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : null
+  return { global, project }
+}
+
+async function readJson(path: string): Promise<ReadResult> {
+  let raw: string
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as PiAgentSettings
+    raw = await readFile(path, 'utf8')
   } catch {
-    return {}
+    // No file yet — writing a fresh one is safe.
+    return { settings: {}, exists: false, malformed: false }
+  }
+  if (raw.trim().length === 0) {
+    return { settings: {}, exists: true, malformed: false }
+  }
+  try {
+    return { settings: JSON.parse(raw) as PiAgentSettings, exists: true, malformed: false }
+  } catch (error) {
+    return { settings: {}, exists: true, malformed: true, error: (error as Error).message }
   }
 }
 
@@ -53,7 +88,14 @@ export async function writeConfigFile(name: 'settings' | 'models', content: stri
   await writeFile(join(dir, `${name}.json`), content, 'utf8')
 }
 
-/** Merge a patch into pi's settings.json (global or workspace override). */
+/**
+ * Merge a patch into pi's settings.json (global or workspace override).
+ *
+ * Refuses to write when the existing file is present but unparseable: a
+ * merge onto a failed read would drop every key the user already had
+ * (defaultProvider, packages[], …). The caller surfaces the error and points
+ * the user at the raw editor in Advanced.
+ */
 export async function patchAgentSettings(
   scope: 'global' | 'project',
   workspacePath: string | undefined,
@@ -61,8 +103,18 @@ export async function patchAgentSettings(
 ): Promise<void> {
   const dir = scope === 'global' ? agentDir() : join(workspacePath ?? '', '.pi')
   const path = join(dir, 'settings.json')
-  const current = await readJson(path)
-  const merged = { ...current, ...patch }
+  const read = await readJson(path)
+
+  if (read.malformed) {
+    throw new Error(
+      `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
+        'pidex will not overwrite it and lose your existing settings — ' +
+        'fix it in Settings → Advanced → pi settings.json, then try again.',
+    )
+  }
+
+  const current = read.settings
+  const merged: Record<string, unknown> = { ...current, ...patch }
   // Nested objects (compaction/retry) merge one level deep.
   for (const key of ['compaction', 'retry'] as const) {
     if (

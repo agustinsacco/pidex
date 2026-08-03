@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { create } from 'zustand'
@@ -212,33 +212,50 @@ function AppearanceTab(): React.JSX.Element {
 
 // ---------- Agent (writes pi settings.json) ----------
 
+interface FileHealth {
+  exists: boolean
+  malformed: boolean
+  error?: string
+}
+
 function AgentTab(): React.JSX.Element {
   const currentWorkspace = useWorkspacesStore((s) => s.currentPath)
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null)
+  const [health, setHealth] = useState<FileHealth | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    void window.pidex
-      .invoke('pi:agentSettings', scope === 'project' ? (currentWorkspace ?? undefined) : undefined)
-      .then(setSettings)
-  }, [scope, currentWorkspace])
+  const workspaceArg = scope === 'project' ? (currentWorkspace ?? undefined) : undefined
+
+  const reload = useCallback((): void => {
+    void window.pidex.invoke('pi:agentSettings', workspaceArg).then(setSettings)
+    void window.pidex.invoke('pi:checkAgentSettings', workspaceArg).then((result) => {
+      setHealth(
+        scope === 'global'
+          ? result.global
+          : (result.project ?? { exists: false, malformed: false }),
+      )
+    })
+  }, [workspaceArg, scope])
+
+  useEffect(() => reload(), [reload])
 
   const patch = async (partial: Record<string, unknown>): Promise<void> => {
     setSaving(true)
     try {
-      await window.pidex.invoke(
-        'pi:patchAgentSettings',
-        scope,
-        scope === 'project' ? (currentWorkspace ?? undefined) : undefined,
-        partial,
-      )
+      await window.pidex.invoke('pi:patchAgentSettings', scope, workspaceArg, partial)
       setSettings((s) => ({ ...(s ?? {}), ...partial }))
       useExtensionUiStore.getState().pushToast('Saved — applies to newly started sessions', 'info')
+    } catch (error) {
+      // Malformed existing config: main refuses to write rather than clobber it.
+      useExtensionUiStore.getState().pushToast((error as Error).message, 'error')
+      reload()
     } finally {
       setSaving(false)
     }
   }
+
+  const blocked = health?.malformed === true
 
   const compaction = (settings?.compaction ?? {}) as Record<string, unknown>
   const retry = (settings?.retry ?? {}) as Record<string, unknown>
@@ -251,6 +268,27 @@ function AgentTab(): React.JSX.Element {
         <b>new</b> sessions (pi reads config at spawn).{saving ? ' Saving…' : ''}
       </p>
 
+      {blocked && (
+        <div className="bg-danger-soft border-danger/30 mb-4 rounded-lg border px-3.5 py-3 text-[12.5px]">
+          <div className="text-danger font-medium">
+            This {scope === 'global' ? 'global' : 'workspace'} settings.json is not valid JSON.
+          </div>
+          <div className="text-text-secondary mt-1 leading-relaxed">
+            Editing is disabled so pidex cannot overwrite and lose your existing configuration. pi
+            also ignores the broken file and falls back to its defaults.
+            {health?.error ? ` (${health.error})` : ''}
+          </div>
+          <button
+            onClick={() => useSettingsUiStore.getState().setTab('advanced')}
+            className="border-danger/40 text-danger hover:bg-danger/10 mt-2 rounded-md border px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+          >
+            Fix it in Advanced →
+          </button>
+        </div>
+      )}
+
+      {/* Scope stays enabled even when a file is broken, so you can inspect
+          the other scope. */}
       <Row
         title="Scope"
         description="Global (~/.pi/agent) or an override for this workspace (.pi/settings.json)."
@@ -284,113 +322,127 @@ function AgentTab(): React.JSX.Element {
         </div>
       </Row>
 
-      <Row title="Default model" description='e.g. "claude-sonnet-4-5" or a models.json id.'>
-        <TextField
-          defaultValue={(settings?.defaultModel as string) ?? ''}
-          placeholder="(pi default)"
-          onCommit={(v) => void patch({ defaultModel: v || undefined })}
-        />
-      </Row>
-      <Row title="Default provider" description='e.g. "anthropic", "openai", or a custom provider.'>
-        <TextField
-          defaultValue={(settings?.defaultProvider as string) ?? ''}
-          placeholder="(pi default)"
-          onCommit={(v) => void patch({ defaultProvider: v || undefined })}
-        />
-      </Row>
-      <Row title="Default thinking level" description="off · minimal · low · medium · high · xhigh">
-        <select
-          value={(settings?.defaultThinkingLevel as string) ?? ''}
-          onChange={(e) => void patch({ defaultThinkingLevel: e.target.value || undefined })}
-          className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+      <fieldset
+        disabled={blocked}
+        className={clsx('contents', blocked && 'pointer-events-none opacity-50')}
+      >
+        <Row title="Default model" description='e.g. "claude-sonnet-4-5" or a models.json id.'>
+          <TextField
+            defaultValue={(settings?.defaultModel as string) ?? ''}
+            placeholder="(pi default)"
+            onCommit={(v) => void patch({ defaultModel: v || undefined })}
+          />
+        </Row>
+        <Row
+          title="Default provider"
+          description='e.g. "anthropic", "openai", or a custom provider.'
         >
-          <option value="">(pi default)</option>
-          {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
-            <option key={level} value={level}>
-              {level}
-            </option>
-          ))}
-        </select>
-      </Row>
-      <Row
-        title="Hide thinking blocks"
-        description="Collapse model reasoning out of the transcript."
-      >
-        <Toggle
-          on={settings?.hideThinkingBlock === true}
-          onChange={(on) => void patch({ hideThinkingBlock: on })}
-        />
-      </Row>
-      <Row title="Steering delivery" description="How queued steering messages are injected.">
-        <ModeSelect
-          value={(settings?.steeringMode as string) ?? ''}
-          onChange={(v) => void patch({ steeringMode: v || undefined })}
-        />
-      </Row>
-      <Row title="Follow-up delivery" description="How queued follow-ups are injected.">
-        <ModeSelect
-          value={(settings?.followUpMode as string) ?? ''}
-          onChange={(v) => void patch({ followUpMode: v || undefined })}
-        />
-      </Row>
+          <TextField
+            defaultValue={(settings?.defaultProvider as string) ?? ''}
+            placeholder="(pi default)"
+            onCommit={(v) => void patch({ defaultProvider: v || undefined })}
+          />
+        </Row>
+        <Row
+          title="Default thinking level"
+          description="off · minimal · low · medium · high · xhigh"
+        >
+          <select
+            value={(settings?.defaultThinkingLevel as string) ?? ''}
+            onChange={(e) => void patch({ defaultThinkingLevel: e.target.value || undefined })}
+            className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+          >
+            <option value="">(pi default)</option>
+            {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row
+          title="Hide thinking blocks"
+          description="Collapse model reasoning out of the transcript."
+        >
+          <Toggle
+            on={settings?.hideThinkingBlock === true}
+            onChange={(on) => void patch({ hideThinkingBlock: on })}
+          />
+        </Row>
+        <Row title="Steering delivery" description="How queued steering messages are injected.">
+          <ModeSelect
+            value={(settings?.steeringMode as string) ?? ''}
+            onChange={(v) => void patch({ steeringMode: v || undefined })}
+          />
+        </Row>
+        <Row title="Follow-up delivery" description="How queued follow-ups are injected.">
+          <ModeSelect
+            value={(settings?.followUpMode as string) ?? ''}
+            onChange={(v) => void patch({ followUpMode: v || undefined })}
+          />
+        </Row>
 
-      <SectionTitle small>Compaction</SectionTitle>
-      <Row
-        title="Auto-compaction"
-        description="Compact context automatically near the window limit."
-      >
-        <Toggle
-          on={compaction.enabled !== false}
-          onChange={(on) => void patch({ compaction: { ...compaction, enabled: on } })}
-        />
-      </Row>
-      <Row title="Reserve tokens" description="Headroom kept free for the model's response.">
-        <NumberField
-          value={Number(compaction.reserveTokens ?? 16384)}
-          min={1024}
-          max={131072}
-          step={1024}
-          onChange={(v) => void patch({ compaction: { ...compaction, reserveTokens: v } })}
-        />
-      </Row>
-      <Row
-        title="Keep recent tokens"
-        description="Recent conversation preserved verbatim during compaction."
-      >
-        <NumberField
-          value={Number(compaction.keepRecentTokens ?? 20000)}
-          min={1024}
-          max={131072}
-          step={1024}
-          onChange={(v) => void patch({ compaction: { ...compaction, keepRecentTokens: v } })}
-        />
-      </Row>
+        <SectionTitle small>Compaction</SectionTitle>
+        <Row
+          title="Auto-compaction"
+          description="Compact context automatically near the window limit."
+        >
+          <Toggle
+            on={compaction.enabled !== false}
+            onChange={(on) => void patch({ compaction: { ...compaction, enabled: on } })}
+          />
+        </Row>
+        <Row title="Reserve tokens" description="Headroom kept free for the model's response.">
+          <NumberField
+            value={Number(compaction.reserveTokens ?? 16384)}
+            min={1024}
+            max={131072}
+            step={1024}
+            onChange={(v) => void patch({ compaction: { ...compaction, reserveTokens: v } })}
+          />
+        </Row>
+        <Row
+          title="Keep recent tokens"
+          description="Recent conversation preserved verbatim during compaction."
+        >
+          <NumberField
+            value={Number(compaction.keepRecentTokens ?? 20000)}
+            min={1024}
+            max={131072}
+            step={1024}
+            onChange={(v) => void patch({ compaction: { ...compaction, keepRecentTokens: v } })}
+          />
+        </Row>
 
-      <SectionTitle small>Auto-retry</SectionTitle>
-      <Row title="Retry on transient errors" description="Overloaded / rate-limit / 5xx responses.">
-        <Toggle
-          on={retry.enabled !== false}
-          onChange={(on) => void patch({ retry: { ...retry, enabled: on } })}
-        />
-      </Row>
-      <Row title="Max retries" description="Attempts before giving up.">
-        <NumberField
-          value={Number(retry.maxRetries ?? 3)}
-          min={1}
-          max={10}
-          step={1}
-          onChange={(v) => void patch({ retry: { ...retry, maxRetries: v } })}
-        />
-      </Row>
-      <Row title="Base delay (ms)" description="First retry delay; grows exponentially.">
-        <NumberField
-          value={Number(retry.baseDelayMs ?? 2000)}
-          min={250}
-          max={60000}
-          step={250}
-          onChange={(v) => void patch({ retry: { ...retry, baseDelayMs: v } })}
-        />
-      </Row>
+        <SectionTitle small>Auto-retry</SectionTitle>
+        <Row
+          title="Retry on transient errors"
+          description="Overloaded / rate-limit / 5xx responses."
+        >
+          <Toggle
+            on={retry.enabled !== false}
+            onChange={(on) => void patch({ retry: { ...retry, enabled: on } })}
+          />
+        </Row>
+        <Row title="Max retries" description="Attempts before giving up.">
+          <NumberField
+            value={Number(retry.maxRetries ?? 3)}
+            min={1}
+            max={10}
+            step={1}
+            onChange={(v) => void patch({ retry: { ...retry, maxRetries: v } })}
+          />
+        </Row>
+        <Row title="Base delay (ms)" description="First retry delay; grows exponentially.">
+          <NumberField
+            value={Number(retry.baseDelayMs ?? 2000)}
+            min={250}
+            max={60000}
+            step={250}
+            onChange={(v) => void patch({ retry: { ...retry, baseDelayMs: v } })}
+          />
+        </Row>
+      </fieldset>
     </div>
   )
 }

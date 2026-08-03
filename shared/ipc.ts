@@ -35,6 +35,11 @@ export interface SessionTreeEntry {
   label?: string
   summary?: string
   name?: string
+  /** model_change entries. */
+  provider?: string
+  modelId?: string
+  /** thinking_level_change entries. */
+  thinkingLevel?: string
 }
 
 export interface SessionTree {
@@ -96,6 +101,13 @@ export interface IpcInvokeMap {
       patch: Record<string, unknown>,
     ]
     result: void
+  }
+  'pi:checkAgentSettings': {
+    args: [workspacePath?: string]
+    result: {
+      global: { exists: boolean; malformed: boolean; error?: string }
+      project: { exists: boolean; malformed: boolean; error?: string } | null
+    }
   }
   'pi:listResources': {
     args: []
