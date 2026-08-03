@@ -57,7 +57,10 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={close}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={close}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
         className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl"
@@ -70,11 +73,15 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
               composer so you can edit and resend.
             </div>
           </div>
-          <button onClick={close} className="text-text-tertiary hover:text-text">✕</button>
+          <button onClick={close} className="text-text-tertiary hover:text-text">
+            ✕
+          </button>
         </div>
         <div className="max-h-[52vh] overflow-y-auto p-2">
           {candidates === null && (
-            <div className="text-text-tertiary animate-pulse px-3 py-6 text-center text-[12.5px]">Loading…</div>
+            <div className="text-text-tertiary animate-pulse px-3 py-6 text-center text-[12.5px]">
+              Loading…
+            </div>
           )}
           {candidates?.length === 0 && (
             <div className="text-text-tertiary px-3 py-6 text-center text-[12.5px]">

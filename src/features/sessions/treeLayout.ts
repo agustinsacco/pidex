@@ -192,7 +192,9 @@ export function buildTreeLayout(tree: SessionTree): TreeLayout {
   }
 
   // Root centers over its children.
-  const rootChildren = edges.filter((e) => e.fromId === '__root__').map((e) => nodeById.get(e.toId)!)
+  const rootChildren = edges
+    .filter((e) => e.fromId === '__root__')
+    .map((e) => nodeById.get(e.toId)!)
   if (rootChildren.length > 0) {
     rootNode.x = rootChildren.reduce((sum, c) => sum + c.x, 0) / rootChildren.length
   }

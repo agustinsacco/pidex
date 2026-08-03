@@ -17,7 +17,13 @@ export function fuzzyMatch(query: string, target: string): number | null {
       qi++
       streak++
       score += 2 + streak // consecutive matches compound
-      if (ti === 0 || t[ti - 1] === '/' || t[ti - 1] === '-' || t[ti - 1] === '_' || t[ti - 1] === '.') {
+      if (
+        ti === 0 ||
+        t[ti - 1] === '/' ||
+        t[ti - 1] === '-' ||
+        t[ti - 1] === '_' ||
+        t[ti - 1] === '.'
+      ) {
         score += 6 // boundary bonus
       }
     } else {

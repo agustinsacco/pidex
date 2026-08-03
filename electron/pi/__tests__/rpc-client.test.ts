@@ -87,7 +87,11 @@ describe('PiRpcClient', () => {
     ])
     const update = events.find((e) => e.type === 'message_update')
     expect(update && 'assistantMessageEvent' in update).toBe(true)
-    if (update && update.type === 'message_update' && update.assistantMessageEvent.type === 'text_delta') {
+    if (
+      update &&
+      update.type === 'message_update' &&
+      update.assistantMessageEvent.type === 'text_delta'
+    ) {
       expect(update.assistantMessageEvent.delta).toBe('Hello world')
     }
   })

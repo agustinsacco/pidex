@@ -26,7 +26,8 @@ export function parseDisplayDiff(diff: string): DiffLine[] {
       return { kind: 'context' as const, lineNo: null, text: raw }
     }
     const [, marker, lineNo, text = ''] = match
-    const kind = marker === '+' ? ('add' as const) : marker === '-' ? ('del' as const) : ('context' as const)
+    const kind =
+      marker === '+' ? ('add' as const) : marker === '-' ? ('del' as const) : ('context' as const)
     return { kind, lineNo: parseInt(lineNo!, 10), text }
   })
 }

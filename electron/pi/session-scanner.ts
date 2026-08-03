@@ -81,16 +81,11 @@ export async function listSessions(workspacePath: string): Promise<SessionMeta[]
     }),
   )
 
-  return metas
-    .filter((m): m is SessionMeta => m !== null)
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return metas.filter((m): m is SessionMeta => m !== null).sort((a, b) => b.mtimeMs - a.mtimeMs)
 }
 
 /** Single-pass parse: header, latest name, first user message, counts, tokens. */
-export async function parseSessionFile(
-  path: string,
-  mtimeMs: number,
-): Promise<SessionMeta | null> {
+export async function parseSessionFile(path: string, mtimeMs: number): Promise<SessionMeta | null> {
   const stream = createReadStream(path, { encoding: 'utf8' })
   const rl = createInterface({ input: stream, crlfDelay: Infinity })
 
@@ -125,7 +120,12 @@ export async function parseSessionFile(
 
       const type = entry.type as string
       if (type === 'session') {
-        header = entry as unknown as { id?: string; cwd?: string; timestamp?: string; parentSession?: string }
+        header = entry as unknown as {
+          id?: string
+          cwd?: string
+          timestamp?: string
+          parentSession?: string
+        }
         continue
       }
       entryCount++
@@ -140,7 +140,18 @@ export async function parseSessionFile(
         name = (entry.name as string | undefined) || undefined
       } else if (type === 'message') {
         const message = entry.message as
-          | { role?: string; content?: unknown; usage?: { totalTokens?: number; input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } } }
+          | {
+              role?: string
+              content?: unknown
+              usage?: {
+                totalTokens?: number
+                input?: number
+                output?: number
+                cacheRead?: number
+                cacheWrite?: number
+                cost?: { total?: number }
+              }
+            }
           | undefined
         if (!message) continue
         if (message.role === 'user') {
@@ -150,15 +161,16 @@ export async function parseSessionFile(
           assistantMessages++
           const content = message.content
           if (Array.isArray(content)) {
-            toolCalls += content.filter(
-              (b) => (b as { type?: string }).type === 'toolCall',
-            ).length
+            toolCalls += content.filter((b) => (b as { type?: string }).type === 'toolCall').length
           }
           const usage = message.usage
           if (usage) {
             totalTokens +=
               usage.totalTokens ??
-              (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
+              (usage.input ?? 0) +
+                (usage.output ?? 0) +
+                (usage.cacheRead ?? 0) +
+                (usage.cacheWrite ?? 0)
             cost += usage.cost?.total ?? 0
           }
         }
@@ -216,7 +228,11 @@ export async function workspaceStats(workspacePath: string): Promise<WorkspaceSe
     tokens += session.totalTokens
     totalCost += session.cost
     const day = session.lastActivityAt.slice(0, 10)
-    if (day) activityByDay.set(day, (activityByDay.get(day) ?? 0) + session.userMessages + session.assistantMessages)
+    if (day)
+      activityByDay.set(
+        day,
+        (activityByDay.get(day) ?? 0) + session.userMessages + session.assistantMessages,
+      )
     const created = session.createdAt.slice(0, 10)
     if (created && created !== day) {
       activityByDay.set(created, (activityByDay.get(created) ?? 0) + 1)

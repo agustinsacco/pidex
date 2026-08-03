@@ -49,7 +49,9 @@ function tableToText(table: HTMLTableElement, format: 'markdown' | 'csv'): strin
   if (rows.length === 0) return ''
   if (format === 'csv') {
     return rows
-      .map((row) => row.map((c) => (/[",\n]/.test(c) ? `"${c.replaceAll('"', '""')}"` : c)).join(','))
+      .map((row) =>
+        row.map((c) => (/[",\n]/.test(c) ? `"${c.replaceAll('"', '""')}"` : c)).join(','),
+      )
       .join('\n')
   }
   const header = rows[0]!

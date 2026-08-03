@@ -16,7 +16,11 @@ export const useFinderStore = create<FinderState>((set) => ({
 }))
 
 /** Cmd/Ctrl+P fuzzy file finder — shares the @-mention file index. */
-export function FuzzyFinder({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
+export function FuzzyFinder({
+  workspacePath,
+}: {
+  workspacePath: string
+}): React.JSX.Element | null {
   const open = useFinderStore((s) => s.open)
   const [query, setQuery] = useState('')
   const [files, setFiles] = useState<string[]>([])

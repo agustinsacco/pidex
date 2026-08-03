@@ -7,8 +7,7 @@ export function PiMissingScreen({
   health: PiHealth
   onRetry: () => void
 }): React.JSX.Element {
-  const title =
-    health.reason === 'too-old' ? 'pi needs an update' : 'pi is not installed'
+  const title = health.reason === 'too-old' ? 'pi needs an update' : 'pi is not installed'
 
   return (
     <div className="titlebar-drag flex h-full flex-col items-center justify-center gap-6 px-8">

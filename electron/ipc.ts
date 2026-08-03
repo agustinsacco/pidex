@@ -15,12 +15,7 @@ import { listSessions, readSessionTree, workspaceStats } from './pi/session-scan
 import { watchWorkspaceSessions } from './pi/session-watcher'
 import { appendBranchJump, appendLabel, forkSessionAt } from './pi/session-writer'
 import { gitInfo } from './fs/git-info'
-import {
-  createSessionBaseline,
-  gitStatusMap,
-  restoreFileTo,
-  showFileAt,
-} from './fs/git-service'
+import { createSessionBaseline, gitStatusMap, restoreFileTo, showFileAt } from './fs/git-service'
 import {
   createDir,
   createFile,
@@ -40,7 +35,12 @@ import {
   setTheme,
 } from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
-import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
+import {
+  MIN_PI_VERSION,
+  type CreateSessionOptions,
+  type PiHealth,
+  type SessionPush,
+} from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 
 export const registry = new SessionRegistry()
@@ -55,6 +55,15 @@ function artifactsExtensionPath(): string {
   return joinPath(app.getAppPath(), 'pi-ext', 'artifacts.ts')
 }
 
+/**
+ * E2E hook: PIDEX_PI_STUB points at a script that speaks the RPC protocol in
+ * place of the real pi binary, so CI can smoke-test without an API key.
+ * Never set in normal use.
+ */
+function piStubPath(): string | undefined {
+  return process.env.PIDEX_PI_STUB || undefined
+}
+
 type Handler<C extends IpcInvokeChannel> = (
   event: Electron.IpcMainInvokeEvent,
   ...args: IpcInvokeMap[C]['args']
@@ -66,16 +75,35 @@ function handle<C extends IpcInvokeChannel>(channel: C, handler: Handler<C>): vo
 
 export function registerIpcHandlers(): void {
   handle('pi:health', async () => {
+    if (piStubPath()) {
+      return {
+        ok: true,
+        binaryPath: piStubPath(),
+        version: MIN_PI_VERSION,
+        minVersion: MIN_PI_VERSION,
+      }
+    }
     if (!cachedHealth || !cachedHealth.ok) cachedHealth = await checkPiHealth()
     return cachedHealth
   })
 
   handle('pi:createSession', async (event, options: CreateSessionOptions) => {
-    const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
-    if (!health.ok) throw new Error(health.message ?? 'pi is not available')
+    const stub = piStubPath()
+    let binaryPath: string | undefined
+    let prefixArgs: string[] | undefined
+
+    if (stub) {
+      binaryPath = process.execPath
+      prefixArgs = [stub]
+    } else {
+      const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
+      if (!health.ok) throw new Error(health.message ?? 'pi is not available')
+      binaryPath = health.binaryPath
+    }
 
     const session = registry.create(options.workspacePath, {
-      binaryPath: health.binaryPath,
+      binaryPath,
+      prefixArgs,
       sessionPath: options.sessionPath,
       forkFrom: options.forkFrom,
       name: options.name,
@@ -83,7 +111,9 @@ export function registerIpcHandlers(): void {
       provider: options.provider,
       thinkingLevel: options.thinkingLevel,
       // The bundled artifacts extension rides along in every session.
-      extensions: [artifactsExtensionPath()],
+      ...(stub ? {} : { extensions: [artifactsExtensionPath()] }),
+      // The stub runs under Electron's Node; keep it out of the app's UI mode.
+      ...(stub ? { env: { ELECTRON_RUN_AS_NODE: '1' } } : {}),
     })
 
     const contents = event.sender
@@ -145,7 +175,18 @@ export function registerIpcHandlers(): void {
 
   handle('app:userInfo', () => ({ username: userInfo().username }))
 
+  handle('app:about', () => ({
+    appVersion: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch,
+  }))
+
   handle('app:selectFolder', async (event) => {
+    // E2E hook: avoid the native (undriveable) dialog.
+    if (process.env.PIDEX_E2E_WORKSPACE) return process.env.PIDEX_E2E_WORKSPACE
     const window = BrowserWindow.fromWebContents(event.sender)
     const result = await dialog.showOpenDialog(window!, {
       properties: ['openDirectory', 'createDirectory'],

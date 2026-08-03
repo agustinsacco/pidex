@@ -29,4 +29,5 @@
 - e2e smoke (Playwright-Electron) on at least linux + mac runners.
 
 ## Versioning
+
 - semver; app "About" shows app version + detected pi version.

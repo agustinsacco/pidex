@@ -8,7 +8,7 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { MonacoEditor } from '@/features/files/MonacoEditor'
 
-type SettingsTab = 'appearance' | 'agent' | 'workspaces' | 'advanced' | 'keybindings'
+type SettingsTab = 'appearance' | 'agent' | 'workspaces' | 'advanced' | 'keybindings' | 'about'
 
 interface SettingsUiState {
   open: boolean
@@ -30,6 +30,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
+  { id: 'about', label: 'About' },
 ]
 
 export function SettingsModal(): React.JSX.Element | null {
@@ -49,7 +50,10 @@ export function SettingsModal(): React.JSX.Element | null {
   const close = (): void => useSettingsUiStore.getState().setOpen(false)
 
   return createPortal(
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={close}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={close}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
         className="border-border bg-bg flex h-[78vh] w-[880px] max-w-[94vw] overflow-hidden rounded-2xl border shadow-2xl"
@@ -64,7 +68,9 @@ export function SettingsModal(): React.JSX.Element | null {
               onClick={() => useSettingsUiStore.getState().setTab(t.id)}
               className={clsx(
                 'mb-0.5 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
-                tab === t.id ? 'bg-bg-secondary text-text font-medium' : 'text-text-secondary hover:text-text',
+                tab === t.id
+                  ? 'bg-bg-secondary text-text font-medium'
+                  : 'text-text-secondary hover:text-text',
               )}
             >
               {t.label}
@@ -77,7 +83,14 @@ export function SettingsModal(): React.JSX.Element | null {
             onClick={close}
             className="text-text-tertiary hover:text-text absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
@@ -86,6 +99,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {tab === 'workspaces' && <WorkspacesTab />}
           {tab === 'advanced' && <AdvancedTab />}
           {tab === 'keybindings' && <KeybindingsTab />}
+          {tab === 'about' && <AboutTab />}
         </div>
       </div>
     </div>,
@@ -94,6 +108,12 @@ export function SettingsModal(): React.JSX.Element | null {
 }
 
 // ---------- Appearance ----------
+
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+] as const
 
 function AppearanceTab(): React.JSX.Element {
   const theme = useSettingsStore((s) => s.theme)
@@ -105,17 +125,24 @@ function AppearanceTab(): React.JSX.Element {
       <SectionTitle>Appearance</SectionTitle>
 
       <Row title="Theme" description="Applies live across chat, editor, terminal and diagrams.">
-        <div className="border-border flex overflow-hidden rounded-lg border">
-          {(['light', 'dark', 'system'] as const).map((option) => (
+        <div
+          className="border-border flex overflow-hidden rounded-lg border"
+          role="group"
+          aria-label="Theme"
+        >
+          {THEME_OPTIONS.map(({ value, label }) => (
             <button
-              key={option}
-              onClick={() => useSettingsStore.getState().setTheme(option)}
+              key={value}
+              aria-pressed={theme === value}
+              onClick={() => useSettingsStore.getState().setTheme(value)}
               className={clsx(
-                'px-3 py-1.5 text-[12px] font-medium capitalize transition-colors',
-                theme === option ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text',
+                'px-3 py-1.5 text-[12px] font-medium transition-colors',
+                theme === value
+                  ? 'bg-accent text-accent-text'
+                  : 'text-text-secondary hover:text-text',
               )}
             >
-              {option}
+              {label}
             </button>
           ))}
         </div>
@@ -132,13 +159,37 @@ function AppearanceTab(): React.JSX.Element {
         />
       </Row>
       <Row title="Chat font size" description="Message text size in the conversation.">
-        <NumberField value={fonts.chatFontSize} suffix="px" min={11} max={20} step={0.5} onChange={(v) => setFonts({ chatFontSize: v })} />
+        <NumberField
+          value={fonts.chatFontSize}
+          suffix="px"
+          min={11}
+          max={20}
+          step={0.5}
+          onChange={(v) => setFonts({ chatFontSize: v })}
+        />
       </Row>
-      <Row title="Editor font size" description="Monaco editor and diffs. Applies to newly opened editors.">
-        <NumberField value={fonts.editorFontSize} suffix="px" min={10} max={20} step={0.5} onChange={(v) => setFonts({ editorFontSize: v })} />
+      <Row
+        title="Editor font size"
+        description="Monaco editor and diffs. Applies to newly opened editors."
+      >
+        <NumberField
+          value={fonts.editorFontSize}
+          suffix="px"
+          min={10}
+          max={20}
+          step={0.5}
+          onChange={(v) => setFonts({ editorFontSize: v })}
+        />
       </Row>
       <Row title="Terminal font size" description="Applies to new terminal tabs.">
-        <NumberField value={fonts.terminalFontSize} suffix="px" min={10} max={20} step={0.5} onChange={(v) => setFonts({ terminalFontSize: v })} />
+        <NumberField
+          value={fonts.terminalFontSize}
+          suffix="px"
+          min={10}
+          max={20}
+          step={0.5}
+          onChange={(v) => setFonts({ terminalFontSize: v })}
+        />
       </Row>
       <Row title="Mono font" description="Used for code, diffs and the terminal.">
         <select
@@ -146,11 +197,13 @@ function AppearanceTab(): React.JSX.Element {
           onChange={(e) => setFonts({ monoFont: e.target.value })}
           className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
         >
-          {['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace'].map((font) => (
-            <option key={font} value={font}>
-              {font}
-            </option>
-          ))}
+          {['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace'].map(
+            (font) => (
+              <option key={font} value={font}>
+                {font}
+              </option>
+            ),
+          )}
         </select>
       </Row>
     </div>
@@ -194,23 +247,38 @@ function AgentTab(): React.JSX.Element {
     <div>
       <SectionTitle>Agent defaults</SectionTitle>
       <p className="text-text-tertiary -mt-2 mb-4 text-[12px]">
-        Writes pi&apos;s <code className="font-mono">settings.json</code>. Changes apply to <b>new</b> sessions
-        (pi reads config at spawn).{saving ? ' Saving…' : ''}
+        Writes pi&apos;s <code className="font-mono">settings.json</code>. Changes apply to{' '}
+        <b>new</b> sessions (pi reads config at spawn).{saving ? ' Saving…' : ''}
       </p>
 
-      <Row title="Scope" description="Global (~/.pi/agent) or an override for this workspace (.pi/settings.json).">
-        <div className="border-border flex overflow-hidden rounded-lg border">
-          {(['global', 'project'] as const).map((option) => (
+      <Row
+        title="Scope"
+        description="Global (~/.pi/agent) or an override for this workspace (.pi/settings.json)."
+      >
+        <div
+          className="border-border flex overflow-hidden rounded-lg border"
+          role="group"
+          aria-label="Settings scope"
+        >
+          {(
+            [
+              { value: 'global', label: 'Global' },
+              { value: 'project', label: 'Project' },
+            ] as const
+          ).map(({ value, label }) => (
             <button
-              key={option}
-              disabled={option === 'project' && !currentWorkspace}
-              onClick={() => setScope(option)}
+              key={value}
+              aria-pressed={scope === value}
+              disabled={value === 'project' && !currentWorkspace}
+              onClick={() => setScope(value)}
               className={clsx(
-                'px-3 py-1.5 text-[12px] font-medium capitalize transition-colors disabled:opacity-40',
-                scope === option ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text',
+                'px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40',
+                scope === value
+                  ? 'bg-accent text-accent-text'
+                  : 'text-text-secondary hover:text-text',
               )}
             >
-              {option}
+              {label}
             </button>
           ))}
         </div>
@@ -244,7 +312,10 @@ function AgentTab(): React.JSX.Element {
           ))}
         </select>
       </Row>
-      <Row title="Hide thinking blocks" description="Collapse model reasoning out of the transcript.">
+      <Row
+        title="Hide thinking blocks"
+        description="Collapse model reasoning out of the transcript."
+      >
         <Toggle
           on={settings?.hideThinkingBlock === true}
           onChange={(on) => void patch({ hideThinkingBlock: on })}
@@ -264,7 +335,10 @@ function AgentTab(): React.JSX.Element {
       </Row>
 
       <SectionTitle small>Compaction</SectionTitle>
-      <Row title="Auto-compaction" description="Compact context automatically near the window limit.">
+      <Row
+        title="Auto-compaction"
+        description="Compact context automatically near the window limit."
+      >
         <Toggle
           on={compaction.enabled !== false}
           onChange={(on) => void patch({ compaction: { ...compaction, enabled: on } })}
@@ -279,7 +353,10 @@ function AgentTab(): React.JSX.Element {
           onChange={(v) => void patch({ compaction: { ...compaction, reserveTokens: v } })}
         />
       </Row>
-      <Row title="Keep recent tokens" description="Recent conversation preserved verbatim during compaction.">
+      <Row
+        title="Keep recent tokens"
+        description="Recent conversation preserved verbatim during compaction."
+      >
         <NumberField
           value={Number(compaction.keepRecentTokens ?? 20000)}
           min={1024}
@@ -291,7 +368,10 @@ function AgentTab(): React.JSX.Element {
 
       <SectionTitle small>Auto-retry</SectionTitle>
       <Row title="Retry on transient errors" description="Overloaded / rate-limit / 5xx responses.">
-        <Toggle on={retry.enabled !== false} onChange={(on) => void patch({ retry: { ...retry, enabled: on } })} />
+        <Toggle
+          on={retry.enabled !== false}
+          onChange={(on) => void patch({ retry: { ...retry, enabled: on } })}
+        />
       </Row>
       <Row title="Max retries" description="Attempts before giving up.">
         <NumberField
@@ -315,7 +395,13 @@ function AgentTab(): React.JSX.Element {
   )
 }
 
-function ModeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }): React.JSX.Element {
+function ModeSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}): React.JSX.Element {
   return (
     <select
       value={value}
@@ -350,13 +436,17 @@ function WorkspacesTab(): React.JSX.Element {
   return (
     <div>
       <SectionTitle>Workspaces</SectionTitle>
-      {recents.length === 0 && <p className="text-text-tertiary text-[12.5px]">No recent workspaces.</p>}
+      {recents.length === 0 && (
+        <p className="text-text-tertiary text-[12.5px]">No recent workspaces.</p>
+      )}
       <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
         {recents.map((workspace) => (
           <div key={workspace.path} className="bg-surface flex items-center gap-3 px-4 py-2.5">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium">{workspace.name}</span>
-              <span className="text-text-tertiary block truncate text-[11px]">{workspace.path}</span>
+              <span className="text-text-tertiary block truncate text-[11px]">
+                {workspace.path}
+              </span>
             </span>
             <button
               onClick={() => resetLayout(workspace)}
@@ -381,7 +471,11 @@ function WorkspacesTab(): React.JSX.Element {
 
 function AdvancedTab(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
-  const [resources, setResources] = useState<{ skills: string[]; extensions: string[]; prompts: string[] } | null>(null)
+  const [resources, setResources] = useState<{
+    skills: string[]
+    extensions: string[]
+    prompts: string[]
+  } | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
 
   useEffect(() => {
@@ -393,7 +487,14 @@ function AdvancedTab(): React.JSX.Element {
     <div>
       <SectionTitle>Advanced</SectionTitle>
 
-      <Row title="pi health" description={health ? `${health.binaryPath ?? 'not found'} — minimum supported ${health.minVersion}` : 'checking…'}>
+      <Row
+        title="pi health"
+        description={
+          health
+            ? `${health.binaryPath ?? 'not found'} — minimum supported ${health.minVersion}`
+            : 'checking…'
+        }
+      >
         <span
           className={clsx(
             'rounded-md px-2 py-1 font-mono text-[11.5px] font-medium',
@@ -404,13 +505,25 @@ function AdvancedTab(): React.JSX.Element {
         </span>
       </Row>
 
-      <Row title="pi settings.json" description="Raw editor for ~/.pi/agent/settings.json. Restart sessions to apply.">
-        <button onClick={() => setEditing('settings')} className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors">
+      <Row
+        title="pi settings.json"
+        description="Raw editor for ~/.pi/agent/settings.json. Restart sessions to apply."
+      >
+        <button
+          onClick={() => setEditing('settings')}
+          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors"
+        >
           Edit…
         </button>
       </Row>
-      <Row title="pi models.json" description="Custom providers and models (local endpoints live here).">
-        <button onClick={() => setEditing('models')} className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors">
+      <Row
+        title="pi models.json"
+        description="Custom providers and models (local endpoints live here)."
+      >
+        <button
+          onClick={() => setEditing('models')}
+          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors"
+        >
           Edit…
         </button>
       </Row>
@@ -419,7 +532,9 @@ function AdvancedTab(): React.JSX.Element {
       <div className="grid grid-cols-3 gap-3">
         {(['skills', 'extensions', 'prompts'] as const).map((kind) => (
           <div key={kind} className="border-border bg-surface rounded-xl border p-3">
-            <div className="text-text-tertiary text-[10.5px] font-semibold uppercase tracking-wider">{kind}</div>
+            <div className="text-text-tertiary text-[10.5px] font-semibold uppercase tracking-wider">
+              {kind}
+            </div>
             <div className="mt-1.5 space-y-0.5">
               {(resources?.[kind] ?? []).slice(0, 8).map((name) => (
                 <div key={name} className="truncate font-mono text-[11.5px]">
@@ -442,7 +557,13 @@ function AdvancedTab(): React.JSX.Element {
   )
 }
 
-function ConfigFileEditor({ name, onClose }: { name: 'settings' | 'models'; onClose: () => void }): React.JSX.Element {
+function ConfigFileEditor({
+  name,
+  onClose,
+}: {
+  name: 'settings' | 'models'
+  onClose: () => void
+}): React.JSX.Element {
   const [content, setContent] = useState<string | null>(null)
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -458,7 +579,9 @@ function ConfigFileEditor({ name, onClose }: { name: 'settings' | 'models'; onCl
     if (content === null) return
     try {
       await window.pidex.invoke('pi:writeConfigFile', name, content)
-      useExtensionUiStore.getState().pushToast(`${name}.json saved — restart sessions to apply`, 'info')
+      useExtensionUiStore
+        .getState()
+        .pushToast(`${name}.json saved — restart sessions to apply`, 'info')
       onClose()
     } catch (err) {
       setError(`Invalid JSON: ${(err as Error).message}`)
@@ -466,15 +589,27 @@ function ConfigFileEditor({ name, onClose }: { name: 'settings' | 'models'; onCl
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl"
+      >
         <div className="border-border flex items-center gap-2 border-b px-4 py-2.5">
           <span className="flex-1 truncate font-mono text-[12px]">{path}</span>
           {error && <span className="text-danger text-[11.5px]">{error}</span>}
-          <button onClick={onClose} className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors">
+          <button
+            onClick={onClose}
+            className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors"
+          >
             Cancel
           </button>
-          <button onClick={() => void save()} className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-[12px] font-medium transition-colors">
+          <button
+            onClick={() => void save()}
+            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-[12px] font-medium transition-colors"
+          >
             Save
           </button>
         </div>
@@ -522,7 +657,9 @@ function KeybindingsTab(): React.JSX.Element {
         {KEYBINDINGS.map(([keys, action]) => (
           <div key={keys} className="bg-surface flex items-center justify-between px-4 py-2">
             <span className="text-[12.5px]">{action}</span>
-            <kbd className="bg-bg-secondary border-border rounded-md border px-2 py-0.5 font-mono text-[11px]">{keys}</kbd>
+            <kbd className="bg-bg-secondary border-border rounded-md border px-2 py-0.5 font-mono text-[11px]">
+              {keys}
+            </kbd>
           </div>
         ))}
       </div>
@@ -530,33 +667,125 @@ function KeybindingsTab(): React.JSX.Element {
   )
 }
 
-// ---------- shared bits ----------
+// ---------- About ----------
 
-function SectionTitle({ children, small }: { children: React.ReactNode; small?: boolean }): React.JSX.Element {
+/** Newest pi minor pidex has been verified against (drift warning source). */
+const VERIFIED_PI_MINOR = 78
+
+function AboutTab(): React.JSX.Element {
+  const [about, setAbout] = useState<{
+    appVersion: string
+    electron: string
+    chrome: string
+    node: string
+    platform: string
+    arch: string
+  } | null>(null)
+  const [health, setHealth] = useState<PiHealth | null>(null)
+
+  useEffect(() => {
+    void window.pidex.invoke('app:about').then(setAbout)
+    void window.pidex.invoke('pi:health').then(setHealth)
+  }, [])
+
+  const piMinor = health?.version ? Number(health.version.split('.')[1] ?? 0) : null
+  const drift = piMinor !== null && piMinor > VERIFIED_PI_MINOR
+
   return (
-    <h2 className={clsx('font-semibold', small ? 'mb-2 mt-6 text-[13px]' : 'mb-4 text-[16px]')}>{children}</h2>
+    <div>
+      <SectionTitle>About pidex</SectionTitle>
+      <p className="text-text-secondary -mt-2 mb-4 text-[12.5px] leading-relaxed">
+        A desktop coding-agent app powered by the{' '}
+        <span className="font-medium">pi coding agent</span>. Sessions run as real{' '}
+        <code className="font-mono">pi --mode rpc</code> subprocesses in your workspace.
+      </p>
+
+      <Row title="pidex version">
+        <span className="font-mono text-[12.5px]">{about?.appVersion ?? '…'}</span>
+      </Row>
+      <Row title="pi version" description={health?.binaryPath}>
+        <span className="font-mono text-[12.5px]">
+          {health?.version ?? (health ? 'not found' : '…')}
+        </span>
+      </Row>
+      <Row title="Platform">
+        <span className="font-mono text-[12.5px]">
+          {about ? `${about.platform}-${about.arch}` : '…'}
+        </span>
+      </Row>
+      <Row title="Runtime">
+        <span className="font-mono text-[12.5px]">
+          {about ? `Electron ${about.electron} · Node ${about.node}` : '…'}
+        </span>
+      </Row>
+
+      {drift && (
+        <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-[12.5px]">
+          <span className="font-medium">pi {health?.version} is newer than tested.</span>{' '}
+          <span className="text-text-secondary">
+            pidex is verified against pi 0.{VERIFIED_PI_MINOR}.x. Newer minors usually work, but
+            protocol additions may not be surfaced yet.
+          </span>
+        </div>
+      )}
+    </div>
   )
 }
 
-function Row({ title, description, children }: { title: string; description?: string; children: React.ReactNode }): React.JSX.Element {
+// ---------- shared bits ----------
+
+function SectionTitle({
+  children,
+  small,
+}: {
+  children: React.ReactNode
+  small?: boolean
+}): React.JSX.Element {
+  return (
+    <h2 className={clsx('font-semibold', small ? 'mb-2 mt-6 text-[13px]' : 'mb-4 text-[16px]')}>
+      {children}
+    </h2>
+  )
+}
+
+function Row({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <div className="border-border flex items-center justify-between gap-6 border-b py-3 last:border-b-0">
       <div className="min-w-0">
         <div className="text-[13px] font-medium">{title}</div>
-        {description && <div className="text-text-tertiary mt-0.5 text-[11.5px] leading-snug">{description}</div>}
+        {description && (
+          <div className="text-text-tertiary mt-0.5 text-[11.5px] leading-snug">{description}</div>
+        )}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
   )
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }): React.JSX.Element {
+function Toggle({
+  on,
+  onChange,
+}: {
+  on: boolean
+  onChange: (on: boolean) => void
+}): React.JSX.Element {
   return (
     <button
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className={clsx('relative h-[22px] w-10 rounded-full transition-colors', on ? 'bg-accent' : 'bg-border-strong')}
+      className={clsx(
+        'relative h-[22px] w-10 rounded-full transition-colors',
+        on ? 'bg-accent' : 'bg-border-strong',
+      )}
     >
       <span
         className={clsx(

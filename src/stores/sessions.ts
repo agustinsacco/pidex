@@ -99,7 +99,11 @@ export function attachSessionPushHandler(pidexId: string): void {
           void import('./artifacts').then(({ useArtifactsStore }) =>
             useArtifactsStore
               .getState()
-              .ingest(pidexId, (push.event as { toolName: string }).toolName, (push.event as { result?: { details?: unknown } }).result?.details),
+              .ingest(
+                pidexId,
+                (push.event as { toolName: string }).toolName,
+                (push.event as { result?: { details?: unknown } }).result?.details,
+              ),
           )
         }
         const { activeSessionId } = useSessionsStore.getState()

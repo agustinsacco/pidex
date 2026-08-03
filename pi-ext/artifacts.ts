@@ -61,7 +61,8 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'self-contained content: full HTML pages/mockups, SVG graphics, mermaid ' +
       'diagrams, markdown documents/reports, chart specs (Chart.js JSON), or ' +
       'complete code files meant for review. Small snippets belong inline in chat.',
-    promptSnippet: 'Create a rich artifact (html/svg/markdown/mermaid/chart/code) in the side panel',
+    promptSnippet:
+      'Create a rich artifact (html/svg/markdown/mermaid/chart/code) in the side panel',
     promptGuidelines: [
       'Use artifact_create for substantial self-contained deliverables (HTML mockups, SVG graphics, diagrams, documents, reports, chart specs) so they render in the artifact panel; keep short snippets inline in chat.',
       'When revising an artifact you already created, call artifact_update with its id instead of creating a new one.',

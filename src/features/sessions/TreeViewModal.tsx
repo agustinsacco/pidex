@@ -25,7 +25,12 @@ export function TreeViewModal({
   const [selected, setSelected] = useState<DisplayNode | null>(null)
   const [transform, setTransform] = useState({ x: 60, y: 40, scale: 1 })
   const [busy, setBusy] = useState<string | null>(null)
-  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+  } | null>(null)
 
   const reload = useCallback((): void => {
     void window.pidex.invoke('sessions:readTree', meta.path).then(setTree)
@@ -223,7 +228,12 @@ export function TreeViewModal({
                   return (
                     <g key={node.id} transform={`translate(${px + NODE_WIDTH / 2}, ${py + 10})`}>
                       <circle r={7} fill="var(--px-border-strong)" />
-                      <text textAnchor="middle" dy="-14" fontSize="10" fill="var(--px-text-tertiary)">
+                      <text
+                        textAnchor="middle"
+                        dy="-14"
+                        fontSize="10"
+                        fill="var(--px-text-tertiary)"
+                      >
                         session start
                       </text>
                     </g>
@@ -303,7 +313,14 @@ export function TreeViewModal({
                           fill="var(--px-warning)"
                           opacity={0.92}
                         />
-                        <text textAnchor="end" x={0} dy="3.5" fontSize="9.5" fill="#fff" fontWeight={600}>
+                        <text
+                          textAnchor="end"
+                          x={0}
+                          dy="3.5"
+                          fontSize="9.5"
+                          fill="#fff"
+                          fontWeight={600}
+                        >
                           ⚑ {node.label}
                         </text>
                       </g>
@@ -322,7 +339,10 @@ export function TreeViewModal({
                 {selected.kind === 'user' ? 'User message' : selected.kind}
                 {selected.isLeaf && <span className="text-accent"> · current position</span>}
               </div>
-              <button onClick={() => setSelected(null)} className="text-text-tertiary hover:text-text">
+              <button
+                onClick={() => setSelected(null)}
+                className="text-text-tertiary hover:text-text"
+              >
                 ✕
               </button>
             </div>
@@ -333,7 +353,10 @@ export function TreeViewModal({
               <div className="text-warning mt-2 text-[11.5px]">⚑ {selected.label}</div>
             )}
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <ActionButton disabled={!!busy || selected.isLeaf} onClick={() => void jumpHere(selected)}>
+              <ActionButton
+                disabled={!!busy || selected.isLeaf}
+                onClick={() => void jumpHere(selected)}
+              >
                 Jump here
               </ActionButton>
               <ActionButton disabled={!!busy} onClick={() => void forkHere(selected)}>
@@ -373,7 +396,15 @@ function ActionButton({
 
 function TreeIcon(): React.JSX.Element {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent">
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="text-accent"
+    >
       <circle cx="12" cy="4" r="2.2" />
       <circle cx="6" cy="19" r="2.2" />
       <circle cx="18" cy="19" r="2.2" />

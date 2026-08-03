@@ -56,14 +56,14 @@ export function CommandMenu({
   onPick: (entry: CommandEntry) => void
   onClose: () => void
 }): React.JSX.Element | null {
-  const filtered = useMemo(
-    () => fuzzyFilter(query, entries, (e) => e.name, 12),
-    [query, entries],
-  )
+  const filtered = useMemo(() => fuzzyFilter(query, entries, (e) => e.name, 12), [query, entries])
   if (filtered.length === 0) return null
 
   return (
-    <PopupMenu onClose={onClose} className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] overflow-y-auto py-1.5">
+    <PopupMenu
+      onClose={onClose}
+      className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] overflow-y-auto py-1.5"
+    >
       {filtered.map((entry, index) => (
         <MenuRow
           key={`${entry.badge}-${entry.name}`}
@@ -75,7 +75,9 @@ export function CommandMenu({
           <span className="text-text-tertiary flex-1 truncate text-[12px]">
             {entry.description ?? ''}
           </span>
-          <span className={`shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}>
+          <span
+            className={`shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}
+          >
             {entry.badge}
           </span>
         </MenuRow>

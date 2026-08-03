@@ -60,7 +60,14 @@ function Header({
         active={rightPane === 'files'}
         onClick={() => useLayoutStore.getState().toggleRightPane('files')}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>
@@ -70,7 +77,14 @@ function Header({
         active={rightPane === 'changes'}
         onClick={() => useLayoutStore.getState().toggleRightPane('changes')}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M12 3v6m0 6v6M5 12h14" />
           <circle cx="12" cy="12" r="9" />
         </svg>
@@ -99,7 +113,14 @@ function ArtifactsHeaderButton({
         active={active}
         onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <rect x="3" y="3" width="18" height="14" rx="2" />
           <path d="M3 9h18M9 21h6" />
         </svg>
@@ -163,7 +184,14 @@ function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Eleme
   if (!info?.isRepo || !info.branch) return null
   return (
     <span className="bg-bg-secondary text-text-secondary flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px]">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <circle cx="6" cy="6" r="2.5" />
         <circle cx="6" cy="18" r="2.5" />
         <circle cx="18" cy="6" r="2.5" />
@@ -247,10 +275,15 @@ function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.Element
         </div>
         <div className="text-text-secondary mt-1 leading-relaxed">
           Run <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code> in the
-          terminal and use <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
+          terminal and use{' '}
+          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
           providers, set an API key env var (e.g.{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">ANTHROPIC_API_KEY</code>), or add a custom
-          endpoint in <code className="bg-code-bg rounded px-1 font-mono text-[12px]">~/.pi/agent/models.json</code>.
+          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">ANTHROPIC_API_KEY</code>),
+          or add a custom endpoint in{' '}
+          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">
+            ~/.pi/agent/models.json
+          </code>
+          .
         </div>
       </div>
     </div>

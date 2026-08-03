@@ -54,7 +54,6 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-     
   }, [request, selectedIndex])
 
   return createPortal(
@@ -188,7 +187,11 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
       <span
         className={clsx(
           'mt-1 h-2 w-2 shrink-0 rounded-full',
-          toast.kind === 'error' ? 'bg-danger' : toast.kind === 'warning' ? 'bg-warning' : 'bg-info',
+          toast.kind === 'error'
+            ? 'bg-danger'
+            : toast.kind === 'warning'
+              ? 'bg-warning'
+              : 'bg-info',
         )}
       />
       <span className="text-text min-w-0 flex-1 text-[12.5px] leading-snug">{toast.message}</span>
@@ -196,7 +199,14 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
         onClick={() => useExtensionUiStore.getState().dismissToast(toast.id)}
         className="text-text-tertiary hover:text-text shrink-0"
       >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
       </button>
@@ -211,7 +221,10 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
   return (
     <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 overflow-x-auto border-t px-3">
       {Object.entries(statuses).map(([key, text]) => (
-        <span key={key} className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-[10.5px]">
+        <span
+          key={key}
+          className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-[10.5px]"
+        >
           <span className="bg-info h-1.5 w-1.5 rounded-full" />
           {text}
         </span>

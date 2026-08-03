@@ -114,7 +114,10 @@ describe('session scanner', () => {
     await appendLabel(sessionPath, 'aaaa0001', 'checkpoint')
     await appendBranchJump(sessionPath, 'aaaa0001')
     const raw = await readFile(sessionPath, 'utf8')
-    const lines = raw.trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
     const label = lines.find((l) => l.type === 'label')!
     expect(label.targetId).toBe('aaaa0001')
     expect(label.label).toBe('checkpoint')
@@ -129,7 +132,10 @@ describe('session scanner', () => {
   it('forkSessionAt copies the file with a new identity and jumps the leaf', async () => {
     const newPath = await forkSessionAt(sessionPath, 'aaaa0001')
     const raw = await readFile(newPath, 'utf8')
-    const lines = raw.trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
     const header = lines[0]!
     expect(header.type).toBe('session')
     expect(header.id).not.toBe('sess-uuid-1')
@@ -146,11 +152,7 @@ describe('session scanner', () => {
     try {
       const wsDir = join(dir, sessionDirNameForCwd('/work/proj'))
       await mkdir(wsDir, { recursive: true })
-      await writeFile(
-        join(wsDir, '2026-08-01T10-00-00-000Z_x.jsonl'),
-        SESSION_CONTENT,
-        'utf8',
-      )
+      await writeFile(join(wsDir, '2026-08-01T10-00-00-000Z_x.jsonl'), SESSION_CONTENT, 'utf8')
       const sessions = await listSessions('/work/proj')
       expect(sessions).toHaveLength(1)
       expect(sessions[0]!.name).toBe('The Build Session')

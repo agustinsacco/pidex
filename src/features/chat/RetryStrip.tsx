@@ -25,9 +25,24 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
   return (
     <div className="mx-auto w-full max-w-3xl px-1 pb-2">
       <div className="bg-warning/10 border-warning/30 flex items-center gap-2.5 rounded-lg border px-3 py-2 text-[12.5px]">
-        <svg className="text-warning h-3.5 w-3.5 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-          <path className="opacity-90" fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z" />
+        <svg
+          className="text-warning h-3.5 w-3.5 shrink-0 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="3"
+          />
+          <path
+            className="opacity-90"
+            fill="currentColor"
+            d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
+          />
         </svg>
         <span className="text-text">
           Retrying ({retry.attempt}/{retry.maxAttempts})

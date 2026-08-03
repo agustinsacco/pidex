@@ -14,15 +14,21 @@ export function getMonaco(): Promise<typeof MonacoTypes> {
 }
 
 async function loadMonaco(): Promise<typeof MonacoTypes> {
-  const [monaco, { default: EditorWorker }, { default: JsonWorker }, { default: CssWorker }, { default: HtmlWorker }, { default: TsWorker }] =
-    await Promise.all([
-      import('monaco-editor'),
-      import('monaco-editor/esm/vs/editor/editor.worker?worker'),
-      import('monaco-editor/esm/vs/language/json/json.worker?worker'),
-      import('monaco-editor/esm/vs/language/css/css.worker?worker'),
-      import('monaco-editor/esm/vs/language/html/html.worker?worker'),
-      import('monaco-editor/esm/vs/language/typescript/ts.worker?worker'),
-    ])
+  const [
+    monaco,
+    { default: EditorWorker },
+    { default: JsonWorker },
+    { default: CssWorker },
+    { default: HtmlWorker },
+    { default: TsWorker },
+  ] = await Promise.all([
+    import('monaco-editor'),
+    import('monaco-editor/esm/vs/editor/editor.worker?worker'),
+    import('monaco-editor/esm/vs/language/json/json.worker?worker'),
+    import('monaco-editor/esm/vs/language/css/css.worker?worker'),
+    import('monaco-editor/esm/vs/language/html/html.worker?worker'),
+    import('monaco-editor/esm/vs/language/typescript/ts.worker?worker'),
+  ])
 
   ;(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
     getWorker(_workerId: string, label: string) {

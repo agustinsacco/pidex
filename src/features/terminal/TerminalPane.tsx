@@ -70,7 +70,14 @@ export const TerminalPane = memo(function TerminalPane({
                 }}
                 className="text-text-tertiary hover:text-text hidden group-hover:block"
               >
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
@@ -89,7 +96,14 @@ export const TerminalPane = memo(function TerminalPane({
           title={rightExpanded ? 'Restore pane size' : 'Expand pane'}
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             {rightExpanded ? (
               <path d="M10 14 3 21m0-6v6h6M14 10l7-7m-6 0h6v6" />
             ) : (
@@ -102,7 +116,14 @@ export const TerminalPane = memo(function TerminalPane({
           title="Close terminal pane"
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>

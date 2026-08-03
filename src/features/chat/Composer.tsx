@@ -92,11 +92,9 @@ export function Composer({
         run: () => {
           const name = window.prompt('Session name')
           if (name)
-            void window.pidex
-              .piCommand(sessionId, { type: 'set_session_name', name })
-              .then((r) => {
-                if (r.success) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
-              })
+            void window.pidex.piCommand(sessionId, { type: 'set_session_name', name }).then((r) => {
+              if (r.success) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+            })
         },
       },
     ],
@@ -340,7 +338,7 @@ export function Composer({
 
   const placeholder = isStreaming
     ? 'Steer with Enter · queue follow-up with ⌥Enter · Esc to stop'
-    : "Describe a task…  ( / commands · @ files · ! shell )"
+    : 'Describe a task…  ( / commands · @ files · ! shell )'
 
   return (
     <div className="shrink-0 px-6 pb-4 pt-1">
@@ -400,7 +398,10 @@ export function Composer({
             value={text}
             onChange={(event) => {
               setText(event.target.value)
-              updateOverlays(event.target.value, event.target.selectionStart ?? event.target.value.length)
+              updateOverlays(
+                event.target.value,
+                event.target.selectionStart ?? event.target.value.length,
+              )
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
@@ -444,7 +445,12 @@ export function Composer({
           </div>
         </div>
 
-        <div className={clsx('text-text-tertiary px-2 pt-1.5 text-[10.5px]', !text.startsWith('!') && 'opacity-0')}>
+        <div
+          className={clsx(
+            'text-text-tertiary px-2 pt-1.5 text-[10.5px]',
+            !text.startsWith('!') && 'opacity-0',
+          )}
+        >
           <span className="font-mono">!cmd</span> runs in your shell and enters context on the next
           prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
         </div>

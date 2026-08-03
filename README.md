@@ -1,0 +1,91 @@
+# pidex
+
+A desktop coding-agent app for macOS, Linux and Windows, powered entirely by the
+[pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
+
+Open a project folder, describe a task, and work alongside the agent: rich chat
+(markdown, diffs, diagrams, charts, sandboxed HTML previews), a file explorer with
+a Monaco editor, reviewable diffs of everything the agent changed, a real terminal,
+and a versioned artifacts panel.
+
+## Install
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://github.com/pidex-app/pidex/releases/latest/download/install.sh | sh
+```
+
+Windows: download the `.exe` installer from the
+[latest release](https://github.com/pidex-app/pidex/releases/latest).
+
+pidex needs `pi` on your PATH:
+
+```bash
+npm install -g @earendil-works/pi-coding-agent
+```
+
+The app shows a setup screen until pi is available. Sign in to a provider by
+running `pi` in pidex's built-in terminal and using `/login`, or configure API
+keys / a local endpoint in `~/.pi/agent/`.
+
+## What it does
+
+- **Sessions are real pi subprocesses.** One `pi --mode rpc` per live session,
+  spawned in the workspace folder. Everything pi exposes over RPC is reachable
+  from the UI — models, thinking levels, steering and follow-up queues,
+  compaction, auto-retry, forks, clones, session export.
+- **No permission prompts.** pi runs in full-permission mode; tool calls execute
+  and stream their results.
+- **Rich responses are first-class.** GFM markdown, syntax-highlighted code,
+  mermaid diagrams, Chart.js and Vega-Lite specs, KaTeX math, and model-authored
+  HTML rendered in a sandboxed iframe.
+- **Every change is reviewable.** The Changes panel accumulates the agent's
+  edits with per-file diffs against a session baseline, and per-file revert.
+- **Session tree.** Visualize the branch structure of a session, jump to any
+  point, fork from it, or bookmark it.
+- **Artifacts.** A bundled pi extension adds `artifact_create` / `artifact_update`
+  tools; substantial deliverables land in a versioned side panel with previews
+  and diffs between versions, and survive app restarts via session replay.
+
+## Development
+
+Requires Node 22+ (pi itself requires Node ≥ 22.19).
+
+```bash
+npm install
+npm run dev
+```
+
+| Script              | Purpose                                               |
+| ------------------- | ----------------------------------------------------- |
+| `npm run dev`       | Electron + Vite dev server with HMR                   |
+| `npm run typecheck` | TypeScript project checks (main + renderer)           |
+| `npm run lint`      | ESLint                                                |
+| `npm test`          | Vitest unit tests                                     |
+| `npm run test:e2e`  | Playwright-Electron smoke tests                       |
+| `npm run dist`      | Package for the current platform via electron-builder |
+
+### Architecture
+
+```
+electron/          main process — pi RPC clients, PTYs, fs/git, watchers, prefs
+  pi/              PiRpcClient (strict LF JSONL framing), session scanner/writer
+  pty/             node-pty manager
+  fs/              file service, git service, workspace watcher
+shared/            types shared by main + renderer (ipc, rpc, models)
+src/               renderer (React) — pure UI over typed IPC
+  features/        chat, files, terminal, artifacts, sessions, settings, palette
+  stores/          zustand stores (projections of main-process state)
+pi-ext/            bundled pi extension (artifacts tools)
+e2e/               Playwright-Electron smoke tests + deterministic pi stub
+specs/             product and domain specifications
+```
+
+The main process owns all side effects. The renderer runs with
+`contextIsolation`, no Node integration, and a strict CSP; model-authored HTML
+only ever renders inside a sandboxed iframe.
+
+## License
+
+MIT

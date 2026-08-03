@@ -21,9 +21,7 @@ function agentDir(): string {
  */
 export async function readAgentSettings(workspacePath?: string): Promise<PiAgentSettings> {
   const global = await readJson(join(agentDir(), 'settings.json'))
-  const project = workspacePath
-    ? await readJson(join(workspacePath, '.pi', 'settings.json'))
-    : {}
+  const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : {}
   return { ...global, ...project }
 }
 
@@ -67,7 +65,12 @@ export async function patchAgentSettings(
   const merged = { ...current, ...patch }
   // Nested objects (compaction/retry) merge one level deep.
   for (const key of ['compaction', 'retry'] as const) {
-    if (patch[key] && typeof patch[key] === 'object' && current[key] && typeof current[key] === 'object') {
+    if (
+      patch[key] &&
+      typeof patch[key] === 'object' &&
+      current[key] &&
+      typeof current[key] === 'object'
+    ) {
       merged[key] = { ...(current[key] as object), ...(patch[key] as object) }
     }
   }

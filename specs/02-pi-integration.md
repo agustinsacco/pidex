@@ -20,27 +20,27 @@ $(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the pr
 
 ## RPC commands (complete set — every one gets UI, see feature specs)
 
-| Command | Notes |
-|---|---|
-| `prompt` | `message`, optional `images[]` ({type:"image", data: base64, mimeType}), optional `streamingBehavior: "steer"\|"followUp"` — **required** if agent is streaming, else the command errors |
-| `steer` / `follow_up` | queue messages during streaming (steer = after current turn's tool calls; follow-up = after agent finishes) |
-| `abort` | stop current run |
-| `new_session` | optional `parentSession` path |
-| `get_state` | model, thinkingLevel, isStreaming, isCompacting, steering/followUp modes, sessionFile/Id/Name, autoCompaction, counts |
-| `get_messages` | full AgentMessage[] history (used on resume/attach) |
-| `set_model` (provider, modelId) / `cycle_model` / `get_available_models` | models = full Model objects (id, name, provider, reasoning, contextWindow, cost…) |
-| `set_thinking_level` / `cycle_thinking_level` | off\|minimal\|low\|medium\|high\|xhigh |
-| `set_steering_mode` / `set_follow_up_mode` | "all" \| "one-at-a-time" |
-| `compact` | optional customInstructions; returns summary + tokensBefore |
-| `set_auto_compaction` / `set_auto_retry` / `abort_retry` | toggles + retry cancel |
-| `bash` | runs immediately, output enters LLM context **on next prompt**; `excludeFromContext` supported; result may be truncated with `fullOutputPath` |
-| `abort_bash` | |
-| `get_session_stats` | tokens {input, output, cacheRead, cacheWrite}, cost, contextUsage {tokens, contextWindow, percent} |
-| `export_html` | optional outputPath; returns written path |
-| `switch_session` (path) / `fork` (entryId) / `clone` / `get_fork_messages` | session tree operations; fork/clone may be `cancelled` by extensions |
-| `get_last_assistant_text` | |
-| `set_session_name` | |
-| `get_commands` | slash commands: `{name, description?, source: "extension"\|"prompt"\|"skill", path?}` — invoke by sending `/name …` as a `prompt` |
+| Command                                                                    | Notes                                                                                                                                                                                    |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`                                                                   | `message`, optional `images[]` ({type:"image", data: base64, mimeType}), optional `streamingBehavior: "steer"\|"followUp"` — **required** if agent is streaming, else the command errors |
+| `steer` / `follow_up`                                                      | queue messages during streaming (steer = after current turn's tool calls; follow-up = after agent finishes)                                                                              |
+| `abort`                                                                    | stop current run                                                                                                                                                                         |
+| `new_session`                                                              | optional `parentSession` path                                                                                                                                                            |
+| `get_state`                                                                | model, thinkingLevel, isStreaming, isCompacting, steering/followUp modes, sessionFile/Id/Name, autoCompaction, counts                                                                    |
+| `get_messages`                                                             | full AgentMessage[] history (used on resume/attach)                                                                                                                                      |
+| `set_model` (provider, modelId) / `cycle_model` / `get_available_models`   | models = full Model objects (id, name, provider, reasoning, contextWindow, cost…)                                                                                                        |
+| `set_thinking_level` / `cycle_thinking_level`                              | off\|minimal\|low\|medium\|high\|xhigh                                                                                                                                                   |
+| `set_steering_mode` / `set_follow_up_mode`                                 | "all" \| "one-at-a-time"                                                                                                                                                                 |
+| `compact`                                                                  | optional customInstructions; returns summary + tokensBefore                                                                                                                              |
+| `set_auto_compaction` / `set_auto_retry` / `abort_retry`                   | toggles + retry cancel                                                                                                                                                                   |
+| `bash`                                                                     | runs immediately, output enters LLM context **on next prompt**; `excludeFromContext` supported; result may be truncated with `fullOutputPath`                                            |
+| `abort_bash`                                                               |                                                                                                                                                                                          |
+| `get_session_stats`                                                        | tokens {input, output, cacheRead, cacheWrite}, cost, contextUsage {tokens, contextWindow, percent}                                                                                       |
+| `export_html`                                                              | optional outputPath; returns written path                                                                                                                                                |
+| `switch_session` (path) / `fork` (entryId) / `clone` / `get_fork_messages` | session tree operations; fork/clone may be `cancelled` by extensions                                                                                                                     |
+| `get_last_assistant_text`                                                  |                                                                                                                                                                                          |
+| `set_session_name`                                                         |                                                                                                                                                                                          |
+| `get_commands`                                                             | slash commands: `{name, description?, source: "extension"\|"prompt"\|"skill", path?}` — invoke by sending `/name …` as a `prompt`                                                        |
 
 ## Events (stdout stream)
 
@@ -72,15 +72,15 @@ Map to native pidex UI: modal sheets for dialogs, toasts, status strip, composer
 
 ### Built-in tools and their `details` payloads
 
-| Tool | Input | details / render notes |
-|---|---|---|
-| `read` | path, offset?, limit? | truncation info; images come back as image content blocks |
-| `bash` | command, timeout? | truncation + `fullOutputPath`; stream via tool_execution_update |
-| `edit` | path, edits[{oldText,newText}] | **`details.diff` (display diff), `details.patch` (unified patch), `details.firstChangedLine`** |
-| `write` | path, content | — |
-| `grep` | pattern, path?, glob?, ignoreCase?, literal?, context?, limit? | matchLimitReached, linesTruncated |
-| `find` | pattern, path?, limit? | resultLimitReached |
-| `ls` | path?, limit? | entryLimitReached |
+| Tool    | Input                                                          | details / render notes                                                                         |
+| ------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `read`  | path, offset?, limit?                                          | truncation info; images come back as image content blocks                                      |
+| `bash`  | command, timeout?                                              | truncation + `fullOutputPath`; stream via tool_execution_update                                |
+| `edit`  | path, edits[{oldText,newText}]                                 | **`details.diff` (display diff), `details.patch` (unified patch), `details.firstChangedLine`** |
+| `write` | path, content                                                  | —                                                                                              |
+| `grep`  | pattern, path?, glob?, ignoreCase?, literal?, context?, limit? | matchLimitReached, linesTruncated                                                              |
+| `find`  | pattern, path?, limit?                                         | resultLimitReached                                                                             |
+| `ls`    | path?, limit?                                                  | entryLimitReached                                                                              |
 
 Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state.
 

@@ -141,7 +141,10 @@ function WorkspaceSwitcher(): React.JSX.Element {
       </button>
 
       {open && (
-        <PopupMenu onClose={() => setOpen(false)} className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5">
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
+        >
           <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
             Workspaces
           </div>
@@ -348,7 +351,15 @@ export function relativeTime(ms: number): string {
 
 function ChevronDown(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-text-tertiary shrink-0">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      className="text-text-tertiary shrink-0"
+    >
       <path d="m6 9 6 6 6-6" />
     </svg>
   )
@@ -356,7 +367,13 @@ function ChevronDown(): React.JSX.Element {
 
 function PinIcon(): React.JSX.Element {
   return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" className="text-text-tertiary shrink-0">
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="text-text-tertiary shrink-0"
+    >
       <path d="M16 3a1 1 0 0 1 .97 1.24l-1.09 4.34 3.83 3.83a1 1 0 0 1-.7 1.71H13.5v6.38a1 1 0 0 1-2 0v-6.38H6a1 1 0 0 1-.71-1.71l3.83-3.83L8.03 4.24A1 1 0 0 1 9 3h7z" />
     </svg>
   )
@@ -364,7 +381,14 @@ function PinIcon(): React.JSX.Element {
 
 function GearIcon(): React.JSX.Element {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>

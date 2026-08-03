@@ -1,6 +1,14 @@
 import { memo } from 'react'
 import clsx from 'clsx'
-import type { AssistantBlock, AssistantItem, BashItem, ChatItem, DividerItem, ToolState, UserItem } from './reducer'
+import type {
+  AssistantBlock,
+  AssistantItem,
+  BashItem,
+  ChatItem,
+  DividerItem,
+  ToolState,
+  UserItem,
+} from './reducer'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ThinkingBlock } from './blocks/ThinkingBlock'
 import { ToolCard } from './tools/ToolCard'
@@ -32,7 +40,13 @@ export const MessageItemView = memo(function MessageItemView({
   }
 })
 
-function UserMessage({ item, sessionId }: { item: UserItem; sessionId: string }): React.JSX.Element {
+function UserMessage({
+  item,
+  sessionId,
+}: {
+  item: UserItem
+  sessionId: string
+}): React.JSX.Element {
   return (
     <div className="group flex flex-col items-end gap-1.5">
       {item.images && item.images.length > 0 && (
@@ -55,7 +69,14 @@ function UserMessage({ item, sessionId }: { item: UserItem; sessionId: string })
               title="Fork from here (edit & resend)"
               className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center rounded-md px-1.5 transition-colors"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="6" cy="6" r="2.5" />
                 <circle cx="6" cy="18" r="2.5" />
                 <circle cx="18" cy="6" r="2.5" />
@@ -113,7 +134,11 @@ function AssistantMessage({
             <div key={`tools-${i}`} className="my-2">
               {group.map((block) =>
                 block.type === 'tool' ? (
-                  <ToolBlockView key={block.toolCallId} toolCallId={block.toolCallId} tools={tools} />
+                  <ToolBlockView
+                    key={block.toolCallId}
+                    toolCallId={block.toolCallId}
+                    tools={tools}
+                  />
                 ) : null,
               )}
             </div>
@@ -153,7 +178,10 @@ function AssistantMessage({
       {failed && (
         <div className="bg-danger-soft border-danger/25 mt-2 rounded-lg border px-3.5 py-2.5 text-[13px]">
           <span className="text-danger font-medium">Error</span>
-          <span className="text-text-secondary"> — {item.errorMessage ?? 'The model request failed.'}</span>
+          <span className="text-text-secondary">
+            {' '}
+            — {item.errorMessage ?? 'The model request failed.'}
+          </span>
         </div>
       )}
       {aborted && (
