@@ -10,7 +10,7 @@
 |---|---|---|
 | P0 | Scaffold + RPC client + minimal streaming chat | ✅ |
 | P1 | Full chat rendering | ✅ |
-| P2 | Workspaces, sessions, sidebar, resume, tree | ⬜ |
+| P2 | Workspaces, sessions, sidebar, resume, tree | ✅ |
 | P3 | Files pane, editor, diffs | ⬜ |
 | P4 | Terminal | ⬜ |
 | P5 | Artifacts | ⬜ |
@@ -60,22 +60,23 @@ Specs: [04-chat.md](04-chat.md) · [02-pi-integration.md](02-pi-integration.md)
 
 ---
 
-## P2 — Workspaces, sessions, sidebar, resume, tree  `⬜`
+## P2 — Workspaces, sessions, sidebar, resume, tree  `✅`
 Specs: [03-ui-shell.md](03-ui-shell.md) · [08-sessions.md](08-sessions.md)
 
-- [ ] Workspace switcher + native folder picker + recents (app prefs)
-- [ ] Session-dir scanner (JSONL header/name/first-message/mtime) + chokidar live updates + metadata cache
-- [ ] Sidebar: session list w/ running indicators, pin, rename, delete(trash), export, fork, clone context menu
-- [ ] Multiple concurrent live sessions; instant switching; background streaming with unread badges
-- [ ] Resume: `--session <path>` + `get_messages` hydration
-- [ ] Fork (from sidebar picker and from chat user-message), clone; handle `cancelled` responses
-- [ ] Session tree view: parse tree, visualize branches/labels/leaf, jump/fork/label/preview actions, pan/zoom
-- [ ] Crash banner + one-click resume; clean child shutdown on quit
-- [ ] Onboarding: no-models state with "open terminal for `pi` login" hand-off (stub terminal OK until P4)
+- [x] Workspace switcher + native folder picker + recents (app prefs)
+- [x] Session-dir scanner (JSONL header/name/first-message/mtime) + chokidar live updates + metadata cache
+- [x] Sidebar: session list w/ running indicators, pin, rename, delete(trash), export, fork, clone context menu
+- [x] Multiple concurrent live sessions; instant switching; background streaming with unread badges
+- [x] Resume: `--session <path>` + `get_messages` hydration
+- [x] Fork (from sidebar picker and from chat user-message), clone; handle `cancelled` responses
+- [x] Session tree view: parse tree, visualize branches/labels/leaf, jump/fork/label/preview actions, pan/zoom
+- [x] Crash banner + one-click resume; clean child shutdown on quit
+- [x] Onboarding: no-models state with "open terminal for `pi` login" hand-off (stub terminal OK until P4)
 
 **Done when:** you can juggle two workspaces and 3+ concurrent sessions, resume yesterday's session, and fork from mid-conversation via the tree.
 
 **Log:**
+- 2026-08-03 — P2 complete. Scanner parses header/name/first-msg/counts/tokens in one pass with an mtime+size cache; **pi mangles the realpath'd cwd** (`/var`→`/private/var`) into `--segments--` — verified live and handled. Home screen matches `home-*.png`: serif greeting, 4 stat tiles, blue activity heatmap, Local/folder/branch chips, first-prompt composer. Sidebar matches `sidebar-sessions.png`: pinned/recent, live dot + streaming spinner + unread badges, full context menu. Resume verified E2E against real pi (create→kill→`--session`→`get_messages` hydration). Tree view: SVG pan/zoom, user-message primary nodes, collapsed-run `+N` pills, label bookmarks, active-path accent, leaf ring; actions = jump (documented `branch_summary` append mechanism), fork-at-node (file copy w/ fresh header id + parentSession + leaf jump), label (append `label` entry) — session-file writes only happen after disposing any live subprocess. 43 tests green (scanner, writers, tree layout added). Deviations: (1) tree "jump" for a live session disposes+reappends+respawns (RPC has no `branch()` command); (2) fork-from-sidebar spawns `--fork <path>` (leaf fork); mid-conversation forks use the in-chat fork picker (`get_fork_messages`→`fork`) with edit-and-refork prefill; (3) keyboard nav in tree deferred to P6 a11y pass.
 
 ---
 

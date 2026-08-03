@@ -1,10 +1,15 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { basename } from 'node:path'
+import { userInfo } from 'node:os'
 import { checkPiHealth } from './pi/health'
 import { SessionRegistry } from './pi/session-registry'
 import { listWorkspaceFiles } from './fs/list-files'
 import { readAgentSettings } from './pi/agent-settings'
-import { getPrefs, recordWorkspace, setTheme } from './store'
+import { listSessions, readSessionTree, workspaceStats } from './pi/session-scanner'
+import { watchWorkspaceSessions } from './pi/session-watcher'
+import { appendBranchJump, appendLabel, forkSessionAt } from './pi/session-writer'
+import { gitInfo } from './fs/git-info'
+import { getPrefs, recordWorkspace, setPinnedSessions, setTheme } from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
@@ -87,6 +92,12 @@ export function registerIpcHandlers(): void {
     setTheme(theme)
   })
 
+  handle('app:setPinnedSessions', (_event, paths) => {
+    setPinnedSessions(paths)
+  })
+
+  handle('app:userInfo', () => ({ username: userInfo().username }))
+
   handle('app:selectFolder', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const result = await dialog.showOpenDialog(window!, {
@@ -116,4 +127,32 @@ export function registerIpcHandlers(): void {
   handle('fs:listFiles', (_event, workspacePath: string) => listWorkspaceFiles(workspacePath))
 
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
+
+  handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
+
+  handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
+
+  handle('sessions:watch', (_event, workspacePath: string) => {
+    watchWorkspaceSessions(workspacePath)
+  })
+
+  handle('sessions:delete', async (_event, sessionFilePath: string) => {
+    await shell.trashItem(sessionFilePath)
+  })
+
+  handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
+
+  handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {
+    await appendLabel(sessionFilePath, targetId, label)
+  })
+
+  handle('sessions:jump', async (_event, sessionFilePath, targetId) => {
+    await appendBranchJump(sessionFilePath, targetId)
+  })
+
+  handle('sessions:forkAt', (_event, sessionFilePath, targetId) =>
+    forkSessionAt(sessionFilePath, targetId),
+  )
+
+  handle('git:info', (_event, workspacePath: string) => gitInfo(workspacePath))
 }

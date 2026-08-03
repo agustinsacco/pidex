@@ -14,11 +14,36 @@ import type {
 import type {
   AppPrefs,
   CreateSessionOptions,
+  GitInfo,
   LiveSessionInfo,
   PiHealth,
+  SessionMeta,
   SessionPush,
   ThemePreference,
+  WorkspaceSessionStats,
 } from './models'
+
+/** Parsed session tree (subset of entries) for the tree view. */
+export interface SessionTreeEntry {
+  id: string
+  parentId: string | null
+  type: string
+  timestamp: string
+  role?: string
+  preview?: string
+  toolName?: string
+  targetId?: string
+  label?: string
+  summary?: string
+  name?: string
+}
+
+export interface SessionTree {
+  sessionId: string
+  cwd: string
+  entries: SessionTreeEntry[]
+  leafId: string | null
+}
 
 export interface IpcInvokeMap {
   'pi:health': { args: []; result: PiHealth }
@@ -32,6 +57,8 @@ export interface IpcInvokeMap {
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
   'app:getPathForDisplay': { args: [string]; result: string }
+  'app:setPinnedSessions': { args: [string[]]; result: void }
+  'app:userInfo': { args: []; result: { username: string } }
   'app:saveDialog': {
     args: [{ title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }]
     result: string | null
@@ -40,6 +67,20 @@ export interface IpcInvokeMap {
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
+
+  'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
+  'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
+  'sessions:watch': { args: [workspacePath: string]; result: void }
+  'sessions:delete': { args: [sessionFilePath: string]; result: void }
+  'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
+  'sessions:appendLabel': {
+    args: [sessionFilePath: string, targetId: string, label: string | undefined]
+    result: void
+  }
+  'sessions:jump': { args: [sessionFilePath: string, targetId: string]; result: void }
+  'sessions:forkAt': { args: [sessionFilePath: string, targetId: string]; result: string }
+
+  'git:info': { args: [workspacePath: string]; result: GitInfo }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap
@@ -58,6 +99,9 @@ export interface PidexApi {
    * Returns an unsubscribe function.
    */
   onSessionPush(sessionId: string, listener: (push: SessionPush) => void): () => void
+
+  /** Session-dir change notifications (chokidar); returns unsubscribe. */
+  onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(

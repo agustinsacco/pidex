@@ -16,6 +16,7 @@ import {
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { Spinner } from './tools/ToolCard'
+import { useChatUiStore } from './uiState'
 
 interface PendingImage {
   data: string
@@ -59,6 +60,18 @@ export function Composer({
       void window.pidex.invoke('fs:listFiles', workspacePath).then(setWorkspaceFiles)
     }
   }, [mention, workspacePath])
+
+  // Prefill from fork (edit-and-refork) or extension set_editor_text.
+  const prefill = useChatUiStore((s) => s.prefill[sessionId])
+  useEffect(() => {
+    if (prefill !== undefined) {
+      const text = useChatUiStore.getState().consumePrefill(sessionId)
+      if (text !== undefined) {
+        setText(text)
+        textareaRef.current?.focus()
+      }
+    }
+  }, [prefill, sessionId])
 
   const nativeCommands = useMemo<NativeCommand[]>(
     () => [

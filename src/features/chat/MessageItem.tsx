@@ -5,21 +5,24 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { ThinkingBlock } from './blocks/ThinkingBlock'
 import { ToolCard } from './tools/ToolCard'
 import { CopyButton } from '@/components/CopyButton'
+import { useChatUiStore } from './uiState'
 
 interface MessageItemProps {
   item: ChatItem
   tools: Record<string, ToolState>
   hideThinking: boolean
+  sessionId: string
 }
 
 export const MessageItemView = memo(function MessageItemView({
   item,
   tools,
   hideThinking,
+  sessionId,
 }: MessageItemProps): React.JSX.Element {
   switch (item.kind) {
     case 'user':
-      return <UserMessage item={item} />
+      return <UserMessage item={item} sessionId={sessionId} />
     case 'assistant':
       return <AssistantMessage item={item} tools={tools} hideThinking={hideThinking} />
     case 'bash':
@@ -29,7 +32,7 @@ export const MessageItemView = memo(function MessageItemView({
   }
 })
 
-function UserMessage({ item }: { item: UserItem }): React.JSX.Element {
+function UserMessage({ item, sessionId }: { item: UserItem; sessionId: string }): React.JSX.Element {
   return (
     <div className="group flex flex-col items-end gap-1.5">
       {item.images && item.images.length > 0 && (
@@ -46,7 +49,19 @@ function UserMessage({ item }: { item: UserItem }): React.JSX.Element {
       {item.text && (
         <div className="bg-user-bubble relative max-w-[85%] rounded-xl px-4 py-2.5 text-[14px] whitespace-pre-wrap">
           {item.text}
-          <div className="absolute -left-7 top-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="absolute -left-14 top-1.5 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
+              title="Fork from here (edit & resend)"
+              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center rounded-md px-1.5 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="6" cy="6" r="2.5" />
+                <circle cx="6" cy="18" r="2.5" />
+                <circle cx="18" cy="6" r="2.5" />
+                <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
+              </svg>
+            </button>
             <CopyButton text={item.text} />
           </div>
         </div>

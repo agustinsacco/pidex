@@ -16,6 +16,13 @@ const api: PidexApi = {
     return () => ipcRenderer.removeListener(channel, wrapped)
   },
 
+  onSessionsChanged(listener: (payload: { workspacePath: string }) => void) {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: { workspacePath: string }) =>
+      listener(payload)
+    ipcRenderer.on('sessions:changed', wrapped)
+    return () => ipcRenderer.removeListener('sessions:changed', wrapped)
+  },
+
   piCommand(sessionId: string, command: RpcCommand) {
     return ipcRenderer.invoke('pi:command', sessionId, command)
   },

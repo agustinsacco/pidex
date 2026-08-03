@@ -132,6 +132,81 @@ function respond(command: RpcCommand): RpcResponse {
   }
 }
 
+const MOCK_DISK_SESSIONS = [
+  {
+    path: '/mock/sessions/a.jsonl',
+    sessionId: 'a',
+    cwd: '/Users/dev/projects/pidex',
+    createdAt: '2026-08-01T10:00:00.000Z',
+    name: 'Refactor auth module',
+    firstUserText: 'Refactor the auth module to use the new token service',
+    userMessages: 14,
+    assistantMessages: 18,
+    toolCalls: 42,
+    totalTokens: 812_000,
+    cost: 1.24,
+    entryCount: 96,
+    branchCount: 2,
+    mtimeMs: Date.now() - 3600_000,
+    lastActivityAt: '2026-08-03T09:00:00.000Z',
+  },
+  {
+    path: '/mock/sessions/b.jsonl',
+    sessionId: 'b',
+    cwd: '/Users/dev/projects/pidex',
+    createdAt: '2026-07-28T15:00:00.000Z',
+    firstUserText: 'Why is the vite build slow?',
+    userMessages: 3,
+    assistantMessages: 4,
+    toolCalls: 9,
+    totalTokens: 120_500,
+    cost: 0.31,
+    entryCount: 18,
+    branchCount: 0,
+    mtimeMs: Date.now() - 86_400_000 * 2,
+    lastActivityAt: '2026-08-01T12:00:00.000Z',
+  },
+]
+
+function mockStats(): Record<string, unknown> {
+  const activityByDay: Record<string, number> = {}
+  for (let i = 0; i < 120; i++) {
+    if (Math.sin(i * 1.7) > 0.2) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      activityByDay[d.toISOString().slice(0, 10)] = Math.ceil(Math.abs(Math.sin(i)) * 30)
+    }
+  }
+  return {
+    sessionCount: 212,
+    messages: 77_813,
+    tokens: 33_100_000,
+    cost: 148.2,
+    activeDays: 46,
+    activityByDay,
+  }
+}
+
+function mockTree(): Record<string, unknown> {
+  return {
+    sessionId: 'a',
+    cwd: '/Users/dev/projects/pidex',
+    leafId: 'u4',
+    entries: [
+      { id: 'u1', parentId: null, type: 'message', role: 'user', preview: 'Refactor the auth module to use the new token service', timestamp: '2026-08-01T10:00:00Z' },
+      { id: 'a1', parentId: 'u1', type: 'message', role: 'assistant', preview: 'Starting with the token service…', toolName: 'read, edit', timestamp: '2026-08-01T10:01:00Z' },
+      { id: 't1', parentId: 'a1', type: 'message', role: 'toolResult', toolName: 'edit', timestamp: '2026-08-01T10:01:30Z' },
+      { id: 'u2', parentId: 't1', type: 'message', role: 'user', preview: 'Actually use JWT rotation instead', timestamp: '2026-08-01T10:05:00Z' },
+      { id: 'a2', parentId: 'u2', type: 'message', role: 'assistant', preview: 'Switching to JWT rotation…', timestamp: '2026-08-01T10:06:00Z' },
+      { id: 'u3', parentId: 't1', type: 'message', role: 'user', preview: 'Add refresh-token support too', timestamp: '2026-08-01T11:00:00Z' },
+      { id: 'a3', parentId: 'u3', type: 'message', role: 'assistant', preview: 'Adding refresh tokens…', toolName: 'edit, bash', timestamp: '2026-08-01T11:02:00Z' },
+      { id: 'bs1', parentId: 'a3', type: 'branch_summary', summary: 'Explored JWT rotation on the abandoned branch.', timestamp: '2026-08-01T11:10:00Z' },
+      { id: 'u4', parentId: 'bs1', type: 'message', role: 'user', preview: 'Now write the tests', timestamp: '2026-08-01T11:15:00Z' },
+      { id: 'l1', parentId: 'u4', type: 'label', targetId: 'u2', label: 'jwt-experiment', timestamp: '2026-08-01T11:20:00Z' },
+    ],
+  }
+}
+
 export function installMockPidex(): void {
   const api: PidexApi = {
     invoke: (channel: string, ...args: unknown[]) => {
@@ -162,6 +237,16 @@ export function installMockPidex(): void {
           ])
         case 'pi:agentSettings':
           return Promise.resolve({})
+        case 'app:userInfo':
+          return Promise.resolve({ username: 'dev' })
+        case 'sessions:list':
+          return Promise.resolve(MOCK_DISK_SESSIONS)
+        case 'sessions:stats':
+          return Promise.resolve(mockStats())
+        case 'git:info':
+          return Promise.resolve({ isRepo: true, branch: 'main', dirtyCount: 3, ahead: 1, behind: 0 })
+        case 'sessions:readTree':
+          return Promise.resolve(mockTree())
         default:
           return Promise.resolve(undefined)
       }
@@ -172,6 +257,8 @@ export function installMockPidex(): void {
       listeners.set(sessionId, set)
       return () => set.delete(listener)
     },
+
+    onSessionsChanged: () => () => {},
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)('pi:command', sessionId, command),
   } as PidexApi
