@@ -13,7 +13,7 @@
 | P2 | Workspaces, sessions, sidebar, resume, tree | ✅ |
 | P3 | Files pane, editor, diffs | ✅ |
 | P4 | Terminal | ✅ |
-| P5 | Artifacts | ⬜ |
+| P5 | Artifacts | ✅ |
 | P6 | Settings, extension UI, theming, polish | ⬜ |
 | P7 | Packaging, installer, CI | ⬜ |
 
@@ -113,19 +113,20 @@ Specs: [06-terminal.md](06-terminal.md)
 
 ---
 
-## P5 — Artifacts  `⬜`
+## P5 — Artifacts  `✅`
 Specs: [07-artifacts.md](07-artifacts.md)
 
-- [ ] `pi-ext/artifacts.ts`: `artifact_create` / `artifact_update` tools (payload in `details`), version counter, system-prompt note; loaded via `-e` for every session
-- [ ] Artifacts pane: gallery, viewer (Code/Preview via chat renderers), auto-open on first artifact
-- [ ] Version history + Monaco diff between versions
-- [ ] Actions: copy, save to file, export PNG/SVG where applicable, open in Files pane
-- [ ] Replay on resume from `get_messages`; verify persistence through session JSONL
-- [ ] "Open as artifact" promotion from chat code blocks
+- [x] `pi-ext/artifacts.ts`: `artifact_create` / `artifact_update` tools (payload in `details`), version counter, system-prompt note; loaded via `-e` for every session
+- [x] Artifacts pane: gallery, viewer (Code/Preview via chat renderers), auto-open on first artifact
+- [x] Version history + Monaco diff between versions
+- [x] Actions: copy, save to file, export PNG/SVG where applicable, open in Files pane
+- [x] Replay on resume from `get_messages`; verify persistence through session JSONL
+- [x] "Open as artifact" promotion from chat code blocks
 
 **Done when:** "build me a dashboard mockup" yields a previewable, versioned artifact that survives app restart + session resume.
 
 **Log:**
+- 2026-08-03 — P5 complete. Extension uses `pi.registerTool` with `promptSnippet`/`promptGuidelines` (pi's native system-prompt surface — cleaner than a before_agent_start hook); version counters rebuild from `ctx.sessionManager.getBranch()` on session_start. **Live E2E against real pi passed**: create v1 → update v2 → kill → `--session` resume → `get_messages` replays both toolResults with full `details` → post-resume update lands as **v3** (counter continuity proven). Extension shipped from repo `pi-ext/` (dev) / `process.resourcesPath` (packaged, wired in P7), typechecked in-repo against dev-only `typebox` (runtime deps come from pi). Pane: gallery chips (type icon, title, vN), viewer with Preview/Code/Diff tabs, version picker, actions (copy, save-to-file, write-into-workspace+open in Files). Auto-open on a session's first artifact, unseen-dot on the header button. Enum params avoided (`Type.String` + description) for Google-API compatibility per pi docs. Deviations: PNG/SVG raster export deferred to P6 polish (save-to-file covers svg/mermaid sources today); `type` validated at execute-time instead of schema enum.
 
 ---
 

@@ -4,6 +4,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
+import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
 
 /** Right-hand region hosting Files / Changes / Terminal (artifacts joins in P5). */
 export const RightPane = memo(function RightPane({
@@ -14,11 +15,18 @@ export const RightPane = memo(function RightPane({
   const rightPane = useLayoutStore((s) => s.rightPane)
   if (!rightPane) return null
 
-  // The terminal panel brings its own header (Terminal + tabs ↗ ✕).
+  // Terminal and Artifacts bring their own headers.
   if (rightPane === 'terminal') {
     return (
       <div className="border-border h-full border-l">
         <TerminalPane workspacePath={workspacePath} />
+      </div>
+    )
+  }
+  if (rightPane === 'artifacts') {
+    return (
+      <div className="border-border h-full border-l">
+        <ArtifactsPane workspacePath={workspacePath} />
       </div>
     )
   }

@@ -91,6 +91,17 @@ export function attachSessionPushHandler(pidexId: string): void {
     switch (push.kind) {
       case 'event': {
         chatStore.applyEvent(pidexId, push.event)
+        if (
+          push.event.type === 'tool_execution_end' &&
+          !push.event.isError &&
+          (push.event.toolName === 'artifact_create' || push.event.toolName === 'artifact_update')
+        ) {
+          void import('./artifacts').then(({ useArtifactsStore }) =>
+            useArtifactsStore
+              .getState()
+              .ingest(pidexId, (push.event as { toolName: string }).toolName, (push.event as { result?: { details?: unknown } }).result?.details),
+          )
+        }
         const { activeSessionId } = useSessionsStore.getState()
         if (
           activeSessionId !== pidexId &&
@@ -176,6 +187,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           const messages = await window.pidex.piCommand(pidexId, { type: 'get_messages' })
           if (messages.success && messages.data) {
             useChatStore.getState().hydrate(pidexId, messages.data.messages)
+            // Rebuild artifacts by replaying persisted toolResult messages.
+            const { useArtifactsStore } = await import('./artifacts')
+            useArtifactsStore.getState().ingestFromHistory(pidexId, messages.data.messages)
           }
         } catch {
           // non-fatal

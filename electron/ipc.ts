@@ -1,5 +1,5 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { basename } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { basename, join as joinPath } from 'node:path'
 import { userInfo } from 'node:os'
 import { checkPiHealth } from './pi/health'
 import { SessionRegistry } from './pi/session-registry'
@@ -34,6 +34,14 @@ export const registry = new SessionRegistry()
 
 let cachedHealth: PiHealth | null = null
 
+/** Bundled pidex pi extension (dev: repo path; packaged: resources). */
+function artifactsExtensionPath(): string {
+  if (app.isPackaged) {
+    return joinPath(process.resourcesPath, 'pi-ext', 'artifacts.ts')
+  }
+  return joinPath(app.getAppPath(), 'pi-ext', 'artifacts.ts')
+}
+
 type Handler<C extends IpcInvokeChannel> = (
   event: Electron.IpcMainInvokeEvent,
   ...args: IpcInvokeMap[C]['args']
@@ -61,6 +69,8 @@ export function registerIpcHandlers(): void {
       model: options.model,
       provider: options.provider,
       thinkingLevel: options.thinkingLevel,
+      // The bundled artifacts extension rides along in every session.
+      extensions: [artifactsExtensionPath()],
     })
 
     const contents = event.sender

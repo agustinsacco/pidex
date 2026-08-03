@@ -7,6 +7,43 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 
 const SHELL_LANGUAGES = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'terminal', 'fish'])
 
+function artifactTypeForLanguage(
+  language: string,
+): 'html' | 'svg' | 'mermaid' | 'chart' | 'markdown' | 'code' {
+  switch (language.toLowerCase()) {
+    case 'html':
+      return 'html'
+    case 'svg':
+      return 'svg'
+    case 'mermaid':
+      return 'mermaid'
+    case 'chart':
+    case 'vega-lite':
+      return 'chart'
+    case 'markdown':
+    case 'md':
+      return 'markdown'
+    default:
+      return 'code'
+  }
+}
+
+async function promoteToArtifact(code: string, language: string): Promise<void> {
+  const [{ useArtifactsStore }, { useSessionsStore }] = await Promise.all([
+    import('@/stores/artifacts'),
+    import('@/stores/sessions'),
+  ])
+  const sessionId = useSessionsStore.getState().activeSessionId
+  if (!sessionId) return
+  const type = artifactTypeForLanguage(language)
+  useArtifactsStore.getState().addLocal(sessionId, {
+    title: `${language || 'code'} snippet`,
+    type,
+    language: type === 'code' ? language || undefined : undefined,
+    content: code,
+  })
+}
+
 interface CodeBlockProps {
   code: string
   language: string
@@ -42,6 +79,16 @@ export const CodeBlock = memo(function CodeBlock({
         <span className="font-mono text-[11px] uppercase tracking-wide">{language || 'text'}</span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
           {actions}
+          <button
+            title="Open as artifact"
+            onClick={() => void promoteToArtifact(code, language)}
+            className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="14" rx="2" />
+              <path d="M3 9h18M9 21h6" />
+            </svg>
+          </button>
           {SHELL_LANGUAGES.has(language.toLowerCase()) && (
             <button
               title="Run in terminal (pastes, doesn't execute)"
