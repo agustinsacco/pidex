@@ -34,6 +34,7 @@ export const MonacoEditor = memo(function MonacoEditor({
   const currentPathRef = useRef<string>(path)
   const suppressChange = useRef(false)
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme)
+  const fonts = useSettingsStore((s) => s.fonts)
 
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -48,11 +49,12 @@ export const MonacoEditor = memo(function MonacoEditor({
     void getMonaco().then((monaco) => {
       if (disposed || !containerRef.current) return
       monacoRef.current = monaco
+      const fonts = useSettingsStore.getState().fonts
       editor = monaco.editor.create(containerRef.current, {
         theme: monacoThemeFor(useSettingsStore.getState().resolvedTheme),
         automaticLayout: true,
-        fontSize: 12.5,
-        fontFamily: 'JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace',
+        fontSize: fonts.editorFontSize,
+        fontFamily: `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         padding: { top: 8 },
@@ -125,6 +127,14 @@ export const MonacoEditor = memo(function MonacoEditor({
   useEffect(() => {
     monacoRef.current?.editor.setTheme(monacoThemeFor(resolvedTheme))
   }, [resolvedTheme])
+
+  // Live font updates from settings.
+  useEffect(() => {
+    editorRef.current?.updateOptions({
+      fontSize: fonts.editorFontSize,
+      fontFamily: `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
+    })
+  }, [fonts])
 
   function attachModel(
     monaco: Monaco,

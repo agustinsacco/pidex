@@ -105,18 +105,38 @@ export interface FileContent {
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
+export interface FontPrefs {
+  /** Root font-size multiplier (1 = 100%). */
+  uiScale: number
+  chatFontSize: number
+  editorFontSize: number
+  terminalFontSize: number
+  /** Mono font family name (bundled options). */
+  monoFont: string
+}
+
+export const DEFAULT_FONT_PREFS: FontPrefs = {
+  uiScale: 1,
+  chatFontSize: 14.5,
+  editorFontSize: 12.5,
+  terminalFontSize: 12.5,
+  monoFont: 'JetBrains Mono',
+}
+
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
   lastWorkspacePath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
+  fonts: FontPrefs
 }
 
 export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'system',
   recentWorkspaces: [],
   pinnedSessions: [],
+  fonts: DEFAULT_FONT_PREFS,
 }
 
 /** Minimum pi version pidex is verified against. */

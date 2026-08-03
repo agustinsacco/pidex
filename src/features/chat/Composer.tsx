@@ -17,6 +17,7 @@ import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { Spinner } from './tools/ToolCard'
 import { useChatUiStore } from './uiState'
+import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 
 interface PendingImage {
   data: string
@@ -344,6 +345,7 @@ export function Composer({
   return (
     <div className="shrink-0 px-6 pb-4 pt-1">
       <RetryStrip sessionId={sessionId} />
+      <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
       <QueueChips
         sessionId={sessionId}
         onRecall={(queued) => {
@@ -446,6 +448,7 @@ export function Composer({
           <span className="font-mono">!cmd</span> runs in your shell and enters context on the next
           prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
         </div>
+        <WidgetSlot sessionId={sessionId} placement="belowEditor" />
       </div>
     </div>
   )

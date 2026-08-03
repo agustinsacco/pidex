@@ -15,6 +15,9 @@ async function bootstrap(): Promise<void> {
     void import('./stores/sessions').then((m) => {
       ;(window as unknown as Record<string, unknown>).__sessionsStore = m.useSessionsStore
     })
+    void import('./stores/extensionUi').then((m) => {
+      ;(window as unknown as Record<string, unknown>).__extUiStore = m.useExtensionUiStore
+    })
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -9,7 +9,16 @@ export function getPrefs(): AppPrefs {
     recentWorkspaces: store.get('recentWorkspaces'),
     lastWorkspacePath: store.get('lastWorkspacePath'),
     pinnedSessions: store.get('pinnedSessions') ?? [],
+    fonts: { ...DEFAULT_APP_PREFS.fonts, ...store.get('fonts') },
   }
+}
+
+export function setFontPrefs(fonts: AppPrefs['fonts']): void {
+  store.set('fonts', fonts)
+}
+
+export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {
+  store.set('recentWorkspaces', workspaces)
 }
 
 export function setPinnedSessions(paths: string[]): void {

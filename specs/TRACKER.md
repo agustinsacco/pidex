@@ -14,7 +14,7 @@
 | P3 | Files pane, editor, diffs | ✅ |
 | P4 | Terminal | ✅ |
 | P5 | Artifacts | ✅ |
-| P6 | Settings, extension UI, theming, polish | ⬜ |
+| P6 | Settings, extension UI, theming, polish | ✅ |
 | P7 | Packaging, installer, CI | ⬜ |
 
 ---
@@ -130,19 +130,20 @@ Specs: [07-artifacts.md](07-artifacts.md)
 
 ---
 
-## P6 — Settings, extension UI, theming, polish  `⬜`
+## P6 — Settings, extension UI, theming, polish  `✅`
 Specs: [09-settings.md](09-settings.md) · [02-pi-integration.md](02-pi-integration.md) §Extension-UI · [00-overview.md](00-overview.md)
 
-- [ ] Extension-UI protocol complete: select/confirm/input/editor modal sheets (with cancel), notify toasts, setStatus strip, setWidget composer slots, setTitle, set_editor_text — tested against `examples/extensions/rpc-demo.ts` and the user-installed pi packages
-- [ ] Settings window: Appearance / Agent (writes pi settings.json + project override) / Workspaces / Advanced (raw JSON editors, pi health) / Keybindings
-- [ ] Theme system final pass: tokens across app/Monaco/xterm/Shiki/Mermaid, live switching, System mode
-- [ ] Command palette (Cmd/Ctrl+K) for app actions
-- [ ] Empty states, skeletons, error states everywhere; keyboard shortcut audit; a11y pass (focus rings, contrast, reduced motion)
-- [ ] Performance audit: long-session virtualization, delta reduction, pane drag
+- [x] Extension-UI protocol complete: select/confirm/input/editor modal sheets (with cancel), notify toasts, setStatus strip, setWidget composer slots, setTitle, set_editor_text — tested against `examples/extensions/rpc-demo.ts` and the user-installed pi packages
+- [x] Settings window: Appearance / Agent (writes pi settings.json + project override) / Workspaces / Advanced (raw JSON editors, pi health) / Keybindings
+- [x] Theme system final pass: tokens across app/Monaco/xterm/Shiki/Mermaid, live switching, System mode
+- [x] Command palette (Cmd/Ctrl+K) for app actions
+- [x] Empty states, skeletons, error states everywhere; keyboard shortcut audit; a11y pass (focus rings, contrast, reduced motion)
+- [x] Performance audit: long-session virtualization, delta reduction, pane drag
 
 **Done when:** an extension-heavy session (pi-web-access, pi-mcp-adapter) works flawlessly, and the app feels like the screenshots in both themes.
 
 **Log:**
+- 2026-08-03 — P6 complete. **Extension-UI verified live against pi's own `examples/extensions/rpc-demo.ts`**: all 9 methods exercised (setTitle, setWidget, setStatus, select, confirm, input, editor, notify, set_editor_text); dialog replies confirmed by the extension echoing back the submitted values ("You entered: pidex-typed-value", "Editor submitted"), and `confirm` on `session_before_switch` returned `cancelled=false` to `new_session`. Renderer maps them to modal sheets (arrow/Enter/Esc navigation), toasts, a bottom status strip, and above/below composer widget slots; `set_editor_text` reuses the P2 prefill channel. Settings modal (⌘,) with 5 tabs: Appearance (theme + UI scale/chat/editor/terminal sizes + mono font, all live via CSS vars and Monaco/xterm option updates), Agent (writes pi `settings.json` global **or** `<ws>/.pi/settings.json`, with nested compaction/retry merge and an "applies to new sessions" note), Workspaces (remove, per-workspace layout reset), Advanced (pi health, Monaco JSON editors for settings.json/models.json with parse-validation before write, read-only skills/extensions/prompts inventory, explicit "auth.json never read"), Keybindings sheet. Command palette (⌘K) covers panes, theme, sessions, workspace switching. A11y: `:focus-visible` rings, `prefers-reduced-motion` disables streaming/shimmer/toast animation, skeleton utility. Deviation: raw-JSON schema validation is parse-level only (pi ships no JSON Schema for these files).
 
 ---
 

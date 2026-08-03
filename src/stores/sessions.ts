@@ -128,7 +128,9 @@ export function attachSessionPushHandler(pidexId: string): void {
         console.warn(`[pi stderr] ${push.text}`)
         break
       case 'extension-ui':
-        // Full protocol lands in P6.
+        void import('./extensionUi').then(({ useExtensionUiStore }) =>
+          useExtensionUiStore.getState().handleRequest(pidexId, push.request),
+        )
         break
     }
   })

@@ -8,6 +8,7 @@ import { showContextMenu } from '@/components/ContextMenu'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { Spinner } from '@/features/chat/tools/ToolCard'
 import { TreeViewModal } from './TreeViewModal'
+import { useSettingsUiStore } from '@/features/settings/SettingsModal'
 
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const disk = useSessionsStore((s) => s.disk[workspacePath]) ?? []
@@ -101,10 +102,11 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
       <div className="border-border border-t px-3 py-2.5">
         <button
-          className="text-text-secondary hover:text-text flex w-full items-center gap-2 text-[12.5px] transition-colors"
-          title="Settings (P6)"
+          onClick={() => useSettingsUiStore.getState().setOpen(true)}
+          className="text-text-secondary hover:text-text hover:bg-bg-secondary -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] transition-colors"
+          title="Settings (⌘,)"
         >
-          <GearIcon /> pidex
+          <GearIcon /> Settings
         </button>
       </div>
 

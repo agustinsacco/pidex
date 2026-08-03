@@ -21,6 +21,7 @@ export const TerminalView = memo(function TerminalView({
   const fitRef = useRef<FitAddon | null>(null)
   const searchRef = useRef<SearchAddon | null>(null)
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme)
+  const fonts = useSettingsStore((s) => s.fonts)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -30,9 +31,10 @@ export const TerminalView = memo(function TerminalView({
     const container = containerRef.current
     if (!container) return
 
+    const initialFonts = useSettingsStore.getState().fonts
     const term = new Terminal({
-      fontFamily: 'JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace',
-      fontSize: 12.5,
+      fontFamily: `${initialFonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
+      fontSize: initialFonts.terminalFontSize,
       lineHeight: 1.25,
       scrollback: 10_000,
       cursorBlink: true,
@@ -111,11 +113,19 @@ export const TerminalView = memo(function TerminalView({
     }
   }, [ptyId])
 
-  // Live theme switching.
+  // Live theme + font switching.
   useEffect(() => {
     const term = termRef.current
     if (term) term.options.theme = xtermTheme(resolvedTheme)
   }, [resolvedTheme])
+
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.fontSize = fonts.terminalFontSize
+    term.options.fontFamily = `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`
+    fitRef.current?.fit()
+  }, [fonts])
 
   // Refit + focus when this tab becomes visible.
   useEffect(() => {
