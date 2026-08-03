@@ -140,6 +140,29 @@ function runTurn() {
 
   push(() => out({ type: 'agent_start' }))
   push(() => out({ type: 'turn_start' }))
+  // Third consecutive call: makes this a 3-tool run (grouping) and stays
+  // "running" for several ticks so the in-flight animation is observable.
+  push(() =>
+    out({
+      type: 'tool_execution_start',
+      toolCallId: 'call_bash',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+    }),
+  )
+  // Hold this tool in flight long enough for the in-flight animation to be
+  // observable by the e2e assertion (and by a human watching).
+  push(() => new Promise((resolve) => setTimeout(resolve, 900)))
+  push(() =>
+    out({
+      type: 'tool_execution_end',
+      toolCallId: 'call_bash',
+      toolName: 'bash',
+      isError: false,
+      result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+    }),
+  )
+
   push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
   for (const delta of ['Editing ', 'the ', 'file ', 'now.']) {
     push(() =>
@@ -179,8 +202,21 @@ function runTurn() {
             name: 'edit',
             arguments: { path: 'hello.ts', edits: [] },
           },
+          {
+            type: 'toolCall',
+            id: 'call_art',
+            name: 'artifact_create',
+            arguments: { title: 'E2E Card' },
+          },
+          {
+            type: 'toolCall',
+            id: 'call_bash',
+            name: 'bash',
+            arguments: { command: 'npm test' },
+          },
         ],
         stopReason: 'toolUse',
+        timestamp: Date.now(),
       },
     }),
   )
@@ -239,7 +275,18 @@ function runTurn() {
       assistantMessageEvent: {
         type: 'text_delta',
         contentIndex: 0,
-        delta: 'Done: hello.ts updated.',
+        delta: 'Done: **hello.ts',
+      },
+    }),
+  )
+  push(() =>
+    out({
+      type: 'message_update',
+      message: { role: 'assistant', content: [] },
+      assistantMessageEvent: {
+        type: 'text_delta',
+        contentIndex: 0,
+        delta: '** updated.',
       },
     }),
   )
@@ -248,21 +295,21 @@ function runTurn() {
       type: 'message_end',
       message: {
         role: 'assistant',
-        content: [{ type: 'text', text: 'Done: hello.ts updated.' }],
+        content: [{ type: 'text', text: 'Done: **hello.ts** updated.' }],
         stopReason: 'stop',
+        timestamp: Date.now(),
       },
     }),
   )
   push(() => out({ type: 'agent_end', messages: [] }))
 
-  let i = 0
-  const timer = setInterval(() => {
-    if (i >= steps.length) {
-      clearInterval(timer)
-      return
+  // Sequential so a step may await (used to hold a tool "running").
+  void (async () => {
+    for (const step of steps) {
+      await step()
+      await new Promise((resolve) => setTimeout(resolve, 40))
     }
-    steps[i++]()
-  }, 40)
+  })()
 }
 
 process.on('SIGTERM', () => process.exit(0))

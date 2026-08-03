@@ -14,6 +14,8 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { ThinkingBlock } from './blocks/ThinkingBlock'
 import { ToolCard } from './tools/ToolCard'
 import { CopyButton } from '@/components/CopyButton'
+import { PiSpark } from '@/components/PiSpark'
+import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatUiStore } from './uiState'
 
 interface MessageItemProps {
@@ -134,6 +136,14 @@ function UserMessage({
           </div>
         </div>
       )}
+      {item.timestamp != null && (
+        <span
+          className="text-text-tertiary h-4 pr-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100"
+          title={absoluteTime(item.timestamp)}
+        >
+          {relativeTime(item.timestamp)}
+        </span>
+      )}
     </div>
   )
 }
@@ -217,8 +227,8 @@ function AssistantMessage({
       })}
 
       {item.streaming && item.blocks.length === 0 && (
-        <div className="text-accent py-1 text-xl leading-none">
-          <span className="pulse-spark">✳</span>
+        <div className="py-1">
+          <PiSpark />
         </div>
       )}
 
@@ -239,9 +249,18 @@ function AssistantMessage({
         </div>
       )}
 
+      {/*
+       * Reserved-height affordance row: rendering it always (rather than
+       * conditionally) keeps hovering from shifting the transcript.
+       */}
       {!item.streaming && fullText && (
-        <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100">
+        <div className="mt-1 flex h-6 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
           <CopyButton text={fullText} label="Copy" />
+          {item.timestamp != null && (
+            <span className="text-text-tertiary text-[11px]" title={absoluteTime(item.timestamp)}>
+              {relativeTime(item.timestamp)}
+            </span>
+          )}
           {item.usage?.cost?.total != null && (
             <span className="text-text-tertiary text-[10.5px]">
               ${item.usage.cost.total.toFixed(4)}

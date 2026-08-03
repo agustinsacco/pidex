@@ -51,8 +51,13 @@ export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): R
           failed ? 'text-danger' : 'text-text-secondary hover:text-text',
         )}
       >
-        {running && <Spinner />}
-        <span className="shrink-0">{summary.label}</span>
+        {running && (
+          <span
+            aria-hidden
+            className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full"
+          />
+        )}
+        <span className={clsx('shrink-0', running && 'tool-running-label')}>{summary.label}</span>
         {summary.object && (
           <span
             className={clsx(
@@ -78,7 +83,7 @@ export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): R
         <Chevron expanded={expanded} />
       </button>
       {expanded && (
-        <div className="border-border bg-surface mb-2 mt-0.5 overflow-hidden rounded-lg border">
+        <div className="border-border bg-surface expand-enter mb-2 mt-0.5 overflow-hidden rounded-lg border">
           <ToolDetail tool={tool} />
         </div>
       )}

@@ -75,7 +75,7 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     await page.getByRole('button', { name: /Start session/i }).click()
 
     // Streamed assistant text.
-    await expect(page.getByText('Done: hello.ts updated.')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     // Edit tool card with its diff.
     const editRow = page.getByRole('button', { name: /Edited\s+hello\.ts/ })
@@ -151,12 +151,62 @@ test('terminal pane spawns a real shell', async () => {
     // Start a session so the pane toggles are available.
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
     await page.getByRole('button', { name: /Start session/i }).click()
-    await expect(page.getByText('Done: hello.ts updated.')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
     await expect(page.getByText('Terminal', { exact: true })).toBeVisible({ timeout: 15_000 })
     // xterm renders into a canvas/rows container once the PTY is attached.
     await expect(page.locator('.xterm').first()).toBeVisible({ timeout: 15_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('tool run: grouping, in-flight animation, and clean streaming', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // The in-flight window is short, so watch for it with a MutationObserver
+    // rather than polling — a poll can straddle the whole window and miss it.
+    await page.evaluate(() => {
+      const w = window as unknown as { __sawRunning?: boolean }
+      w.__sawRunning = document.querySelector('.tool-running-dot') !== null
+      new MutationObserver(() => {
+        if (document.querySelector('.tool-running-dot')) w.__sawRunning = true
+      }).observe(document.body, { childList: true, subtree: true, attributes: true })
+    })
+
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // The running affordance appeared while tools were executing…
+    expect(
+      await page.evaluate(() => (window as unknown as { __sawRunning: boolean }).__sawRunning),
+    ).toBe(true)
+    // …and is gone now that the run finished.
+    await expect(page.locator('.tool-running-dot')).toHaveCount(0)
+
+    // All three calls from the run are present as rows.
+    await expect(page.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Ran/ })).toBeVisible()
+
+    // Streaming repair: the transcript briefly contained "**hello.ts" before
+    // its closing marker arrived. Raw asterisks must never survive to the DOM.
+    const transcript = await page.locator('.md-content').allInnerTexts()
+    expect(transcript.join('\n')).not.toContain('**')
+
+    // Spacing: messages are separated by more than the gap inside a message.
+    const gaps = await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
+      return nodes.slice(0, 4).map((n) => {
+        const inner = n.firstElementChild as HTMLElement | null
+        return inner ? parseFloat(getComputedStyle(inner).paddingTop) : 0
+      })
+    })
+    expect(Math.max(...gaps)).toBeGreaterThanOrEqual(12)
   } finally {
     await shutdown(harness)
   }
