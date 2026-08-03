@@ -155,7 +155,7 @@ export const TerminalView = memo(function TerminalView({
   }
 
   return (
-    <div className={visible ? 'relative h-full w-full' : 'hidden'}>
+    <div className={visible ? 'relative h-full min-h-0 w-full' : 'hidden'}>
       {searchOpen && (
         <div className="border-border bg-surface-raised absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border p-1 shadow-md">
           <input

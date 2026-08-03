@@ -2,7 +2,8 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
 import { useSessionsStore } from '@/stores/sessions'
-import { useLayoutStore, openFileInWorkspace } from '@/stores/layout'
+import { openFileInWorkspace } from '@/stores/layout'
+import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { Markdown } from '@/components/markdown/Markdown'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { MermaidBlock } from '@/components/markdown/MermaidBlock'
@@ -37,9 +38,8 @@ export const ArtifactsPane = memo(function ArtifactsPane({
 
   if (!activeSessionId || list.length === 0) {
     return (
-      <div className="flex h-full flex-col">
-        <PaneHeader title="Artifacts" />
-        <div className="flex flex-1 items-center justify-center px-6">
+      <PaneShell title={<PaneTitle label="Artifacts" />}>
+        <div className="flex h-full items-center justify-center px-6">
           <div className="text-center">
             <div className="text-text-tertiary text-[13px]">No artifacts yet</div>
             <div className="text-text-tertiary mt-1 text-[11.5px]">
@@ -48,13 +48,19 @@ export const ArtifactsPane = memo(function ArtifactsPane({
             </div>
           </div>
         </div>
-      </div>
+      </PaneShell>
     )
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <PaneHeader title="Artifacts" />
+    <PaneShell
+      title={
+        <PaneTitle
+          label="Artifacts"
+          meta={`${list.length} artifact${list.length === 1 ? '' : 's'}`}
+        />
+      }
+    >
       {list.length > 1 && (
         <div className="border-border flex shrink-0 gap-1.5 overflow-x-auto border-b px-2 py-1.5">
           {list.map((artifact) => (
@@ -80,50 +86,9 @@ export const ArtifactsPane = memo(function ArtifactsPane({
       {selected && (
         <ArtifactViewer key={selected.id} artifact={selected} workspacePath={workspacePath} />
       )}
-    </div>
+    </PaneShell>
   )
 })
-
-function PaneHeader({ title }: { title: string }): React.JSX.Element {
-  return (
-    <div className="border-border flex h-11 shrink-0 items-center gap-2 border-b px-3">
-      <span className="text-[13px] font-semibold">{title}</span>
-      <div className="flex-1" />
-      <button
-        onClick={() => useLayoutStore.getState().toggleRightExpanded()}
-        title="Expand pane"
-        className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-        </svg>
-      </button>
-      <button
-        onClick={() => useLayoutStore.getState().setRightPane(null)}
-        title="Close pane"
-        className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-      >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  )
-}
 
 function ArtifactViewer({
   artifact,

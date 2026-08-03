@@ -141,9 +141,47 @@ body {
 .dark .terminal-surface {
   background: #262624;
 }
+/**
+ * The pane is a flex column, so every wrapper between it and xterm needs
+ * min-height:0 — otherwise `.xterm { height: 100% }` resolves against an
+ * auto-height parent, the viewport collapses to nothing, and the DOM
+ * renderer paints an empty block instead of the shell.
+ */
+.terminal-surface {
+  min-height: 0;
+}
+.terminal-container {
+  min-height: 0;
+}
 .terminal-container .xterm {
   height: 100%;
   padding: 4px 6px;
+}
+/**
+ * xterm paints `.xterm-viewport` with its own default background (pure
+ * black) before/independently of the JS theme, which shows through as a
+ * hard black rectangle inside the pane card. Drive it from our tokens
+ * instead so it always matches the surrounding surface.
+ */
+.terminal-container .xterm-viewport {
+  background-color: var(--px-surface) !important;
+}
+.terminal-container .xterm-screen {
+  background-color: transparent;
+}
+/**
+ * xterm's bundled stylesheet draws a 1px border on .xterm-screen and shows a
+ * focus outline on the hidden textarea, which rendered as a heavy black box
+ * inside the pane card. The pane already provides the frame.
+ */
+.terminal-container .xterm,
+.terminal-container .xterm-screen,
+.terminal-container .xterm-viewport {
+  border: none !important;
+  outline: none !important;
+}
+.terminal-container .xterm .xterm-helper-textarea:focus {
+  outline: none !important;
 }
 
 /* Pane resize handles (react-resizable-panels) */
@@ -373,6 +411,30 @@ body {
 /* ---------------------------------------------------------------------------
  * Accessibility
  * ------------------------------------------------------------------------- */
+
+/**
+ * Pointer cursors on interactive elements.
+ *
+ * Tailwind v4's preflight drops the UA `cursor: pointer` on <button>, so
+ * without this every control in the app shows a text/arrow cursor and
+ * nothing reads as clickable. Declared once here rather than as ~70
+ * `cursor-pointer` utilities.
+ */
+button:not(:disabled),
+summary,
+select:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+[role='tab']:not([aria-disabled='true']),
+[role='option']:not([aria-disabled='true']),
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
 
 /* Visible focus rings for keyboard users only (no rings on mouse clicks). */
 :focus-visible {

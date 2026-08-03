@@ -1,12 +1,16 @@
 import { memo } from 'react'
 import clsx from 'clsx'
-import { useLayoutStore } from '@/stores/layout'
+import { useLayoutStore, type RightPane as RightPaneId } from '@/stores/layout'
+import { PaneShell } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
 
-/** Right-hand region hosting Files / Changes / Terminal (artifacts joins in P5). */
+/**
+ * Right-hand region: a floating rounded card inset from the chat (matching
+ * the reference), hosting exactly one pane at a time inside a shared shell.
+ */
 export const RightPane = memo(function RightPane({
   workspacePath,
 }: {
@@ -15,84 +19,62 @@ export const RightPane = memo(function RightPane({
   const rightPane = useLayoutStore((s) => s.rightPane)
   if (!rightPane) return null
 
-  // Terminal and Artifacts bring their own headers.
-  if (rightPane === 'terminal') {
-    return (
-      <div className="border-border h-full border-l">
-        <TerminalPane workspacePath={workspacePath} />
-      </div>
-    )
-  }
-  if (rightPane === 'artifacts') {
-    return (
-      <div className="border-border h-full border-l">
-        <ArtifactsPane workspacePath={workspacePath} />
-      </div>
-    )
-  }
-
   return (
-    <div className="border-border flex h-full flex-col border-l">
-      <div className="border-border flex h-11 shrink-0 items-center gap-1 border-b px-2">
-        <PaneTab
-          active={rightPane === 'files'}
-          onClick={() => useLayoutStore.getState().setRightPane('files')}
-        >
-          Files
-        </PaneTab>
-        <PaneTab
-          active={rightPane === 'changes'}
-          onClick={() => useLayoutStore.getState().setRightPane('changes')}
-        >
-          Changes
-        </PaneTab>
-        <div className="flex-1" />
-        <button
-          onClick={() => useLayoutStore.getState().setRightPane(null)}
-          title="Close pane"
-          className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-        >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div className="min-h-0 flex-1">
-        {rightPane === 'files' ? (
-          <FilesPane workspacePath={workspacePath} />
-        ) : (
-          <FilesChangedPane workspacePath={workspacePath} />
+    // Gutter + rounded card so the pane reads as a panel resting on the app
+    // background rather than a flush column welded to the window edge.
+    <div className="h-full py-2 pl-1 pr-2">
+      <div className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-xl border shadow-sm">
+        {rightPane === 'files' && (
+          <PaneShell title={<PaneSwitcher active="files" />}>
+            <FilesPane workspacePath={workspacePath} />
+          </PaneShell>
         )}
+        {rightPane === 'changes' && (
+          <PaneShell title={<PaneSwitcher active="changes" />}>
+            <FilesChangedPane workspacePath={workspacePath} />
+          </PaneShell>
+        )}
+        {rightPane === 'terminal' && <TerminalPane workspacePath={workspacePath} />}
+        {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
       </div>
     </div>
   )
 })
 
-function PaneTab({
+/**
+ * Files ⇄ Changes are two views of the same "working tree" surface, so they
+ * keep a segmented switcher in the title slot. Terminal and Artifacts are
+ * distinct panes and render a plain title instead.
+ */
+function PaneSwitcher({
   active,
-  onClick,
-  children,
 }: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
+  active: Extract<RightPaneId, 'files' | 'changes'>
 }): React.JSX.Element {
   return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
-        active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
-      )}
+    <div
+      className="border-border flex overflow-hidden rounded-lg border"
+      role="group"
+      aria-label="Pane"
     >
-      {children}
-    </button>
+      {(
+        [
+          { id: 'files', label: 'Files' },
+          { id: 'changes', label: 'Changes' },
+        ] as const
+      ).map(({ id, label }) => (
+        <button
+          key={id}
+          aria-pressed={active === id}
+          onClick={() => useLayoutStore.getState().setRightPane(id)}
+          className={clsx(
+            'px-2.5 py-1 text-[12px] font-medium transition-colors',
+            active === id ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
