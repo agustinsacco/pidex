@@ -129,6 +129,28 @@ body {
   background: transparent;
 }
 
+/* Pane resize handles (react-resizable-panels) */
+.pane-handle {
+  width: 5px;
+  background: transparent;
+  position: relative;
+  transition: background 0.15s;
+}
+.pane-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 2px;
+  background: var(--px-border);
+}
+.pane-handle:hover,
+.pane-handle[data-resize-handle-active] {
+  background: var(--px-accent-soft);
+}
+.pane-handle:hover::after,
+.pane-handle[data-resize-handle-active]::after {
+  background: var(--px-accent);
+}
+
 /* macOS traffic-light drag region */
 .titlebar-drag {
   -webkit-app-region: drag;

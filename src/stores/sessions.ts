@@ -23,6 +23,8 @@ interface SessionsState {
   disk: Record<string, SessionMeta[]>
   /** pidexId → unread activity count for background sessions. */
   unread: Record<string, number>
+  /** pidexId → git session baseline ref (null = not a repo). */
+  baselines: Record<string, string | null>
   pinned: string[]
   creating: boolean
 
@@ -127,6 +129,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   live: {},
   disk: {},
   unread: {},
+  baselines: {},
   pinned: [],
   creating: false,
 
@@ -152,6 +155,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const pidexId = info.sessionId
       useChatStore.getState().ensure(pidexId)
       attachSessionPushHandler(pidexId)
+
+      // Git baseline for the Files Changed panel ("changes since session start").
+      void window.pidex
+        .invoke('git:sessionBaseline', workspacePath)
+        .then((ref) => set((s) => ({ baselines: { ...s.baselines, [pidexId]: ref } })))
+        .catch(() => set((s) => ({ baselines: { ...s.baselines, [pidexId]: null } })))
       set((s) => ({
         live: {
           ...s.live,

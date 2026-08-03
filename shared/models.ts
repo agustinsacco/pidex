@@ -87,6 +87,22 @@ export interface GitInfo {
   dirtyCount?: number
 }
 
+export interface DirEntry {
+  name: string
+  path: string
+  relativePath: string
+  isDirectory: boolean
+}
+
+export interface FileContent {
+  path: string
+  content: string
+  size: number
+  mtimeMs: number
+  tooLarge?: boolean
+  binary?: boolean
+}
+
 export type ThemePreference = 'light' | 'dark' | 'system'
 
 export interface AppPrefs {

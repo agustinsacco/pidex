@@ -9,6 +9,21 @@ import { listSessions, readSessionTree, workspaceStats } from './pi/session-scan
 import { watchWorkspaceSessions } from './pi/session-watcher'
 import { appendBranchJump, appendLabel, forkSessionAt } from './pi/session-writer'
 import { gitInfo } from './fs/git-info'
+import {
+  createSessionBaseline,
+  gitStatusMap,
+  restoreFileTo,
+  showFileAt,
+} from './fs/git-service'
+import {
+  createDir,
+  createFile,
+  listDir,
+  readTextFile,
+  renamePath,
+  writeTextFile,
+} from './fs/fs-service'
+import { watchWorkspace } from './fs/workspace-watcher'
 import { getPrefs, recordWorkspace, setPinnedSessions, setTheme } from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
@@ -155,4 +170,40 @@ export function registerIpcHandlers(): void {
   )
 
   handle('git:info', (_event, workspacePath: string) => gitInfo(workspacePath))
+
+  handle('git:statusMap', (_event, workspacePath: string) => gitStatusMap(workspacePath))
+
+  handle('git:sessionBaseline', (_event, workspacePath: string) =>
+    createSessionBaseline(workspacePath),
+  )
+
+  handle('git:showFileAt', (_event, workspacePath, ref, relativePath) =>
+    showFileAt(workspacePath, ref, relativePath),
+  )
+
+  handle('git:restoreFileTo', (_event, workspacePath, ref, relativePath) =>
+    restoreFileTo(workspacePath, ref, relativePath),
+  )
+
+  handle('fs:readDir', (_event, workspacePath, dirPath, options) =>
+    listDir(workspacePath, dirPath, options),
+  )
+
+  handle('fs:readFile', (_event, path) => readTextFile(path))
+
+  handle('fs:writeFile', (_event, path, content) => writeTextFile(path, content))
+
+  handle('fs:createFile', (_event, path) => createFile(path))
+
+  handle('fs:createDir', (_event, path) => createDir(path))
+
+  handle('fs:rename', (_event, from, to) => renamePath(from, to))
+
+  handle('fs:trash', async (_event, path) => {
+    await shell.trashItem(path)
+  })
+
+  handle('fs:watchWorkspace', (_event, workspacePath) => {
+    watchWorkspace(workspacePath)
+  })
 }

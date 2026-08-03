@@ -14,6 +14,8 @@ import type {
 import type {
   AppPrefs,
   CreateSessionOptions,
+  DirEntry,
+  FileContent,
   GitInfo,
   LiveSessionInfo,
   PiHealth,
@@ -81,6 +83,32 @@ export interface IpcInvokeMap {
   'sessions:forkAt': { args: [sessionFilePath: string, targetId: string]; result: string }
 
   'git:info': { args: [workspacePath: string]; result: GitInfo }
+  'git:statusMap': { args: [workspacePath: string]; result: Record<string, string> }
+  'git:sessionBaseline': { args: [workspacePath: string]; result: string | null }
+  'git:showFileAt': {
+    args: [workspacePath: string, ref: string, relativePath: string]
+    result: string | null
+  }
+  'git:restoreFileTo': {
+    args: [workspacePath: string, ref: string, relativePath: string]
+    result: { restored: boolean; deleted: boolean }
+  }
+
+  'fs:readDir': {
+    args: [
+      workspacePath: string,
+      dirPath: string,
+      options: { showHidden?: boolean; respectGitignore?: boolean },
+    ]
+    result: DirEntry[]
+  }
+  'fs:readFile': { args: [path: string]; result: FileContent }
+  'fs:writeFile': { args: [path: string, content: string]; result: { mtimeMs: number } }
+  'fs:createFile': { args: [path: string]; result: void }
+  'fs:createDir': { args: [path: string]; result: void }
+  'fs:rename': { args: [from: string, to: string]; result: void }
+  'fs:trash': { args: [path: string]; result: void }
+  'fs:watchWorkspace': { args: [workspacePath: string]; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap
@@ -102,6 +130,11 @@ export interface PidexApi {
 
   /** Session-dir change notifications (chokidar); returns unsubscribe. */
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
+
+  /** Workspace file-change notifications; returns unsubscribe. */
+  onFsChanged(
+    listener: (payload: { workspacePath: string; paths: string[] }) => void,
+  ): () => void
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(
