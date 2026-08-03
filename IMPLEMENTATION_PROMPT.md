@@ -4,6 +4,19 @@ You are building **pidex**: a desktop coding-agent app for macOS/Linux/Windows, 
 
 The complete specification already exists in this repo. **Do not re-plan the product. Read the specs, then execute phase by phase.**
 
+## Reference Screenshots per Phase
+
+Before implementing UI code in any phase, inspect the relevant screenshots in `specs/screenshots/` using your image viewing capabilities:
+
+| Phase | Relevant Screenshots | What to match / study |
+|---|---|---|
+| **P1 — Full chat rendering** | `chat-tool-calls.png`<br>`chat-file-chips.png`<br>`chat-full-width.png`<br>`composer-plus-menu.png`<br>`composer-model-picker.png` | Collapsed chevrons on tool execution cards, GFM markdown rendering, code block badges, file preview chips, full-width mode, composer `+` popup menu, and model/effort picker dropdown. |
+| **P2 — Workspaces & Sidebar** | `home-light.png`<br>`home-populated.png`<br>`sidebar-sessions.png` | Greeting screen header ("What's up next?"), activity heatmap, stat tiles (Sessions, Messages, Tokens, Active days), workspace/branch/worktree chips at composer bottom, pinned routine sections, and right-click context menu on sidebar session items. |
+| **P3 — Files & Diffs** | `files-diff-pane.png` | Three-panel layout, right-hand Files Changed list with summary counts (`+N -M`), colored line insertions/deletions, and Monaco split patch view. |
+| **P4 — Terminal** | `terminal-pane.png` | Right-side sliding Terminal panel, header tabs (`Terminal +`), expand (`↗`) / close (`✕`) actions, and xterm font/theme styling. |
+| **P5 — Artifacts** | `artifact-panel.png` | Three-panel layout, right-hand Artifact viewer with share/reload controls, formatted artifact headers, metadata badges, and inline markdown/code previews. |
+| **P6 — Settings & Polish** | `settings.png`<br>`settings-connectors.png`<br>`profile-menu.png` | Main Settings modal window with sidebar navigation, theme appearance toggles, live code diff preview, Connectors list table, and bottom-left user profile menu. |
+
 ## Your working contract
 
 1. **Start by reading, in order:**
@@ -29,3 +42,4 @@ The complete specification already exists in this repo. **Do not re-plan the pro
    - Unknown/extension tools must render well generically — pi's ecosystem is extension-driven.
 
 Begin with P0 in [specs/TRACKER.md](specs/TRACKER.md).
+
