@@ -24,6 +24,7 @@ import {
   writeTextFile,
 } from './fs/fs-service'
 import { watchWorkspace } from './fs/workspace-watcher'
+import { ptyManager } from './pty/pty-manager'
 import { getPrefs, recordWorkspace, setPinnedSessions, setTheme } from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
@@ -205,5 +206,21 @@ export function registerIpcHandlers(): void {
 
   handle('fs:watchWorkspace', (_event, workspacePath) => {
     watchWorkspace(workspacePath)
+  })
+
+  handle('pty:create', (_event, workspacePath, cols, rows) =>
+    ptyManager.create(workspacePath, cols, rows),
+  )
+
+  handle('pty:write', (_event, ptyId, data) => {
+    ptyManager.write(ptyId, data)
+  })
+
+  handle('pty:resize', (_event, ptyId, cols, rows) => {
+    ptyManager.resize(ptyId, cols, rows)
+  })
+
+  handle('pty:kill', (_event, ptyId) => {
+    ptyManager.kill(ptyId)
   })
 }

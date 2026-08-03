@@ -109,6 +109,14 @@ export interface IpcInvokeMap {
   'fs:rename': { args: [from: string, to: string]; result: void }
   'fs:trash': { args: [path: string]; result: void }
   'fs:watchWorkspace': { args: [workspacePath: string]; result: void }
+
+  'pty:create': {
+    args: [workspacePath: string, cols: number, rows: number]
+    result: { ptyId: string }
+  }
+  'pty:write': { args: [ptyId: string, data: string]; result: void }
+  'pty:resize': { args: [ptyId: string, cols: number, rows: number]; result: void }
+  'pty:kill': { args: [ptyId: string]; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap
@@ -135,6 +143,11 @@ export interface PidexApi {
   onFsChanged(
     listener: (payload: { workspacePath: string; paths: string[] }) => void,
   ): () => void
+
+  /** PTY output stream; returns unsubscribe. */
+  onPtyData(ptyId: string, listener: (data: string) => void): () => void
+  /** PTY exit notification; returns unsubscribe. */
+  onPtyExit(ptyId: string, listener: (exitCode: number) => void): () => void
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(

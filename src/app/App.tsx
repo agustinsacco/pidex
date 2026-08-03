@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelHandle,
+} from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -48,6 +53,9 @@ export function App(): React.JSX.Element {
       } else if (event.key === 'g' && event.shiftKey) {
         event.preventDefault()
         useLayoutStore.getState().toggleRightPane('changes')
+      } else if (event.key === '`') {
+        event.preventDefault()
+        useLayoutStore.getState().toggleRightPane('terminal')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -108,10 +116,20 @@ function MainWithPanes({
   activeSessionId: string
 }): React.JSX.Element {
   const rightPane = useLayoutStore((s) => s.rightPane)
+  const rightExpanded = useLayoutStore((s) => s.rightExpanded)
+  const rightPanelRef = useRef<ImperativePanelHandle>(null)
+
+  // Expand (↗) toggles the right panel between its saved size and ~85%.
+  useEffect(() => {
+    const panel = rightPanelRef.current
+    if (!panel || !rightPane) return
+    if (rightExpanded) panel.resize(85)
+    else panel.resize(45)
+  }, [rightExpanded, rightPane])
 
   return (
     <PanelGroup direction="horizontal" autoSaveId={`pidex-main-${workspacePath}`}>
-      <Panel id="chat" order={1} minSize={30}>
+      <Panel id="chat" order={1} minSize={15}>
         <ChatView
           key={activeSessionId}
           sessionId={activeSessionId}
@@ -121,7 +139,7 @@ function MainWithPanes({
       {rightPane && (
         <>
           <PanelResizeHandle className="pane-handle" />
-          <Panel id="right" order={2} defaultSize={45} minSize={24}>
+          <Panel ref={rightPanelRef} id="right" order={2} defaultSize={45} minSize={24}>
             <RightPane workspacePath={workspacePath} />
           </Panel>
         </>

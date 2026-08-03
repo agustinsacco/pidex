@@ -3,8 +3,9 @@ import clsx from 'clsx'
 import { useLayoutStore } from '@/stores/layout'
 import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
+import { TerminalPane } from '@/features/terminal/TerminalPane'
 
-/** Right-hand region hosting Files / Changes views (artifacts joins in P5). */
+/** Right-hand region hosting Files / Changes / Terminal (artifacts joins in P5). */
 export const RightPane = memo(function RightPane({
   workspacePath,
 }: {
@@ -12,6 +13,15 @@ export const RightPane = memo(function RightPane({
 }): React.JSX.Element | null {
   const rightPane = useLayoutStore((s) => s.rightPane)
   if (!rightPane) return null
+
+  // The terminal panel brings its own header (Terminal + tabs ↗ ✕).
+  if (rightPane === 'terminal') {
+    return (
+      <div className="border-border h-full border-l">
+        <TerminalPane workspacePath={workspacePath} />
+      </div>
+    )
+  }
 
   return (
     <div className="border-border flex h-full flex-col border-l">
