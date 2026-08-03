@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react'
+import clsx from 'clsx'
+import type { GitInfo } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { useLayoutStore } from '@/stores/layout'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { SessionMenu } from './SessionMenu'
@@ -34,6 +38,8 @@ function Header({
   workspaceName: string
 }): React.JSX.Element {
   const sessionName = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionName)
+  const rightPane = useLayoutStore((s) => s.rightPane)
+  const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
 
   return (
     <header className="titlebar-drag flex h-11 shrink-0 items-center gap-2 pl-4 pr-3">
@@ -44,9 +50,96 @@ function Header({
         <span className="bg-bg-secondary text-text-secondary shrink-0 rounded-md px-2 py-0.5 text-[11.5px]">
           {workspaceName}
         </span>
+        {workspacePath && <GitChips workspacePath={workspacePath} />}
       </div>
+      <HeaderIconButton
+        title="Files pane (⌘⇧E)"
+        active={rightPane === 'files'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('files')}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      </HeaderIconButton>
+      <HeaderIconButton
+        title="Changes pane (⌘⇧G)"
+        active={rightPane === 'changes'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('changes')}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 3v6m0 6v6M5 12h14" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </HeaderIconButton>
       <SessionMenu sessionId={sessionId} />
     </header>
+  )
+}
+
+function HeaderIconButton({
+  title,
+  active,
+  onClick,
+  children,
+}: {
+  title: string
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={clsx(
+        'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+        active
+          ? 'bg-accent-soft text-accent'
+          : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Branch / ahead-behind / dirty chips, refreshed on fs changes. */
+function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
+  const [info, setInfo] = useState<GitInfo | null>(null)
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refresh = (): void => {
+      void window.pidex.invoke('git:info', workspacePath).then(setInfo)
+    }
+    refresh()
+    void window.pidex.invoke('fs:watchWorkspace', workspacePath)
+    const unsubscribe = window.pidex.onFsChanged((payload) => {
+      if (payload.workspacePath !== workspacePath) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(refresh, 500)
+    })
+    return () => {
+      unsubscribe()
+      if (timer) clearTimeout(timer)
+    }
+  }, [workspacePath])
+
+  if (!info?.isRepo || !info.branch) return null
+  return (
+    <span className="bg-bg-secondary text-text-secondary flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="6" cy="6" r="2.5" />
+        <circle cx="6" cy="18" r="2.5" />
+        <circle cx="18" cy="6" r="2.5" />
+        <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
+      </svg>
+      <span className="max-w-36 truncate">{info.branch}</span>
+      {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
+      {(info.behind ?? 0) > 0 && <span className="text-info">↓{info.behind}</span>}
+      {(info.dirtyCount ?? 0) > 0 && <span className="text-warning">·{info.dirtyCount}</span>}
+    </span>
   )
 }
 

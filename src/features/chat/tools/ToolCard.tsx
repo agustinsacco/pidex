@@ -6,6 +6,25 @@ import { DiffView } from './DiffView'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { CopyButton } from '@/components/CopyButton'
 import { Lightbox } from '@/components/Lightbox'
+import { openFileInWorkspace } from '@/stores/layout'
+import { useWorkspacesStore } from '@/stores/workspaces'
+
+/** Clickable path chip: opens the file in the Files pane (optionally at a line). */
+function PathLink({ path, line }: { path: string; line?: number }): React.JSX.Element {
+  const open = (): void => {
+    const workspacePath = useWorkspacesStore.getState().currentPath
+    if (workspacePath) void openFileInWorkspace(workspacePath, path, line)
+  }
+  return (
+    <button
+      onClick={open}
+      title={line !== undefined ? `Open at line ${line}` : 'Open in Files pane'}
+      className="text-text hover:text-accent truncate text-left font-mono text-[12px] underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
+    >
+      {path}
+    </button>
+  )
+}
 
 /**
  * One tool execution as a collapsed row (screenshot style) that expands to a
@@ -130,7 +149,7 @@ function EditDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   return (
     <div>
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-        <code className="text-text truncate font-mono text-[12px]">{path}</code>
+        <PathLink path={path} line={details?.firstChangedLine} />
         {stats && (
           <span className="shrink-0 font-mono text-[11.5px]">
             <span className="text-success">+{stats.additions}</span>{' '}
@@ -158,7 +177,7 @@ function WriteDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   return (
     <div className="[&_.code-block]:my-0 [&_.code-block]:rounded-none [&_.code-block]:border-0">
       <div className="border-border flex items-center justify-between border-b px-3 py-2">
-        <code className="text-text truncate font-mono text-[12px]">{path}</code>
+        <PathLink path={path} />
       </div>
       <div className="max-h-80 overflow-auto">
         <CodeBlock code={content} language={language} />
@@ -179,15 +198,15 @@ function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   return (
     <div>
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-        <code className="text-text truncate font-mono text-[12px]">
-          {path}
+        <span className="flex min-w-0 items-baseline gap-0.5">
+          <PathLink path={path} line={offset} />
           {offset != null && (
-            <span className="text-text-tertiary">
+            <span className="text-text-tertiary font-mono text-[12px]">
               :{offset}
               {limit != null ? `–${offset + limit}` : ''}
             </span>
           )}
-        </code>
+        </span>
         <CopyButton text={text} />
       </div>
       {images.length > 0 && (

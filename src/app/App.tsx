@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -10,6 +11,8 @@ import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { RightPane } from '@/features/files/RightPane'
+import { FuzzyFinder, useFinderStore } from '@/features/files/FuzzyFinder'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
@@ -23,7 +26,7 @@ export function App(): React.JSX.Element {
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
 
-  // Global shortcuts: Cmd/Ctrl+B sidebar, Cmd/Ctrl+N new session.
+  // Global shortcuts: Cmd/Ctrl+B sidebar, Cmd/Ctrl+N new session, Cmd/Ctrl+P finder.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const mod = event.metaKey || event.ctrlKey
@@ -34,6 +37,17 @@ export function App(): React.JSX.Element {
       } else if (event.key === 'n') {
         event.preventDefault()
         useSessionsStore.getState().activate(null)
+      } else if (event.key === 'p') {
+        event.preventDefault()
+        if (useWorkspacesStore.getState().currentPath) {
+          useFinderStore.getState().setOpen(true)
+        }
+      } else if (event.key === 'e' && event.shiftKey) {
+        event.preventDefault()
+        useLayoutStore.getState().toggleRightPane('files')
+      } else if (event.key === 'g' && event.shiftKey) {
+        event.preventDefault()
+        useLayoutStore.getState().toggleRightPane('changes')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -75,12 +89,43 @@ export function App(): React.JSX.Element {
       {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
       <main className="min-w-0 flex-1">
         {activeSessionId ? (
-          <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={currentWorkspace} />
+          <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
         ) : (
           <WorkspaceHome workspacePath={currentWorkspace} />
         )}
       </main>
+      <FuzzyFinder workspacePath={currentWorkspace} />
       <ContextMenuHost />
     </div>
+  )
+}
+
+function MainWithPanes({
+  workspacePath,
+  activeSessionId,
+}: {
+  workspacePath: string
+  activeSessionId: string
+}): React.JSX.Element {
+  const rightPane = useLayoutStore((s) => s.rightPane)
+
+  return (
+    <PanelGroup direction="horizontal" autoSaveId={`pidex-main-${workspacePath}`}>
+      <Panel id="chat" order={1} minSize={30}>
+        <ChatView
+          key={activeSessionId}
+          sessionId={activeSessionId}
+          workspacePath={workspacePath}
+        />
+      </Panel>
+      {rightPane && (
+        <>
+          <PanelResizeHandle className="pane-handle" />
+          <Panel id="right" order={2} defaultSize={45} minSize={24}>
+            <RightPane workspacePath={workspacePath} />
+          </Panel>
+        </>
+      )}
+    </PanelGroup>
   )
 }

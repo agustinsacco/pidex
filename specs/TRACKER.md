@@ -11,7 +11,7 @@
 | P0 | Scaffold + RPC client + minimal streaming chat | ✅ |
 | P1 | Full chat rendering | ✅ |
 | P2 | Workspaces, sessions, sidebar, resume, tree | ✅ |
-| P3 | Files pane, editor, diffs | ⬜ |
+| P3 | Files pane, editor, diffs | ✅ |
 | P4 | Terminal | ⬜ |
 | P5 | Artifacts | ⬜ |
 | P6 | Settings, extension UI, theming, polish | ⬜ |
@@ -80,20 +80,21 @@ Specs: [03-ui-shell.md](03-ui-shell.md) · [08-sessions.md](08-sessions.md)
 
 ---
 
-## P3 — Files pane, editor, diffs  `⬜`
+## P3 — Files pane, editor, diffs  `✅`
 Specs: [05-files-editor.md](05-files-editor.md) · [03-ui-shell.md](03-ui-shell.md)
 
-- [ ] Resizable pane system (drag handles, persisted per-workspace layout, close/reopen, 60fps)
-- [ ] File explorer: lazy tree, gitignore/hidden toggles, git status dots, chokidar refresh, context menu (reveal/copy/new/rename/trash)
-- [ ] Fuzzy finder (Cmd/Ctrl+P) shared with `@` mentions
-- [ ] Monaco editor: tabs, save, theme-matched, open-at-line links from chat
-- [ ] External-change reload + dirty-conflict bar
-- [ ] Files Changed panel: accumulate edit/write results, Monaco diff (patch chain and/or git session-baseline), summary counts, per-file revert (single confirm)
-- [ ] Git chips: branch, ahead/behind, dirty count
+- [x] Resizable pane system (drag handles, persisted per-workspace layout, close/reopen, 60fps)
+- [x] File explorer: lazy tree, gitignore/hidden toggles, git status dots, chokidar refresh, context menu (reveal/copy/new/rename/trash)
+- [x] Fuzzy finder (Cmd/Ctrl+P) shared with `@` mentions
+- [x] Monaco editor: tabs, save, theme-matched, open-at-line links from chat
+- [x] External-change reload + dirty-conflict bar
+- [x] Files Changed panel: accumulate edit/write results, Monaco diff (patch chain and/or git session-baseline), summary counts, per-file revert (single confirm)
+- [x] Git chips: branch, ahead/behind, dirty count
 
 **Done when:** agent edits land live in the tree/editor, every change is reviewable as a diff, and panes drag smoothly with persisted layout.
 
 **Log:**
+- 2026-08-03 — P3 complete. Panes: react-resizable-panels v2 (v4's rewritten API rejected), layout persists per-workspace via autoSaveId. Explorer: lazy per-dir listing, `git check-ignore --stdin` filtering, hidden/gitignore toggles, porcelain status dots (dir roll-up), chokidar-driven refresh, full context menu. Monaco: bundled workers (strict CSP, no CDN), pidex-light/dark themes, per-path models w/ view-state restore, Cmd+S, external-change hot-reload + conflict bar (Reload/Keep mine), open-at-line from chat paths (edit→firstChangedLine, read→offset). Files Changed: session `edit`/`write` accumulation, git session baseline via `git stash create` (semantics verified on a scratch repo: checkout of the baseline restores pre-session *uncommitted* state; created-at-session files revert to trash), non-git fallback reconstructs originals by reverse-applying `details.patch` chains (5 new unit tests), Monaco diff inline/split with hidden unchanged regions, per-file revert w/ single confirm. Git chips (branch/↑↓/dirty) live-refresh in chat header. Monaco pinned to 0.53.0 (0.54 ships a vulnerable dompurify per npm audit). 48 tests green. Deviations: layout persistence lives in renderer localStorage (autoSaveId) rather than electron-store — same per-workspace behavior; grep/find/ls row click-through deferred (P6 polish); "open to the side" split editor deferred (P6).
 
 ---
 

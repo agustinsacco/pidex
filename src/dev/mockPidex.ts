@@ -22,16 +22,28 @@ function push(sessionId: string, payload: SessionPush): void {
   for (const listener of listeners.get(sessionId) ?? []) listener(payload)
 }
 
-async function replayFixture(sessionId: string): Promise<void> {
+function replayFixture(sessionId: string): void {
   if (replaying) return
   replaying = true
-  for (const event of fixtureEvents) {
-    const delay =
-      event.type === 'message_update' ? 12 : event.type.startsWith('tool_') ? 220 : 120
-    await new Promise((resolve) => setTimeout(resolve, delay))
-    push(sessionId, { kind: 'event', event })
-  }
-  replaying = false
+  let index = 0
+  // Interval-based pumping: survives aggressive background-timer throttling
+  // better than chained awaits, and can't strand the `replaying` guard.
+  const timer = setInterval(() => {
+    try {
+      const batch = 4
+      for (let i = 0; i < batch && index < fixtureEvents.length; i++, index++) {
+        push(sessionId, { kind: 'event', event: fixtureEvents[index]! })
+      }
+      if (index >= fixtureEvents.length) {
+        clearInterval(timer)
+        replaying = false
+      }
+    } catch (error) {
+      console.error('[pidex mock] replay failed:', error)
+      clearInterval(timer)
+      replaying = false
+    }
+  }, 40)
 }
 
 const MOCK_MODELS = [
@@ -187,6 +199,27 @@ function mockStats(): Record<string, unknown> {
   }
 }
 
+function mockDir(dir: string): Array<Record<string, unknown>> {
+  const ws = '/Users/dev/projects/pidex'
+  if (dir === ws) {
+    return [
+      { name: 'src', path: `${ws}/src`, relativePath: 'src', isDirectory: true },
+      { name: 'electron', path: `${ws}/electron`, relativePath: 'electron', isDirectory: true },
+      { name: 'package.json', path: `${ws}/package.json`, relativePath: 'package.json', isDirectory: false },
+      { name: 'README.md', path: `${ws}/README.md`, relativePath: 'README.md', isDirectory: false },
+    ]
+  }
+  if (dir.endsWith('/src')) {
+    return [
+      { name: 'main.tsx', path: `${ws}/src/main.tsx`, relativePath: 'src/main.tsx', isDirectory: false },
+      { name: 'App.tsx', path: `${ws}/src/App.tsx`, relativePath: 'src/App.tsx', isDirectory: false },
+    ]
+  }
+  return [
+    { name: 'main.ts', path: `${dir}/main.ts`, relativePath: 'electron/main.ts', isDirectory: false },
+  ]
+}
+
 function mockTree(): Record<string, unknown> {
   return {
     sessionId: 'a',
@@ -247,6 +280,30 @@ export function installMockPidex(): void {
           return Promise.resolve({ isRepo: true, branch: 'main', dirtyCount: 3, ahead: 1, behind: 0 })
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
+        case 'fs:readDir': {
+          const dir = args[1] as string
+          return Promise.resolve(mockDir(dir))
+        }
+        case 'fs:readFile': {
+          const path = args[0] as string
+          return Promise.resolve({
+            path,
+            content: `// ${path}\nexport function hello(): string {\n  return 'from mock'\n}\n`,
+            size: 64,
+            mtimeMs: Date.now(),
+          })
+        }
+        case 'fs:writeFile':
+          return Promise.resolve({ mtimeMs: Date.now() })
+        case 'git:statusMap':
+          return Promise.resolve({ 'src/main.tsx': ' M', 'README.md': '??' })
+        case 'git:sessionBaseline':
+          return Promise.resolve(null)
+        case 'git:showFileAt':
+          return Promise.resolve('// baseline content\n')
+        case 'fs:watchWorkspace':
+        case 'sessions:watch':
+          return Promise.resolve(undefined)
         default:
           return Promise.resolve(undefined)
       }
@@ -259,6 +316,7 @@ export function installMockPidex(): void {
     },
 
     onSessionsChanged: () => () => {},
+    onFsChanged: () => () => {},
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)('pi:command', sessionId, command),
   } as PidexApi

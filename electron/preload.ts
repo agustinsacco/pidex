@@ -23,6 +23,15 @@ const api: PidexApi = {
     return () => ipcRenderer.removeListener('sessions:changed', wrapped)
   },
 
+  onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void) {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      payload: { workspacePath: string; paths: string[] },
+    ) => listener(payload)
+    ipcRenderer.on('fs:changed', wrapped)
+    return () => ipcRenderer.removeListener('fs:changed', wrapped)
+  },
+
   piCommand(sessionId: string, command: RpcCommand) {
     return ipcRenderer.invoke('pi:command', sessionId, command)
   },
