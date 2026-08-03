@@ -82,7 +82,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               </Chip>
             )}
           </div>
-          <div className="border-border bg-surface focus-within:border-border-strong rounded-xl border shadow-sm transition-colors">
+          {/* One seamless card: the submit affordance sits inside the field
+              (a quiet ⏎ glyph), never as a second bordered row. */}
+          <div className="border-border bg-surface focus-within:border-border-strong relative rounded-xl border shadow-sm transition-colors">
             <textarea
               ref={textareaRef}
               value={text}
@@ -95,17 +97,48 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               }}
               placeholder="Describe a task or ask a question"
               rows={Math.min(8, Math.max(2, text.split('\n').length))}
-              className="text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[14px] outline-none"
+              // Right padding keeps text clear of the ⏎ button.
+              className="text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent py-3.5 pl-4 pr-12 text-[14px] outline-none"
             />
-            <div className="flex items-center justify-end px-3 pb-2.5">
-              <button
-                onClick={() => void start()}
-                disabled={!text.trim() || starting}
-                className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40"
-              >
-                {starting ? 'Starting…' : 'Start session ⏎'}
-              </button>
-            </div>
+            <button
+              onClick={() => void start()}
+              disabled={!text.trim() || starting}
+              aria-label={starting ? 'Starting session' : 'Start session'}
+              title="Start session (⏎)"
+              className="text-text-tertiary hover:text-text hover:bg-bg-secondary absolute bottom-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
+            >
+              {starting ? (
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <path
+                    className="opacity-90"
+                    fill="currentColor"
+                    d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 10 4 15l5 5" />
+                  <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
       </div>
