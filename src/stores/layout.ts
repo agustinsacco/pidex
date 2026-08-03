@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type RightPane = 'files' | 'changes' | 'terminal' | null
+export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null
 
 /** Pane layout state. Panel sizes persist via react-resizable-panels autoSaveId. */
 interface LayoutState {

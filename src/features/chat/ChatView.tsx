@@ -4,6 +4,7 @@ import type { GitInfo } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { SessionMenu } from './SessionMenu'
@@ -72,8 +73,39 @@ function Header({
           <circle cx="12" cy="12" r="9" />
         </svg>
       </HeaderIconButton>
+      <ArtifactsHeaderButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SessionMenu sessionId={sessionId} />
     </header>
+  )
+}
+
+function ArtifactsHeaderButton({
+  sessionId,
+  active,
+}: {
+  sessionId: string
+  active: boolean
+}): React.JSX.Element | null {
+  const count = useArtifactsStore((s) => Object.keys(s.bySession[sessionId] ?? {}).length)
+  const unseen = useArtifactsStore((s) => s.unseen[sessionId] ?? 0)
+  if (count === 0) return null
+
+  return (
+    <div className="relative">
+      <HeaderIconButton
+        title="Artifacts pane"
+        active={active}
+        onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="18" height="14" rx="2" />
+          <path d="M3 9h18M9 21h6" />
+        </svg>
+      </HeaderIconButton>
+      {unseen > 0 && !active && (
+        <span className="bg-accent absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" />
+      )}
+    </div>
   )
 }
 
