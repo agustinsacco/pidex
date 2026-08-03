@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +43,19 @@ async function launch(): Promise<Harness> {
   return { app, page, workspace }
 }
 
+/**
+ * Close the app and remove everything it created: the scratch workspace and
+ * the isolated userData dir main.ts points at for E2E runs (named by pid).
+ */
+async function shutdown(harness: Harness): Promise<void> {
+  const pid = harness.app.process().pid
+  await harness.app.close()
+  await rm(harness.workspace, { recursive: true, force: true })
+  if (pid !== undefined) {
+    await rm(join(tmpdir(), `pidex-e2e-${pid}`), { recursive: true, force: true })
+  }
+}
+
 /** Get from the greeting screen into the workspace home. */
 async function openWorkspace(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /Open Folder/i })).toBeVisible({ timeout: 30_000 })
@@ -53,7 +66,8 @@ async function openWorkspace(page: Page): Promise<void> {
 }
 
 test('workspace → session → streamed answer, diff and artifact render', async () => {
-  const { app, page } = await launch()
+  const harness = await launch()
+  const { page } = harness
   try {
     await openWorkspace(page)
 
@@ -78,12 +92,13 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     await page.getByTitle('Artifacts pane').click()
     await expect(page.getByText('E2E Card').first()).toBeVisible({ timeout: 10_000 })
   } finally {
-    await app.close()
+    await shutdown(harness)
   }
 })
 
 test('settings modal switches theme and reports versions', async () => {
-  const { app, page } = await launch()
+  const harness = await launch()
+  const { page } = harness
   try {
     await openWorkspace(page)
 
@@ -103,12 +118,13 @@ test('settings modal switches theme and reports versions', async () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('heading', { name: 'About pidex' })).toBeHidden()
   } finally {
-    await app.close()
+    await shutdown(harness)
   }
 })
 
 test('command palette opens with the keyboard shortcut', async () => {
-  const { app, page } = await launch()
+  const harness = await launch()
+  const { page } = harness
   try {
     await openWorkspace(page)
 
@@ -122,12 +138,13 @@ test('command palette opens with the keyboard shortcut', async () => {
     await page.keyboard.press('Escape')
     await expect(palette).toBeHidden()
   } finally {
-    await app.close()
+    await shutdown(harness)
   }
 })
 
 test('terminal pane spawns a real shell', async () => {
-  const { app, page } = await launch()
+  const harness = await launch()
+  const { page } = harness
   try {
     await openWorkspace(page)
 
@@ -141,6 +158,6 @@ test('terminal pane spawns a real shell', async () => {
     // xterm renders into a canvas/rows container once the PTY is attached.
     await expect(page.locator('.xterm').first()).toBeVisible({ timeout: 15_000 })
   } finally {
-    await app.close()
+    await shutdown(harness)
   }
 })

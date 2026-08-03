@@ -6,38 +6,54 @@ import {
   type WorkspaceInfo,
 } from '@shared/models'
 
-const store = new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
+/**
+ * Constructed lazily, NOT at module scope.
+ *
+ * electron-store resolves `userData` the moment it is instantiated, and ES
+ * imports are hoisted — a module-scope `new Store()` would run while main.ts
+ * is still importing, i.e. before main.ts can redirect userData for E2E runs.
+ * That leaked test workspaces into the developer's real prefs. Deferring the
+ * construction to first use keeps the redirect effective.
+ */
+let store: Store<AppPrefs> | null = null
+
+function prefs(): Store<AppPrefs> {
+  store ??= new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
+  return store
+}
 
 export function getPrefs(): AppPrefs {
+  const s = prefs()
   return {
-    theme: store.get('theme'),
-    recentWorkspaces: store.get('recentWorkspaces'),
-    lastWorkspacePath: store.get('lastWorkspacePath'),
-    pinnedSessions: store.get('pinnedSessions') ?? [],
-    fonts: { ...DEFAULT_APP_PREFS.fonts, ...store.get('fonts') },
+    theme: s.get('theme'),
+    recentWorkspaces: s.get('recentWorkspaces'),
+    lastWorkspacePath: s.get('lastWorkspacePath'),
+    pinnedSessions: s.get('pinnedSessions') ?? [],
+    fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
   }
 }
 
 export function setFontPrefs(fonts: AppPrefs['fonts']): void {
-  store.set('fonts', fonts)
+  prefs().set('fonts', fonts)
 }
 
 export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {
-  store.set('recentWorkspaces', workspaces)
+  prefs().set('recentWorkspaces', workspaces)
 }
 
 export function setPinnedSessions(paths: string[]): void {
-  store.set('pinnedSessions', paths)
+  prefs().set('pinnedSessions', paths)
 }
 
 export function setTheme(theme: ThemePreference): void {
-  store.set('theme', theme)
+  prefs().set('theme', theme)
 }
 
 export function recordWorkspace(path: string, name: string): void {
+  const s = prefs()
   const now = Date.now()
-  const existing = store.get('recentWorkspaces').filter((w: WorkspaceInfo) => w.path !== path)
+  const existing = s.get('recentWorkspaces').filter((w: WorkspaceInfo) => w.path !== path)
   const entry: WorkspaceInfo = { path, name, lastOpenedAt: now }
-  store.set('recentWorkspaces', [entry, ...existing].slice(0, 20))
-  store.set('lastWorkspacePath', path)
+  s.set('recentWorkspaces', [entry, ...existing].slice(0, 20))
+  s.set('lastWorkspacePath', path)
 }
