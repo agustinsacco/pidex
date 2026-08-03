@@ -1,0 +1,237 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { JsonlDecoder } from './jsonl'
+import type {
+  ExtensionUIRequest,
+  ExtensionUIResponse,
+  PiEvent,
+  RpcCommand,
+  RpcResponse,
+  RpcResponseDataMap,
+} from '@shared/rpc'
+
+export interface PiSpawnOptions {
+  /** Workspace folder — becomes pi's cwd. */
+  cwd: string
+  /** pi binary; defaults to "pi" resolved via PATH. */
+  binaryPath?: string
+  /**
+   * Args inserted before `--mode rpc`. Lets callers run pi through an
+   * interpreter (tests use `node fake-pi.cjs`; Windows npm shims may need it).
+   */
+  prefixArgs?: string[]
+  /** Resume an existing session file or id (`--session`). */
+  sessionPath?: string
+  /** Fork from a session file or id (`--fork`). */
+  forkFrom?: string
+  /** Fixed session id (`--session-id`). */
+  sessionId?: string
+  /** Display name (`-n`). */
+  name?: string
+  /** Model pattern (`--model`). */
+  model?: string
+  /** Provider (`--provider`). */
+  provider?: string
+  /** Thinking level (`--thinking`). */
+  thinkingLevel?: string
+  /** Extension files to load (`-e`, repeatable). */
+  extensions?: string[]
+  /** Append to system prompt (`--append-system-prompt`). */
+  appendSystemPrompt?: string
+  /** Disable session persistence (`--no-session`). */
+  noSession?: boolean
+  /** Extra environment variables. */
+  env?: Record<string, string>
+}
+
+export interface PiRpcClientEvents {
+  /** Any protocol event from pi stdout (not responses, not extension UI). */
+  event: [PiEvent]
+  /** Extension UI request needing user interaction or display. */
+  'extension-ui': [ExtensionUIRequest]
+  /** Raw stderr text (diagnostics). */
+  stderr: [string]
+  /** Process exited. `expected` is true when we initiated the shutdown. */
+  exit: [{ code: number | null; signal: NodeJS.Signals | null; expected: boolean }]
+  /** A stdout line failed to parse as JSON (protocol violation / noise). */
+  'parse-error': [{ line: string; error: Error }]
+}
+
+interface PendingRequest {
+  resolve: (response: RpcResponse) => void
+  reject: (error: Error) => void
+}
+
+/**
+ * One live pi subprocess speaking the RPC protocol over stdio.
+ *
+ * - Strict LF JSONL framing via JsonlDecoder (never readline).
+ * - Commands carry a generated `id`; responses resolve the matching promise.
+ * - Everything without an `id` streams out via the typed event emitter.
+ */
+export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
+  private child: ChildProcessWithoutNullStreams | null = null
+  private readonly stdoutDecoder = new JsonlDecoder()
+  private readonly stderrDecoder = new JsonlDecoder()
+  private readonly pending = new Map<string, PendingRequest>()
+  private nextRequestId = 1
+  private shuttingDown = false
+  private killTimer: NodeJS.Timeout | null = null
+
+  constructor(private readonly options: PiSpawnOptions) {
+    super()
+  }
+
+  get pid(): number | undefined {
+    return this.child?.pid
+  }
+
+  get alive(): boolean {
+    return this.child !== null && this.child.exitCode === null && !this.child.killed
+  }
+
+  spawn(): void {
+    if (this.child) throw new Error('PiRpcClient already spawned')
+
+    const o = this.options
+    const args = [...(o.prefixArgs ?? []), '--mode', 'rpc']
+    if (o.sessionPath) args.push('--session', o.sessionPath)
+    if (o.sessionId) args.push('--session-id', o.sessionId)
+    if (o.forkFrom) args.push('--fork', o.forkFrom)
+    if (o.name) args.push('-n', o.name)
+    if (o.model) args.push('--model', o.model)
+    if (o.provider) args.push('--provider', o.provider)
+    if (o.thinkingLevel) args.push('--thinking', o.thinkingLevel)
+    if (o.noSession) args.push('--no-session')
+    for (const ext of o.extensions ?? []) args.push('-e', ext)
+    if (o.appendSystemPrompt) args.push('--append-system-prompt', o.appendSystemPrompt)
+
+    const child = spawn(o.binaryPath ?? 'pi', args, {
+      cwd: o.cwd,
+      env: { ...process.env, ...o.env },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    this.child = child
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      for (const line of this.stdoutDecoder.push(chunk)) this.handleLine(line)
+    })
+    child.stdout.on('end', () => {
+      for (const line of this.stdoutDecoder.end()) this.handleLine(line)
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      for (const line of this.stderrDecoder.push(chunk)) this.emit('stderr', line)
+    })
+
+    child.on('exit', (code, signal) => {
+      if (this.killTimer) {
+        clearTimeout(this.killTimer)
+        this.killTimer = null
+      }
+      const expected = this.shuttingDown
+      this.failAllPending(new Error(`pi exited (code=${code}, signal=${signal ?? 'none'})`))
+      this.emit('exit', { code, signal, expected })
+      this.child = null
+    })
+
+    child.on('error', (error) => {
+      // Spawn failure (e.g. binary vanished): surface as an unexpected exit.
+      this.failAllPending(error)
+      this.emit('exit', { code: null, signal: null, expected: false })
+      this.child = null
+    })
+  }
+
+  /**
+   * Send a command and await its correlated response.
+   * The promise resolves with the response object even when `success` is
+   * false — protocol-level errors are data, not exceptions. It rejects only
+   * when the transport is broken (process dead, stdin write failed).
+   */
+  request<T extends RpcCommand['type']>(
+    command: Extract<RpcCommand, { type: T }>,
+  ): Promise<RpcResponse<RpcResponseDataMap[T]>> {
+    const child = this.child
+    if (!child || !this.alive) {
+      return Promise.reject(new Error('pi process is not running'))
+    }
+    const id = `px-${this.nextRequestId++}`
+    const payload = { ...command, id }
+
+    return new Promise<RpcResponse<RpcResponseDataMap[T]>>((resolve, reject) => {
+      this.pending.set(id, { resolve: resolve as (r: RpcResponse) => void, reject })
+      child.stdin.write(JSON.stringify(payload) + '\n', (error) => {
+        if (error) {
+          this.pending.delete(id)
+          reject(error)
+        }
+      })
+    })
+  }
+
+  /** Reply to an extension UI dialog request. Fire-and-forget. */
+  respondToExtensionUI(response: ExtensionUIResponse): void {
+    const child = this.child
+    if (!child || !this.alive) return
+    child.stdin.write(JSON.stringify(response) + '\n')
+  }
+
+  /**
+   * Graceful shutdown: SIGTERM, escalate to SIGKILL after `graceMs`.
+   * Resolves when the process has exited.
+   */
+  async dispose(graceMs = 3000): Promise<void> {
+    const child = this.child
+    if (!child || child.exitCode !== null) return
+    this.shuttingDown = true
+
+    await new Promise<void>((resolve) => {
+      child.once('exit', () => resolve())
+      child.kill('SIGTERM')
+      this.killTimer = setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGKILL')
+      }, graceMs)
+      // Don't hold the event loop open just for the escalation timer.
+      this.killTimer.unref()
+    })
+  }
+
+  private handleLine(line: string): void {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch (error) {
+      this.emit('parse-error', { line, error: error as Error })
+      return
+    }
+    if (typeof parsed !== 'object' || parsed === null) {
+      this.emit('parse-error', { line, error: new Error('Non-object JSONL record') })
+      return
+    }
+
+    const record = parsed as { type?: string; id?: string }
+
+    if (record.type === 'response') {
+      const response = record as unknown as RpcResponse
+      if (response.id && this.pending.has(response.id)) {
+        const pending = this.pending.get(response.id)!
+        this.pending.delete(response.id)
+        pending.resolve(response)
+      }
+      // Responses without ids (or unknown ids) have no waiter; drop them.
+      return
+    }
+
+    if (record.type === 'extension_ui_request') {
+      this.emit('extension-ui', record as unknown as ExtensionUIRequest)
+      return
+    }
+
+    this.emit('event', record as unknown as PiEvent)
+  }
+
+  private failAllPending(error: Error): void {
+    for (const [, pending] of this.pending) pending.reject(error)
+    this.pending.clear()
+  }
+}
