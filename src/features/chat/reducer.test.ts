@@ -119,7 +119,12 @@ describe('chat reducer — tool calls', () => {
       assistantMessageEvent: {
         type: 'toolcall_end',
         contentIndex: 0,
-        toolCall: { type: 'toolCall', id: 'call_1', name: 'bash', arguments: { command: 'ls -la' } },
+        toolCall: {
+          type: 'toolCall',
+          id: 'call_1',
+          name: 'bash',
+          arguments: { command: 'ls -la' },
+        },
       },
     },
   ]
@@ -137,7 +142,12 @@ describe('chat reducer — tool calls', () => {
   it('REPLACES output on tool_execution_update (accumulated partials)', () => {
     const state = run([
       ...toolFlow,
-      { type: 'tool_execution_start', toolCallId: 'call_1', toolName: 'bash', args: { command: 'ls' } },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'call_1',
+        toolName: 'bash',
+        args: { command: 'ls' },
+      },
       {
         type: 'tool_execution_update',
         toolCallId: 'call_1',
@@ -235,7 +245,12 @@ describe('chat reducer — queues, compaction, retry', () => {
       },
     ])
     expect(state.retry).toMatchObject({ attempt: 2, maxAttempts: 3 })
-    state = reduceChatEvent(state, { type: 'auto_retry_end', success: false, attempt: 3, finalError: 'still down' })
+    state = reduceChatEvent(state, {
+      type: 'auto_retry_end',
+      success: false,
+      attempt: 3,
+      finalError: 'still down',
+    })
     expect(state.retry).toBeNull()
     expect(state.items.at(-1)).toMatchObject({ kind: 'divider', variant: 'error' })
   })
@@ -285,7 +300,14 @@ describe('chat reducer — hydration', () => {
         content: [{ type: 'text', text: 'const x = 1' }],
         isError: false,
       },
-      { role: 'bashExecution', command: 'ls', output: 'a.ts', exitCode: 0, cancelled: false, truncated: false },
+      {
+        role: 'bashExecution',
+        command: 'ls',
+        output: 'a.ts',
+        exitCode: 0,
+        cancelled: false,
+        truncated: false,
+      },
       { role: 'compactionSummary', summary: 'earlier stuff', tokensBefore: 999 },
     ])
     expect(state.items.map((i) => i.kind)).toEqual(['user', 'assistant', 'bash', 'divider'])

@@ -2,23 +2,23 @@
 
 ## Locked technical decisions
 
-| Area | Decision |
-|---|---|
-| Shell | Electron (current stable), TypeScript everywhere, strict mode |
-| Renderer | React 18+, Vite, Tailwind CSS |
-| State | Zustand (per-domain stores); no Redux |
-| Code viewing/editing | Monaco Editor (also provides the diff editor) |
-| Terminal | xterm.js + node-pty (real PTY, user shell, full interactivity) |
-| Markdown | Streaming-tolerant pipeline (react-markdown + remark-gfm class) with Shiki or highlight.js |
-| Diagrams | Mermaid, client-side |
-| Math | KaTeX |
-| Charts | Fenced chart specs (```vega-lite / ```chart JSON) via vega-lite or Chart.js |
-| HTML preview | Sandboxed `<iframe sandbox>`, Code/Preview toggle |
-| File watching | chokidar (main process) |
-| Packaging | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb), Windows (nsis) |
-| Install | GitHub Releases + `curl … install.sh \| sh` (see [10-packaging.md](10-packaging.md)) |
-| IPC | Typed contextBridge preload; renderer never touches Node APIs |
-| pi integration | RPC subprocess, one `pi --mode rpc` per live session ([02-pi-integration.md](02-pi-integration.md)) |
+| Area                 | Decision                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| Shell                | Electron (current stable), TypeScript everywhere, strict mode                                       |
+| Renderer             | React 18+, Vite, Tailwind CSS                                                                       |
+| State                | Zustand (per-domain stores); no Redux                                                               |
+| Code viewing/editing | Monaco Editor (also provides the diff editor)                                                       |
+| Terminal             | xterm.js + node-pty (real PTY, user shell, full interactivity)                                      |
+| Markdown             | Streaming-tolerant pipeline (react-markdown + remark-gfm class) with Shiki or highlight.js          |
+| Diagrams             | Mermaid, client-side                                                                                |
+| Math                 | KaTeX                                                                                               |
+| Charts               | Fenced chart specs (`vega-lite / `chart JSON) via vega-lite or Chart.js                             |
+| HTML preview         | Sandboxed `<iframe sandbox>`, Code/Preview toggle                                                   |
+| File watching        | chokidar (main process)                                                                             |
+| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb), Windows (nsis)                 |
+| Install              | GitHub Releases + `curl … install.sh \| sh` (see [10-packaging.md](10-packaging.md))                |
+| IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                       |
+| pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([02-pi-integration.md](02-pi-integration.md)) |
 
 ## Process model
 

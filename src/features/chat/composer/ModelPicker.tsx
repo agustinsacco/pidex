@@ -6,6 +6,11 @@ import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
+/** Real title-case text (not a CSS transform) so labels are accessible. */
+function titleCase(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 /** Model + thinking-level pickers, screenshot-style: chips in the composer footer. */
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
@@ -66,18 +71,21 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           className={clsx(
-            'rounded-md px-2 py-1 text-[12px] capitalize transition-colors',
+            'rounded-md px-2 py-1 text-[12px] transition-colors',
             open === 'thinking'
               ? 'bg-bg-secondary text-text'
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
           )}
         >
-          {meta.thinkingLevel === 'off' ? 'No thinking' : meta.thinkingLevel}
+          {meta.thinkingLevel === 'off' ? 'No thinking' : titleCase(meta.thinkingLevel)}
         </button>
       )}
 
       {open === 'model' && (
-        <PopupMenu onClose={() => setOpen(null)} className="absolute bottom-full right-0 mb-2 max-h-80 w-72 overflow-y-auto py-1.5">
+        <PopupMenu
+          onClose={() => setOpen(null)}
+          className="absolute bottom-full right-0 mb-2 max-h-80 w-72 overflow-y-auto py-1.5"
+        >
           <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Models</div>
           {grouped.map(([provider, providerModels]) => (
             <div key={provider}>
@@ -87,9 +95,14 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
                 </div>
               )}
               {providerModels.map((model) => {
-                const active = currentModel?.id === model.id && currentModel.provider === model.provider
+                const active =
+                  currentModel?.id === model.id && currentModel.provider === model.provider
                 return (
-                  <MenuRow key={`${model.provider}/${model.id}`} active={false} onClick={() => void setModel(model)}>
+                  <MenuRow
+                    key={`${model.provider}/${model.id}`}
+                    active={false}
+                    onClick={() => void setModel(model)}
+                  >
                     <span className="flex-1 truncate">{model.name || model.id}</span>
                     {active && <Check />}
                   </MenuRow>
@@ -106,11 +119,16 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       )}
 
       {open === 'thinking' && (
-        <PopupMenu onClose={() => setOpen(null)} className="absolute bottom-full right-0 mb-2 w-44 py-1.5">
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Thinking</div>
+        <PopupMenu
+          onClose={() => setOpen(null)}
+          className="absolute bottom-full right-0 mb-2 w-44 py-1.5"
+        >
+          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
+            Thinking
+          </div>
           {THINKING_LEVELS.map((level) => (
             <MenuRow key={level} active={false} onClick={() => void setThinking(level)}>
-              <span className="flex-1 capitalize">{level}</span>
+              <span className="flex-1">{titleCase(level)}</span>
               {meta.thinkingLevel === level && <Check />}
             </MenuRow>
           ))}
@@ -122,7 +140,15 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
 function Check(): React.JSX.Element {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-text">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      className="text-text"
+    >
       <path d="M20 6 9 17l-5-5" />
     </svg>
   )

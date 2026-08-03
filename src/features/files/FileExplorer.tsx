@@ -88,8 +88,7 @@ function ExplorerRow({
   const dot = statusChar ? STATUS_DOTS[statusChar] : undefined
   // Directory dot: any child dirty.
   const dirDirty =
-    entry.isDirectory &&
-    Object.keys(gitStatus).some((p) => p.startsWith(entry.relativePath + '/'))
+    entry.isDirectory && Object.keys(gitStatus).some((p) => p.startsWith(entry.relativePath + '/'))
 
   const onClick = (): void => {
     const store = useFilesStore.getState()
@@ -143,7 +142,9 @@ function ExplorerRow({
         onContextMenu={onContextMenu}
         className={clsx(
           'group flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-[12.5px] transition-colors',
-          isActive ? 'bg-bg-secondary text-text' : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
+          isActive
+            ? 'bg-bg-secondary text-text'
+            : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
         )}
         style={{ paddingLeft: 10 + depth * 14 }}
       >
@@ -237,7 +238,9 @@ function IconToggle({
       onClick={onClick}
       className={clsx(
         'flex h-6 w-6 items-center justify-center rounded-md transition-colors',
-        active ? 'text-accent bg-accent-soft' : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',
+        active
+          ? 'text-accent bg-accent-soft'
+          : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',
       )}
     >
       {children}
@@ -263,7 +266,15 @@ function ChevronIcon({ expanded }: { expanded: boolean }): React.JSX.Element {
 
 function FolderGlyph({ open }: { open: boolean }): React.JSX.Element {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-info shrink-0">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="text-info shrink-0"
+    >
       {open ? (
         <path d="M5 19l2.7-7.2A2 2 0 0 1 9.6 10H21l-3 8.1a2 2 0 0 1-1.9 1.3H5zm0 0V5a2 2 0 0 1 2-2h4l2 3h6a2 2 0 0 1 2 2v2" />
       ) : (
@@ -275,7 +286,14 @@ function FolderGlyph({ open }: { open: boolean }): React.JSX.Element {
 
 function EyeIcon(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
@@ -284,7 +302,14 @@ function EyeIcon(): React.JSX.Element {
 
 function GitIgnoreIcon(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <circle cx="6" cy="6" r="2.5" />
       <circle cx="6" cy="18" r="2.5" />
       <circle cx="18" cy="6" r="2.5" />

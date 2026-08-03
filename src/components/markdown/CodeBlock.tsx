@@ -84,7 +84,14 @@ export const CodeBlock = memo(function CodeBlock({
             onClick={() => void promoteToArtifact(code, language)}
             className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <rect x="3" y="3" width="18" height="14" rx="2" />
               <path d="M3 9h18M9 21h6" />
             </svg>
@@ -98,7 +105,14 @@ export const CodeBlock = memo(function CodeBlock({
               }}
               className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="m5 7 5 5-5 5M13 17h6" />
               </svg>
             </button>

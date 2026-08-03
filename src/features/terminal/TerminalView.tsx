@@ -172,8 +172,18 @@ export const TerminalView = memo(function TerminalView({
             placeholder="Search…"
             className="text-text placeholder:text-text-tertiary w-40 bg-transparent px-2 py-0.5 text-[12px] outline-none"
           />
-          <button onClick={() => runSearch('previous')} className="text-text-tertiary hover:text-text px-1 text-[11px]">↑</button>
-          <button onClick={() => runSearch('next')} className="text-text-tertiary hover:text-text px-1 text-[11px]">↓</button>
+          <button
+            onClick={() => runSearch('previous')}
+            className="text-text-tertiary hover:text-text px-1 text-[11px]"
+          >
+            ↑
+          </button>
+          <button
+            onClick={() => runSearch('next')}
+            className="text-text-tertiary hover:text-text px-1 text-[11px]"
+          >
+            ↓
+          </button>
           <button
             onClick={() => {
               setSearchOpen(false)

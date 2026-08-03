@@ -137,16 +137,22 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }),
 
-  setError: (sessionId, error) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { error }) })),
-  setMeta: (sessionId, meta) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { meta }) })),
+  setError: (sessionId, error) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { error }) })),
+  setMeta: (sessionId, meta) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { meta }) })),
   patchMeta: (sessionId, patch) =>
     set((s) => {
       const session = s.sessions[sessionId]
       if (!session?.meta) return s
-      return { sessions: patchSession(s.sessions, sessionId, { meta: { ...session.meta, ...patch } }) }
+      return {
+        sessions: patchSession(s.sessions, sessionId, { meta: { ...session.meta, ...patch } }),
+      }
     }),
-  setStats: (sessionId, stats) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stats }) })),
-  setModels: (sessionId, models) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models }) })),
+  setStats: (sessionId, stats) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stats }) })),
+  setModels: (sessionId, models) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models }) })),
   setCommands: (sessionId, commands) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { commands }) })),
 

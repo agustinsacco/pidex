@@ -22,13 +22,22 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
       >
         <svg width="15" height="15" viewBox="0 0 16 16" className="-rotate-90">
-          <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--px-border-strong)" strokeWidth="2" />
           <circle
             cx="8"
             cy="8"
             r="6.5"
             fill="none"
-            stroke={critical ? 'var(--px-danger)' : warn ? 'var(--px-warning)' : 'var(--px-success)'}
+            stroke="var(--px-border-strong)"
+            strokeWidth="2"
+          />
+          <circle
+            cx="8"
+            cy="8"
+            r="6.5"
+            fill="none"
+            stroke={
+              critical ? 'var(--px-danger)' : warn ? 'var(--px-warning)' : 'var(--px-success)'
+            }
             strokeWidth="2"
             strokeDasharray={`${(percent / 100) * 40.8} 40.8`}
             strokeLinecap="round"
@@ -45,10 +54,16 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
       </button>
 
       {open && (
-        <PopupMenu onClose={() => setOpen(false)} className="absolute bottom-full right-0 mb-2 w-64 p-3">
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          className="absolute bottom-full right-0 mb-2 w-64 p-3"
+        >
           <div className="text-text text-[12.5px] font-medium">Session usage</div>
           <div className="mt-2 space-y-1 text-[12px]">
-            <StatRow label="Context" value={`${formatTokens(usage.tokens ?? 0)} / ${formatTokens(usage.contextWindow)} (${percent}%)`} />
+            <StatRow
+              label="Context"
+              value={`${formatTokens(usage.tokens ?? 0)} / ${formatTokens(usage.contextWindow)} (${percent}%)`}
+            />
             <StatRow label="Input tokens" value={formatTokens(stats.tokens.input)} />
             <StatRow label="Output tokens" value={formatTokens(stats.tokens.output)} />
             <StatRow label="Cache read" value={formatTokens(stats.tokens.cacheRead)} />

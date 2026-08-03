@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # electron-builder's postinstall isn't needed for checks and slows CI down.
+  ELECTRON_BUILDER_SKIP_REBUILD: '1'
+
+jobs:
+  checks:
+    name: Typecheck · lint · unit tests · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npx prettier --check .
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (main · preload · renderer)
+        run: npm run build
+
+  e2e:
+    name: E2E smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron (node-pty)
+        run: npx electron-rebuild -f -w node-pty
+
+      - name: Build
+        run: npm run build
+
+      # The Electron window needs a display server on Linux runners.
+      - name: E2E (Linux, xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test
+
+      - name: E2E (macOS)
+        if: runner.os == 'macOS'
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

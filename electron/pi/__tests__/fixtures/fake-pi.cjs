@@ -83,7 +83,13 @@ function handle(cmd) {
 
     // Test hook: hold this response until the next command arrives.
     case 'compact':
-      delayedResponse = { id: cmd.id, type: 'response', command: 'compact', success: true, data: { summary: 'S', firstKeptEntryId: 'x', tokensBefore: 1 } }
+      delayedResponse = {
+        id: cmd.id,
+        type: 'response',
+        command: 'compact',
+        success: true,
+        data: { summary: 'S', firstKeptEntryId: 'x', tokensBefore: 1 },
+      }
       break
 
     case 'abort': {
@@ -97,18 +103,36 @@ function handle(cmd) {
     }
 
     case 'set_model':
-      out({ id: cmd.id, type: 'response', command: 'set_model', success: false, error: 'Model not found: ' + cmd.modelId })
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: 'set_model',
+        success: false,
+        error: 'Model not found: ' + cmd.modelId,
+      })
       break
 
     case 'bash':
       if (cmd.command === 'CRASH') {
         process.exit(3)
       }
-      out({ id: cmd.id, type: 'response', command: 'bash', success: true, data: { output: 'ok', exitCode: 0, cancelled: false, truncated: false } })
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: 'bash',
+        success: true,
+        data: { output: 'ok', exitCode: 0, cancelled: false, truncated: false },
+      })
       break
 
     default:
-      out({ id: cmd.id, type: 'response', command: cmd.type, success: false, error: 'unsupported in fake' })
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unsupported in fake',
+      })
   }
 }
 

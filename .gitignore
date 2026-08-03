@@ -1,9 +1,11 @@
-node_modules/
-out/
-dist/
-release/
+*.local
 *.log
 .DS_Store
-coverage/
 .vite/
-*.local
+coverage/
+dist/
+node_modules/
+out/
+playwright-report/
+release/
+test-results/

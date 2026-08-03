@@ -13,9 +13,7 @@ describe('JsonlDecoder', () => {
   it('buffers a chunk split mid-line', () => {
     const decoder = new JsonlDecoder()
     expect(decoder.push('{"type":"message_upd')).toEqual([])
-    expect(decoder.push('ate","delta":"hi"}\n')).toEqual([
-      '{"type":"message_update","delta":"hi"}',
-    ])
+    expect(decoder.push('ate","delta":"hi"}\n')).toEqual(['{"type":"message_update","delta":"hi"}'])
   })
 
   it('strips trailing CR (accepts CRLF)', () => {

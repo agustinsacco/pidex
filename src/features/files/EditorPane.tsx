@@ -31,9 +31,7 @@ export const EditorPane = memo(function EditorPane(): React.JSX.Element {
       {active?.diskConflict && <ConflictBar file={active} />}
       <div className="min-h-0 flex-1">
         {active && !active.binary && !active.tooLarge && <ActiveEditor file={active} />}
-        {active?.binary && (
-          <CenterNote>Binary file — open it in your editor of choice.</CenterNote>
-        )}
+        {active?.binary && <CenterNote>Binary file — open it in your editor of choice.</CenterNote>}
         {active?.tooLarge && <CenterNote>File is larger than 4 MB — not opened.</CenterNote>}
       </div>
     </div>
@@ -79,7 +77,14 @@ function Tab({ file, active }: { file: OpenFile; active: boolean }): React.JSX.E
           !file.dirty && 'opacity-0 group-hover:opacity-100',
         )}
       >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
       </button>
@@ -90,9 +95,7 @@ function Tab({ file, active }: { file: OpenFile; active: boolean }): React.JSX.E
 function ConflictBar({ file }: { file: OpenFile }): React.JSX.Element {
   return (
     <div className="bg-warning/10 border-warning/30 flex items-center gap-2 border-b px-3 py-1.5 text-[12px]">
-      <span className="text-text flex-1">
-        File changed on disk while you had unsaved edits.
-      </span>
+      <span className="text-text flex-1">File changed on disk while you had unsaved edits.</span>
       <button
         onClick={() => void useFilesStore.getState().reloadFromDisk(file.path)}
         className="border-border hover:bg-bg-secondary rounded-md border px-2 py-0.5 font-medium transition-colors"

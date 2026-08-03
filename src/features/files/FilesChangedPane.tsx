@@ -19,7 +19,16 @@ interface TouchedFile {
 
 /** Aggregate edit/write tool results for the active session into per-file rows. */
 function collectTouchedFiles(
-  tools: Record<string, { toolName: string; status: string; args?: Record<string, unknown>; result?: { details?: unknown } } | undefined>,
+  tools: Record<
+    string,
+    | {
+        toolName: string
+        status: string
+        args?: Record<string, unknown>
+        result?: { details?: unknown }
+      }
+    | undefined
+  >,
   workspacePath: string,
 ): TouchedFile[] {
   const byPath = new Map<string, TouchedFile>()
@@ -80,7 +89,10 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   const totals = useMemo(
     () =>
       files.reduce(
-        (acc, f) => ({ additions: acc.additions + f.additions, deletions: acc.deletions + f.deletions }),
+        (acc, f) => ({
+          additions: acc.additions + f.additions,
+          deletions: acc.deletions + f.deletions,
+        }),
         { additions: 0, deletions: 0 },
       ),
     [files],
@@ -197,7 +209,14 @@ function FileRow({
         title="Revert to session start"
         className="text-text-tertiary hover:text-danger hidden shrink-0 rounded p-1 transition-colors group-hover:block"
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8" />
         </svg>
       </button>
@@ -264,7 +283,14 @@ function FileDiffView({
           onClick={onBack}
           className="text-text-tertiary hover:text-text flex h-6 w-6 items-center justify-center rounded-md transition-colors"
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <path d="m15 18-6-6 6-6" />
           </svg>
         </button>

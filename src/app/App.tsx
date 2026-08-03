@@ -140,11 +140,7 @@ function MainWithPanes({
   return (
     <PanelGroup direction="horizontal" autoSaveId={`pidex-main-${workspacePath}`}>
       <Panel id="chat" order={1} minSize={15}>
-        <ChatView
-          key={activeSessionId}
-          sessionId={activeSessionId}
-          workspacePath={workspacePath}
-        />
+        <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={workspacePath} />
       </Panel>
       {rightPane && (
         <>

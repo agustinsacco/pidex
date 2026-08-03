@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+release/
+coverage/
+playwright-report/
+test-results/
+build/*.icns
+build/*.ico
+build/*.png
+specs/screenshots/
+src/features/chat/__fixtures__/
+package-lock.json

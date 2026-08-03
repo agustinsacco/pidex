@@ -35,16 +35,14 @@ function applyToDom(resolved: 'light' | 'dark'): void {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => {
-  window
-    .matchMedia('(prefers-color-scheme: dark)')
-    .addEventListener('change', () => {
-      const { theme } = get()
-      if (theme === 'system') {
-        const resolved = resolve(theme)
-        applyToDom(resolved)
-        set({ resolvedTheme: resolved })
-      }
-    })
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const { theme } = get()
+    if (theme === 'system') {
+      const resolved = resolve(theme)
+      applyToDom(resolved)
+      set({ resolvedTheme: resolved })
+    }
+  })
 
   return {
     theme: 'system',

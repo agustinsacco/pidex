@@ -16,7 +16,10 @@ export function FileMentionMenu({
   if (files.length === 0) return null
 
   return (
-    <PopupMenu onClose={onClose} className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] overflow-y-auto py-1.5">
+    <PopupMenu
+      onClose={onClose}
+      className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] overflow-y-auto py-1.5"
+    >
       {files.map((file, index) => {
         const slash = file.lastIndexOf('/')
         const dir = slash === -1 ? '' : file.slice(0, slash + 1)

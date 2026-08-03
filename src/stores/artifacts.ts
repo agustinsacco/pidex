@@ -37,7 +37,12 @@ interface ArtifactsState {
   /** Unseen version count while the pane is closed. */
   unseen: Record<string, number>
 
-  ingest: (sessionId: string, toolName: string, details: unknown, opts?: { autoOpen?: boolean }) => void
+  ingest: (
+    sessionId: string,
+    toolName: string,
+    details: unknown,
+    opts?: { autoOpen?: boolean },
+  ) => void
   ingestFromHistory: (sessionId: string, messages: AgentMessage[]) => void
   addLocal: (
     sessionId: string,
@@ -72,22 +77,29 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
       if (toolName === 'artifact_update' && existing) {
         session[details.id!] = {
           ...existing,
-          title: details.title && details.type === 'update' ? existing.title : (details.title ?? existing.title),
-          versions: [...existing.versions.filter((v) => v.version !== version.version), version].sort(
-            (a, b) => a.version - b.version,
-          ),
+          title:
+            details.title && details.type === 'update'
+              ? existing.title
+              : (details.title ?? existing.title),
+          versions: [
+            ...existing.versions.filter((v) => v.version !== version.version),
+            version,
+          ].sort((a, b) => a.version - b.version),
           updatedAt: Date.now(),
         }
       } else {
-        const type = VALID_TYPES.has(details.type ?? '') ? (details.type as ArtifactType) : (existing?.type ?? 'code')
+        const type = VALID_TYPES.has(details.type ?? '')
+          ? (details.type as ArtifactType)
+          : (existing?.type ?? 'code')
         session[details.id!] = {
           id: details.id!,
           title: details.title ?? details.id!,
           type,
           language: details.language ?? existing?.language,
-          versions: [...(existing?.versions.filter((v) => v.version !== version.version) ?? []), version].sort(
-            (a, b) => a.version - b.version,
-          ),
+          versions: [
+            ...(existing?.versions.filter((v) => v.version !== version.version) ?? []),
+            version,
+          ].sort((a, b) => a.version - b.version),
           updatedAt: Date.now(),
         }
       }
@@ -126,18 +138,20 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 40)}-${Date.now().toString(36).slice(-4)}`
-    get().ingest(
-      sessionId,
-      'artifact_create',
-      { id, title: artifact.title, type: artifact.type, language: artifact.language, content: artifact.content, version: 1 },
-    )
+    get().ingest(sessionId, 'artifact_create', {
+      id,
+      title: artifact.title,
+      type: artifact.type,
+      language: artifact.language,
+      content: artifact.content,
+      version: 1,
+    })
   },
 
   select: (sessionId, artifactId) =>
     set((s) => ({ selected: { ...s.selected, [sessionId]: artifactId } })),
 
-  clearUnseen: (sessionId) =>
-    set((s) => ({ unseen: { ...s.unseen, [sessionId]: 0 } })),
+  clearUnseen: (sessionId) => set((s) => ({ unseen: { ...s.unseen, [sessionId]: 0 } })),
 
   remove: (sessionId) =>
     set((s) => {

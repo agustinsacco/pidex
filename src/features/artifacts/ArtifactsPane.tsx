@@ -94,7 +94,14 @@ function PaneHeader({ title }: { title: string }): React.JSX.Element {
         title="Expand pane"
         className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
         </svg>
       </button>
@@ -103,7 +110,14 @@ function PaneHeader({ title }: { title: string }): React.JSX.Element {
         title="Close pane"
         className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
       </button>
@@ -149,15 +163,23 @@ function ArtifactViewer({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
         <TypeIcon type={artifact.type} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{shown.title || artifact.title}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+          {shown.title || artifact.title}
+        </span>
         <span className="text-text-tertiary text-[10.5px]">{relativeTime(artifact.updatedAt)}</span>
       </div>
 
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
-        <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>Preview</Tab>
-        <Tab active={mode === 'code'} onClick={() => setMode('code')}>Code</Tab>
+        <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>
+          Preview
+        </Tab>
+        <Tab active={mode === 'code'} onClick={() => setMode('code')}>
+          Code
+        </Tab>
         {artifact.versions.length > 1 && (
-          <Tab active={mode === 'diff'} onClick={() => setMode('diff')}>Diff</Tab>
+          <Tab active={mode === 'diff'} onClick={() => setMode('diff')}>
+            Diff
+          </Tab>
         )}
         <div className="flex-1" />
         {artifact.versions.length > 1 && (
@@ -178,12 +200,29 @@ function ArtifactViewer({
         )}
         <CopyButton text={shown.content} />
         <ActionIcon title="Save to file…" onClick={() => void save()}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
         </ActionIcon>
-        <ActionIcon title="Write into workspace and open in Files" onClick={() => void openInFiles()}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <ActionIcon
+          title="Write into workspace and open in Files"
+          onClick={() => void openInFiles()}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
@@ -221,7 +260,14 @@ function ArtifactPreview({
 }): React.JSX.Element {
   switch (artifact.type) {
     case 'html':
-      return <iframe sandbox="allow-scripts" srcDoc={content} title={artifact.title} className="h-full min-h-[400px] w-full bg-white" />
+      return (
+        <iframe
+          sandbox="allow-scripts"
+          srcDoc={content}
+          title={artifact.title}
+          className="h-full min-h-[400px] w-full bg-white"
+        />
+      )
     case 'svg':
       return (
         <iframe
@@ -259,7 +305,15 @@ function ArtifactPreview({
   }
 }
 
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }): React.JSX.Element {
+function Tab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <button
       onClick={onClick}
@@ -273,7 +327,15 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
   )
 }
 
-function ActionIcon({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }): React.JSX.Element {
+function ActionIcon({
+  title,
+  onClick,
+  children,
+}: {
+  title: string
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <button
       title={title}
@@ -287,7 +349,17 @@ function ActionIcon({ title, onClick, children }: { title: string; onClick: () =
 
 function TypeIcon({ type }: { type: Artifact['type'] }): React.JSX.Element {
   const glyph =
-    type === 'html' ? '🌐' : type === 'svg' ? '🎨' : type === 'mermaid' ? '📊' : type === 'chart' ? '📈' : type === 'markdown' ? '📄' : '⌨️'
+    type === 'html'
+      ? '🌐'
+      : type === 'svg'
+        ? '🎨'
+        : type === 'mermaid'
+          ? '📊'
+          : type === 'chart'
+            ? '📈'
+            : type === 'markdown'
+              ? '📄'
+              : '⌨️'
   return <span className="text-[13px] leading-none">{glyph}</span>
 }
 

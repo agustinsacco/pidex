@@ -164,7 +164,8 @@ function userMessageImages(message: {
 /** Build assistant blocks from a final AssistantMessage content array. */
 function blocksFromContent(message: AssistantMessage): AssistantBlock[] {
   return message.content.map((block, index) => {
-    if (block.type === 'text') return { type: 'text' as const, index, text: block.text, closed: true }
+    if (block.type === 'text')
+      return { type: 'text' as const, index, text: block.text, closed: true }
     if (block.type === 'thinking')
       return { type: 'thinking' as const, index, text: block.thinking, closed: true }
     return { type: 'tool' as const, index, toolCallId: block.id }
@@ -547,8 +548,7 @@ function applyAssistantDelta(
         streaming: false,
         stopReason: delta.reason,
         errorMessage:
-          message?.errorMessage ??
-          (typeof delta.error === 'string' ? delta.error : undefined),
+          message?.errorMessage ?? (typeof delta.error === 'string' ? delta.error : undefined),
       }
       return { ...state, items: replaceItem(state.items, index, updated) }
     }

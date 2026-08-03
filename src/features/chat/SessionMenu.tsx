@@ -16,14 +16,12 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
 
   const toggleAutoRetry = (): Promise<unknown> =>
-    window.pidex
-      .piCommand(sessionId, { type: 'set_auto_retry', enabled: !autoRetry })
-      .then((r) => {
-        if (r.success) {
-          autoRetryLocal.set(sessionId, !autoRetry)
-          setAutoRetryState(!autoRetry)
-        }
-      })
+    window.pidex.piCommand(sessionId, { type: 'set_auto_retry', enabled: !autoRetry }).then((r) => {
+      if (r.success) {
+        autoRetryLocal.set(sessionId, !autoRetry)
+        setAutoRetryState(!autoRetry)
+      }
+    })
 
   const command = async (run: () => Promise<unknown>): Promise<void> => {
     setOpen(false)
@@ -100,7 +98,10 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
       </button>
 
       {open && (
-        <PopupMenu onClose={() => setOpen(false)} className="absolute right-0 top-full mt-1.5 w-72 py-1.5">
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          className="absolute right-0 top-full mt-1.5 w-72 py-1.5"
+        >
           <MenuRow active={false} onClick={() => void command(rename)}>
             <span className="flex-1">Rename session…</span>
           </MenuRow>
@@ -127,7 +128,10 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
             <span className="flex-1">All at once</span>
             {meta?.steeringMode === 'all' && <Dot />}
           </MenuRow>
-          <MenuRow active={false} onClick={() => void command(() => setSteeringMode('one-at-a-time'))}>
+          <MenuRow
+            active={false}
+            onClick={() => void command(() => setSteeringMode('one-at-a-time'))}
+          >
             <span className="flex-1">One at a time</span>
             {meta?.steeringMode === 'one-at-a-time' && <Dot />}
           </MenuRow>
@@ -138,7 +142,10 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
             <span className="flex-1">All at once</span>
             {meta?.followUpMode === 'all' && <Dot />}
           </MenuRow>
-          <MenuRow active={false} onClick={() => void command(() => setFollowUpMode('one-at-a-time'))}>
+          <MenuRow
+            active={false}
+            onClick={() => void command(() => setFollowUpMode('one-at-a-time'))}
+          >
             <span className="flex-1">One at a time</span>
             {meta?.followUpMode === 'one-at-a-time' && <Dot />}
           </MenuRow>

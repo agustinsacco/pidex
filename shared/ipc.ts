@@ -5,12 +5,7 @@
  * `IpcInvokeMap`. Streams are pushed from main on per-session channels
  * (`pi:event:<sessionId>`) declared by `sessionEventChannel`.
  */
-import type {
-  RpcCommand,
-  RpcResponse,
-  ExtensionUIResponse,
-  RpcResponseDataMap,
-} from './rpc'
+import type { RpcCommand, RpcResponse, ExtensionUIResponse, RpcResponseDataMap } from './rpc'
 import type {
   AppPrefs,
   CreateSessionOptions,
@@ -53,7 +48,10 @@ export interface IpcInvokeMap {
   'pi:health': { args: []; result: PiHealth }
   'pi:createSession': { args: [CreateSessionOptions]; result: LiveSessionInfo }
   'pi:command': { args: [sessionId: string, command: RpcCommand]; result: RpcResponse }
-  'pi:extensionUiResponse': { args: [sessionId: string, response: ExtensionUIResponse]; result: void }
+  'pi:extensionUiResponse': {
+    args: [sessionId: string, response: ExtensionUIResponse]
+    result: void
+  }
   'pi:disposeSession': { args: [sessionId: string]; result: void }
   'pi:listLiveSessions': { args: []; result: LiveSessionInfo[] }
 
@@ -65,8 +63,21 @@ export interface IpcInvokeMap {
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:userInfo': { args: []; result: { username: string } }
+  'app:about': {
+    args: []
+    result: {
+      appVersion: string
+      electron: string
+      chrome: string
+      node: string
+      platform: string
+      arch: string
+    }
+  }
   'app:saveDialog': {
-    args: [{ title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }]
+    args: [
+      { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] },
+    ]
     result: string | null
   }
   'app:revealPath': { args: [string]; result: void }
@@ -79,7 +90,11 @@ export interface IpcInvokeMap {
   }
   'pi:writeConfigFile': { args: [name: 'settings' | 'models', content: string]; result: void }
   'pi:patchAgentSettings': {
-    args: [scope: 'global' | 'project', workspacePath: string | undefined, patch: Record<string, unknown>]
+    args: [
+      scope: 'global' | 'project',
+      workspacePath: string | undefined,
+      patch: Record<string, unknown>,
+    ]
     result: void
   }
   'pi:listResources': {
@@ -157,9 +172,7 @@ export interface PidexApi {
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
 
   /** Workspace file-change notifications; returns unsubscribe. */
-  onFsChanged(
-    listener: (payload: { workspacePath: string; paths: string[] }) => void,
-  ): () => void
+  onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void
 
   /** PTY output stream; returns unsubscribe. */
   onPtyData(ptyId: string, listener: (data: string) => void): () => void

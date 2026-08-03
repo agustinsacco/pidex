@@ -27,7 +27,11 @@ interface PaletteAction {
   run: () => void
 }
 
-export function CommandPalette({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
+export function CommandPalette({
+  workspacePath,
+}: {
+  workspacePath: string
+}): React.JSX.Element | null {
   const open = usePaletteStore((s) => s.open)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -60,16 +64,62 @@ export function CommandPalette({ workspacePath }: { workspacePath: string }): Re
 
     const base: PaletteAction[] = [
       { id: 'new-session', label: 'New session', hint: '⌘N', run: () => sessions.activate(null) },
-      { id: 'go-to-file', label: 'Go to file…', hint: '⌘P', run: () => useFinderStore.getState().setOpen(true) },
-      { id: 'toggle-sidebar', label: 'Toggle sidebar', hint: '⌘B', run: () => layout.toggleSidebar() },
-      { id: 'toggle-files', label: 'Toggle files pane', hint: '⌘⇧E', run: () => layout.toggleRightPane('files') },
-      { id: 'toggle-changes', label: 'Toggle changes pane', hint: '⌘⇧G', run: () => layout.toggleRightPane('changes') },
-      { id: 'toggle-terminal', label: 'Toggle terminal', hint: '⌘`', run: () => layout.toggleRightPane('terminal') },
-      { id: 'toggle-artifacts', label: 'Toggle artifacts pane', run: () => layout.toggleRightPane('artifacts') },
-      { id: 'settings', label: 'Open settings', hint: '⌘,', run: () => useSettingsUiStore.getState().setOpen(true) },
-      { id: 'theme-light', label: 'Theme: light', run: () => useSettingsStore.getState().setTheme('light') },
-      { id: 'theme-dark', label: 'Theme: dark', run: () => useSettingsStore.getState().setTheme('dark') },
-      { id: 'theme-system', label: 'Theme: system', run: () => useSettingsStore.getState().setTheme('system') },
+      {
+        id: 'go-to-file',
+        label: 'Go to file…',
+        hint: '⌘P',
+        run: () => useFinderStore.getState().setOpen(true),
+      },
+      {
+        id: 'toggle-sidebar',
+        label: 'Toggle sidebar',
+        hint: '⌘B',
+        run: () => layout.toggleSidebar(),
+      },
+      {
+        id: 'toggle-files',
+        label: 'Toggle files pane',
+        hint: '⌘⇧E',
+        run: () => layout.toggleRightPane('files'),
+      },
+      {
+        id: 'toggle-changes',
+        label: 'Toggle changes pane',
+        hint: '⌘⇧G',
+        run: () => layout.toggleRightPane('changes'),
+      },
+      {
+        id: 'toggle-terminal',
+        label: 'Toggle terminal',
+        hint: '⌘`',
+        run: () => layout.toggleRightPane('terminal'),
+      },
+      {
+        id: 'toggle-artifacts',
+        label: 'Toggle artifacts pane',
+        run: () => layout.toggleRightPane('artifacts'),
+      },
+      {
+        id: 'settings',
+        label: 'Open settings',
+        hint: '⌘,',
+        run: () => useSettingsUiStore.getState().setOpen(true),
+      },
+      {
+        id: 'theme-light',
+        label: 'Theme: light',
+        run: () => useSettingsStore.getState().setTheme('light'),
+      },
+      {
+        id: 'theme-dark',
+        label: 'Theme: dark',
+        run: () => useSettingsStore.getState().setTheme('dark'),
+      },
+      {
+        id: 'theme-system',
+        label: 'Theme: system',
+        run: () => useSettingsStore.getState().setTheme('system'),
+      },
       {
         id: 'open-folder',
         label: 'Open workspace folder…',
@@ -111,8 +161,14 @@ export function CommandPalette({ workspacePath }: { workspacePath: string }): Re
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[16vh] backdrop-blur-[2px]" onClick={close}>
-      <div onClick={(e) => e.stopPropagation()} className="border-border bg-surface-raised w-[560px] overflow-hidden rounded-xl border shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[16vh] backdrop-blur-[2px]"
+      onClick={close}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="border-border bg-surface-raised w-[560px] overflow-hidden rounded-xl border shadow-2xl"
+      >
         <input
           ref={inputRef}
           value={query}
@@ -139,13 +195,24 @@ export function CommandPalette({ workspacePath }: { workspacePath: string }): Re
         />
         <div className="max-h-80 overflow-y-auto py-1">
           {matches.map((action, index) => (
-            <MenuRow key={action.id} active={index === activeIndex} onHover={() => setActiveIndex(index)} onClick={() => run(action)}>
+            <MenuRow
+              key={action.id}
+              active={index === activeIndex}
+              onHover={() => setActiveIndex(index)}
+              onClick={() => run(action)}
+            >
               <span className="min-w-0 flex-1 truncate text-[13px]">{action.label}</span>
-              {action.hint && <span className="text-text-tertiary shrink-0 font-mono text-[10.5px]">{action.hint}</span>}
+              {action.hint && (
+                <span className="text-text-tertiary shrink-0 font-mono text-[10.5px]">
+                  {action.hint}
+                </span>
+              )}
             </MenuRow>
           ))}
           {matches.length === 0 && (
-            <div className="text-text-tertiary px-4 py-4 text-center text-[12.5px]">No matching commands</div>
+            <div className="text-text-tertiary px-4 py-4 text-center text-[12.5px]">
+              No matching commands
+            </div>
           )}
         </div>
       </div>

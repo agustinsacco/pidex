@@ -5,6 +5,11 @@ import { ptyManager } from './pty/pty-manager'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
+// E2E runs must never touch the developer's real prefs.
+if (process.env.PIDEX_TEST_USER_DATA) {
+  app.setPath('userData', join(app.getPath('temp'), `pidex-e2e-${process.pid}`))
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1440,

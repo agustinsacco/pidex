@@ -54,12 +54,10 @@ export const MessageList = memo(function MessageList({
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="font-serif text-text-secondary text-[22px]">
-            Describe a task to begin
-          </div>
+          <div className="font-serif text-text-secondary text-[22px]">Describe a task to begin</div>
           <div className="text-text-tertiary mt-1.5 text-[13px]">
-            pi runs with full permissions in this workspace — markdown, diffs, diagrams and
-            previews render right here.
+            pi runs with full permissions in this workspace — markdown, diffs, diagrams and previews
+            render right here.
           </div>
         </div>
       </div>
@@ -114,7 +112,14 @@ export const MessageList = memo(function MessageList({
           onClick={jumpToBottom}
           className="border-border bg-surface text-text-secondary hover:text-text absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium shadow-md transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <path d="M12 5v14m7-7-7 7-7-7" />
           </svg>
           {isStreaming ? 'Following stream' : 'Jump to bottom'}

@@ -15,8 +15,7 @@ export const useChatUiStore = create<ChatUiState>((set, get) => ({
   prefill: {},
   openForkPicker: (sessionId) => set({ forkPickerFor: sessionId }),
   closeForkPicker: () => set({ forkPickerFor: null }),
-  setPrefill: (sessionId, text) =>
-    set((s) => ({ prefill: { ...s.prefill, [sessionId]: text } })),
+  setPrefill: (sessionId, text) => set((s) => ({ prefill: { ...s.prefill, [sessionId]: text } })),
   consumePrefill: (sessionId) => {
     const text = get().prefill[sessionId]
     if (text !== undefined) {

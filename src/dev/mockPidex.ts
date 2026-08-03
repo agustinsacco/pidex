@@ -107,7 +107,11 @@ function respond(command: RpcCommand): RpcResponse {
         success: true,
         data: {
           commands: [
-            { name: 'session-name', description: 'Set or clear the session name', source: 'extension' },
+            {
+              name: 'session-name',
+              description: 'Set or clear the session name',
+              source: 'extension',
+            },
             { name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' },
             { name: 'skill:web-search', description: 'Search the web', source: 'skill' },
           ],
@@ -206,18 +210,38 @@ function mockDir(dir: string): Array<Record<string, unknown>> {
     return [
       { name: 'src', path: `${ws}/src`, relativePath: 'src', isDirectory: true },
       { name: 'electron', path: `${ws}/electron`, relativePath: 'electron', isDirectory: true },
-      { name: 'package.json', path: `${ws}/package.json`, relativePath: 'package.json', isDirectory: false },
+      {
+        name: 'package.json',
+        path: `${ws}/package.json`,
+        relativePath: 'package.json',
+        isDirectory: false,
+      },
       { name: 'README.md', path: `${ws}/README.md`, relativePath: 'README.md', isDirectory: false },
     ]
   }
   if (dir.endsWith('/src')) {
     return [
-      { name: 'main.tsx', path: `${ws}/src/main.tsx`, relativePath: 'src/main.tsx', isDirectory: false },
-      { name: 'App.tsx', path: `${ws}/src/App.tsx`, relativePath: 'src/App.tsx', isDirectory: false },
+      {
+        name: 'main.tsx',
+        path: `${ws}/src/main.tsx`,
+        relativePath: 'src/main.tsx',
+        isDirectory: false,
+      },
+      {
+        name: 'App.tsx',
+        path: `${ws}/src/App.tsx`,
+        relativePath: 'src/App.tsx',
+        isDirectory: false,
+      },
     ]
   }
   return [
-    { name: 'main.ts', path: `${dir}/main.ts`, relativePath: 'electron/main.ts', isDirectory: false },
+    {
+      name: 'main.ts',
+      path: `${dir}/main.ts`,
+      relativePath: 'electron/main.ts',
+      isDirectory: false,
+    },
   ]
 }
 
@@ -227,16 +251,87 @@ function mockTree(): Record<string, unknown> {
     cwd: '/Users/dev/projects/pidex',
     leafId: 'u4',
     entries: [
-      { id: 'u1', parentId: null, type: 'message', role: 'user', preview: 'Refactor the auth module to use the new token service', timestamp: '2026-08-01T10:00:00Z' },
-      { id: 'a1', parentId: 'u1', type: 'message', role: 'assistant', preview: 'Starting with the token service…', toolName: 'read, edit', timestamp: '2026-08-01T10:01:00Z' },
-      { id: 't1', parentId: 'a1', type: 'message', role: 'toolResult', toolName: 'edit', timestamp: '2026-08-01T10:01:30Z' },
-      { id: 'u2', parentId: 't1', type: 'message', role: 'user', preview: 'Actually use JWT rotation instead', timestamp: '2026-08-01T10:05:00Z' },
-      { id: 'a2', parentId: 'u2', type: 'message', role: 'assistant', preview: 'Switching to JWT rotation…', timestamp: '2026-08-01T10:06:00Z' },
-      { id: 'u3', parentId: 't1', type: 'message', role: 'user', preview: 'Add refresh-token support too', timestamp: '2026-08-01T11:00:00Z' },
-      { id: 'a3', parentId: 'u3', type: 'message', role: 'assistant', preview: 'Adding refresh tokens…', toolName: 'edit, bash', timestamp: '2026-08-01T11:02:00Z' },
-      { id: 'bs1', parentId: 'a3', type: 'branch_summary', summary: 'Explored JWT rotation on the abandoned branch.', timestamp: '2026-08-01T11:10:00Z' },
-      { id: 'u4', parentId: 'bs1', type: 'message', role: 'user', preview: 'Now write the tests', timestamp: '2026-08-01T11:15:00Z' },
-      { id: 'l1', parentId: 'u4', type: 'label', targetId: 'u2', label: 'jwt-experiment', timestamp: '2026-08-01T11:20:00Z' },
+      {
+        id: 'u1',
+        parentId: null,
+        type: 'message',
+        role: 'user',
+        preview: 'Refactor the auth module to use the new token service',
+        timestamp: '2026-08-01T10:00:00Z',
+      },
+      {
+        id: 'a1',
+        parentId: 'u1',
+        type: 'message',
+        role: 'assistant',
+        preview: 'Starting with the token service…',
+        toolName: 'read, edit',
+        timestamp: '2026-08-01T10:01:00Z',
+      },
+      {
+        id: 't1',
+        parentId: 'a1',
+        type: 'message',
+        role: 'toolResult',
+        toolName: 'edit',
+        timestamp: '2026-08-01T10:01:30Z',
+      },
+      {
+        id: 'u2',
+        parentId: 't1',
+        type: 'message',
+        role: 'user',
+        preview: 'Actually use JWT rotation instead',
+        timestamp: '2026-08-01T10:05:00Z',
+      },
+      {
+        id: 'a2',
+        parentId: 'u2',
+        type: 'message',
+        role: 'assistant',
+        preview: 'Switching to JWT rotation…',
+        timestamp: '2026-08-01T10:06:00Z',
+      },
+      {
+        id: 'u3',
+        parentId: 't1',
+        type: 'message',
+        role: 'user',
+        preview: 'Add refresh-token support too',
+        timestamp: '2026-08-01T11:00:00Z',
+      },
+      {
+        id: 'a3',
+        parentId: 'u3',
+        type: 'message',
+        role: 'assistant',
+        preview: 'Adding refresh tokens…',
+        toolName: 'edit, bash',
+        timestamp: '2026-08-01T11:02:00Z',
+      },
+      {
+        id: 'bs1',
+        parentId: 'a3',
+        type: 'branch_summary',
+        summary: 'Explored JWT rotation on the abandoned branch.',
+        timestamp: '2026-08-01T11:10:00Z',
+      },
+      {
+        id: 'u4',
+        parentId: 'bs1',
+        type: 'message',
+        role: 'user',
+        preview: 'Now write the tests',
+        timestamp: '2026-08-01T11:15:00Z',
+      },
+      {
+        id: 'l1',
+        parentId: 'u4',
+        type: 'label',
+        targetId: 'u2',
+        label: 'jwt-experiment',
+        timestamp: '2026-08-01T11:20:00Z',
+      },
     ],
   }
 }
@@ -246,13 +341,22 @@ export function installMockPidex(): void {
     invoke: (channel: string, ...args: unknown[]) => {
       switch (channel) {
         case 'pi:health':
-          return Promise.resolve({ ok: true, version: '0.78.0', binaryPath: '/mock/pi', minVersion: '0.78.0' })
+          return Promise.resolve({
+            ok: true,
+            version: '0.78.0',
+            binaryPath: '/mock/pi',
+            minVersion: '0.78.0',
+          })
         case 'app:getPrefs':
           return Promise.resolve({
             theme: 'system',
             recentWorkspaces: [
               { path: '/Users/dev/projects/pidex', name: 'pidex', lastOpenedAt: Date.now() },
-              { path: '/Users/dev/projects/other', name: 'other', lastOpenedAt: Date.now() - 8.64e7 },
+              {
+                path: '/Users/dev/projects/other',
+                name: 'other',
+                lastOpenedAt: Date.now() - 8.64e7,
+              },
             ],
             pinnedSessions: [],
             fonts: {
@@ -266,7 +370,11 @@ export function installMockPidex(): void {
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
         case 'pi:createSession':
-          return Promise.resolve({ sessionId: 'mock-session-id', workspacePath: '/Users/dev/projects/pidex', pid: 1234 })
+          return Promise.resolve({
+            sessionId: 'mock-session-id',
+            workspacePath: '/Users/dev/projects/pidex',
+            pid: 1234,
+          })
         case 'pi:command':
           return Promise.resolve(respond(args[1] as RpcCommand))
         case 'fs:listFiles':
@@ -287,7 +395,13 @@ export function installMockPidex(): void {
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'git:info':
-          return Promise.resolve({ isRepo: true, branch: 'main', dirtyCount: 3, ahead: 1, behind: 0 })
+          return Promise.resolve({
+            isRepo: true,
+            branch: 'main',
+            dirtyCount: 3,
+            ahead: 1,
+            behind: 0,
+          })
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
         case 'fs:readDir': {
@@ -367,7 +481,11 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     piCommand: (sessionId, command) =>
-      (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)('pi:command', sessionId, command),
+      (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)(
+        'pi:command',
+        sessionId,
+        command,
+      ),
   } as PidexApi
 
   window.pidex = api

@@ -16,7 +16,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   useEffect(() => {
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
     void window.pidex.invoke('git:info', workspacePath).then(setGit)
-    void window.pidex.invoke('app:userInfo').then((info) => setUsername(prettifyName(info.username)))
+    void window.pidex
+      .invoke('app:userInfo')
+      .then((info) => setUsername(prettifyName(info.username)))
     textareaRef.current?.focus()
   }, [workspacePath])
 
@@ -146,10 +148,15 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
             <div
               key={cell.key}
               title={`${cell.key}: ${cell.count} messages`}
-              className={clsx('h-[10px] w-[10px] rounded-[2.5px]', cell.count === 0 && 'bg-border/60')}
+              className={clsx(
+                'h-[10px] w-[10px] rounded-[2.5px]',
+                cell.count === 0 && 'bg-border/60',
+              )}
               style={
                 cell.count > 0
-                  ? { backgroundColor: `color-mix(in srgb, var(--px-info) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)` }
+                  ? {
+                      backgroundColor: `color-mix(in srgb, var(--px-info) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)`,
+                    }
                   : undefined
               }
             />
@@ -160,7 +167,13 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
   )
 }
 
-function Chip({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
+function Chip({
+  icon,
+  children,
+}: {
+  icon?: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <span className="border-border bg-surface text-text-secondary flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium">
       {icon}
@@ -187,7 +200,14 @@ function formatTokens(n: number): string {
 
 function MonitorIcon(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <rect x="2" y="3" width="20" height="14" rx="2" />
       <path d="M8 21h8M12 17v4" />
     </svg>
@@ -196,7 +216,14 @@ function MonitorIcon(): React.JSX.Element {
 
 function FolderIcon(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   )
@@ -204,7 +231,14 @@ function FolderIcon(): React.JSX.Element {
 
 function BranchIcon(): React.JSX.Element {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <circle cx="6" cy="6" r="2.5" />
       <circle cx="6" cy="18" r="2.5" />
       <circle cx="18" cy="6" r="2.5" />

@@ -8,14 +8,14 @@ The complete specification already exists in this repo. **Do not re-plan the pro
 
 Before implementing UI code in any phase, inspect the relevant screenshots in `specs/screenshots/` using your image viewing capabilities:
 
-| Phase | Relevant Screenshots | What to match / study |
-|---|---|---|
-| **P1 — Full chat rendering** | `chat-tool-calls.png`<br>`chat-file-chips.png`<br>`chat-full-width.png`<br>`composer-plus-menu.png`<br>`composer-model-picker.png` | Collapsed chevrons on tool execution cards, GFM markdown rendering, code block badges, file preview chips, full-width mode, composer `+` popup menu, and model/effort picker dropdown. |
-| **P2 — Workspaces & Sidebar** | `home-light.png`<br>`home-populated.png`<br>`sidebar-sessions.png` | Greeting screen header ("What's up next?"), activity heatmap, stat tiles (Sessions, Messages, Tokens, Active days), workspace/branch/worktree chips at composer bottom, pinned routine sections, and right-click context menu on sidebar session items. |
-| **P3 — Files & Diffs** | `files-diff-pane.png` | Three-panel layout, right-hand Files Changed list with summary counts (`+N -M`), colored line insertions/deletions, and Monaco split patch view. |
-| **P4 — Terminal** | `terminal-pane.png` | Right-side sliding Terminal panel, header tabs (`Terminal +`), expand (`↗`) / close (`✕`) actions, and xterm font/theme styling. |
-| **P5 — Artifacts** | `artifact-panel.png` | Three-panel layout, right-hand Artifact viewer with share/reload controls, formatted artifact headers, metadata badges, and inline markdown/code previews. |
-| **P6 — Settings & Polish** | `settings.png`<br>`settings-connectors.png`<br>`profile-menu.png` | Main Settings modal window with sidebar navigation, theme appearance toggles, live code diff preview, Connectors list table, and bottom-left user profile menu. |
+| Phase                         | Relevant Screenshots                                                                                                               | What to match / study                                                                                                                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1 — Full chat rendering**  | `chat-tool-calls.png`<br>`chat-file-chips.png`<br>`chat-full-width.png`<br>`composer-plus-menu.png`<br>`composer-model-picker.png` | Collapsed chevrons on tool execution cards, GFM markdown rendering, code block badges, file preview chips, full-width mode, composer `+` popup menu, and model/effort picker dropdown.                                                                  |
+| **P2 — Workspaces & Sidebar** | `home-light.png`<br>`home-populated.png`<br>`sidebar-sessions.png`                                                                 | Greeting screen header ("What's up next?"), activity heatmap, stat tiles (Sessions, Messages, Tokens, Active days), workspace/branch/worktree chips at composer bottom, pinned routine sections, and right-click context menu on sidebar session items. |
+| **P3 — Files & Diffs**        | `files-diff-pane.png`                                                                                                              | Three-panel layout, right-hand Files Changed list with summary counts (`+N -M`), colored line insertions/deletions, and Monaco split patch view.                                                                                                        |
+| **P4 — Terminal**             | `terminal-pane.png`                                                                                                                | Right-side sliding Terminal panel, header tabs (`Terminal +`), expand (`↗`) / close (`✕`) actions, and xterm font/theme styling.                                                                                                                        |
+| **P5 — Artifacts**            | `artifact-panel.png`                                                                                                               | Three-panel layout, right-hand Artifact viewer with share/reload controls, formatted artifact headers, metadata badges, and inline markdown/code previews.                                                                                              |
+| **P6 — Settings & Polish**    | `settings.png`<br>`settings-connectors.png`<br>`profile-menu.png`                                                                  | Main Settings modal window with sidebar navigation, theme appearance toggles, live code diff preview, Connectors list table, and bottom-left user profile menu.                                                                                         |
 
 ## Your working contract
 
@@ -24,8 +24,8 @@ Before implementing UI code in any phase, inspect the relevant screenshots in `s
    - [specs/00-overview.md](specs/00-overview.md) — product definition, non-negotiables, brand, quality bar
    - [specs/01-architecture.md](specs/01-architecture.md) — locked stack, process model, IPC, repo layout
    - [specs/02-pi-integration.md](specs/02-pi-integration.md) — the verified pi RPC/protocol reference. This is the load-bearing document; read it fully before any pi-related code.
-   Then, per phase, the relevant domain spec:
-   [specs/03-ui-shell.md](specs/03-ui-shell.md) · [specs/04-chat.md](specs/04-chat.md) · [specs/05-files-editor.md](specs/05-files-editor.md) · [specs/06-terminal.md](specs/06-terminal.md) · [specs/07-artifacts.md](specs/07-artifacts.md) · [specs/08-sessions.md](specs/08-sessions.md) · [specs/09-settings.md](specs/09-settings.md) · [specs/10-packaging.md](specs/10-packaging.md)
+     Then, per phase, the relevant domain spec:
+     [specs/03-ui-shell.md](specs/03-ui-shell.md) · [specs/04-chat.md](specs/04-chat.md) · [specs/05-files-editor.md](specs/05-files-editor.md) · [specs/06-terminal.md](specs/06-terminal.md) · [specs/07-artifacts.md](specs/07-artifacts.md) · [specs/08-sessions.md](specs/08-sessions.md) · [specs/09-settings.md](specs/09-settings.md) · [specs/10-packaging.md](specs/10-packaging.md)
 
 2. **Work the tracker.** Execute phases P0 → P7 in order. Flip checkboxes as you complete tasks, set phase statuses (⬜/🟡/✅), and write a dated line in each phase's Log on completion or deviation. A phase is done only when its "Done when" criteria hold and the app still runs (`npm run dev`). **Git-commit at every phase completion** (and at meaningful milestones within a phase) with the phase id in the message — these are your checkpoints.
 
@@ -42,4 +42,3 @@ Before implementing UI code in any phase, inspect the relevant screenshots in `s
    - Unknown/extension tools must render well generically — pi's ecosystem is extension-driven.
 
 Begin with P0 in [specs/TRACKER.md](specs/TRACKER.md).
-

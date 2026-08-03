@@ -29,21 +29,23 @@
 
 ## Tool renderers
 
-| Tool | Treatment |
-|---|---|
-| `read` | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline |
-| `bash` | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath` |
-| `edit` | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](05-files-editor.md)) |
-| `write` | "Created/Overwrote <path>" chip + collapsible content preview (highlighted) |
-| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files |
-| unknown/extension | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing |
+| Tool               | Treatment                                                                                                                                                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                        |
+| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                          |
+| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](05-files-editor.md)) |
+| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                           |
+| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                   |
+| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                       |
 
 ## Rich content (first-class citizens)
 
 - GFM: headings, tables (copy as markdown/CSV), task lists, blockquote callouts, footnotes, autolinks.
 - Code: Shiki/hljs, language badge, copy, line numbers on hover, horizontal scroll contained inside the block.
 - ```mermaid → rendered diagram; click for pan/zoom lightbox; export PNG/SVG; parse errors fall back to code with an error note.
-- ```vega-lite / ```chart → theme-aware rendered chart; invalid spec falls back to code.
+
+  ```
+- `vega-lite / `chart → theme-aware rendered chart; invalid spec falls back to code.
 - ```html → Code/Preview toggle; preview in sandboxed iframe (`sandbox` attr, no network, inlined content only).
 - KaTeX for `$…$` / `$$…$$`.
 - Images in content blocks inline with click-to-zoom.

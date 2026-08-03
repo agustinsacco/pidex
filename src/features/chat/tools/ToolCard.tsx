@@ -1,7 +1,13 @@
 import { memo, useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
-import { editDiffStats, summarizeTool, toolText, tryParseArgs, type EditDetails } from './toolSummaries'
+import {
+  editDiffStats,
+  summarizeTool,
+  toolText,
+  tryParseArgs,
+  type EditDetails,
+} from './toolSummaries'
 import { DiffView } from './DiffView'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { CopyButton } from '@/components/CopyButton'
@@ -64,7 +70,11 @@ export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): R
             <span className="text-danger">−{summary.stats.deletions}</span>
           </span>
         )}
-        {failed && <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium">failed</span>}
+        {failed && (
+          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium">
+            failed
+          </span>
+        )}
         <Chevron expanded={expanded} />
       </button>
       {expanded && (
@@ -101,8 +111,7 @@ function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   const command = typeof tool.args?.command === 'string' ? tool.args.command : tool.argsText
   const output = toolText(tool)
   const details = (tool.result?.details ?? tool.output?.details) as
-    | { fullOutputPath?: string | null; truncation?: { truncated?: boolean } | null }
-    | undefined
+    { fullOutputPath?: string | null; truncation?: { truncated?: boolean } | null } | undefined
   const running = tool.status === 'starting' || tool.status === 'running'
   const durationMs = tool.startedAt && tool.endedAt ? tool.endedAt - tool.startedAt : null
 
@@ -212,7 +221,9 @@ function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 p-3">
           {images.map((img, i) =>
-            img.type === 'image' ? <ZoomableImage key={i} data={img.data} mimeType={img.mimeType} /> : null,
+            img.type === 'image' ? (
+              <ZoomableImage key={i} data={img.data} mimeType={img.mimeType} />
+            ) : null,
           )}
         </div>
       )}
@@ -329,11 +340,7 @@ function ZoomableImage({ data, mimeType }: { data: string; mimeType: string }): 
 
 export function Spinner(): React.JSX.Element {
   return (
-    <svg
-      className="text-accent h-3.5 w-3.5 shrink-0 animate-spin"
-      viewBox="0 0 24 24"
-      fill="none"
-    >
+    <svg className="text-accent h-3.5 w-3.5 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
       <path
         className="opacity-90"

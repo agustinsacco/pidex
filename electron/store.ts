@@ -1,5 +1,10 @@
 import Store from 'electron-store'
-import { DEFAULT_APP_PREFS, type AppPrefs, type ThemePreference, type WorkspaceInfo } from '@shared/models'
+import {
+  DEFAULT_APP_PREFS,
+  type AppPrefs,
+  type ThemePreference,
+  type WorkspaceInfo,
+} from '@shared/models'
 
 const store = new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
 

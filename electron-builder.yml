@@ -1,0 +1,70 @@
+appId: works.pidex.app
+productName: pidex
+copyright: pidex
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+
+# The bundled pi extension must be readable by the pi subprocess at runtime,
+# so it ships unpacked next to the app resources rather than inside the asar.
+extraResources:
+  - from: pi-ext
+    to: pi-ext
+    filter: ['**/*.ts']
+
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+npmRebuild: true
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+linux:
+  icon: build/icon.png
+  category: Development
+  synopsis: Desktop coding-agent app powered by the pi coding agent
+  # install.sh downloads exactly this name — keep the two in sync.
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  desktop:
+    entry:
+      StartupWMClass: pidex
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+
+publish:
+  provider: github
+  releaseType: draft
