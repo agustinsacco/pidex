@@ -8,7 +8,7 @@
 
 | Phase | Title | Status |
 |---|---|---|
-| P0 | Scaffold + RPC client + minimal streaming chat | ⬜ |
+| P0 | Scaffold + RPC client + minimal streaming chat | ✅ |
 | P1 | Full chat rendering | ⬜ |
 | P2 | Workspaces, sessions, sidebar, resume, tree | ⬜ |
 | P3 | Files pane, editor, diffs | ⬜ |
@@ -19,20 +19,21 @@
 
 ---
 
-## P0 — Scaffold + RPC client + minimal streaming chat  `⬜`
+## P0 — Scaffold + RPC client + minimal streaming chat  `✅`
 Specs: [01-architecture.md](01-architecture.md) · [02-pi-integration.md](02-pi-integration.md)
 
-- [ ] Repo scaffold per §Repo layout: Electron main + preload + Vite/React/Tailwind renderer, TS strict, shared types package, lint/format, `npm run dev` with HMR
-- [ ] Zustand store skeletons (workspaces/sessions/chat/layout/settings)
-- [ ] `PiRpcClient` (main): spawn `pi --mode rpc` with cwd; strict LF JSONL framing (no readline); command/id correlation; typed event emitter; kill/cleanup; crash detection
-- [ ] Unit tests: framing (chunk splits mid-line, CRLF, U+2028 inside strings), correlation, subprocess lifecycle
-- [ ] pi health check on startup: PATH lookup + `--version` gate against MIN_PI_VERSION; "pi missing" setup screen
-- [ ] Typed IPC bridge (`pi:*`, `app:*`) with per-session event channels
-- [ ] Minimal chat: one hardcoded-workspace session, composer (Enter sends), streamed plain-text deltas render, Stop button (`abort`), errors surfaced
+- [x] Repo scaffold per §Repo layout: Electron main + preload + Vite/React/Tailwind renderer, TS strict, shared types package, lint/format, `npm run dev` with HMR
+- [x] Zustand store skeletons (workspaces/sessions/chat/layout/settings)
+- [x] `PiRpcClient` (main): spawn `pi --mode rpc` with cwd; strict LF JSONL framing (no readline); command/id correlation; typed event emitter; kill/cleanup; crash detection
+- [x] Unit tests: framing (chunk splits mid-line, CRLF, U+2028 inside strings), correlation, subprocess lifecycle
+- [x] pi health check on startup: PATH lookup + `--version` gate against MIN_PI_VERSION; "pi missing" setup screen
+- [x] Typed IPC bridge (`pi:*`, `app:*`) with per-session event channels
+- [x] Minimal chat: one hardcoded-workspace session, composer (Enter sends), streamed plain-text deltas render, Stop button (`abort`), errors surfaced
 
 **Done when:** you can open the app in a folder, type a prompt, watch pi's answer stream in, and abort mid-stream. RPC client tests green.
 
 **Log:**
+- 2026-08-03 — P0 complete. Stack: Electron 43 + electron-vite 5 + Vite 7 + React 19 + Tailwind 4 + TS 6 (strict) + Vitest 4. MIN_PI_VERSION pinned to 0.78.0 (installed version verified). 17 unit tests green (JSONL framing incl. U+2028 mid-codepoint chunk splits; correlation incl. out-of-order responses; crash detection; clean dispose). Live probe against real `pi --mode rpc` verified: get_state/get_available_models handshake, streamed prompt, mid-stream abort (stopReason=aborted). Reference machine runs a custom local provider (`local-stark`), confirming no-Anthropic-assumptions. Deviations: workspace comes from a native folder picker instead of hardcoded (strictly better, feeds P2); preload emits CJS (`preload.cjs`) because sandboxed preloads require CommonJS.
 
 ---
 

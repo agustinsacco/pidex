@@ -1,0 +1,156 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * pidex design tokens
+ * Warm off-white light theme / deep warm dark theme, terracotta accent.
+ * Every surface in the app (Monaco, xterm, Shiki, Mermaid) reads these vars.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* Light theme (default) */
+  --px-bg: #faf9f5;
+  --px-bg-secondary: #f4f2ea;
+  --px-surface: #ffffff;
+  --px-surface-raised: #ffffff;
+  --px-border: #e5e2d7;
+  --px-border-strong: #d5d1c3;
+  --px-text: #3d3d3a;
+  --px-text-secondary: #73726c;
+  --px-text-tertiary: #a3a29a;
+  --px-accent: #c96442;
+  --px-accent-hover: #b5583a;
+  --px-accent-soft: #f6e8e2;
+  --px-accent-text: #ffffff;
+  --px-success: #5a8a5e;
+  --px-warning: #b58a3d;
+  --px-danger: #b5483d;
+  --px-danger-soft: #f8e9e7;
+  --px-info: #4a7a9b;
+  --px-user-bubble: #f0eee4;
+  --px-code-bg: #f6f5ef;
+  --px-scrollbar: #d5d1c3;
+
+  --px-font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --px-font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
+  --px-font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+
+  --px-radius-sm: 6px;
+  --px-radius: 10px;
+  --px-radius-lg: 14px;
+}
+
+.dark {
+  --px-bg: #262624;
+  --px-bg-secondary: #2d2d2b;
+  --px-surface: #30302e;
+  --px-surface-raised: #383836;
+  --px-border: #3e3e3a;
+  --px-border-strong: #4e4e48;
+  --px-text: #e8e6df;
+  --px-text-secondary: #a6a49c;
+  --px-text-tertiary: #737169;
+  --px-accent: #d97757;
+  --px-accent-hover: #e08a6d;
+  --px-accent-soft: #453832;
+  --px-accent-text: #ffffff;
+  --px-success: #7fae83;
+  --px-warning: #cfa75e;
+  --px-danger: #d3766c;
+  --px-danger-soft: #443230;
+  --px-info: #7aa3c0;
+  --px-user-bubble: #383632;
+  --px-code-bg: #2b2b29;
+  --px-scrollbar: #4e4e48;
+}
+
+@theme inline {
+  --color-bg: var(--px-bg);
+  --color-bg-secondary: var(--px-bg-secondary);
+  --color-surface: var(--px-surface);
+  --color-surface-raised: var(--px-surface-raised);
+  --color-border: var(--px-border);
+  --color-border-strong: var(--px-border-strong);
+  --color-text: var(--px-text);
+  --color-text-secondary: var(--px-text-secondary);
+  --color-text-tertiary: var(--px-text-tertiary);
+  --color-accent: var(--px-accent);
+  --color-accent-hover: var(--px-accent-hover);
+  --color-accent-soft: var(--px-accent-soft);
+  --color-accent-text: var(--px-accent-text);
+  --color-success: var(--px-success);
+  --color-warning: var(--px-warning);
+  --color-danger: var(--px-danger);
+  --color-danger-soft: var(--px-danger-soft);
+  --color-info: var(--px-info);
+  --color-user-bubble: var(--px-user-bubble);
+  --color-code-bg: var(--px-code-bg);
+
+  --font-sans: var(--px-font-sans);
+  --font-serif: var(--px-font-serif);
+  --font-mono: var(--px-font-mono);
+
+  --radius-sm: var(--px-radius-sm);
+  --radius-DEFAULT: var(--px-radius);
+  --radius-lg: var(--px-radius-lg);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--px-bg);
+  color: var(--px-text);
+  font-family: var(--px-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--px-scrollbar);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* macOS traffic-light drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-drag button,
+.titlebar-drag input {
+  -webkit-app-region: no-drag;
+}
+
+/* Streaming cursor */
+@keyframes px-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+.streaming-cursor::after {
+  content: '▍';
+  color: var(--px-accent);
+  animation: px-blink 1.1s infinite;
+  margin-left: 1px;
+}
