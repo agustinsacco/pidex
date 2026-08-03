@@ -1,91 +1,120 @@
-import { useEffect, useRef } from 'react'
-import { useChatStore, type ChatItem } from '@/stores/chat'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useChatStore } from '@/stores/chat'
+import { useSettingsStore } from '@/stores/settings'
+import { MessageItemView } from './MessageItem'
 
-export function MessageList({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const session = useChatStore((s) => s.sessions[sessionId])
+export const MessageList = memo(function MessageList({
+  sessionId,
+}: {
+  sessionId: string
+}): React.JSX.Element {
+  const items = useChatStore((s) => s.sessions[sessionId]?.items) ?? []
+  const tools = useChatStore((s) => s.sessions[sessionId]?.tools) ?? {}
+  const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
+  const error = useChatStore((s) => s.sessions[sessionId]?.error ?? null)
+  const hideThinking = useSettingsStore((s) => s.hideThinkingBlock)
+
   const scrollRef = useRef<HTMLDivElement>(null)
-  const pinnedToBottom = useRef(true)
+  const [pinned, setPinned] = useState(true)
+  const pinnedRef = useRef(true)
+  pinnedRef.current = pinned
 
-  const items = session?.items ?? []
-  const error = session?.error ?? null
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 96,
+    overscan: 8,
+    getItemKey: (index) => items[index]?.id ?? index,
+  })
 
+  // Follow the stream while pinned to the bottom.
   useEffect(() => {
     const el = scrollRef.current
-    if (el && pinnedToBottom.current) {
+    if (el && pinnedRef.current) {
       el.scrollTop = el.scrollHeight
     }
   })
 
-  const handleScroll = (): void => {
+  const handleScroll = useCallback((): void => {
     const el = scrollRef.current
     if (!el) return
-    pinnedToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
-  }
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 64
+    setPinned(nearBottom)
+  }, [])
+
+  const jumpToBottom = useCallback((): void => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    setPinned(true)
+  }, [])
 
   if (items.length === 0 && !error) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="font-serif text-text-secondary text-xl">Describe a task to begin</div>
-          <div className="text-text-tertiary mt-1.5 text-sm">
-            pi runs with full permissions in this workspace.
+          <div className="font-serif text-text-secondary text-[22px]">
+            Describe a task to begin
+          </div>
+          <div className="text-text-tertiary mt-1.5 text-[13px]">
+            pi runs with full permissions in this workspace — markdown, diffs, diagrams and
+            previews render right here.
           </div>
         </div>
       </div>
     )
   }
 
+  const virtualItems = virtualizer.getVirtualItems()
+
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5 px-6 py-6">
-        {items.map((item) => (
-          <MessageItem key={item.id} item={item} />
-        ))}
+    <div className="relative flex-1 overflow-hidden">
+      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+        <div
+          className="relative mx-auto w-full max-w-3xl px-6"
+          style={{ height: virtualizer.getTotalSize() + 32 }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const item = items[virtualItem.index]
+            if (!item) return null
+            return (
+              <div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                className="absolute left-6 right-6 top-0"
+                style={{ transform: `translateY(${virtualItem.start + 16}px)` }}
+              >
+                <div className="py-2">
+                  <MessageItemView item={item} tools={tools} hideThinking={hideThinking} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
         {error && (
-          <div className="bg-danger-soft border-danger/30 rounded-lg border px-4 py-3">
-            <div className="text-danger text-sm font-medium">Session error</div>
-            <div className="text-text-secondary mt-0.5 text-sm">{error}</div>
+          <div className="mx-auto max-w-3xl px-6 pb-4">
+            <div className="bg-danger-soft border-danger/25 rounded-lg border px-4 py-3">
+              <div className="text-danger text-[13px] font-medium">Session error</div>
+              <div className="text-text-secondary mt-0.5 text-[13px]">{error}</div>
+            </div>
           </div>
         )}
+        <div className="h-2" />
       </div>
-    </div>
-  )
-}
 
-function MessageItem({ item }: { item: ChatItem }): React.JSX.Element {
-  if (item.kind === 'user') {
-    return (
-      <div className="flex justify-end">
-        <div className="bg-user-bubble max-w-[85%] whitespace-pre-wrap rounded-lg px-4 py-2.5 text-[14px]">
-          {item.text}
-        </div>
-      </div>
-    )
-  }
-
-  const failed = item.stopReason === 'error'
-  const aborted = item.stopReason === 'aborted'
-
-  return (
-    <div className="max-w-full">
-      <div
-        className={`whitespace-pre-wrap text-[14px] leading-relaxed ${item.streaming ? 'streaming-cursor' : ''}`}
-      >
-        {item.text}
-      </div>
-      {failed && (
-        <div className="bg-danger-soft border-danger/30 mt-2 rounded-md border px-3 py-2 text-sm">
-          <span className="text-danger font-medium">Error: </span>
-          <span className="text-text-secondary">{item.errorMessage ?? 'Unknown error'}</span>
-        </div>
-      )}
-      {aborted && (
-        <div className="text-text-tertiary mt-2 flex items-center gap-2 text-xs">
-          <span className="bg-border h-px flex-1" />
-          stopped
-          <span className="bg-border h-px flex-1" />
-        </div>
+      {!pinned && (
+        <button
+          onClick={jumpToBottom}
+          className="border-border bg-surface text-text-secondary hover:text-text absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium shadow-md transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 5v14m7-7-7 7-7-7" />
+          </svg>
+          {isStreaming ? 'Following stream' : 'Jump to bottom'}
+        </button>
       )}
     </div>
   )
-}
+})

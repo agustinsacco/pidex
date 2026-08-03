@@ -4,8 +4,11 @@ import type { ThemePreference } from '@shared/models'
 interface SettingsState {
   theme: ThemePreference
   resolvedTheme: 'light' | 'dark'
+  /** From pi's settings.json — hide thinking blocks in chat. */
+  hideThinkingBlock: boolean
   setTheme: (theme: ThemePreference) => void
   hydrate: () => Promise<void>
+  loadAgentSettings: (workspacePath?: string) => Promise<void>
 }
 
 function resolve(theme: ThemePreference): 'light' | 'dark' {
@@ -32,6 +35,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
   return {
     theme: 'system',
     resolvedTheme: resolve('system'),
+    hideThinkingBlock: false,
+
+    loadAgentSettings: async (workspacePath) => {
+      const settings = await window.pidex.invoke('pi:agentSettings', workspacePath)
+      set({ hideThinkingBlock: settings.hideThinkingBlock === true })
+    },
 
     setTheme: (theme) => {
       const resolved = resolve(theme)

@@ -1,7 +1,9 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { basename } from 'node:path'
 import { checkPiHealth } from './pi/health'
 import { SessionRegistry } from './pi/session-registry'
+import { listWorkspaceFiles } from './fs/list-files'
+import { readAgentSettings } from './pi/agent-settings'
 import { getPrefs, recordWorkspace, setTheme } from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
@@ -96,4 +98,22 @@ export function registerIpcHandlers(): void {
   })
 
   handle('app:getPathForDisplay', (_event, path: string) => basename(path))
+
+  handle('app:saveDialog', async (event, options) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showSaveDialog(window!, {
+      title: options.title,
+      defaultPath: options.defaultPath,
+      filters: options.filters,
+    })
+    return result.canceled ? null : (result.filePath ?? null)
+  })
+
+  handle('app:revealPath', (_event, path: string) => {
+    shell.showItemInFolder(path)
+  })
+
+  handle('fs:listFiles', (_event, workspacePath: string) => listWorkspaceFiles(workspacePath))
+
+  handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
 }
