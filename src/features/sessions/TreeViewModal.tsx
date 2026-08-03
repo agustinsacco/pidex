@@ -302,6 +302,30 @@ export function TreeViewModal({
                         </div>
                       </div>
                     </foreignObject>
+                    {node.configChanges.length > 0 && (
+                      <g transform={`translate(6, ${NODE_HEIGHT + 4})`}>
+                        {node.configChanges.slice(0, 2).map((change, i) => {
+                          const width = Math.min(NODE_WIDTH - 12, change.label.length * 5.2 + 22)
+                          return (
+                            <g key={i} transform={`translate(0, ${i * 15})`}>
+                              <rect
+                                width={width}
+                                height={13}
+                                rx={6.5}
+                                fill="var(--px-bg-secondary)"
+                                stroke="var(--px-border)"
+                              />
+                              <text x={6} dy={9.2} fontSize="8" fill="var(--px-text-secondary)">
+                                {change.kind === 'model' ? '◆ ' : '✳ '}
+                                {change.label.length > 30
+                                  ? change.label.slice(0, 29) + '…'
+                                  : change.label}
+                              </text>
+                            </g>
+                          )
+                        })}
+                      </g>
+                    )}
                     {node.label && (
                       <g transform={`translate(${NODE_WIDTH - 8}, -8)`}>
                         <rect

@@ -315,6 +315,11 @@ export async function readSessionTree(path: string): Promise<SessionTree> {
       node.summary = (entry.summary as string | undefined)?.slice(0, 400)
     } else if (type === 'session_info') {
       node.name = entry.name as string | undefined
+    } else if (type === 'model_change') {
+      node.provider = entry.provider as string | undefined
+      node.modelId = entry.modelId as string | undefined
+    } else if (type === 'thinking_level_change') {
+      node.thinkingLevel = entry.thinkingLevel as string | undefined
     }
 
     entries.push(node)

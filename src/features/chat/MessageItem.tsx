@@ -5,6 +5,7 @@ import type {
   AssistantItem,
   BashItem,
   ChatItem,
+  CustomItem,
   DividerItem,
   ToolState,
   UserItem,
@@ -37,8 +38,54 @@ export const MessageItemView = memo(function MessageItemView({
       return <BashExecution item={item} />
     case 'divider':
       return <Divider item={item} />
+    case 'custom':
+      return <CustomMessageItem item={item} />
   }
 })
+
+/** Extension-injected message; badged when it also reaches the LLM. */
+function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
+  return (
+    <div className="border-info/30 bg-info/5 rounded-lg border border-dashed px-3.5 py-2.5">
+      <div className="mb-1 flex items-center gap-1.5">
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="text-info shrink-0"
+        >
+          <path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        <span className="text-info text-[10.5px] font-semibold uppercase tracking-wide">
+          {item.customType ? `Extension · ${item.customType}` : 'Extension message'}
+        </span>
+        {item.inContext && (
+          <span
+            className="bg-info/15 text-info rounded px-1.5 py-px text-[9.5px] font-medium"
+            title="This message is included in the model's context"
+          >
+            in context
+          </span>
+        )}
+      </div>
+      {item.images && item.images.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-2">
+          {item.images.map((img, i) => (
+            <img
+              key={i}
+              src={`data:${img.mimeType};base64,${img.data}`}
+              className="max-h-32 rounded-md"
+            />
+          ))}
+        </div>
+      )}
+      {item.text && <Markdown text={item.text} />}
+    </div>
+  )
+}
 
 function UserMessage({
   item,

@@ -5,6 +5,7 @@ import { checkPiHealth } from './pi/health'
 import { SessionRegistry } from './pi/session-registry'
 import { listWorkspaceFiles } from './fs/list-files'
 import {
+  checkAgentSettings,
   listPiResources,
   patchAgentSettings,
   readAgentSettings,
@@ -223,6 +224,14 @@ export function registerIpcHandlers(): void {
   handle('pi:patchAgentSettings', (_event, scope, workspacePath, patch) =>
     patchAgentSettings(scope, workspacePath, patch),
   )
+
+  handle('pi:checkAgentSettings', async (_event, workspacePath?: string) => {
+    const result = await checkAgentSettings(workspacePath)
+    // Don't ship parsed contents over IPC — only the health of each file.
+    const strip = (r: { exists: boolean; malformed: boolean; error?: string } | null) =>
+      r ? { exists: r.exists, malformed: r.malformed, error: r.error } : null
+    return { global: strip(result.global)!, project: strip(result.project) }
+  })
 
   handle('pi:listResources', () => listPiResources())
 

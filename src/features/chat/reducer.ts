@@ -14,6 +14,7 @@ import type {
   AssistantMessage,
   BashExecutionMessage,
   CompactionReason,
+  CustomMessage,
   ImageContent,
   PiEvent,
   StopReason,
@@ -70,7 +71,21 @@ export interface DividerItem {
   reason?: CompactionReason
 }
 
-export type ChatItem = UserItem | AssistantItem | BashItem | DividerItem
+/**
+ * Extension-injected message (`custom` / `customMessage` roles).
+ * `inContext` mirrors pi's distinction: `custom_message` entries participate
+ * in the LLM context, plain `custom` entries are extension state only.
+ */
+export interface CustomItem {
+  id: string
+  kind: 'custom'
+  customType?: string
+  text: string
+  images?: ImageContent[]
+  inContext: boolean
+}
+
+export type ChatItem = UserItem | AssistantItem | BashItem | DividerItem | CustomItem
 
 export type ToolStatus = 'starting' | 'running' | 'done' | 'error'
 
@@ -650,8 +665,41 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
       }
     }
 
+    case 'custom':
+    case 'customMessage': {
+      const item = customItemFrom(message as CustomMessage)
+      // `display: false` means the extension wants it hidden from the UI.
+      return item ? { ...state, items: [...state.items, item] } : state
+    }
+
     default:
       return state
+  }
+}
+
+/**
+ * Build a renderable item from an extension-injected message.
+ * Returns null when the extension marked it non-displayable.
+ */
+function customItemFrom(message: CustomMessage): CustomItem | null {
+  if (message.display === false) return null
+  const content = message.content
+  const text =
+    typeof content === 'string'
+      ? content
+      : (userMessageText({ content: content as Array<{ type: string; text?: string }> }) ?? '')
+  const images = userMessageImages({
+    content: content as string | Array<{ type: string; data?: string; mimeType?: string }>,
+  })
+  if (!text && !images) return null
+  return {
+    id: newItemId(),
+    kind: 'custom',
+    customType: typeof message.customType === 'string' ? message.customType : undefined,
+    text,
+    images,
+    // `customMessage` role == pi's custom_message entry: it reaches the LLM.
+    inContext: message.role === 'customMessage',
   }
 }
 
@@ -731,8 +779,13 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
         state = { ...state, items: [...state.items, item] }
         break
       }
+      case 'custom':
+      case 'customMessage': {
+        const item = customItemFrom(message as CustomMessage)
+        if (item) state = { ...state, items: [...state.items, item] }
+        break
+      }
       default:
-        // custom / customMessage: rendered by feature layers (e.g. artifacts).
         break
     }
   }

@@ -280,6 +280,71 @@ describe('chat reducer — user echo dedup', () => {
   })
 })
 
+describe('chat reducer — extension-injected messages', () => {
+  it('renders customMessage as an in-context item', () => {
+    const state = reduceChatEvent(emptyChatSession(), {
+      type: 'message_end',
+      message: {
+        role: 'customMessage',
+        customType: 'pi-web-access',
+        content: 'Fetched https://example.com',
+        display: true,
+      },
+    })
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0]).toMatchObject({
+      kind: 'custom',
+      customType: 'pi-web-access',
+      text: 'Fetched https://example.com',
+      inContext: true,
+    })
+  })
+
+  it('renders custom (extension state) as NOT in context', () => {
+    const state = reduceChatEvent(emptyChatSession(), {
+      type: 'message_end',
+      message: { role: 'custom', customType: 'my-ext', content: 'note', display: true },
+    })
+    expect(state.items[0]).toMatchObject({ kind: 'custom', inContext: false })
+  })
+
+  it('honors display:false by hiding the message', () => {
+    const state = reduceChatEvent(emptyChatSession(), {
+      type: 'message_end',
+      message: { role: 'custom', customType: 'hidden-ext', content: 'internal', display: false },
+    })
+    expect(state.items).toHaveLength(0)
+  })
+
+  it('supports block content arrays with images', () => {
+    const state = reduceChatEvent(emptyChatSession(), {
+      type: 'message_end',
+      message: {
+        role: 'customMessage',
+        customType: 'shot',
+        display: true,
+        content: [
+          { type: 'text', text: 'A screenshot' },
+          { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+        ],
+      },
+    })
+    expect(state.items[0]).toMatchObject({
+      kind: 'custom',
+      text: 'A screenshot',
+      images: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+    })
+  })
+
+  it('hydrates extension messages from session history', () => {
+    const state = hydrateFromMessages([
+      { role: 'user', content: 'go' },
+      { role: 'customMessage', customType: 'ext', content: 'injected context', display: true },
+    ])
+    expect(state.items.map((i) => i.kind)).toEqual(['user', 'custom'])
+  })
+})
+
 describe('chat reducer — hydration', () => {
   it('rebuilds items and tools from get_messages history', () => {
     const state = hydrateFromMessages([
