@@ -49,17 +49,58 @@ export type SessionPush =
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
 
+/** Parsed metadata for one on-disk session file (sidebar row + stats). */
+export interface SessionMeta {
+  path: string
+  sessionId: string
+  cwd: string
+  createdAt: string
+  parentSession?: string
+  name?: string
+  firstUserText?: string
+  userMessages: number
+  assistantMessages: number
+  toolCalls: number
+  totalTokens: number
+  cost: number
+  entryCount: number
+  branchCount: number
+  mtimeMs: number
+  lastActivityAt: string
+}
+
+export interface WorkspaceSessionStats {
+  sessionCount: number
+  messages: number
+  tokens: number
+  cost: number
+  activeDays: number
+  /** ISO day (YYYY-MM-DD) → activity count. */
+  activityByDay: Record<string, number>
+}
+
+export interface GitInfo {
+  isRepo: boolean
+  branch?: string
+  ahead?: number
+  behind?: number
+  dirtyCount?: number
+}
+
 export type ThemePreference = 'light' | 'dark' | 'system'
 
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
   lastWorkspacePath?: string
+  /** Pinned session file paths. */
+  pinnedSessions: string[]
 }
 
 export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'system',
   recentWorkspaces: [],
+  pinnedSessions: [],
 }
 
 /** Minimum pi version pidex is verified against. */

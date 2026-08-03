@@ -8,7 +8,12 @@ export function getPrefs(): AppPrefs {
     theme: store.get('theme'),
     recentWorkspaces: store.get('recentWorkspaces'),
     lastWorkspacePath: store.get('lastWorkspacePath'),
+    pinnedSessions: store.get('pinnedSessions') ?? [],
   }
+}
+
+export function setPinnedSessions(paths: string[]): void {
+  store.set('pinnedSessions', paths)
 }
 
 export function setTheme(theme: ThemePreference): void {

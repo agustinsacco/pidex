@@ -87,7 +87,12 @@ export const MessageList = memo(function MessageList({
                 style={{ transform: `translateY(${virtualItem.start + 16}px)` }}
               >
                 <div className="py-2">
-                  <MessageItemView item={item} tools={tools} hideThinking={hideThinking} />
+                  <MessageItemView
+                    item={item}
+                    tools={tools}
+                    hideThinking={hideThinking}
+                    sessionId={sessionId}
+                  />
                 </div>
               </div>
             )
