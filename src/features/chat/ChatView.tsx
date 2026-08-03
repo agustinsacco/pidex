@@ -9,6 +9,7 @@ import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { SessionMenu } from './SessionMenu'
 import { ForkPickerModal } from './ForkPickerModal'
+import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 
 export function ChatView({
   sessionId,
@@ -26,6 +27,7 @@ export function ChatView({
       <NoModelsBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
       <Composer sessionId={sessionId} workspacePath={workspacePath} />
+      <StatusStrip sessionId={sessionId} />
       <ForkPickerModal sessionId={sessionId} />
     </div>
   )

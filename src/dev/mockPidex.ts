@@ -252,7 +252,16 @@ export function installMockPidex(): void {
             theme: 'system',
             recentWorkspaces: [
               { path: '/Users/dev/projects/pidex', name: 'pidex', lastOpenedAt: Date.now() },
+              { path: '/Users/dev/projects/other', name: 'other', lastOpenedAt: Date.now() - 8.64e7 },
             ],
+            pinnedSessions: [],
+            fonts: {
+              uiScale: 1,
+              chatFontSize: 14.5,
+              editorFontSize: 12.5,
+              terminalFontSize: 12.5,
+              monoFont: 'JetBrains Mono',
+            },
           })
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
@@ -320,6 +329,22 @@ export function installMockPidex(): void {
         }
         case 'pty:resize':
         case 'pty:kill':
+          return Promise.resolve(undefined)
+        case 'pi:readConfigFile':
+          return Promise.resolve({
+            path: '/Users/dev/.pi/agent/settings.json',
+            content: '{\n  "defaultThinkingLevel": "medium"\n}\n',
+          })
+        case 'pi:listResources':
+          return Promise.resolve({
+            skills: ['brave-search', 'web-fetch'],
+            extensions: ['session.ts', 'rpc-demo.ts'],
+            prompts: ['fix-tests.md'],
+          })
+        case 'pi:patchAgentSettings':
+        case 'pi:writeConfigFile':
+        case 'app:setFontPrefs':
+        case 'app:setRecentWorkspaces':
           return Promise.resolve(undefined)
         default:
           return Promise.resolve(undefined)

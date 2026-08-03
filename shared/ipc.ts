@@ -16,12 +16,14 @@ import type {
   CreateSessionOptions,
   DirEntry,
   FileContent,
+  FontPrefs,
   GitInfo,
   LiveSessionInfo,
   PiHealth,
   SessionMeta,
   SessionPush,
   ThemePreference,
+  WorkspaceInfo,
   WorkspaceSessionStats,
 } from './models'
 
@@ -60,6 +62,8 @@ export interface IpcInvokeMap {
   'app:selectFolder': { args: []; result: string | null }
   'app:getPathForDisplay': { args: [string]; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  'app:setFontPrefs': { args: [FontPrefs]; result: void }
+  'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:userInfo': { args: []; result: { username: string } }
   'app:saveDialog': {
     args: [{ title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }]
@@ -69,6 +73,19 @@ export interface IpcInvokeMap {
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
+  'pi:readConfigFile': {
+    args: [name: 'settings' | 'models']
+    result: { path: string; content: string }
+  }
+  'pi:writeConfigFile': { args: [name: 'settings' | 'models', content: string]; result: void }
+  'pi:patchAgentSettings': {
+    args: [scope: 'global' | 'project', workspacePath: string | undefined, patch: Record<string, unknown>]
+    result: void
+  }
+  'pi:listResources': {
+    args: []
+    result: { skills: string[]; extensions: string[]; prompts: string[] }
+  }
 
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }

@@ -18,6 +18,9 @@ import { Sidebar } from '@/features/sessions/Sidebar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder, useFinderStore } from '@/features/files/FuzzyFinder'
+import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
+import { CommandPalette } from '@/features/palette/CommandPalette'
+import { SettingsModal, useSettingsUiStore } from '@/features/settings/SettingsModal'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
@@ -56,6 +59,9 @@ export function App(): React.JSX.Element {
       } else if (event.key === '`') {
         event.preventDefault()
         useLayoutStore.getState().toggleRightPane('terminal')
+      } else if (event.key === ',') {
+        event.preventDefault()
+        useSettingsUiStore.getState().setOpen(true)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -104,6 +110,10 @@ export function App(): React.JSX.Element {
       </main>
       <FuzzyFinder workspacePath={currentWorkspace} />
       <ContextMenuHost />
+      <ExtensionDialogHost />
+      <ToastHost />
+      <CommandPalette workspacePath={currentWorkspace} />
+      <SettingsModal />
     </div>
   )
 }

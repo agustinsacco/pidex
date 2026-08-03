@@ -41,6 +41,11 @@
   --px-radius-sm: 6px;
   --px-radius: 10px;
   --px-radius-lg: 14px;
+
+  /* Font sizes driven by settings (see stores/settings.ts) */
+  --px-chat-font-size: 14.5px;
+  --px-editor-font-size: 12.5px;
+  --px-terminal-font-size: 12.5px;
 }
 
 .dark {
@@ -177,7 +182,7 @@ body {
  * ------------------------------------------------------------------------- */
 
 .md-content {
-  font-size: 14.5px;
+  font-size: var(--px-chat-font-size);
   line-height: 1.65;
   word-break: break-word;
 }
@@ -348,4 +353,68 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: px-shimmer 2.2s linear infinite;
+}
+
+/* Toast entrance */
+@keyframes px-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast-slide {
+  animation: px-toast-in 0.18s ease-out;
+}
+
+/* ---------------------------------------------------------------------------
+ * Accessibility
+ * ------------------------------------------------------------------------- */
+
+/* Visible focus rings for keyboard users only (no rings on mouse clicks). */
+:focus-visible {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .streaming-cursor::after,
+  .streaming-tail .md-content > *:last-child::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Loading skeletons */
+@keyframes px-skeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.skeleton {
+  background: var(--px-border);
+  border-radius: 6px;
+  animation: px-skeleton 1.4s ease-in-out infinite;
 }

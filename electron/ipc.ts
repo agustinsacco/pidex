@@ -4,7 +4,13 @@ import { userInfo } from 'node:os'
 import { checkPiHealth } from './pi/health'
 import { SessionRegistry } from './pi/session-registry'
 import { listWorkspaceFiles } from './fs/list-files'
-import { readAgentSettings } from './pi/agent-settings'
+import {
+  listPiResources,
+  patchAgentSettings,
+  readAgentSettings,
+  readConfigFile,
+  writeConfigFile,
+} from './pi/agent-settings'
 import { listSessions, readSessionTree, workspaceStats } from './pi/session-scanner'
 import { watchWorkspaceSessions } from './pi/session-watcher'
 import { appendBranchJump, appendLabel, forkSessionAt } from './pi/session-writer'
@@ -25,7 +31,14 @@ import {
 } from './fs/fs-service'
 import { watchWorkspace } from './fs/workspace-watcher'
 import { ptyManager } from './pty/pty-manager'
-import { getPrefs, recordWorkspace, setPinnedSessions, setTheme } from './store'
+import {
+  getPrefs,
+  recordWorkspace,
+  setFontPrefs,
+  setPinnedSessions,
+  setRecentWorkspaces,
+  setTheme,
+} from './store'
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import type { CreateSessionOptions, PiHealth, SessionPush } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
@@ -122,6 +135,14 @@ export function registerIpcHandlers(): void {
     setPinnedSessions(paths)
   })
 
+  handle('app:setFontPrefs', (_event, fonts) => {
+    setFontPrefs(fonts)
+  })
+
+  handle('app:setRecentWorkspaces', (_event, workspaces) => {
+    setRecentWorkspaces(workspaces)
+  })
+
   handle('app:userInfo', () => ({ username: userInfo().username }))
 
   handle('app:selectFolder', async (event) => {
@@ -153,6 +174,16 @@ export function registerIpcHandlers(): void {
   handle('fs:listFiles', (_event, workspacePath: string) => listWorkspaceFiles(workspacePath))
 
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
+
+  handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
+
+  handle('pi:writeConfigFile', (_event, name, content) => writeConfigFile(name, content))
+
+  handle('pi:patchAgentSettings', (_event, scope, workspacePath, patch) =>
+    patchAgentSettings(scope, workspacePath, patch),
+  )
+
+  handle('pi:listResources', () => listPiResources())
 
   handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
 
