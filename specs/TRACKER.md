@@ -9,7 +9,7 @@
 | Phase | Title | Status |
 |---|---|---|
 | P0 | Scaffold + RPC client + minimal streaming chat | ✅ |
-| P1 | Full chat rendering | ⬜ |
+| P1 | Full chat rendering | ✅ |
 | P2 | Workspaces, sessions, sidebar, resume, tree | ⬜ |
 | P3 | Files pane, editor, diffs | ⬜ |
 | P4 | Terminal | ⬜ |
@@ -37,25 +37,26 @@ Specs: [01-architecture.md](01-architecture.md) · [02-pi-integration.md](02-pi-
 
 ---
 
-## P1 — Full chat rendering  `⬜`
+## P1 — Full chat rendering  `✅`
 Specs: [04-chat.md](04-chat.md) · [02-pi-integration.md](02-pi-integration.md)
 
-- [ ] Message view-model reducer for all events (agent/turn/message/tool/queue/compaction/retry) with incremental delta application
-- [ ] Virtualized message list; autoscroll + jump-to-bottom pill
-- [ ] Markdown pipeline (GFM, streaming-tolerant, fences render on close), Shiki/hljs code blocks with copy/language badge
-- [ ] Thinking blocks (collapsed, `hideThinkingBlock` respected)
-- [ ] Tool cards: read / bash (streaming output, exit badge) / edit (diff from `details.diff`/`patch`) / write / grep / find / ls
-- [ ] Generic renderer for unknown/extension tools (pretty args, streaming output, error state)
-- [ ] Mermaid, ```chart / ```vega-lite, ```html Code/Preview (sandboxed iframe), KaTeX, inline images with zoom
-- [ ] Steering vs follow-up: Enter/Alt+Enter during streaming, queue chips from `queue_update`, Escape abort+restore
-- [ ] `!` / `!!` bash commands; BashExecutionMessage rendering with context badge
-- [ ] `/` command menu from `get_commands` + pidex commands; `@` file mention (basic index)
-- [ ] Session header: model picker, thinking level, context meter + token/cost (`get_session_stats`), compact now, auto-compaction/retry toggles, steering/follow-up mode toggles, export HTML
-- [ ] Compaction/branch-summary dividers; auto-retry strip with cancel; stopReason error/abort styling
+- [x] Message view-model reducer for all events (agent/turn/message/tool/queue/compaction/retry) with incremental delta application
+- [x] Virtualized message list; autoscroll + jump-to-bottom pill
+- [x] Markdown pipeline (GFM, streaming-tolerant, fences render on close), Shiki/hljs code blocks with copy/language badge
+- [x] Thinking blocks (collapsed, `hideThinkingBlock` respected)
+- [x] Tool cards: read / bash (streaming output, exit badge) / edit (diff from `details.diff`/`patch`) / write / grep / find / ls
+- [x] Generic renderer for unknown/extension tools (pretty args, streaming output, error state)
+- [x] Mermaid, ```chart / ```vega-lite, ```html Code/Preview (sandboxed iframe), KaTeX, inline images with zoom
+- [x] Steering vs follow-up: Enter/Alt+Enter during streaming, queue chips from `queue_update`, Escape abort+restore
+- [x] `!` / `!!` bash commands; BashExecutionMessage rendering with context badge
+- [x] `/` command menu from `get_commands` + pidex commands; `@` file mention (basic index)
+- [x] Session header: model picker, thinking level, context meter + token/cost (`get_session_stats`), compact now, auto-compaction/retry toggles, steering/follow-up mode toggles, export HTML
+- [x] Compaction/branch-summary dividers; auto-retry strip with cancel; stopReason error/abort styling
 
 **Done when:** a real coding session (multi-tool, diffs, mermaid, html preview, steering) reads beautifully end-to-end in light + dark.
 
 **Log:**
+- 2026-08-03 — P1 complete. Reducer is a pure module with 33 unit tests including a **replay test over a real captured pi event stream** (228 records, write/read/bash tools — fixture at `src/features/chat/__fixtures__/`). Rendering: react-markdown+GFM+KaTeX, Shiki dual-theme (CSS-var switch, no re-highlight), Mermaid, Chart.js (```chart), vega-embed (```vega-lite), sandboxed ```html preview. Tool rows match screenshots (collapsed verb rows w/ ±counts, chevron; grouped consecutive runs). Verified visually in light+dark via a dev-only browser mock of the preload API (`src/dev/mockPidex.ts`, replays the fixture — never bundled in prod). Deviations: (1) RPC has no queue-item removal command, so queue chips offer *recall* (copy back to composer) instead of remove; Escape abort restores queued texts per spec. (2) get_state doesn't expose auto-retry state; toggle tracks last-set value locally, default on. (3) Model/thinking/context-meter live in the composer footer per screenshots; management actions live in the header kebab. (4) Code-block "open as file / run in terminal / open as artifact" actions land with their panes (P3/P4/P5).
 
 ---
 

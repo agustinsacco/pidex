@@ -32,6 +32,14 @@ export interface IpcInvokeMap {
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
   'app:getPathForDisplay': { args: [string]; result: string }
+  'app:saveDialog': {
+    args: [{ title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }]
+    result: string | null
+  }
+  'app:revealPath': { args: [string]; result: void }
+
+  'fs:listFiles': { args: [workspacePath: string]; result: string[] }
+  'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap

@@ -1,69 +1,83 @@
 import { create } from 'zustand'
-import type { AgentMessage, AssistantMessage, PiEvent } from '@shared/rpc'
+import type {
+  AgentMessage,
+  ImageContent,
+  Model,
+  PiEvent,
+  RpcSessionState,
+  RpcSlashCommand,
+  SessionStats,
+} from '@shared/rpc'
+import {
+  emptyChatSession,
+  hydrateFromMessages,
+  newItemId,
+  reduceChatEvent,
+  type BashItem,
+  type ChatSessionState,
+} from '@/features/chat/reducer'
 
-/**
- * P0 chat view-model: user + streamed assistant text messages.
- * P1 expands this into the full reducer (tools, thinking, queues, compaction).
- */
-
-export interface UserItem {
-  id: string
-  kind: 'user'
-  text: string
+export interface ChatSession extends ChatSessionState {
+  /** Session metadata fetched over RPC. */
+  meta: RpcSessionState | null
+  stats: SessionStats | null
+  models: Model[]
+  commands: RpcSlashCommand[]
 }
 
-export interface AssistantItem {
-  id: string
-  kind: 'assistant'
-  /** Ordered text segments (indexes follow contentIndex). */
-  text: string
-  streaming: boolean
-  stopReason?: string
-  errorMessage?: string
-}
-
-export type ChatItem = UserItem | AssistantItem
-
-export interface ChatSessionState {
-  items: ChatItem[]
-  isStreaming: boolean
-  /** Transport-level error (pi crashed, command failed). */
-  error: string | null
-}
+const emptySession = (): ChatSession => ({
+  ...emptyChatSession(),
+  meta: null,
+  stats: null,
+  models: [],
+  commands: [],
+})
 
 interface ChatStore {
-  sessions: Record<string, ChatSessionState>
+  sessions: Record<string, ChatSession>
   ensure: (sessionId: string) => void
-  addUserMessage: (sessionId: string, text: string) => void
   applyEvent: (sessionId: string, event: PiEvent) => void
+  addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
+  addBashItem: (sessionId: string, item: Omit<BashItem, 'id' | 'kind'>) => string
+  updateBashItem: (sessionId: string, id: string, patch: Partial<BashItem>) => void
+  hydrate: (sessionId: string, messages: AgentMessage[]) => void
   setError: (sessionId: string, error: string | null) => void
-  reset: (sessionId: string) => void
+  setMeta: (sessionId: string, meta: RpcSessionState) => void
+  patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
+  setStats: (sessionId: string, stats: SessionStats) => void
+  setModels: (sessionId: string, models: Model[]) => void
+  setCommands: (sessionId: string, commands: RpcSlashCommand[]) => void
+  remove: (sessionId: string) => void
 }
 
-const emptySession = (): ChatSessionState => ({ items: [], isStreaming: false, error: null })
-
-let nextItemId = 1
-const newItemId = (): string => `item-${nextItemId++}`
-
-function assistantTextFrom(message: AgentMessage | undefined): string {
-  if (!message || !('role' in message) || message.role !== 'assistant') return ''
-  const assistant = message as AssistantMessage
-  return assistant.content
-    .filter((block) => block.type === 'text')
-    .map((block) => (block.type === 'text' ? block.text : ''))
-    .join('\n\n')
+function patchSession(
+  sessions: Record<string, ChatSession>,
+  sessionId: string,
+  patch: Partial<ChatSession>,
+): Record<string, ChatSession> {
+  const session = sessions[sessionId] ?? emptySession()
+  return { ...sessions, [sessionId]: { ...session, ...patch } }
 }
 
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>((set) => ({
   sessions: {},
 
-  ensure: (sessionId) => {
-    if (!get().sessions[sessionId]) {
-      set((state) => ({ sessions: { ...state.sessions, [sessionId]: emptySession() } }))
-    }
-  },
+  ensure: (sessionId) =>
+    set((state) =>
+      state.sessions[sessionId]
+        ? state
+        : { sessions: { ...state.sessions, [sessionId]: emptySession() } },
+    ),
 
-  addUserMessage: (sessionId, text) => {
+  applyEvent: (sessionId, event) =>
+    set((state) => {
+      const session = state.sessions[sessionId] ?? emptySession()
+      const reduced = reduceChatEvent(session, event)
+      if (reduced === session) return state
+      return { sessions: { ...state.sessions, [sessionId]: { ...session, ...reduced } } }
+    }),
+
+  addUserMessage: (sessionId, text, images) =>
     set((state) => {
       const session = state.sessions[sessionId] ?? emptySession()
       return {
@@ -71,114 +85,76 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ...state.sessions,
           [sessionId]: {
             ...session,
-            items: [...session.items, { id: newItemId(), kind: 'user', text }],
+            items: [
+              ...session.items,
+              { id: newItemId(), kind: 'user', text, images, optimistic: true },
+            ],
+          },
+        },
+      }
+    }),
+
+  addBashItem: (sessionId, item) => {
+    const id = newItemId()
+    set((state) => {
+      const session = state.sessions[sessionId] ?? emptySession()
+      return {
+        sessions: {
+          ...state.sessions,
+          [sessionId]: {
+            ...session,
+            items: [...session.items, { ...item, id, kind: 'bash' }],
           },
         },
       }
     })
+    return id
   },
 
-  applyEvent: (sessionId, event) => {
+  updateBashItem: (sessionId, id, patch) =>
     set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
-      const next = reduceEvent(session, event)
-      if (next === session) return state
-      return { sessions: { ...state.sessions, [sessionId]: next } }
-    })
-  },
-
-  setError: (sessionId, error) => {
-    set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
-      return { sessions: { ...state.sessions, [sessionId]: { ...session, error } } }
-    })
-  },
-
-  reset: (sessionId) => {
-    set((state) => ({ sessions: { ...state.sessions, [sessionId]: emptySession() } }))
-  },
-}))
-
-function reduceEvent(session: ChatSessionState, event: PiEvent): ChatSessionState {
-  switch (event.type) {
-    case 'agent_start':
-      return { ...session, isStreaming: true, error: null }
-
-    case 'agent_end':
+      const session = state.sessions[sessionId]
+      if (!session) return state
       return {
-        ...session,
-        isStreaming: false,
-        items: finalizeStreaming(session.items),
+        sessions: {
+          ...state.sessions,
+          [sessionId]: {
+            ...session,
+            items: session.items.map((item) =>
+              item.id === id && item.kind === 'bash' ? { ...item, ...patch } : item,
+            ),
+          },
+        },
       }
+    }),
 
-    case 'message_start': {
-      const message = event.message
-      if ('role' in message && message.role === 'assistant') {
-        return {
-          ...session,
-          items: [
-            ...session.items,
-            { id: newItemId(), kind: 'assistant', text: '', streaming: true },
-          ],
-        }
+  hydrate: (sessionId, messages) =>
+    set((state) => {
+      const session = state.sessions[sessionId] ?? emptySession()
+      const hydrated = hydrateFromMessages(messages)
+      return {
+        sessions: { ...state.sessions, [sessionId]: { ...session, ...hydrated } },
       }
-      return session
-    }
+    }),
 
-    case 'message_update': {
-      const delta = event.assistantMessageEvent
-      if (delta.type === 'text_delta') {
-        return updateLastAssistant(session, (item) => ({ ...item, text: item.text + delta.delta }))
-      }
-      if (delta.type === 'error') {
-        return updateLastAssistant(session, (item) => ({
-          ...item,
-          streaming: false,
-          stopReason: delta.reason,
-          errorMessage:
-            typeof delta.error === 'string' ? delta.error : delta.error ? String(delta.error) : undefined,
-        }))
-      }
-      return session
-    }
+  setError: (sessionId, error) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { error }) })),
+  setMeta: (sessionId, meta) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { meta }) })),
+  patchMeta: (sessionId, patch) =>
+    set((s) => {
+      const session = s.sessions[sessionId]
+      if (!session?.meta) return s
+      return { sessions: patchSession(s.sessions, sessionId, { meta: { ...session.meta, ...patch } }) }
+    }),
+  setStats: (sessionId, stats) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stats }) })),
+  setModels: (sessionId, models) => set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models }) })),
+  setCommands: (sessionId, commands) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { commands }) })),
 
-    case 'message_end': {
-      const message = event.message
-      if (!('role' in message) || message.role !== 'assistant') return session
-      const assistant = message as AssistantMessage
-      // Snap to the authoritative final text; deltas can be lossy on abort.
-      const finalText = assistantTextFrom(assistant)
-      return updateLastAssistant(session, (item) => ({
-        ...item,
-        text: finalText || item.text,
-        streaming: false,
-        stopReason: assistant.stopReason,
-        errorMessage: assistant.errorMessage,
-      }))
-    }
-
-    default:
-      return session
-  }
-}
-
-function updateLastAssistant(
-  session: ChatSessionState,
-  update: (item: AssistantItem) => AssistantItem,
-): ChatSessionState {
-  for (let i = session.items.length - 1; i >= 0; i--) {
-    const item = session.items[i]
-    if (item && item.kind === 'assistant') {
-      const items = session.items.slice()
-      items[i] = update(item)
-      return { ...session, items }
-    }
-  }
-  return session
-}
-
-function finalizeStreaming(items: ChatItem[]): ChatItem[] {
-  return items.map((item) =>
-    item.kind === 'assistant' && item.streaming ? { ...item, streaming: false } : item,
-  )
-}
+  remove: (sessionId) =>
+    set((state) => {
+      if (!state.sessions[sessionId]) return state
+      const sessions = { ...state.sessions }
+      delete sessions[sessionId]
+      return { sessions }
+    }),
+}))

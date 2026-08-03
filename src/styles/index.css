@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
 
 /* ---------------------------------------------------------------------------
  * pidex design tokens
@@ -137,6 +138,118 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* ---------------------------------------------------------------------------
+ * Markdown typography
+ * ------------------------------------------------------------------------- */
+
+.md-content {
+  font-size: 14.5px;
+  line-height: 1.65;
+  word-break: break-word;
+}
+.md-content > *:first-child {
+  margin-top: 0;
+}
+.md-content > *:last-child {
+  margin-bottom: 0;
+}
+.md-content p {
+  margin: 0.65em 0;
+}
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.2em 0 0.5em;
+}
+.md-content h1 {
+  font-size: 1.4em;
+}
+.md-content h2 {
+  font-size: 1.25em;
+}
+.md-content h3 {
+  font-size: 1.1em;
+}
+.md-content h4 {
+  font-size: 1em;
+  color: var(--px-text-secondary);
+}
+.md-content ul,
+.md-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.md-content ul {
+  list-style: disc;
+}
+.md-content ol {
+  list-style: decimal;
+}
+.md-content li {
+  margin: 0.3em 0;
+}
+.md-content li > ul,
+.md-content li > ol {
+  margin: 0.15em 0;
+}
+.md-content blockquote {
+  border-left: 3px solid var(--px-border-strong);
+  color: var(--px-text-secondary);
+  margin: 0.8em 0;
+  padding: 0.1em 0 0.1em 1em;
+}
+.md-content hr {
+  border: none;
+  border-top: 1px solid var(--px-border);
+  margin: 1.5em 0;
+}
+.md-content input[type='checkbox'] {
+  accent-color: var(--px-accent);
+  margin-right: 0.4em;
+}
+.md-table th,
+.md-table td {
+  border-bottom: 1px solid var(--px-border);
+  padding: 6px 12px;
+  text-align: left;
+}
+.md-table thead th {
+  background: var(--px-bg-secondary);
+  font-weight: 600;
+}
+.md-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Shiki dual-theme: switch via CSS variables, no re-highlight needed. */
+.shiki-container pre {
+  margin: 0;
+  background: transparent !important;
+}
+.shiki-container code {
+  display: block;
+  white-space: pre;
+}
+.shiki-container .shiki span {
+  color: var(--shiki-light);
+}
+.dark .shiki-container .shiki span {
+  color: var(--shiki-dark);
+}
+
+/* KaTeX sizing inside chat */
+.md-content .katex {
+  font-size: 1.05em;
+}
+.md-content .katex-display {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 /* Streaming cursor */
 @keyframes px-blink {
   0%,
@@ -153,4 +266,52 @@ body {
   color: var(--px-accent);
   animation: px-blink 1.1s infinite;
   margin-left: 1px;
+}
+
+/* Trailing cursor on the last streaming markdown block */
+.streaming-tail .md-content > *:last-child::after {
+  content: '▍';
+  color: var(--px-accent);
+  animation: px-blink 1.1s infinite;
+  margin-left: 1px;
+}
+
+/* The terracotta "working" spark (screenshot style) */
+@keyframes px-pulse-spark {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+.pulse-spark {
+  display: inline-block;
+  animation: px-pulse-spark 1.6s ease-in-out infinite;
+}
+
+/* Shimmer on "Thinking…" label */
+@keyframes px-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-tertiary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-tertiary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2.2s linear infinite;
 }
