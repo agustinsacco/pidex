@@ -55,6 +55,25 @@ function Header({
         </span>
         {workspacePath && <GitChips workspacePath={workspacePath} />}
       </div>
+      {/* Reference order: terminal, files, changes, artifacts, kebab. */}
+      <HeaderIconButton
+        title="Terminal pane (⌘`)"
+        active={rightPane === 'terminal'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('terminal')}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m5 8 4 4-4 4M13 16h6" />
+        </svg>
+      </HeaderIconButton>
       <HeaderIconButton
         title="Files pane (⌘⇧E)"
         active={rightPane === 'files'}

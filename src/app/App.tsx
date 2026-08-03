@@ -17,10 +17,11 @@ import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { RightPane } from '@/features/files/RightPane'
-import { FuzzyFinder, useFinderStore } from '@/features/files/FuzzyFinder'
+import { FuzzyFinder } from '@/features/files/FuzzyFinder'
+import { useGlobalShortcuts } from './useGlobalShortcuts'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
 import { CommandPalette } from '@/features/palette/CommandPalette'
-import { SettingsModal, useSettingsUiStore } from '@/features/settings/SettingsModal'
+import { SettingsModal } from '@/features/settings/SettingsModal'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
@@ -34,39 +35,7 @@ export function App(): React.JSX.Element {
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
 
-  // Global shortcuts: Cmd/Ctrl+B sidebar, Cmd/Ctrl+N new session, Cmd/Ctrl+P finder.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      const mod = event.metaKey || event.ctrlKey
-      if (!mod) return
-      if (event.key === 'b') {
-        event.preventDefault()
-        useLayoutStore.getState().toggleSidebar()
-      } else if (event.key === 'n') {
-        event.preventDefault()
-        useSessionsStore.getState().activate(null)
-      } else if (event.key === 'p') {
-        event.preventDefault()
-        if (useWorkspacesStore.getState().currentPath) {
-          useFinderStore.getState().setOpen(true)
-        }
-      } else if (event.key === 'e' && event.shiftKey) {
-        event.preventDefault()
-        useLayoutStore.getState().toggleRightPane('files')
-      } else if (event.key === 'g' && event.shiftKey) {
-        event.preventDefault()
-        useLayoutStore.getState().toggleRightPane('changes')
-      } else if (event.key === '`') {
-        event.preventDefault()
-        useLayoutStore.getState().toggleRightPane('terminal')
-      } else if (event.key === ',') {
-        event.preventDefault()
-        useSettingsUiStore.getState().setOpen(true)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  useGlobalShortcuts()
 
   // Window title: workspace · session.
   useEffect(() => {
