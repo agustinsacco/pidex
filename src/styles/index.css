@@ -465,6 +465,127 @@ select:focus:not(:focus-visible) {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Chat motion
+ * All of these are disabled by the prefers-reduced-motion block above.
+ * ------------------------------------------------------------------------- */
+
+/* New messages fade + rise into place rather than popping in. */
+@keyframes px-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.message-enter {
+  animation: px-message-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Tool detail panels expand instead of snapping open. */
+@keyframes px-expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.expand-enter {
+  animation: px-expand-in 140ms ease-out both;
+}
+
+/**
+ * A running tool: the verb label shimmers instead of a spinning circle
+ * competing with the ✳ spark for attention.
+ */
+.tool-running-label {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-secondary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-secondary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2s linear infinite;
+}
+
+/**
+ * PiSpark — the "working" mark. The ray group turns slowly while each ray
+ * pulses on its own stagger, so the mark shimmers outward rather than
+ * blinking as a whole.
+ */
+@keyframes px-spark-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes px-spark-ray {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pi-spark-rays {
+  animation: px-spark-spin 9s linear infinite;
+}
+.pi-spark-ray {
+  transform-origin: 12px 12px;
+  animation: px-spark-ray 1.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pi-spark-rays,
+  .pi-spark-ray {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Small pulsing dot marking an in-flight tool. */
+@keyframes px-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+.tool-running-dot {
+  animation: px-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-enter,
+  .expand-enter,
+  .tool-running-dot,
+  .tool-running-label {
+    animation: none;
+  }
+  .tool-running-label {
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
 /* Loading skeletons */
 @keyframes px-skeleton {
   0%,

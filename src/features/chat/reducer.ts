@@ -32,6 +32,8 @@ export interface UserItem {
   images?: ImageContent[]
   /** True when added locally before pi echoes it back. */
   optimistic?: boolean
+  /** Unix ms from the AgentMessage, or local time for optimistic items. */
+  timestamp?: number
 }
 
 export type AssistantBlock =
@@ -48,6 +50,8 @@ export interface AssistantItem {
   errorMessage?: string
   usage?: Usage
   model?: string
+  /** Unix ms from the AgentMessage. */
+  timestamp?: number
 }
 
 export interface BashItem {
@@ -591,6 +595,7 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
           errorMessage: assistant.errorMessage,
           usage: assistant.usage,
           model: assistant.model,
+          timestamp: assistant.timestamp,
         }
         return {
           ...state,
@@ -607,6 +612,7 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
         errorMessage: assistant.errorMessage,
         usage: assistant.usage,
         model: assistant.model,
+        timestamp: assistant.timestamp,
       }
       return {
         ...state,
@@ -635,6 +641,7 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
         kind: 'user',
         text,
         images: userMessageImages(message),
+        timestamp: message.timestamp,
       }
       return { ...state, items: [...state.items, item] }
     }
@@ -716,6 +723,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           kind: 'user',
           text: userMessageText(message),
           images: userMessageImages(message),
+          timestamp: message.timestamp,
         }
         state = { ...state, items: [...state.items, item] }
         break
@@ -731,6 +739,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           errorMessage: assistant.errorMessage,
           usage: assistant.usage,
           model: assistant.model,
+          timestamp: assistant.timestamp,
         }
         state = {
           ...state,

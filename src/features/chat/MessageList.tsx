@@ -3,6 +3,23 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
+import type { ChatItem } from './reducer'
+
+/**
+ * Leading space for an item, chosen by the boundary it sits on.
+ *
+ * Measured off the reference at 2×: ~28px between distinct messages, ~12px
+ * where an assistant turn continues its own output, and a tight gap around
+ * system dividers. Uniform padding is what made the transcript read flat.
+ */
+function spacingFor(item: ChatItem, previous: ChatItem | undefined): string {
+  if (!previous) return 'pb-1 pt-2'
+  const sameSpeakerContinuation =
+    previous.kind === 'assistant' && (item.kind === 'bash' || item.kind === 'custom')
+  if (sameSpeakerContinuation) return 'pb-1 pt-3'
+  if (item.kind === 'divider' || previous.kind === 'divider') return 'pb-1 pt-3'
+  return 'pb-1 pt-7'
+}
 
 export const MessageList = memo(function MessageList({
   sessionId,
@@ -76,15 +93,25 @@ export const MessageList = memo(function MessageList({
           {virtualItems.map((virtualItem) => {
             const item = items[virtualItem.index]
             if (!item) return null
+            const previous = items[virtualItem.index - 1]
             return (
               <div
                 key={virtualItem.key}
                 data-index={virtualItem.index}
                 ref={virtualizer.measureElement}
                 className="absolute left-6 right-6 top-0"
-                style={{ transform: `translateY(${virtualItem.start + 16}px)` }}
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
-                <div className="py-2">
+                {/*
+                 * Spacing must live INSIDE the measured element — the
+                 * virtualizer measures this node, so padding applied outside
+                 * it would desync the computed offsets.
+                 *
+                 * Boundary-aware: generous between messages, tight between
+                 * an assistant turn and its own tool rows (the reference
+                 * reads as grouped blocks, not an evenly spaced list).
+                 */}
+                <div className={spacingFor(item, previous)}>
                   <MessageItemView
                     item={item}
                     tools={tools}
