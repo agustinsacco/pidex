@@ -117,6 +117,42 @@ useful and pi-specific.
 
 Files: `src/features/sessions/Sidebar.tsx`.
 
+### B4b · Home screen has no model / thinking / mode controls — **P1**
+Reference `home-light` and `home-populated` both show a full control row
+**below the home composer**: `Manual` (or `Bypass permissions`) · `+` ·
+mic · chevron on the left, and **`Sonnet 5` · `High` · status ring** on the
+right — i.e. the model and effort pickers are present *before* a session
+exists, not only inside chat.
+
+pidex renders `ModelPicker`/`ContextMeter` **only** in
+`features/chat/Composer.tsx`. The home screen shows the workspace chip row
+and nothing else, so the app looks like it lost its model picker whenever
+you're on the greeting screen (the most common landing state).
+
+This is a real behavioural gap, not just layout: you cannot choose the model
+or thinking level for the session you are about to start.
+
+Implementation note — the current pickers are session-scoped: they read
+`meta`/`models` from `useChatStore` keyed by a live pidex session id and
+issue `set_model` / `set_thinking_level` RPC against it. On the home screen
+no session exists yet, so they must be backed by **pending defaults**
+instead:
+
+- read the candidate model list from pi config (`defaultProvider` /
+  `defaultModel` in `settings.json` + `models.json`) rather than
+  `get_available_models`, which needs a live process
+- store the user's choice in a small `pendingSessionConfig` store
+- pass it through `createSession` → existing `model` / `provider` /
+  `thinkingLevel` spawn flags (already plumbed in `PiSpawnOptions`)
+- once the session is live, the chat composer's pickers take over unchanged
+
+Refactor `ModelPicker` to accept either a live `sessionId` **or** a
+pending-config target, so one component serves both surfaces.
+
+Files: `src/features/home/WorkspaceHome.tsx`,
+`src/features/chat/composer/ModelPicker.tsx`, new
+`src/stores/pendingSession.ts`, `src/stores/sessions.ts`.
+
 ### B5 · No account/profile menu at the sidebar footer — **P1**
 Reference (`profile-menu`) has an avatar + name + org chevron opening a menu
 with email header, org switcher, Settings (⌘,), Language, Get help, plans,
@@ -218,7 +254,7 @@ Spinners, shimmer, pulse and toast slides ignore
 | **1** | A1, A2, D1 | trivial, global, immediate payoff |
 | **2** | A3, B4, B5 | sidebar rebuild in one pass |
 | **3** | B1, C2, C4, C3 | chat surface polish |
-| **4** | B3, C1, C6 | home screen + stats |
+| **4** | **B4b**, B3, C1, C6 | home screen: pickers, stats, chips |
 | **5** | B2 | settings restructure |
 | **6** | D2, D3, D4, C5 | a11y + chrome cleanup |
 
