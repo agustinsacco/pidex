@@ -1,27 +1,28 @@
 import { create } from 'zustand'
 
-export type RightPane = 'files' | 'changes' | null
+export type RightPane = 'files' | 'changes' | 'terminal' | null
 
 /** Pane layout state. Panel sizes persist via react-resizable-panels autoSaveId. */
 interface LayoutState {
   sidebarVisible: boolean
   rightPane: RightPane
-  terminalVisible: boolean
+  /** Expanded (↗) right pane takes most of the window. */
+  rightExpanded: boolean
   toggleSidebar: () => void
   setRightPane: (pane: RightPane) => void
   toggleRightPane: (pane: Exclude<RightPane, null>) => void
-  setTerminalVisible: (visible: boolean) => void
+  toggleRightExpanded: () => void
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
   sidebarVisible: true,
   rightPane: null,
-  terminalVisible: false,
+  rightExpanded: false,
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
   setRightPane: (pane) => set({ rightPane: pane }),
   toggleRightPane: (pane) =>
     set((state) => ({ rightPane: state.rightPane === pane ? null : pane })),
-  setTerminalVisible: (visible) => set({ terminalVisible: visible }),
+  toggleRightExpanded: () => set((state) => ({ rightExpanded: !state.rightExpanded })),
 }))
 
 /** Open a file from anywhere (chat chips, diffs, finder) into the Files pane. */

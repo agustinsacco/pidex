@@ -185,24 +185,38 @@ function CrashBanner({
   )
 }
 
-/** No models configured: point at terminal login / config (terminal lands in P4). */
+/** No models configured: hand off to the built-in terminal for `pi` login. */
 function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models)
+  const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
   if (!meta || models === undefined || models === null) return null
   if (models.length > 0) return null
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
       <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-[13px]">
-        <div className="text-text font-medium">No models configured</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-text font-medium">No models configured</div>
+          {workspacePath && (
+            <button
+              onClick={() => {
+                void import('@/stores/terminal').then(({ runInTerminal }) =>
+                  runInTerminal(workspacePath, 'pi'),
+                )
+              }}
+              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+            >
+              Open terminal with `pi`
+            </button>
+          )}
+        </div>
         <div className="text-text-secondary mt-1 leading-relaxed">
-          pi has no providers set up yet. Run <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code>{' '}
-          in a terminal and use <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
+          Run <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code> in the
+          terminal and use <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
           providers, set an API key env var (e.g.{' '}
           <code className="bg-code-bg rounded px-1 font-mono text-[12px]">ANTHROPIC_API_KEY</code>), or add a custom
           endpoint in <code className="bg-code-bg rounded px-1 font-mono text-[12px]">~/.pi/agent/models.json</code>.
-          pidex&apos;s built-in terminal arrives in P4.
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ const fixtureEvents: PiEvent[] = fixtureRaw
   .filter((record) => record.type !== 'response') as PiEvent[]
 
 const listeners = new Map<string, Set<(push: SessionPush) => void>>()
+const ptyListeners = new Map<string, Set<(data: string) => void>>()
 let replaying = false
 
 function push(sessionId: string, payload: SessionPush): void {
@@ -304,6 +305,22 @@ export function installMockPidex(): void {
         case 'fs:watchWorkspace':
         case 'sessions:watch':
           return Promise.resolve(undefined)
+        case 'pty:create': {
+          const ptyId = 'mock-pty-' + Math.random().toString(36).slice(2, 8)
+          setTimeout(() => {
+            for (const l of ptyListeners.get(ptyId) ?? []) l('mock shell — echo only\r\n$ ')
+          }, 120)
+          return Promise.resolve({ ptyId })
+        }
+        case 'pty:write': {
+          const [ptyId, data] = args as [string, string]
+          const echo = data.replace(/\r/g, '\r\n$ ')
+          for (const l of ptyListeners.get(ptyId) ?? []) l(echo)
+          return Promise.resolve(undefined)
+        }
+        case 'pty:resize':
+        case 'pty:kill':
+          return Promise.resolve(undefined)
         default:
           return Promise.resolve(undefined)
       }
@@ -317,6 +334,13 @@ export function installMockPidex(): void {
 
     onSessionsChanged: () => () => {},
     onFsChanged: () => () => {},
+    onPtyData: (ptyId: string, listener: (data: string) => void) => {
+      const set = ptyListeners.get(ptyId) ?? new Set()
+      set.add(listener)
+      ptyListeners.set(ptyId, set)
+      return () => set.delete(listener)
+    },
+    onPtyExit: () => () => {},
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)('pi:command', sessionId, command),
   } as PidexApi

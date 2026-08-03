@@ -129,6 +129,18 @@ body {
   background: transparent;
 }
 
+/* Terminal surface matches the xterm theme background */
+.terminal-surface {
+  background: #ffffff;
+}
+.dark .terminal-surface {
+  background: #262624;
+}
+.terminal-container .xterm {
+  height: 100%;
+  padding: 4px 6px;
+}
+
 /* Pane resize handles (react-resizable-panels) */
 .pane-handle {
   width: 5px;

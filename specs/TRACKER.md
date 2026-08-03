@@ -12,7 +12,7 @@
 | P1 | Full chat rendering | ✅ |
 | P2 | Workspaces, sessions, sidebar, resume, tree | ✅ |
 | P3 | Files pane, editor, diffs | ✅ |
-| P4 | Terminal | ⬜ |
+| P4 | Terminal | ✅ |
 | P5 | Artifacts | ⬜ |
 | P6 | Settings, extension UI, theming, polish | ⬜ |
 | P7 | Packaging, installer, CI | ⬜ |
@@ -98,17 +98,18 @@ Specs: [05-files-editor.md](05-files-editor.md) · [03-ui-shell.md](03-ui-shell.
 
 ---
 
-## P4 — Terminal  `⬜`
+## P4 — Terminal  `✅`
 Specs: [06-terminal.md](06-terminal.md)
 
-- [ ] node-pty service (per-OS shells) + xterm renderer, fit/links/search/clipboard addons
-- [ ] Tabs, rename, close, scrollback setting, live theme/font switching
-- [ ] "Run in terminal" from chat code blocks (paste, don't execute)
-- [ ] Wire onboarding `pi` login hand-off to the real terminal
+- [x] node-pty service (per-OS shells) + xterm renderer, fit/links/search/clipboard addons
+- [x] Tabs, rename, close, scrollback setting, live theme/font switching
+- [x] "Run in terminal" from chat code blocks (paste, don't execute)
+- [x] Wire onboarding `pi` login hand-off to the real terminal
 
 **Done when:** the terminal is a daily-drivable shell inside pidex on all three OSes.
 
 **Log:**
+- 2026-08-03 — P4 complete. PtyManager in main (login shell `$SHELL -l` on mac/linux, PowerShell on win32, cwd=workspace, per-pty push channels, killAll on quit). node-pty rebuilt for Electron ABI via @electron/rebuild; **headless Electron round-trip test passed** (spawn zsh → echo → capture). Renderer: xterm 5 (@xterm scope) with fit (ResizeObserver, pane-drag aware), web-links (opens externally), search (⌘F in-pane bar), right-click paste via term.paste (bracketed-paste safe); warm light/dark ANSI themes switch live; 10k scrollback. Terminal lives in the right pane matching `terminal-pane.png` (own header: Terminal + tab pills, double-click rename, +, expand ↗ toggles 45%↔85% via imperative panel resize, ✕); ⌘` toggles. "Run in terminal" button on shell-language code blocks pastes without newline; no-models onboarding banner now opens the terminal prefilled with `pi`. macOS verified live; linux/windows shells covered by per-OS branch + P7 CI. Deviation: font-size/scrollback settings UI arrives with P6 Settings (values are live in code today).
 
 ---
 

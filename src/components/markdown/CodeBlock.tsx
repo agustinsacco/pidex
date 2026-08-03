@@ -2,6 +2,10 @@ import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { highlightCode } from './highlighter'
 import { CopyButton } from '../CopyButton'
+import { runInTerminal } from '@/stores/terminal'
+import { useWorkspacesStore } from '@/stores/workspaces'
+
+const SHELL_LANGUAGES = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'terminal', 'fish'])
 
 interface CodeBlockProps {
   code: string
@@ -38,6 +42,20 @@ export const CodeBlock = memo(function CodeBlock({
         <span className="font-mono text-[11px] uppercase tracking-wide">{language || 'text'}</span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
           {actions}
+          {SHELL_LANGUAGES.has(language.toLowerCase()) && (
+            <button
+              title="Run in terminal (pastes, doesn't execute)"
+              onClick={() => {
+                const workspacePath = useWorkspacesStore.getState().currentPath
+                if (workspacePath) void runInTerminal(workspacePath, code)
+              }}
+              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m5 7 5 5-5 5M13 17h6" />
+              </svg>
+            </button>
+          )}
           <CopyButton text={code} />
         </div>
       </div>
