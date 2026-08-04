@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { highlightCode } from './highlighter'
 import { CopyButton } from '../CopyButton'
 import { runInTerminal } from '@/stores/terminal'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { getActiveWorkspace } from '@/stores/workspaces'
 
 const SHELL_LANGUAGES = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'terminal', 'fish'])
 
@@ -100,7 +100,7 @@ export const CodeBlock = memo(function CodeBlock({
             <button
               title="Run in terminal (pastes, doesn't execute)"
               onClick={() => {
-                const workspacePath = useWorkspacesStore.getState().currentPath
+                const workspacePath = getActiveWorkspace()
                 if (workspacePath) void runInTerminal(workspacePath, code)
               }}
               className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"

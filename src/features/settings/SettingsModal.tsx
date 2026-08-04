@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { create } from 'zustand'
 import type { PiHealth, WorkspaceInfo } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { MonacoEditor } from '@/features/files/MonacoEditor'
 
@@ -219,7 +219,7 @@ interface FileHealth {
 }
 
 function AgentTab(): React.JSX.Element {
-  const currentWorkspace = useWorkspacesStore((s) => s.currentPath)
+  const currentWorkspace = useActiveWorkspace()
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null)
   const [health, setHealth] = useState<FileHealth | null>(null)

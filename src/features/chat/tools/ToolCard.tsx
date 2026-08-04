@@ -13,12 +13,12 @@ import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { CopyButton } from '@/components/CopyButton'
 import { Lightbox } from '@/components/Lightbox'
 import { openFileInWorkspace } from '@/stores/layout'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { getActiveWorkspace } from '@/stores/workspaces'
 
 /** Clickable path chip: opens the file in the Files pane (optionally at a line). */
 function PathLink({ path, line }: { path: string; line?: number }): React.JSX.Element {
   const open = (): void => {
-    const workspacePath = useWorkspacesStore.getState().currentPath
+    const workspacePath = getActiveWorkspace()
     if (workspacePath) void openFileInWorkspace(workspacePath, path, line)
   }
   return (

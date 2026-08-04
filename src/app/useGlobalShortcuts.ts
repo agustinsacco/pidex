@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { getActiveWorkspace } from '@/stores/workspaces'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useSettingsUiStore } from '@/features/settings/SettingsModal'
 
@@ -61,7 +61,7 @@ export function useGlobalShortcuts(): void {
           break
         case 'KeyP':
           event.preventDefault()
-          if (useWorkspacesStore.getState().currentPath) {
+          if (getActiveWorkspace()) {
             useFinderStore.getState().setOpen(true)
           }
           break

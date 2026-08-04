@@ -7,7 +7,7 @@ import {
 } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
@@ -25,7 +25,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
-  const currentWorkspace = useWorkspacesStore((s) => s.currentPath)
+  const currentWorkspace = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
 
