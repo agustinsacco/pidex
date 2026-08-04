@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { create } from 'zustand'
 import type { PiHealth, WorkspaceInfo } from '@shared/models'
@@ -7,6 +6,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { MonacoEditor } from '@/features/files/MonacoEditor'
+import { ModalOverlay } from '@/components/Modal'
 import { CloseIcon } from '@/components/icons'
 
 type SettingsTab = 'appearance' | 'agent' | 'workspaces' | 'advanced' | 'keybindings' | 'about'
@@ -38,27 +38,12 @@ export function SettingsModal(): React.JSX.Element | null {
   const open = useSettingsUiStore((s) => s.open)
   const tab = useSettingsUiStore((s) => s.tab)
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') useSettingsUiStore.getState().setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
-
   if (!open) return null
   const close = (): void => useSettingsUiStore.getState().setOpen(false)
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={close}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="border-border bg-bg flex h-[78vh] w-[880px] max-w-[94vw] overflow-hidden rounded-2xl border shadow-2xl"
-      >
+  return (
+    <ModalOverlay onClose={close} z={40}>
+      <div className="border-border bg-bg flex h-[78vh] w-[880px] max-w-[94vw] overflow-hidden rounded-2xl border shadow-2xl">
         <aside className="border-border bg-bg-secondary/50 w-52 shrink-0 border-r px-3 py-4">
           <div className="text-text-tertiary px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider">
             Settings
@@ -94,8 +79,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {tab === 'about' && <AboutTab />}
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalOverlay>
   )
 }
 
@@ -632,15 +616,9 @@ function ConfigFileEditor({
     }
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl"
-      >
+  return (
+    <ModalOverlay onClose={onClose} backdrop="strong" z={50}>
+      <div className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border flex items-center gap-2 border-b px-4 py-2.5">
           <span className="flex-1 truncate font-mono text-[12px]">{path}</span>
           {error && <span className="text-danger text-[11.5px]">{error}</span>}
@@ -669,8 +647,7 @@ function ConfigFileEditor({
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalOverlay>
   )
 }
 

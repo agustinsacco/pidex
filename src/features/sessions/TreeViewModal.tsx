@@ -5,6 +5,7 @@ import type { SessionMeta } from '@shared/models'
 import type { SessionTree } from '@shared/ipc'
 import { buildTreeLayout, type DisplayNode } from './treeLayout'
 import { useSessionsStore } from '@/stores/sessions'
+import { useEscapeKey } from '@/components/Modal'
 
 const COL_WIDTH = 220
 const ROW_HEIGHT = 92
@@ -38,13 +39,7 @@ export function TreeViewModal({
 
   useEffect(() => reload(), [reload])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscapeKey(onClose)
 
   const layout = useMemo(() => (tree ? buildTreeLayout(tree) : null), [tree])
 
