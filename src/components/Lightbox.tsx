@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { CloseIcon } from '@/components/icons'
 
 export function Lightbox({
   children,
@@ -27,16 +28,7 @@ export function Lightbox({
         className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
         aria-label="Close"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
+        <CloseIcon size={16} />
       </button>
     </div>,
     document.body,

@@ -18,6 +18,7 @@ import { absoluteTime, relativeTime } from '@/lib/time'
 import { formatTokens } from '@/lib/format'
 import { useChatUiStore } from './uiState'
 import { groupBlocks } from './items/groupBlocks'
+import { BranchIcon } from '@/components/icons'
 
 interface MessageItemProps {
   item: ChatItem
@@ -119,19 +120,7 @@ function UserMessage({
               title="Fork from here (edit & resend)"
               className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center rounded-md px-1.5 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="6" cy="6" r="2.5" />
-                <circle cx="6" cy="18" r="2.5" />
-                <circle cx="18" cy="6" r="2.5" />
-                <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
-              </svg>
+              <BranchIcon size={12} />
             </button>
             <CopyButton text={item.text} />
           </div>
@@ -358,4 +347,3 @@ function DividerShell({
     </div>
   )
 }
-

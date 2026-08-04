@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  toolText,
-  editDiffStats,
-  summarizeTool,
-  tryParseArgs,
-  truncate,
-} from './toolSummaries'
+import { toolText, editDiffStats, summarizeTool, tryParseArgs, truncate } from './toolSummaries'
 import type { ToolState } from '../reducer'
 
 function tool(overrides: Partial<ToolState> = {}): ToolState {
@@ -145,7 +139,9 @@ describe('summarizeTool', () => {
     const args = { path: 'src/a.ts' }
     expect(summarizeTool(tool({ toolName: 'read', args, status: 'done' })).label).toBe('Read')
     expect(summarizeTool(tool({ toolName: 'read', args, status: 'running' })).label).toBe('Reading')
-    expect(summarizeTool(tool({ toolName: 'read', args, status: 'starting' })).label).toBe('Reading')
+    expect(summarizeTool(tool({ toolName: 'read', args, status: 'starting' })).label).toBe(
+      'Reading',
+    )
   })
 
   it('treats error status as not-running', () => {

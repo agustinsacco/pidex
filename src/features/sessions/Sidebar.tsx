@@ -9,7 +9,7 @@ import { relativeTimeShort as relativeTime } from '@/lib/time'
 
 export { relativeTimeShort as relativeTime } from '@/lib/time'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { Spinner } from '@/features/chat/tools/ToolCard'
+import { ChevronIcon, Spinner } from '@/components/icons'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/SettingsModal'
 import { useLayoutStore } from '@/stores/layout'
@@ -175,17 +175,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
               >
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className={clsx('transition-transform', !isCollapsed && 'rotate-90')}
-                >
-                  <path d="m9 6 6 6-6 6" />
-                </svg>
+                <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
                 <span className="min-w-0 flex-1 truncate">{group.name}</span>
                 {group.liveCount > 0 && (
                   <span

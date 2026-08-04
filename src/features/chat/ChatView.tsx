@@ -11,6 +11,7 @@ import { SessionMenu } from './SessionMenu'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { BranchIcon } from '@/components/icons'
 
 export function ChatView({
   sessionId,
@@ -204,19 +205,7 @@ function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Eleme
   if (!info?.isRepo || !info.branch) return null
   return (
     <span className="bg-bg-secondary text-text-secondary flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px]">
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <circle cx="6" cy="6" r="2.5" />
-        <circle cx="6" cy="18" r="2.5" />
-        <circle cx="18" cy="6" r="2.5" />
-        <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
-      </svg>
+      <BranchIcon size={10} />
       <span className="max-w-36 truncate">{info.branch}</span>
       {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
       {(info.behind ?? 0) > 0 && <span className="text-info">↓{info.behind}</span>}

@@ -4,6 +4,7 @@ import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
 import { dirname } from '@/lib/path'
+import { BranchIcon } from '@/components/icons'
 
 export const FileExplorer = memo(function FileExplorer({
   workspacePath,
@@ -43,7 +44,7 @@ export const FileExplorer = memo(function FileExplorer({
               useFilesStore.getState().setRespectGitignore(workspacePath, !respectGitignore)
             }
           >
-            <GitIgnoreIcon />
+            <BranchIcon size={12} />
           </IconToggle>
         </div>
       </div>
@@ -297,24 +298,6 @@ function EyeIcon(): React.JSX.Element {
     >
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
       <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function GitIgnoreIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="6" cy="18" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
     </svg>
   )
 }

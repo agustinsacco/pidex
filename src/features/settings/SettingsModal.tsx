@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { MonacoEditor } from '@/features/files/MonacoEditor'
+import { CloseIcon } from '@/components/icons'
 
 type SettingsTab = 'appearance' | 'agent' | 'workspaces' | 'advanced' | 'keybindings' | 'about'
 
@@ -83,16 +84,7 @@ export function SettingsModal(): React.JSX.Element | null {
             onClick={close}
             className="text-text-tertiary hover:text-text absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md transition-colors"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <CloseIcon size={14} />
           </button>
           {tab === 'appearance' && <AppearanceTab />}
           {tab === 'agent' && <AgentTab />}

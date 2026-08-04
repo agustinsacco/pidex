@@ -7,6 +7,7 @@ import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { HomeModelPicker } from './HomeModelPicker'
 import { formatTokens } from '@/lib/format'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { BranchIcon, CheckIcon, Spinner } from '@/components/icons'
 
 interface PendingImage {
   data: string
@@ -229,21 +230,7 @@ function SubmitButton({
       className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
     >
       {starting ? (
-        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="3"
-          />
-          <path
-            className="opacity-90"
-            fill="currentColor"
-            d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
-          />
-        </svg>
+        <Spinner className="text-current" />
       ) : (
         <svg
           width="14"
@@ -383,7 +370,6 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-
 function MonitorIcon(): React.JSX.Element {
   return (
     <svg
@@ -411,24 +397,6 @@ function FolderIcon(): React.JSX.Element {
       strokeWidth="2"
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-function BranchIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="6" cy="18" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
     </svg>
   )
 }
@@ -567,19 +535,7 @@ function WorkspaceChip({
           {recents.map((ws) => (
             <MenuRow key={ws.path} active={false} onClick={() => choose(ws.path)}>
               <span className="min-w-0 flex-1 truncate text-[13px]">{ws.name}</span>
-              {ws.path === workspacePath && (
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  className="text-accent shrink-0"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
+              {ws.path === workspacePath && <CheckIcon className="text-accent shrink-0" />}
             </MenuRow>
           ))}
           <div className="border-border my-1 border-t" />

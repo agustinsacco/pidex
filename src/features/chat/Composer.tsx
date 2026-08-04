@@ -15,7 +15,7 @@ import {
 } from './composer/CommandMenu'
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
-import { Spinner } from './tools/ToolCard'
+import { Spinner } from '@/components/icons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 

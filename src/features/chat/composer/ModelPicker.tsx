@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { CheckIcon } from '@/components/icons'
 
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
@@ -104,7 +105,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
                     onClick={() => void setModel(model)}
                   >
                     <span className="flex-1 truncate">{model.name || model.id}</span>
-                    {active && <Check />}
+                    {active && <CheckIcon className="text-text" />}
                   </MenuRow>
                 )
               })}
@@ -129,27 +130,11 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           {THINKING_LEVELS.map((level) => (
             <MenuRow key={level} active={false} onClick={() => void setThinking(level)}>
               <span className="flex-1">{titleCase(level)}</span>
-              {meta.thinkingLevel === level && <Check />}
+              {meta.thinkingLevel === level && <CheckIcon className="text-text" />}
             </MenuRow>
           ))}
         </PopupMenu>
       )}
     </div>
-  )
-}
-
-function Check(): React.JSX.Element {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      className="text-text"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
   )
 }

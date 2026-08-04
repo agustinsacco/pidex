@@ -465,4 +465,3 @@ export type ExtensionUIResponse =
   | { type: 'extension_ui_response'; id: string; value: string }
   | { type: 'extension_ui_response'; id: string; confirmed: boolean }
   | { type: 'extension_ui_response'; id: string; cancelled: true }
-
