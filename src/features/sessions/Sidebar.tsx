@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { SessionMeta } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { relativeTimeShort as relativeTime } from '@/lib/time'
@@ -125,7 +125,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 }
 
 function WorkspaceSwitcher(): React.JSX.Element {
-  const currentPath = useWorkspacesStore((s) => s.currentPath)
+  const currentPath = useActiveWorkspace()
   const recents = useWorkspacesStore((s) => s.recents)
   const [open, setOpen] = useState(false)
   const name = currentPath?.split(/[/\\]/).filter(Boolean).pop() ?? 'Workspace'

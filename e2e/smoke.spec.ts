@@ -58,13 +58,28 @@ async function shutdown(harness: Harness): Promise<void> {
   }
 }
 
-/** Get from the greeting screen into the workspace home. */
+/**
+ * Get to the workspace home.
+ *
+ * The app restores its last location on launch, so a run may land on the
+ * picker OR straight into a restored session. Wait for whichever appears
+ * rather than assuming the picker — assuming it made this flaky, with the
+ * 30s wait burned before failing.
+ */
 async function openWorkspace(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: /Open Folder/i })).toBeVisible({ timeout: 30_000 })
-  await page.getByRole('button', { name: /Open Folder/i }).click()
-  await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeVisible({
-    timeout: 20_000,
-  })
+  const picker = page.getByRole('button', { name: /Open Folder/i })
+  const homeComposer = page.getByPlaceholder('Describe a task or ask a question')
+  const chatComposer = page.getByPlaceholder(/Describe a task…/i)
+
+  await expect(picker.or(homeComposer).or(chatComposer).first()).toBeVisible({ timeout: 30_000 })
+
+  if (await picker.isVisible()) {
+    await picker.click()
+  } else if (await chatComposer.isVisible()) {
+    // Restored into a session — get back to the home screen.
+    await page.getByRole('button', { name: /New session/i }).click()
+  }
+  await expect(homeComposer).toBeVisible({ timeout: 20_000 })
 }
 
 test('workspace → session → streamed answer, diff and artifact render', async () => {
