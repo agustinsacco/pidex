@@ -29,6 +29,17 @@ process.stdin.on('data', (chunk) => {
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 
+// A real session file on disk in the workspace, so the app's existence
+// check for the persisted resume target succeeds.
+const path = require('node:path')
+const fs = require('node:fs')
+const SESSION_FILE = path.join(process.cwd(), '.pidex-stub-session.jsonl')
+try {
+  fs.writeFileSync(SESSION_FILE, JSON.stringify({ type: 'session', id: 'stub-session' }) + '\n')
+} catch {
+  /* best effort */
+}
+
 const MODEL = {
   id: 'stub-model',
   name: 'Stub Model',
@@ -61,6 +72,9 @@ function handle(cmd) {
           followUpMode: 'one-at-a-time',
           sessionId: 'stub-session',
           sessionName: 'E2E stub session',
+          // Real pi always reports the file it persists to. The app stores
+          // this as the session's disk path and reopens it on relaunch.
+          sessionFile: SESSION_FILE,
           autoCompactionEnabled: true,
           messageCount: 0,
           pendingMessageCount: 0,

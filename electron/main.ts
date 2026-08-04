@@ -5,9 +5,15 @@ import { ptyManager } from './pty/pty-manager'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
-// E2E runs must never touch the developer's real prefs.
+// E2E runs must never touch the developer's real prefs. Tests that need
+// state to survive a relaunch (e.g. "reopens the last session") pin the
+// directory explicitly; everything else gets a per-pid scratch dir.
 if (process.env.PIDEX_TEST_USER_DATA) {
-  app.setPath('userData', join(app.getPath('temp'), `pidex-e2e-${process.pid}`))
+  const dir =
+    process.env.PIDEX_TEST_USER_DATA !== '1'
+      ? process.env.PIDEX_TEST_USER_DATA
+      : join(app.getPath('temp'), `pidex-e2e-${process.pid}`)
+  app.setPath('userData', dir)
 }
 
 function createWindow(): BrowserWindow {

@@ -61,6 +61,11 @@ async function bootstrapSession(pidexId: string): Promise<void> {
           [pidexId]: { ...(s.live[pidexId] ?? { pidexId, workspacePath: '' }), diskPath },
         },
       }))
+      // The path only becomes known here (get_state resolves after spawn), so
+      // persist it now if this session is the one on screen.
+      if (useSessionsStore.getState().activeSessionId === pidexId) {
+        void window.pidex.invoke('app:setLastSession', diskPath)
+      }
     }
   }
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
@@ -186,6 +191,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         activeSessionId: pidexId,
         unread: { ...s.unread, [pidexId]: 0 },
       }))
+      // Resumed sessions already know their file; fresh ones learn it from
+      // get_state in bootstrapSession, which persists it then.
+      if (options.sessionPath) {
+        void window.pidex.invoke('app:setLastSession', options.sessionPath)
+      }
 
       // Resume: hydrate history before metadata so the transcript paints fast.
       if (options.sessionPath) {
@@ -232,6 +242,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
     }))
+    // Remember where to reopen next launch. Clearing the session (New) also
+    // clears the memory, so we land on the home screen instead.
+    const diskPath = sessionId ? get().live[sessionId]?.diskPath : undefined
+    void window.pidex.invoke('app:setLastSession', sessionId ? diskPath : undefined)
   },
 
   disposeSession: async (sessionId) => {

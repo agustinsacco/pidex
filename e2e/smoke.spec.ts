@@ -24,8 +24,10 @@ interface Harness {
  * Each test gets its own instance so no test can leave focus or pane state
  * that breaks the next one.
  */
-async function launch(): Promise<Harness> {
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+async function launch(
+  options: { workspace?: string; userDataDir?: string } = {},
+): Promise<Harness> {
+  const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'pidex-e2e-')))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const app = await electron.launch({
@@ -35,7 +37,7 @@ async function launch(): Promise<Harness> {
       NODE_ENV: 'production',
       PIDEX_PI_STUB: piStub,
       PIDEX_E2E_WORKSPACE: workspace,
-      PIDEX_TEST_USER_DATA: '1',
+      PIDEX_TEST_USER_DATA: options.userDataDir ?? '1',
     },
   })
   const page = await app.firstWindow()
@@ -209,5 +211,42 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     expect(Math.max(...gaps)).toBeGreaterThanOrEqual(12)
   } finally {
     await shutdown(harness)
+  }
+})
+
+test('reopens the last session on relaunch instead of the picker', async () => {
+  // Both launches share a userData dir so prefs survive the restart, while
+  // staying isolated from the developer's real config.
+  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+
+  try {
+    // First launch: open the workspace and start a session.
+    const first = await launch({ workspace, userDataDir })
+    try {
+      await openWorkspace(first.page)
+      await first.page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+      await first.page.getByRole('button', { name: /Start session/i }).click()
+      // Session is live once the chat composer replaces the greeting composer.
+      await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 20_000,
+      })
+    } finally {
+      await first.app.close()
+    }
+
+    // Second launch: must land straight in that session, no picker.
+    const second = await launch({ workspace, userDataDir })
+    try {
+      await expect(second.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 30_000,
+      })
+      await expect(second.page.getByRole('button', { name: /Open Folder/i })).toBeHidden()
+    } finally {
+      await second.app.close()
+    }
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+    await rm(userDataDir, { recursive: true, force: true })
   }
 })
