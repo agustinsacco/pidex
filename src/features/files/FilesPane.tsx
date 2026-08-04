@@ -15,7 +15,7 @@ export const FilesPane = memo(function FilesPane({
     const unsubscribe = window.pidex.onFsChanged((payload) => {
       if (payload.workspacePath !== workspacePath) return
       const store = useFilesStore.getState()
-      void store.handleExternalChanges(payload.paths)
+      void store.handleExternalChanges(workspacePath, payload.paths)
       void store.refreshGitStatus(workspacePath)
       // Refresh expanded dirs that contain changes.
       const dirs = new Set(payload.paths.map((p) => p.slice(0, p.lastIndexOf('/'))))
@@ -34,7 +34,7 @@ export const FilesPane = memo(function FilesPane({
       </Panel>
       <PanelResizeHandle className="pane-handle" />
       <Panel minSize={30}>
-        <EditorPane />
+        <EditorPane workspacePath={workspacePath} />
       </Panel>
     </PanelGroup>
   )

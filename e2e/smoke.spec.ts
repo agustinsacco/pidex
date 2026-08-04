@@ -85,7 +85,7 @@ async function openWorkspace(page: Page): Promise<void> {
     await picker.click()
   } else if (await chatComposer.isVisible()) {
     // Restored into a session — get back to the home screen.
-    await page.getByRole('button', { name: /New session/i }).click()
+    await page.getByRole('button', { name: /^New$/ }).click()
   }
   await expect(homeComposer).toBeVisible({ timeout: 20_000 })
 }
@@ -304,8 +304,10 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
       await expect(second.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 30_000,
       })
-      await second.page.getByTestId('workspace-switcher').click()
-      await second.page.getByText('Open Folder…').click()
+      await second.page.getByRole('button', { name: /^New$/ }).click()
+      await expect(second.page.getByTestId('workspace-chip')).toBeVisible({ timeout: 20_000 })
+      await second.page.getByTestId('workspace-chip').click()
+      await second.page.getByText('Open folder…').click()
       await expect(second.page.getByPlaceholder('Describe a task or ask a question')).toBeVisible({
         timeout: 20_000,
       })

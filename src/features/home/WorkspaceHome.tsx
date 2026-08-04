@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, WorkspaceSessionStats } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
+import { useWorkspacesStore } from '@/stores/workspaces'
+import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
@@ -72,7 +74,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         <div className="mt-auto w-full max-w-2xl pb-8 pt-8">
           <div className="mb-2 flex items-center gap-1.5 px-1">
             <Chip icon={<MonitorIcon />}>Local</Chip>
-            <Chip icon={<FolderIcon />}>{workspaceName}</Chip>
+            <WorkspaceChip workspacePath={workspacePath} name={workspaceName} />
             {git?.isRepo && git.branch && (
               <Chip icon={<BranchIcon />}>
                 {git.branch}
@@ -277,5 +279,99 @@ function BranchIcon(): React.JSX.Element {
       <circle cx="18" cy="6" r="2.5" />
       <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
     </svg>
+  )
+}
+
+/**
+ * The folder chip doubles as the workspace picker: clicking it opens a
+ * popover of recents plus "Open folder…". Putting it here — rather than on
+ * the New button — keeps the folder visible at the moment you compose, next
+ * to the branch you are on.
+ */
+function WorkspaceChip({
+  workspacePath,
+  name,
+}: {
+  workspacePath: string
+  name: string
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const recents = useWorkspacesStore((s) => s.recents)
+
+  const choose = (path: string): void => {
+    setOpen(false)
+    if (path === workspacePath) return
+    useWorkspacesStore.getState().openWorkspace(path)
+    // Leave any active session, or the derived workspace keeps pointing at it.
+    useSessionsStore.getState().activate(null)
+  }
+
+  return (
+    <span className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        data-testid="workspace-chip"
+        title={workspacePath}
+        className="border-border bg-surface text-text-secondary hover:text-text hover:border-border-strong flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors"
+      >
+        <FolderIcon />
+        {name}
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          className="text-text-tertiary"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
+        >
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
+            Recent
+          </div>
+          {recents.map((ws) => (
+            <MenuRow key={ws.path} active={false} onClick={() => choose(ws.path)}>
+              <span className="min-w-0 flex-1 truncate text-[13px]">{ws.name}</span>
+              {ws.path === workspacePath && (
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  className="text-accent shrink-0"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              )}
+            </MenuRow>
+          ))}
+          <div className="border-border my-1 border-t" />
+          <MenuRow
+            active={false}
+            onClick={() => {
+              setOpen(false)
+              void useWorkspacesStore
+                .getState()
+                .pickAndOpen()
+                .then((path) => {
+                  if (path) useSessionsStore.getState().activate(null)
+                })
+            }}
+          >
+            <span className="text-[13px]">Open folder…</span>
+          </MenuRow>
+        </PopupMenu>
+      )}
+    </span>
   )
 }

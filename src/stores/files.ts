@@ -20,16 +20,31 @@ export interface OpenFile {
   pendingRevealLine?: number
 }
 
+/**
+ * Editor + git state for ONE workspace. Keyed per workspace so switching to a
+ * session in another project shows that project's editors, not the previous
+ * one's — a stale editor from another repo is worse than no editor.
+ */
+interface WorkspaceFiles {
+  openFiles: OpenFile[]
+  activePath: string | null
+  gitStatus: Record<string, string>
+}
+
+const emptyWorkspaceFiles = (): WorkspaceFiles => ({
+  openFiles: [],
+  activePath: null,
+  gitStatus: {},
+})
+
 interface FilesState {
-  // explorer
+  // explorer — keyed by absolute dir path, so already collision-free
   entries: Record<string, DirEntry[] | undefined>
   expanded: Record<string, boolean>
   showHidden: boolean
   respectGitignore: boolean
-  gitStatus: Record<string, string>
-  // editor
-  openFiles: OpenFile[]
-  activePath: string | null
+  /** workspacePath → that workspace's editors and git status. */
+  byWorkspace: Record<string, WorkspaceFiles>
 
   toggleDir: (workspacePath: string, dirPath: string) => Promise<void>
   refreshDir: (workspacePath: string, dirPath: string) => Promise<void>
@@ -38,15 +53,27 @@ interface FilesState {
   setRespectGitignore: (workspacePath: string, value: boolean) => void
 
   openFile: (workspacePath: string, path: string, line?: number) => Promise<void>
-  closeFile: (path: string) => void
-  setActive: (path: string) => void
-  updateBuffer: (path: string, content: string) => void
-  saveFile: (path: string) => Promise<void>
-  consumeReveal: (path: string) => number | undefined
+  closeFile: (workspacePath: string, path: string) => void
+  setActive: (workspacePath: string, path: string) => void
+  updateBuffer: (workspacePath: string, path: string, content: string) => void
+  saveFile: (workspacePath: string, path: string) => Promise<void>
+  consumeReveal: (workspacePath: string, path: string) => number | undefined
   /** Called on chokidar changes: reload clean buffers, flag dirty ones. */
-  handleExternalChanges: (paths: string[]) => Promise<void>
-  reloadFromDisk: (path: string) => Promise<void>
-  keepBuffer: (path: string) => void
+  handleExternalChanges: (workspacePath: string, paths: string[]) => Promise<void>
+  reloadFromDisk: (workspacePath: string, path: string) => Promise<void>
+  keepBuffer: (workspacePath: string, path: string) => void
+}
+
+/** Files state for a workspace, creating an empty record on first access. */
+export function workspaceFiles(state: FilesState, workspacePath: string): WorkspaceFiles {
+  return state.byWorkspace[workspacePath] ?? EMPTY_WORKSPACE_FILES
+}
+
+/** Stable empty value so selectors don't allocate a new object per render. */
+const EMPTY_WORKSPACE_FILES: WorkspaceFiles = {
+  openFiles: [],
+  activePath: null,
+  gitStatus: {},
 }
 
 function relativeTo(workspacePath: string, path: string): string {
@@ -54,14 +81,22 @@ function relativeTo(workspacePath: string, path: string): string {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path
 }
 
+/** Apply a patch to one workspace's slice, creating it if absent. */
+function patchWorkspace(
+  state: FilesState,
+  workspacePath: string,
+  update: (current: WorkspaceFiles) => WorkspaceFiles,
+): Pick<FilesState, 'byWorkspace'> {
+  const current = state.byWorkspace[workspacePath] ?? emptyWorkspaceFiles()
+  return { byWorkspace: { ...state.byWorkspace, [workspacePath]: update(current) } }
+}
+
 export const useFilesStore = create<FilesState>((set, get) => ({
   entries: {},
   expanded: {},
   showHidden: false,
   respectGitignore: true,
-  gitStatus: {},
-  openFiles: [],
-  activePath: null,
+  byWorkspace: {},
 
   toggleDir: async (workspacePath, dirPath) => {
     const { expanded } = get()
@@ -87,7 +122,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
 
   refreshGitStatus: async (workspacePath) => {
     const gitStatus = await window.pidex.invoke('git:statusMap', workspacePath)
-    set({ gitStatus })
+    set((s) => patchWorkspace(s, workspacePath, (w) => ({ ...w, gitStatus })))
   },
 
   setShowHidden: (workspacePath, value) => {
@@ -101,14 +136,17 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   openFile: async (workspacePath, path, line) => {
-    const existing = get().openFiles.find((f) => f.path === path)
+    const existing = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
     if (existing) {
-      set((s) => ({
-        activePath: path,
-        openFiles: s.openFiles.map((f) =>
-          f.path === path ? { ...f, pendingRevealLine: line ?? f.pendingRevealLine } : f,
-        ),
-      }))
+      set((s) =>
+        patchWorkspace(s, workspacePath, (w) => ({
+          ...w,
+          activePath: path,
+          openFiles: w.openFiles.map((f) =>
+            f.path === path ? { ...f, pendingRevealLine: line ?? f.pendingRevealLine } : f,
+          ),
+        })),
+      )
       return
     }
     const file = await window.pidex.invoke('fs:readFile', path)
@@ -124,100 +162,136 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       tooLarge: file.tooLarge,
       pendingRevealLine: line,
     }
-    set((s) => ({ openFiles: [...s.openFiles, openFile], activePath: path }))
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => ({
+        ...w,
+        openFiles: [...w.openFiles, openFile],
+        activePath: path,
+      })),
+    )
   },
 
-  closeFile: (path) => {
-    set((s) => {
-      const openFiles = s.openFiles.filter((f) => f.path !== path)
-      const activePath =
-        s.activePath === path ? (openFiles[openFiles.length - 1]?.path ?? null) : s.activePath
-      return { openFiles, activePath }
-    })
+  closeFile: (workspacePath, path) => {
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => {
+        const openFiles = w.openFiles.filter((f) => f.path !== path)
+        return {
+          ...w,
+          openFiles,
+          activePath:
+            w.activePath === path ? (openFiles[openFiles.length - 1]?.path ?? null) : w.activePath,
+        }
+      }),
+    )
   },
 
-  setActive: (path) => set({ activePath: path }),
-
-  updateBuffer: (path, content) => {
-    set((s) => ({
-      openFiles: s.openFiles.map((f) =>
-        f.path === path ? { ...f, content, dirty: content !== f.savedContent } : f,
-      ),
-    }))
+  setActive: (workspacePath, path) => {
+    set((s) => patchWorkspace(s, workspacePath, (w) => ({ ...w, activePath: path })))
   },
 
-  saveFile: async (path) => {
-    const file = get().openFiles.find((f) => f.path === path)
+  updateBuffer: (workspacePath, path, content) => {
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => ({
+        ...w,
+        openFiles: w.openFiles.map((f) =>
+          f.path === path ? { ...f, content, dirty: content !== f.savedContent } : f,
+        ),
+      })),
+    )
+  },
+
+  saveFile: async (workspacePath, path) => {
+    const file = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
     if (!file || !file.dirty) return
     const { mtimeMs } = await window.pidex.invoke('fs:writeFile', path, file.content)
-    set((s) => ({
-      openFiles: s.openFiles.map((f) =>
-        f.path === path
-          ? { ...f, savedContent: f.content, dirty: false, mtimeMs, diskConflict: false }
-          : f,
-      ),
-    }))
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => ({
+        ...w,
+        openFiles: w.openFiles.map((f) =>
+          f.path === path
+            ? { ...f, savedContent: f.content, dirty: false, mtimeMs, diskConflict: false }
+            : f,
+        ),
+      })),
+    )
   },
 
-  consumeReveal: (path) => {
-    const file = get().openFiles.find((f) => f.path === path)
+  consumeReveal: (workspacePath, path) => {
+    const file = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
     const line = file?.pendingRevealLine
     if (line !== undefined) {
-      set((s) => ({
-        openFiles: s.openFiles.map((f) =>
-          f.path === path ? { ...f, pendingRevealLine: undefined } : f,
-        ),
-      }))
+      set((s) =>
+        patchWorkspace(s, workspacePath, (w) => ({
+          ...w,
+          openFiles: w.openFiles.map((f) =>
+            f.path === path ? { ...f, pendingRevealLine: undefined } : f,
+          ),
+        })),
+      )
     }
     return line
   },
 
-  handleExternalChanges: async (paths) => {
+  handleExternalChanges: async (workspacePath, paths) => {
     const changed = new Set(paths)
-    const affected = get().openFiles.filter((f) => changed.has(f.path))
+    const affected = workspaceFiles(get(), workspacePath).openFiles.filter((f) =>
+      changed.has(f.path),
+    )
     for (const file of affected) {
       if (file.dirty) {
-        set((s) => ({
-          openFiles: s.openFiles.map((f) =>
-            f.path === file.path ? { ...f, diskConflict: true } : f,
-          ),
-        }))
+        set((s) =>
+          patchWorkspace(s, workspacePath, (w) => ({
+            ...w,
+            openFiles: w.openFiles.map((f) =>
+              f.path === file.path ? { ...f, diskConflict: true } : f,
+            ),
+          })),
+        )
       } else {
-        await get().reloadFromDisk(file.path)
+        await get().reloadFromDisk(workspacePath, file.path)
       }
     }
   },
 
-  reloadFromDisk: async (path) => {
+  reloadFromDisk: async (workspacePath, path) => {
     try {
       const file = await window.pidex.invoke('fs:readFile', path)
-      set((s) => ({
-        openFiles: s.openFiles.map((f) =>
-          f.path === path
-            ? {
-                ...f,
-                savedContent: file.content,
-                content: file.content,
-                mtimeMs: file.mtimeMs,
-                dirty: false,
-                diskConflict: false,
-              }
-            : f,
-        ),
-      }))
+      set((s) =>
+        patchWorkspace(s, workspacePath, (w) => ({
+          ...w,
+          openFiles: w.openFiles.map((f) =>
+            f.path === path
+              ? {
+                  ...f,
+                  savedContent: file.content,
+                  content: file.content,
+                  mtimeMs: file.mtimeMs,
+                  dirty: false,
+                  diskConflict: false,
+                }
+              : f,
+          ),
+        })),
+      )
     } catch {
-      // deleted externally — keep buffer, mark conflict
-      set((s) => ({
-        openFiles: s.openFiles.map((f) => (f.path === path ? { ...f, diskConflict: true } : f)),
-      }))
+      // Deleted externally — keep the buffer, flag the conflict.
+      set((s) =>
+        patchWorkspace(s, workspacePath, (w) => ({
+          ...w,
+          openFiles: w.openFiles.map((f) => (f.path === path ? { ...f, diskConflict: true } : f)),
+        })),
+      )
     }
   },
 
-  keepBuffer: (path) => {
-    set((s) => ({
-      openFiles: s.openFiles.map((f) =>
-        f.path === path ? { ...f, diskConflict: false, dirty: true } : f,
-      ),
-    }))
+  keepBuffer: (workspacePath, path) => {
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => ({
+        ...w,
+        openFiles: w.openFiles.map((f) =>
+          f.path === path ? { ...f, diskConflict: false, dirty: true } : f,
+        ),
+      })),
+    )
   },
 }))
