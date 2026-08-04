@@ -10,10 +10,7 @@ export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } fr
 
 /**
  * On-disk session discovery — drives the sidebar and home stats without
- * spawning pi processes.
- *
- * Layout (verified against the local install):
- *   ~/.pi/agent/sessions/--<cwd segments joined by dashes>--/<ts>_<uuid>.jsonl
+ * spawning pi processes. The directory layout itself lives in `pi-paths.ts`.
  *
  * NOTE: plain readline is fine HERE (unlike the RPC stream) because we parse
  * whole persisted files line-by-line and pi writes each entry as one LF-

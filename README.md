@@ -70,17 +70,34 @@ npm run dev
 
 ```
 electron/          main process — pi RPC clients, PTYs, fs/git, watchers, prefs
+  ipc.ts           composition root: calls the per-domain handler registrars
+  ipc/             one module per IPC channel prefix (pi, app, sessions, git, fs, pty)
+  registry.ts      the live pi session registry
   pi/              PiRpcClient (strict LF JSONL framing), session scanner/writer
   pty/             node-pty manager
   fs/              file service, git service, workspace watcher
 shared/            types shared by main + renderer (ipc, rpc, models)
 src/               renderer (React) — pure UI over typed IPC
+  components/      cross-feature primitives (Modal, icons, form fields)
   features/        chat, files, terminal, artifacts, sessions, settings, palette
+  lib/             framework-free helpers (format, path, rpc, base64, fuzzy, time)
   stores/          zustand stores (projections of main-process state)
 pi-ext/            bundled pi extension (artifacts tools)
 e2e/               Playwright-Electron smoke tests + deterministic pi stub
 specs/             product and domain specifications
 ```
+
+Conventions worth knowing:
+
+- **IPC handlers** live in `electron/ipc/<domain>-handlers.ts`; a new channel
+  goes in the module matching its prefix.
+- **RPC calls from the renderer** go through `src/lib/rpc.ts` (`piCall` /
+  `piCallOk`), which reports failures on the session's chat surface. Calling
+  `window.pidex.piCommand` directly means handling the error envelope yourself.
+- **Modals** use `ModalOverlay` from `src/components/Modal.tsx` for portalling,
+  backdrop dismissal and depth-aware Escape (innermost modal wins).
+- **Tests** live beside their subject as `*.test.ts`. DOM-dependent suites opt
+  in per file with `// @vitest-environment jsdom`.
 
 The main process owns all side effects. The renderer runs with
 `contextIsolation`, no Node integration, and a strict CSP; model-authored HTML
