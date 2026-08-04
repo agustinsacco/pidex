@@ -4,11 +4,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": [
-    "electron/**/*.ts",
-    "shared/**/*.ts",
-    "electron.vite.config.ts",
-    "pi-ext/**/*.ts",
-    "src/**/*.test.ts"
-  ]
+  "include": ["electron/**/*.ts", "shared/**/*.ts", "electron.vite.config.ts", "pi-ext/**/*.ts"]
 }

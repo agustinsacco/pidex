@@ -14,6 +14,7 @@ import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/SettingsModal'
 import { useLayoutStore } from '@/stores/layout'
 import { workspaceName } from '@/lib/path'
+import { exportSessionHtml, renameSession } from './sessionActions'
 
 interface GroupedSessions {
   workspacePath: string
@@ -335,7 +336,7 @@ function SessionRow({
       {
         label: 'Rename…',
         separatorAbove: true,
-        onClick: () => void renameSession(workspacePath, meta, livePidexId),
+        onClick: () => void renameSidebarSession(workspacePath, meta, livePidexId),
       },
       {
         label: 'Fork (new branch session)',
@@ -347,7 +348,7 @@ function SessionRow({
       },
       {
         label: 'Export HTML…',
-        onClick: () => void exportSession(workspacePath, meta, livePidexId),
+        onClick: () => void exportSidebarSession(workspacePath, meta, livePidexId),
       },
       {
         label: 'Delete (move to trash)',
@@ -404,20 +405,15 @@ function SessionRow({
   )
 }
 
-async function renameSession(
+/** Rename a disk or live session, then refresh the sidebar listing. */
+async function renameSidebarSession(
   workspacePath: string,
   meta: SessionMeta,
   livePidexId?: string,
 ): Promise<void> {
-  const name = window.prompt('Session name', meta.name ?? '')
-  if (!name) return
   const store = useSessionsStore.getState()
   const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  const response = await window.pidex.piCommand(pidexId, { type: 'set_session_name', name })
-  if (response.success) {
-    useChatStore.getState().patchMeta(pidexId, { sessionName: name })
-    void store.refreshDisk(workspacePath)
-  }
+  if (await renameSession(pidexId, meta.name)) void store.refreshDisk(workspacePath)
 }
 
 async function cloneSession(
@@ -437,23 +433,15 @@ async function cloneSession(
   }
 }
 
-async function exportSession(
+/** Export a disk or live session to HTML, opening it first if needed. */
+async function exportSidebarSession(
   workspacePath: string,
   meta: SessionMeta,
   livePidexId?: string,
 ): Promise<void> {
-  const outputPath = await window.pidex.invoke('app:saveDialog', {
-    title: 'Export session as HTML',
-    defaultPath: `${meta.name ?? 'session'}.html`,
-    filters: [{ name: 'HTML', extensions: ['html'] }],
-  })
-  if (!outputPath) return
   const store = useSessionsStore.getState()
   const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  const response = await window.pidex.piCommand(pidexId, { type: 'export_html', outputPath })
-  if (response.success && response.data) {
-    await window.pidex.invoke('app:revealPath', response.data.path)
-  }
+  await exportSessionHtml(pidexId, meta.name ?? 'session')
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {

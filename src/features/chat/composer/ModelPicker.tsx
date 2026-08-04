@@ -4,6 +4,7 @@ import type { Model, ThinkingLevel } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { CheckIcon } from '@/components/icons'
+import { piCallOk } from '@/lib/rpc'
 
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
@@ -33,25 +34,18 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   const setModel = async (model: Model): Promise<void> => {
     setOpen(null)
-    const response = await window.pidex.piCommand(sessionId, {
+    const ok = await piCallOk(sessionId, {
       type: 'set_model',
       provider: model.provider,
       modelId: model.id,
     })
-    if (response.success) {
-      useChatStore.getState().patchMeta(sessionId, { model })
-    }
+    if (ok) useChatStore.getState().patchMeta(sessionId, { model })
   }
 
   const setThinking = async (level: ThinkingLevel): Promise<void> => {
     setOpen(null)
-    const response = await window.pidex.piCommand(sessionId, {
-      type: 'set_thinking_level',
-      level,
-    })
-    if (response.success) {
-      useChatStore.getState().patchMeta(sessionId, { thinkingLevel: level })
-    }
+    const ok = await piCallOk(sessionId, { type: 'set_thinking_level', level })
+    if (ok) useChatStore.getState().patchMeta(sessionId, { thinkingLevel: level })
   }
 
   return (

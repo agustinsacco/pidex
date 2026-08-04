@@ -18,6 +18,8 @@ import { RetryStrip } from './RetryStrip'
 import { Spinner } from '@/components/icons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
+import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
+import { piCallOk } from '@/lib/rpc'
 
 interface PendingImage {
   data: string
@@ -84,18 +86,12 @@ export function Composer({
       {
         name: 'export',
         description: 'Export this session as HTML',
-        run: () => void runExport(sessionId),
+        run: () => void exportSessionHtml(sessionId),
       },
       {
         name: 'name',
         description: 'Rename this session',
-        run: () => {
-          const name = window.prompt('Session name')
-          if (name)
-            void window.pidex.piCommand(sessionId, { type: 'set_session_name', name }).then((r) => {
-              if (r.success) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
-            })
-        },
+        run: () => void renameSession(sessionId),
       },
     ],
     [sessionId],
@@ -220,7 +216,7 @@ export function Composer({
     const queues = chat.sessions[sessionId]?.queues
     const queuedText = [...(queues?.steering ?? []), ...(queues?.followUp ?? [])].join('\n')
     try {
-      await window.pidex.piCommand(sessionId, { type: 'abort' })
+      await piCallOk(sessionId, { type: 'abort' })
       // Escape semantics: restore queued messages into the composer.
       if (queuedText) {
         setText((current) => (current ? current + '\n' + queuedText : queuedText))
@@ -461,23 +457,5 @@ export function Composer({
 }
 
 async function runCompact(sessionId: string): Promise<void> {
-  const chat = useChatStore.getState()
-  const response = await window.pidex.piCommand(sessionId, { type: 'compact' })
-  if (!response.success) chat.setError(sessionId, response.error)
-}
-
-async function runExport(sessionId: string): Promise<void> {
-  const chat = useChatStore.getState()
-  const outputPath = await window.pidex.invoke('app:saveDialog', {
-    title: 'Export session as HTML',
-    defaultPath: 'session.html',
-    filters: [{ name: 'HTML', extensions: ['html'] }],
-  })
-  if (!outputPath) return
-  const response = await window.pidex.piCommand(sessionId, { type: 'export_html', outputPath })
-  if (response.success && response.data) {
-    await window.pidex.invoke('app:revealPath', response.data.path)
-  } else if (!response.success) {
-    chat.setError(sessionId, response.error)
-  }
+  await piCallOk(sessionId, { type: 'compact' })
 }
