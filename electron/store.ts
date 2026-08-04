@@ -28,6 +28,7 @@ export function getPrefs(): AppPrefs {
     theme: s.get('theme'),
     recentWorkspaces: s.get('recentWorkspaces'),
     lastWorkspacePath: s.get('lastWorkspacePath'),
+    lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
   }
@@ -43,6 +44,17 @@ export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): v
 
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
+}
+
+/**
+ * Remember the session to reopen on next launch. `undefined` clears it, so
+ * closing a session means the app lands on that workspace's home screen
+ * rather than reopening something the user deliberately left.
+ */
+export function setLastSession(sessionPath: string | undefined): void {
+  const s = prefs()
+  if (sessionPath) s.set('lastSessionPath', sessionPath)
+  else s.delete('lastSessionPath')
 }
 
 export function setTheme(theme: ThemePreference): void {

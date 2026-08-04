@@ -390,6 +390,11 @@ export function installMockPidex(): void {
           return Promise.resolve({})
         case 'app:userInfo':
           return Promise.resolve({ username: 'dev' })
+        case 'app:setLastSession':
+          return Promise.resolve(undefined)
+        case 'app:resumeTarget':
+          // Browser harness always starts at the picker.
+          return Promise.resolve({ kind: 'none' })
         case 'sessions:list':
           return Promise.resolve(MOCK_DISK_SESSIONS)
         case 'sessions:stats':

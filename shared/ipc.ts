@@ -65,6 +65,18 @@ export interface IpcInvokeMap {
   'app:selectFolder': { args: []; result: string | null }
   'app:getPathForDisplay': { args: [string]; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  'app:setLastSession': { args: [sessionPath: string | undefined]; result: void }
+  /**
+   * Where to land on launch, with existence already validated in main so the
+   * renderer never routes to a folder or session file that has been deleted.
+   */
+  'app:resumeTarget': {
+    args: []
+    result:
+      | { kind: 'session'; sessionPath: string; workspacePath: string }
+      | { kind: 'workspace'; workspacePath: string }
+      | { kind: 'none' }
+  }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:userInfo': { args: []; result: { username: string } }

@@ -29,11 +29,44 @@ export function App(): React.JSX.Element {
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
 
+  const [restoring, setRestoring] = useState(true)
+
   useEffect(() => {
     void useSettingsStore.getState().hydrate()
     void useWorkspacesStore.getState().hydrate()
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
+
+  // Land where the user left off. Main validates that the workspace and
+  // session file still exist, so a deleted folder degrades to the picker
+  // instead of routing into a broken screen.
+  useEffect(() => {
+    if (!health?.ok) return
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const target = await window.pidex.invoke('app:resumeTarget')
+        if (cancelled || target.kind === 'none') return
+
+        useWorkspacesStore.getState().openWorkspace(target.workspacePath)
+        if (target.kind === 'session' && !cancelled) {
+          // Resume by path directly. The session-dir scan is only used to
+          // enrich the sidebar; requiring a match there would fail whenever
+          // the file lives outside pi's default session directory.
+          await useSessionsStore
+            .getState()
+            .createSession(target.workspacePath, { sessionPath: target.sessionPath })
+        }
+      } finally {
+        if (!cancelled) setRestoring(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [health?.ok])
 
   useGlobalShortcuts()
 
@@ -63,7 +96,16 @@ export function App(): React.JSX.Element {
     )
   }
 
+  // Hold the picker back until the restore attempt settles, otherwise it
+  // flashes for a frame before the previous session loads.
   if (!currentWorkspace) {
+    if (restoring) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="text-text-tertiary animate-pulse text-sm">Restoring your session…</div>
+        </div>
+      )
+    }
     return <WorkspacePicker piVersion={health.version} />
   }
 

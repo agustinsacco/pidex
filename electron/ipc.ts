@@ -32,10 +32,22 @@ import {
   getPrefs,
   recordWorkspace,
   setFontPrefs,
+  setLastSession,
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
 } from './store'
+import { access } from 'node:fs/promises'
+
+/** True when the path is reachable — used to validate persisted locations. */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import {
   MIN_PI_VERSION,
@@ -168,6 +180,36 @@ export function registerIpcHandlers(): void {
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)
+  })
+
+  handle('app:setLastSession', (_event, sessionPath) => {
+    setLastSession(sessionPath)
+  })
+
+  handle('app:resumeTarget', async () => {
+    const { lastSessionPath, lastWorkspacePath } = getPrefs()
+
+    // Prefer the exact session, but only if BOTH it and its workspace still
+    // exist — a session file whose folder was deleted can't be resumed.
+    if (lastSessionPath && lastWorkspacePath) {
+      const [sessionOk, workspaceOk] = await Promise.all([
+        pathExists(lastSessionPath),
+        pathExists(lastWorkspacePath),
+      ])
+      if (sessionOk && workspaceOk) {
+        return {
+          kind: 'session' as const,
+          sessionPath: lastSessionPath,
+          workspacePath: lastWorkspacePath,
+        }
+      }
+    }
+
+    if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
+      return { kind: 'workspace' as const, workspacePath: lastWorkspacePath }
+    }
+
+    return { kind: 'none' as const }
   })
 
   handle('app:setFontPrefs', (_event, fonts) => {

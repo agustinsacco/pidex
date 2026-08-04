@@ -126,7 +126,13 @@ export const DEFAULT_FONT_PREFS: FontPrefs = {
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
+  /** Most recently used workspace — where the app lands with no session. */
   lastWorkspacePath?: string
+  /**
+   * Session file (.jsonl) that was open when the app last closed. Restored on
+   * launch so pidex reopens where you left off rather than at the picker.
+   */
+  lastSessionPath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
   fonts: FontPrefs
