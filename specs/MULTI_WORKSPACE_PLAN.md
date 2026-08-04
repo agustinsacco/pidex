@@ -102,26 +102,42 @@ Files: `src/stores/workspaces.ts`, `src/stores/sessions.ts`,
 `src/app/App.tsx`, `ToolCard.tsx`, `SettingsModal.tsx`,
 `useGlobalShortcuts.ts`.
 
-## Phase 3 — Sidebar lists every workspace
+## Phase 3 — Sidebar: grouped sessions with workspace badges
 
-The headline change. Sidebar shows sessions **grouped by workspace**:
+The headline change. Two distinct requirements from the reference:
+
+**(a) Group sessions by workspace.** Group headers are plain grey labels
+(the reference's `Pinned` / `Tool Agent` / `Ungrouped` treatment), with
+their sessions indented beneath:
 
 ```
-▾ pidex                         ← workspace group header
-    ● Refactor auth module          (live, streaming)
-      Why is the vite build slow?
-▾ augment-services
-    ● Fix carrier selection
-  augment-web                   ← collapsed, no live sessions
+Pinned
+  ⑂ Migrate Knowledge Tools Fully AR      pidex
+  ⑂ Global Chat Routine Overhaul          augment-services
+pidex
+  ● Refactor auth module                  (live)
+    Why is the vite build slow?
+augment-services
+  ● Fix carrier selection
 ```
+
+**(b) Every session row carries a small workspace badge.** Even inside a
+group, each row shows which project it belongs to — so a glance at the
+list answers "which app is this thread for?" without reading headers.
+Reference styling: small, low-contrast, right-aligned in the row.
+
+Note these are complementary, not redundant: **Pinned** (and any future
+cross-cutting group) mixes workspaces, so the badge is the only signal
+there. Rows in a workspace group can dim/omit the badge to avoid noise —
+decide during implementation by eye.
 
 - scan **all known workspaces** on mount, not just one — `sessions:list`
   already takes a path, so this is N calls in parallel
 - watch each known workspace (`sessions:watch` per path); the existing
   `fs:changed` push already carries `workspacePath` for routing
 - group headers collapse/expand, persisted in prefs
-- a workspace with a **live session** sorts first and shows a running dot
-- badge each group with its live-session count
+- a workspace with a **live session** sorts first
+- badge text = folder basename; full path in `title`
 
 Cost note: N workspaces × a session-dir scan on boot. The scanner already
 has an mtime+size cache, so warm boots are cheap; cap the initial scan at
@@ -130,24 +146,50 @@ the ~8 most recent workspaces and lazy-scan the rest on expand.
 Files: `src/features/sessions/Sidebar.tsx` (substantial),
 `src/stores/sessions.ts` (multi-workspace refresh + watch).
 
-## Phase 4 — "New session" picks its workspace
+## Phase 4 — "New" button and the workspace popover
 
-Today the button just clears `activeSessionId` and lands on the home
-screen for the one workspace.
+Two corrections to the earlier draft, both from the reference:
 
-Target: a small menu on **New session**:
+**(a) The New button is a flat nav row, not a bordered button.** It sits
+at the top of the sidebar as the first of `New · Artifacts · Routines ·
+Customize` — icon + label, no border, no shadow, hover `bg-bg-secondary`,
+with the whole group visually distinct from the session list below. This
+supersedes the current bordered "New session" button and is the same work
+as **A3** in the UX plan; do them together.
 
-- the current workspace (default, ⏎)
-- each recent workspace
-- "Open folder…" → native picker, which **adds** a workspace rather than
-  replacing the current one
+Clicking **New** does _not_ open a folder menu. It routes to the home
+screen (clears `activeSessionId`) — matching the reference, where New
+lands you on the greeting screen ready to compose.
 
-Then the home screen composes against the chosen folder, and
-`createSession(chosenPath, …)` — which already accepts any path — spawns
-there.
+**(b) The workspace picker is a popover on the composer's folder chip.**
+The chip row under the home composer already renders `Local · <folder> ·
+<branch>` (`WorkspaceHome.tsx:74-77`). Clicking the **folder chip** opens
+a popover anchored there:
 
-Files: `src/features/sessions/Sidebar.tsx`,
-`src/features/home/WorkspaceHome.tsx`, `src/stores/workspaces.ts`.
+```
+Recent
+  pidex            ✓        ← current, checked
+  augment-dbt
+  augment-services
+  augment-local
+  brigades
+  vedy
+  ────────────
+  Open folder…
+```
+
+Selecting a folder re-points the home screen at it; the composer, git
+chip and stats all follow. "Open folder…" runs the native picker and
+**adds** a workspace rather than replacing the current one. The chosen
+path flows into `createSession(path, …)`, which already accepts any path.
+
+This is strictly better than a menu on New: the folder is visible at the
+moment you compose, next to the branch you're on, rather than a decision
+made one screen earlier.
+
+Files: `src/features/sessions/Sidebar.tsx` (nav rows),
+`src/features/home/WorkspaceHome.tsx` (chip popover),
+`src/stores/workspaces.ts` (`homeWorkspacePath` setter, add-not-replace).
 
 ## Phase 5 — Per-workspace panes
 
@@ -199,7 +241,14 @@ to feel like Claude Code.
 ## e2e
 
 - launch with a persisted last session → lands there, not the picker
-- two workspaces, one session each → both listed, both groups visible
+- two workspaces, one session each → both listed, both groups visible,
+  **and each row shows its workspace badge**
+- clicking the composer's folder chip opens the popover; picking another
+  workspace re-points the home screen (folder chip + git chip + stats)
+- "Open folder…" adds a workspace without dropping the previous one
 - start a session in workspace B while A is streaming → A keeps streaming
   (assert its dot stays live), B renders its own tree and git chips
 - switch back to A → A's open editors and terminal tabs return, not B's
+
+The badge assertion is the cheap regression guard for the whole feature:
+if a row's badge is wrong, session→workspace association has broken.
