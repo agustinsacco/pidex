@@ -1,12 +1,6 @@
 import { memo } from 'react'
 import clsx from 'clsx'
-import type {
-  AssistantItem,
-  ChatItem,
-  CustomItem,
-  ToolState,
-  UserItem,
-} from './reducer'
+import type { AssistantItem, ChatItem, CustomItem, ToolState, UserItem } from './reducer'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ThinkingBlock } from './blocks/ThinkingBlock'
 import { ToolCard } from './tools/ToolCard'

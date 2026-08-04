@@ -6,6 +6,7 @@ import type { SessionTree } from '@shared/ipc'
 import { buildTreeLayout, type DisplayNode } from './treeLayout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useEscapeKey } from '@/components/Modal'
+import { panBy, zoomAtPoint } from './panZoom'
 
 const COL_WIDTH = 220
 const ROW_HEIGHT = 92
@@ -50,20 +51,10 @@ export function TreeViewModal({
 
   const handleWheel = (event: React.WheelEvent): void => {
     event.stopPropagation()
-    const delta = -event.deltaY * 0.0015
-    setTransform((t) => {
-      const scale = Math.min(2.5, Math.max(0.25, t.scale * (1 + delta)))
-      const ratio = scale / t.scale
-      // Zoom around the cursor.
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-      const cx = event.clientX - rect.left
-      const cy = event.clientY - rect.top
-      return {
-        scale,
-        x: cx - (cx - t.x) * ratio,
-        y: cy - (cy - t.y) * ratio,
-      }
-    })
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const cx = event.clientX - rect.left
+    const cy = event.clientY - rect.top
+    setTransform((t) => zoomAtPoint(t, event.deltaY, cx, cy))
   }
 
   const startDrag = (event: React.MouseEvent): void => {
@@ -77,11 +68,14 @@ export function TreeViewModal({
   const onDrag = (event: React.MouseEvent): void => {
     const drag = dragRef.current
     if (!drag) return
-    setTransform((t) => ({
-      ...t,
-      x: drag.originX + (event.clientX - drag.startX),
-      y: drag.originY + (event.clientY - drag.startY),
-    }))
+    setTransform((t) =>
+      panBy(
+        t,
+        { x: drag.originX, y: drag.originY },
+        event.clientX - drag.startX,
+        event.clientY - drag.startY,
+      ),
+    )
   }
   const endDrag = (): void => {
     dragRef.current = null

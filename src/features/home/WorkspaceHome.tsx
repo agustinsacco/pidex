@@ -8,6 +8,7 @@ import { HomeModelPicker } from './HomeModelPicker'
 import { formatTokens } from '@/lib/format'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
 import { BranchIcon, CheckIcon, Spinner } from '@/components/icons'
+import { bytesToBase64 } from '@/lib/base64'
 
 interface PendingImage {
   data: string
@@ -26,14 +27,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const workspaceName = workspaceDisplayName(workspacePath)
 
   const addImageFile = async (file: File): Promise<void> => {
-    const buffer = await file.arrayBuffer()
-    let binary = ''
-    const bytes = new Uint8Array(buffer)
-    const chunk = 0x8000
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-    }
-    setImages((current) => [...current, { data: btoa(binary), mimeType: file.type }])
+    const data = bytesToBase64(await file.arrayBuffer())
+    setImages((current) => [...current, { data, mimeType: file.type }])
   }
 
   const handlePaste = (event: React.ClipboardEvent): void => {

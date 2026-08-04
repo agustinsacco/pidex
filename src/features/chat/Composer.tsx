@@ -20,6 +20,7 @@ import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
+import { bytesToBase64 } from '@/lib/base64'
 
 interface PendingImage {
   data: string
@@ -322,14 +323,8 @@ export function Composer({
   }
 
   const addImageFile = async (file: File): Promise<void> => {
-    const buffer = await file.arrayBuffer()
-    let binary = ''
-    const bytes = new Uint8Array(buffer)
-    const chunk = 0x8000
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-    }
-    setImages((current) => [...current, { data: btoa(binary), mimeType: file.type }])
+    const data = bytesToBase64(await file.arrayBuffer())
+    setImages((current) => [...current, { data, mimeType: file.type }])
   }
 
   const placeholder = isStreaming
