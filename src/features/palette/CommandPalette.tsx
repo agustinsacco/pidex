@@ -7,7 +7,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { useSettingsUiStore } from '@/features/settings/SettingsModal'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 
 interface PaletteState {
