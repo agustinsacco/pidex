@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { create } from 'zustand'
-import type { PiHealth, WorkspaceInfo } from '@shared/models'
+import type {
+  AboutInfo,
+  ConfigFileHealth,
+  PiHealth,
+  PiResources,
+  WorkspaceInfo,
+} from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -188,17 +194,11 @@ function AppearanceTab(): React.JSX.Element {
 
 // ---------- Agent (writes pi settings.json) ----------
 
-interface FileHealth {
-  exists: boolean
-  malformed: boolean
-  error?: string
-}
-
 function AgentTab(): React.JSX.Element {
   const currentWorkspace = useActiveWorkspace()
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null)
-  const [health, setHealth] = useState<FileHealth | null>(null)
+  const [health, setHealth] = useState<ConfigFileHealth | null>(null)
   const [saving, setSaving] = useState(false)
 
   const workspaceArg = scope === 'project' ? (currentWorkspace ?? undefined) : undefined
@@ -499,11 +499,7 @@ function WorkspacesTab(): React.JSX.Element {
 
 function AdvancedTab(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
-  const [resources, setResources] = useState<{
-    skills: string[]
-    extensions: string[]
-    prompts: string[]
-  } | null>(null)
+  const [resources, setResources] = useState<PiResources | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
 
   useEffect(() => {
@@ -694,14 +690,7 @@ function KeybindingsTab(): React.JSX.Element {
 const VERIFIED_PI_MINOR = 78
 
 function AboutTab(): React.JSX.Element {
-  const [about, setAbout] = useState<{
-    appVersion: string
-    electron: string
-    chrome: string
-    node: string
-    platform: string
-    arch: string
-  } | null>(null)
+  const [about, setAbout] = useState<AboutInfo | null>(null)
   const [health, setHealth] = useState<PiHealth | null>(null)
 
   useEffect(() => {

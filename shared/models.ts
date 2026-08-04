@@ -147,3 +147,44 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
 
 /** Minimum pi version pidex is verified against. */
 export const MIN_PI_VERSION = '0.78.0'
+
+/**
+ * Health of one pi config file. `malformed` distinguishes "present but
+ * unparseable" from "absent", which matters before writing: merging a patch
+ * onto a failed read would silently discard the user's configuration.
+ */
+export interface ConfigFileHealth {
+  exists: boolean
+  malformed: boolean
+  error?: string
+}
+
+/** Health of the global and per-project pi config files. */
+export interface AgentSettingsHealth {
+  global: ConfigFileHealth
+  project: ConfigFileHealth | null
+}
+
+/** Runtime and version info for the About tab. */
+export interface AboutInfo {
+  appVersion: string
+  electron: string
+  chrome: string
+  node: string
+  platform: string
+  arch: string
+}
+
+/** Native save-dialog options. */
+export interface SaveDialogOptions {
+  title?: string
+  defaultPath?: string
+  filters?: { name: string; extensions: string[] }[]
+}
+
+/** Skills, extensions and prompts discovered in pi's agent directory. */
+export interface PiResources {
+  skills: string[]
+  extensions: string[]
+  prompts: string[]
+}

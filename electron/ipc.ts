@@ -52,6 +52,7 @@ async function pathExists(path: string): Promise<boolean> {
 import { sessionEventChannel, type IpcInvokeChannel, type IpcInvokeMap } from '@shared/ipc'
 import {
   MIN_PI_VERSION,
+  type ConfigFileHealth,
   type CreateSessionOptions,
   type PiHealth,
   type SessionPush,
@@ -290,7 +291,7 @@ export function registerIpcHandlers(): void {
   handle('pi:checkAgentSettings', async (_event, workspacePath?: string) => {
     const result = await checkAgentSettings(workspacePath)
     // Don't ship parsed contents over IPC — only the health of each file.
-    const strip = (r: { exists: boolean; malformed: boolean; error?: string } | null) =>
+    const strip = (r: ConfigFileHealth | null): ConfigFileHealth | null =>
       r ? { exists: r.exists, malformed: r.malformed, error: r.error } : null
     return { global: strip(result.global)!, project: strip(result.project) }
   })
