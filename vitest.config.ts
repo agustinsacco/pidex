@@ -9,7 +9,14 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['electron/**/*.test.ts', 'shared/**/*.test.ts', 'src/**/*.test.ts'],
+    include: [
+      'electron/**/*.test.ts',
+      'shared/**/*.test.ts',
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+    ],
+    // Node by default; DOM-dependent suites opt in per file with
+    // `// @vitest-environment jsdom` so the fast majority stay in node.
     environment: 'node',
   },
 })

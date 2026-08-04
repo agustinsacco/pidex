@@ -21,8 +21,16 @@ export function toolText(tool: ToolState): string {
     .join('\n')
 }
 
+/**
+ * Read a tool's structured `details`, preferring the final result over the
+ * partial output so still-streaming tools still surface what they have.
+ */
+export function toolDetails<T>(tool: ToolState): T | undefined {
+  return (tool.result?.details ?? tool.output?.details) as T | undefined
+}
+
 export function editDiffStats(tool: ToolState): DiffStats | null {
-  const details = (tool.result?.details ?? tool.output?.details) as EditDetails | undefined
+  const details = toolDetails<EditDetails>(tool)
   if (details?.diff) return diffStats(parseDisplayDiff(details.diff))
   if (details?.patch) return unifiedPatchStats(details.patch)
   return null

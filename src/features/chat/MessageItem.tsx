@@ -1,7 +1,6 @@
 import { memo } from 'react'
 import clsx from 'clsx'
 import type {
-  AssistantBlock,
   AssistantItem,
   BashItem,
   ChatItem,
@@ -17,6 +16,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatUiStore } from './uiState'
+import { groupBlocks } from './items/groupBlocks'
 
 interface MessageItemProps {
   item: ChatItem
@@ -146,24 +146,6 @@ function UserMessage({
       )}
     </div>
   )
-}
-
-/** Group consecutive tool blocks so they render as one bordered run. */
-function groupBlocks(blocks: AssistantBlock[]): Array<AssistantBlock | AssistantBlock[]> {
-  const groups: Array<AssistantBlock | AssistantBlock[]> = []
-  for (const block of blocks) {
-    if (block.type === 'tool') {
-      const last = groups[groups.length - 1]
-      if (Array.isArray(last)) {
-        last.push(block)
-        continue
-      }
-      groups.push([block])
-    } else {
-      groups.push(block)
-    }
-  }
-  return groups
 }
 
 function AssistantMessage({

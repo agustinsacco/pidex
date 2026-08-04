@@ -4,6 +4,7 @@ import type { ToolState } from '../reducer'
 import {
   editDiffStats,
   summarizeTool,
+  toolDetails,
   toolText,
   tryParseArgs,
   type EditDetails,
@@ -115,8 +116,10 @@ function ToolDetail({ tool }: { tool: ToolState }): React.JSX.Element {
 function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   const command = typeof tool.args?.command === 'string' ? tool.args.command : tool.argsText
   const output = toolText(tool)
-  const details = (tool.result?.details ?? tool.output?.details) as
-    { fullOutputPath?: string | null; truncation?: { truncated?: boolean } | null } | undefined
+  const details = toolDetails<{
+    fullOutputPath?: string | null
+    truncation?: { truncated?: boolean } | null
+  }>(tool)
   const running = tool.status === 'starting' || tool.status === 'running'
   const durationMs = tool.startedAt && tool.endedAt ? tool.endedAt - tool.startedAt : null
 
@@ -156,7 +159,7 @@ function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
 }
 
 function EditDetail({ tool }: { tool: ToolState }): React.JSX.Element {
-  const details = (tool.result?.details ?? tool.output?.details) as EditDetails | undefined
+  const details = toolDetails<EditDetails>(tool)
   const path = typeof tool.args?.path === 'string' ? tool.args.path : ''
   const stats = editDiffStats(tool)
 
@@ -243,9 +246,11 @@ function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
 
 function ListDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   const text = toolText(tool)
-  const details = (tool.result?.details ?? tool.output?.details) as
-    | { matchLimitReached?: number; resultLimitReached?: number; entryLimitReached?: number }
-    | undefined
+  const details = toolDetails<{
+    matchLimitReached?: number
+    resultLimitReached?: number
+    entryLimitReached?: number
+  }>(tool)
   const limit =
     details?.matchLimitReached ?? details?.resultLimitReached ?? details?.entryLimitReached
 
