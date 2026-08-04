@@ -130,6 +130,56 @@ export async function patchAgentSettings(
   await writeFile(path, JSON.stringify(merged, null, 2) + '\n', 'utf8')
 }
 
+/** One selectable model, as recorded in pi's models.json. */
+export interface CatalogueModel {
+  id: string
+  name: string
+  provider: string
+  reasoning: boolean
+}
+
+/**
+ * Models readable without a live pi process, for the home screen's picker.
+ *
+ * A session's own picker uses the `get_available_models` RPC, which is
+ * authoritative. Nothing is running before the first prompt, so this reads
+ * pi's models.json directly. It therefore lists what the user configured,
+ * not any provider pi builds in — the session picker fills those in once the
+ * session starts.
+ *
+ * `reasoning` comes from the provider's `compat.supportsReasoningEffort`,
+ * defaulting to false so a thinking control is only offered when the config
+ * says the provider supports it.
+ */
+export async function listCatalogueModels(): Promise<CatalogueModel[]> {
+  const read = await readJson(join(agentDir(), 'models.json'))
+  const providers = read.settings.providers
+  if (!providers || typeof providers !== 'object') return []
+
+  const models: CatalogueModel[] = []
+  for (const [provider, config] of Object.entries(providers as Record<string, unknown>)) {
+    if (!config || typeof config !== 'object') continue
+    const { models: list, compat } = config as {
+      models?: unknown
+      compat?: { supportsReasoningEffort?: boolean }
+    }
+    if (!Array.isArray(list)) continue
+    const reasoning = compat?.supportsReasoningEffort !== false
+    for (const entry of list) {
+      if (!entry || typeof entry !== 'object') continue
+      const { id, name } = entry as { id?: unknown; name?: unknown }
+      if (typeof id !== 'string' || id.length === 0) continue
+      models.push({
+        id,
+        name: typeof name === 'string' && name ? name : id,
+        provider,
+        reasoning,
+      })
+    }
+  }
+  return models
+}
+
 /** Discovered pi resources for the read-only Advanced viewer. */
 export async function listPiResources(): Promise<{
   skills: string[]

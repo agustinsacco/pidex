@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { checkAgentSettings, patchAgentSettings, readAgentSettings } from '../agent-settings'
+import {
+  checkAgentSettings,
+  listCatalogueModels,
+  patchAgentSettings,
+  readAgentSettings,
+} from '../agent-settings'
 
 /**
  * Regression guard: a malformed settings.json must never be overwritten by a
@@ -115,5 +120,58 @@ describe('pi agent settings', () => {
     } finally {
       await rm(workspace, { recursive: true, force: true })
     }
+  })
+
+  /**
+   * The home screen's picker has no live pi process to ask, so it reads
+   * models.json directly. Shape verified against a real local install.
+   */
+  describe('catalogue models', () => {
+    const modelsPath = (): string => join(dir, 'models.json')
+
+    it('flattens providers into a model list', async () => {
+      await writeFile(
+        modelsPath(),
+        JSON.stringify({
+          providers: {
+            'local-stark': {
+              baseUrl: 'http://stark:8086/v1',
+              compat: { supportsReasoningEffort: false },
+              models: [{ id: 'Qwen 3.5 122b', name: 'Qwen 3.5 122b', contextWindow: 128000 }],
+            },
+            other: { models: [{ id: 'm-1' }] },
+          },
+        }),
+      )
+
+      const models = await listCatalogueModels()
+      expect(models).toEqual([
+        { id: 'Qwen 3.5 122b', name: 'Qwen 3.5 122b', provider: 'local-stark', reasoning: false },
+        // No name key → falls back to the id; no compat → reasoning defaults on.
+        { id: 'm-1', name: 'm-1', provider: 'other', reasoning: true },
+      ])
+    })
+
+    it('returns nothing when models.json is absent or malformed', async () => {
+      await expect(listCatalogueModels()).resolves.toEqual([])
+      await writeFile(modelsPath(), '{ broken')
+      await expect(listCatalogueModels()).resolves.toEqual([])
+    })
+
+    it('skips entries that are not usable models', async () => {
+      await writeFile(
+        modelsPath(),
+        JSON.stringify({
+          providers: {
+            a: { models: 'not-an-array' },
+            b: { models: [{ name: 'no id' }, null, { id: '' }, { id: 'good' }] },
+            c: null,
+          },
+        }),
+      )
+      expect(await listCatalogueModels()).toEqual([
+        { id: 'good', name: 'good', provider: 'b', reasoning: true },
+      ])
+    })
   })
 })

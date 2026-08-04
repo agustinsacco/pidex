@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { SessionMeta, SessionPush } from '@shared/models'
+import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from './chat'
 
 /**
@@ -36,7 +37,13 @@ interface SessionsState {
   watchWorkspaces: (workspacePaths: string[]) => void
   createSession: (
     workspacePath: string,
-    options?: { sessionPath?: string; forkFrom?: string; name?: string; firstPrompt?: string },
+    options?: {
+      sessionPath?: string
+      forkFrom?: string
+      name?: string
+      firstPrompt?: string
+      firstImages?: ImageContent[]
+    },
   ) => Promise<string>
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
   activate: (sessionId: string | null) => void
@@ -255,9 +262,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       void bootstrapSession(pidexId)
 
       if (options.firstPrompt) {
-        useChatStore.getState().addUserMessage(pidexId, options.firstPrompt)
+        const images = options.firstImages?.length ? options.firstImages : undefined
+        useChatStore.getState().addUserMessage(pidexId, options.firstPrompt, images)
         void window.pidex
-          .piCommand(pidexId, { type: 'prompt', message: options.firstPrompt })
+          .piCommand(pidexId, {
+            type: 'prompt',
+            message: options.firstPrompt,
+            ...(images ? { images } : {}),
+          })
           .then((response) => {
             if (!response.success) useChatStore.getState().setError(pidexId, response.error)
           })

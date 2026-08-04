@@ -344,3 +344,45 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
     await rm(userDataDir, { recursive: true, force: true })
   }
 })
+
+test('home composer: grey focus border, chip popovers, and model picker', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    const composer = page.getByPlaceholder('Describe a task or ask a question')
+    const card = page.locator('.composer-field').first().locator('..')
+
+    // Regression: focus must never draw the accent ring. The global
+    // :focus-visible rule used to paint a 2px orange outline over the whole
+    // composer; the card's own border is the only focus signal.
+    await composer.click()
+    await expect(composer).toBeFocused()
+    const focusOutline = await composer.evaluate((el) => getComputedStyle(el).outlineStyle)
+    expect(focusOutline).toBe('none')
+
+    // Border shifts one small step on focus, and stays grey (r≈g≈b) rather
+    // than picking up the terracotta accent.
+    const focused = await card.evaluate((el) => {
+      // Settle the colour transition before sampling.
+      return new Promise<string>((resolve) => {
+        setTimeout(() => resolve(getComputedStyle(el).borderTopColor), 600)
+      })
+    })
+    const [r, g, b] = focused.match(/\d+/g)!.map(Number) as [number, number, number]
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
+
+    // Every chip opens a popover.
+    await page.getByRole('button', { name: 'Local' }).click()
+    await expect(page.getByText(/pi runs as a subprocess/)).toBeVisible()
+    // PopupMenu dismisses on outside mousedown.
+    await page.mouse.click(20, 400)
+    await expect(page.getByText(/pi runs as a subprocess/)).toBeHidden()
+
+    // Attachment affordance is present next to the pickers.
+    await expect(page.getByRole('button', { name: 'Attach images' })).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})

@@ -119,15 +119,17 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       <nav className="px-2 pb-2">
         <NavRow
           label="New"
+          badge
           onClick={() => useSessionsStore.getState().activate(null)}
           icon={
             <svg
-              width="14"
-              height="14"
+              width="12"
+              height="12"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
+              strokeLinecap="round"
             >
               <path d="M12 5v14M5 12h14" />
             </svg>
@@ -517,22 +519,36 @@ function GearIcon(): React.JSX.Element {
   )
 }
 
-/** Flat sidebar nav row — icon + label, no border (reference styling). */
+/**
+ * Flat sidebar nav row, matching the reference: a bordered circular icon
+ * badge, then the label at full text weight. No row border or background at
+ * rest — the badge is the only chrome, and hover tints the whole row.
+ */
 function NavRow({
   label,
   icon,
+  badge = false,
   onClick,
 }: {
   label: string
   icon: React.ReactNode
+  /** Draw the icon in a bordered circle (the reference does this for New only). */
+  badge?: boolean
   onClick: () => void
 }): React.JSX.Element {
   return (
     <button
       onClick={onClick}
-      className="text-text hover:bg-bg-secondary flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors"
+      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[14px] transition-colors"
     >
-      <span className="text-text-secondary shrink-0">{icon}</span>
+      <span
+        className={clsx(
+          'text-text-secondary group-hover:text-text flex h-[22px] w-[22px] shrink-0 items-center justify-center transition-colors',
+          badge && 'border-border group-hover:border-border-strong rounded-full border',
+        )}
+      >
+        {icon}
+      </span>
       {label}
     </button>
   )

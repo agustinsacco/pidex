@@ -6,6 +6,7 @@ import { SessionRegistry } from './pi/session-registry'
 import { listWorkspaceFiles } from './fs/list-files'
 import {
   checkAgentSettings,
+  listCatalogueModels,
   listPiResources,
   patchAgentSettings,
   readAgentSettings,
@@ -262,6 +263,8 @@ export function registerIpcHandlers(): void {
   handle('fs:listFiles', (_event, workspacePath: string) => listWorkspaceFiles(workspacePath))
 
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
+
+  handle('pi:catalogueModels', () => listCatalogueModels())
 
   handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
 
