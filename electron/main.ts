@@ -2,6 +2,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers, registry } from './ipc'
 import { ptyManager } from './pty/pty-manager'
+import { unwatchAll } from './pi/session-watcher'
+import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -70,7 +72,10 @@ app.on('before-quit', (event) => {
   if (quitting) return
   event.preventDefault()
   quitting = true
-  // Clean shutdown: SIGTERM to every pi child, kill all PTYs.
+  // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
+  // filesystem watchers so no chokidar handles or debounce timers outlive us.
   ptyManager.killAll()
-  void registry.disposeAll().finally(() => app.quit())
+  void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
+    () => app.quit(),
+  )
 })

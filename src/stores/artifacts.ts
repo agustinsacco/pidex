@@ -2,9 +2,9 @@ import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
 import { useLayoutStore } from './layout'
 
-export type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
+type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
 
-export interface ArtifactVersion {
+interface ArtifactVersion {
   version: number
   content: string
   title: string

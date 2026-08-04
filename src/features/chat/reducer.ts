@@ -91,7 +91,7 @@ export interface CustomItem {
 
 export type ChatItem = UserItem | AssistantItem | BashItem | DividerItem | CustomItem
 
-export type ToolStatus = 'starting' | 'running' | 'done' | 'error'
+type ToolStatus = 'starting' | 'running' | 'done' | 'error'
 
 export interface ToolState {
   toolCallId: string
@@ -109,7 +109,7 @@ export interface ToolState {
   endedAt?: number
 }
 
-export interface RetryState {
+interface RetryState {
   attempt: number
   maxAttempts: number
   delayMs: number

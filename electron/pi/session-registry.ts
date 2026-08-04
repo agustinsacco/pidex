@@ -22,10 +22,8 @@ export class SessionRegistry {
     const session: LiveSession = { sessionId, workspacePath, client }
     this.sessions.set(sessionId, session)
 
-    client.on('exit', () => {
-      // Keep the entry until disposed explicitly so the renderer can observe
-      // the crash and offer resume; dispose() removes it.
-    })
+    // No 'exit' listener on purpose: the entry outlives the child process so the
+    // renderer can observe a crash and offer resume. dispose() removes it.
 
     client.spawn()
     return session

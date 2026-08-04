@@ -1,10 +1,11 @@
 /** Lightweight subsequence fuzzy matcher with basename/boundary bonuses. */
 
-export interface FuzzyResult<T> {
+interface FuzzyResult<T> {
   item: T
   score: number
 }
 
+/** Score one candidate, or null when `query` is not a subsequence of `target`. */
 export function fuzzyMatch(query: string, target: string): number | null {
   if (!query) return 0
   const q = query.toLowerCase()

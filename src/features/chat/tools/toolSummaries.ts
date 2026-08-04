@@ -36,7 +36,7 @@ export function editDiffStats(tool: ToolState): DiffStats | null {
   return null
 }
 
-export interface ToolSummary {
+interface ToolSummary {
   /** Leading verb phrase, e.g. "Edited", "Ran a command". */
   label: string
   /** Emphasized object, e.g. file basename or command. */

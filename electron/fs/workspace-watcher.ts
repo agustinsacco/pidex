@@ -55,7 +55,11 @@ export function watchWorkspace(workspacePath: string): void {
   watchers.set(workspacePath, watcher)
 }
 
+/** Close every workspace watcher and drop pending debounced change batches. */
 export async function unwatchAllWorkspaces(): Promise<void> {
+  for (const timer of timers.values()) clearTimeout(timer)
+  timers.clear()
+  pending.clear()
   await Promise.allSettled([...watchers.values()].map((w) => w.close()))
   watchers.clear()
 }

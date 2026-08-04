@@ -1,10 +1,12 @@
-import { createReadStream, realpathSync } from 'node:fs'
+import { createReadStream } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
 import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
+import { sessionDirForCwd } from './pi-paths'
+
+export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
 
 /**
  * On-disk session discovery — drives the sidebar and home stats without
@@ -19,32 +21,6 @@ import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
  * readline if it appeared raw — pi JSON-escapes nothing extra, so to stay
  * safe we still parse defensively and skip unparseable lines.
  */
-
-export function piAgentDir(): string {
-  return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), '.pi', 'agent')
-}
-
-export function piSessionsRoot(): string {
-  return process.env.PI_CODING_AGENT_SESSION_DIR ?? join(piAgentDir(), 'sessions')
-}
-
-/** `/Users/x/proj` → `--Users-x-proj--` (verified against real dirs). */
-export function sessionDirNameForCwd(cwd: string): string {
-  const segments = cwd.split(/[/\\]/).filter(Boolean)
-  return `--${segments.join('-')}--`
-}
-
-export function sessionDirForCwd(cwd: string): string {
-  // pi mangles the REAL path (symlinks resolved — /var → /private/var etc.),
-  // verified against the local install.
-  let resolved = cwd
-  try {
-    resolved = realpathSync.native(cwd)
-  } catch {
-    // keep the given path
-  }
-  return join(piSessionsRoot(), sessionDirNameForCwd(resolved))
-}
 
 interface CacheEntry {
   mtimeMs: number

@@ -6,10 +6,10 @@ import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
  * points, branch summaries, compactions and the current leaf always show.
  */
 
-export type DisplayNodeKind = 'root' | 'user' | 'marker' | 'summary' | 'compaction'
+type DisplayNodeKind = 'root' | 'user' | 'marker' | 'summary' | 'compaction'
 
 /** A model / thinking-level switch recorded before this node. */
-export interface ConfigChange {
+interface ConfigChange {
   kind: 'model' | 'thinking'
   label: string
 }
@@ -35,14 +35,14 @@ export interface DisplayNode {
   timestamp: string
 }
 
-export interface DisplayEdge {
+interface DisplayEdge {
   fromId: string
   toId: string
   onActivePath: boolean
   collapsedCount: number
 }
 
-export interface TreeLayout {
+interface TreeLayout {
   nodes: DisplayNode[]
   edges: DisplayEdge[]
   maxDepth: number
