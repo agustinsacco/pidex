@@ -1,0 +1,34 @@
+import { shell } from 'electron'
+import { handle } from './handle'
+import { watchWorkspaceSessions } from '../pi/session-watcher'
+import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
+import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
+
+/** On-disk session discovery, tree reading and history rewrites. */
+export function registerSessionsHandlers(): void {
+  handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
+
+  handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
+
+  handle('sessions:watch', (_event, workspacePath: string) => {
+    watchWorkspaceSessions(workspacePath)
+  })
+
+  handle('sessions:delete', async (_event, sessionFilePath: string) => {
+    await shell.trashItem(sessionFilePath)
+  })
+
+  handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
+
+  handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {
+    await appendLabel(sessionFilePath, targetId, label)
+  })
+
+  handle('sessions:jump', async (_event, sessionFilePath, targetId) => {
+    await appendBranchJump(sessionFilePath, targetId)
+  })
+
+  handle('sessions:forkAt', (_event, sessionFilePath, targetId) =>
+    forkSessionAt(sessionFilePath, targetId),
+  )
+}
