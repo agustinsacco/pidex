@@ -9,8 +9,10 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 // E2E runs must never touch the developer's real prefs. Tests that need
 // state to survive a relaunch (e.g. "reopens the last session") pin the
-// directory explicitly; everything else gets a per-pid scratch dir.
-if (process.env.PIDEX_TEST_USER_DATA) {
+// directory explicitly; everything else gets a per-pid scratch dir. Gated on
+// packaging so the env var cannot redirect a shipped app's user data
+// (see ipc/pi-paths or app-handlers: piStubPath).
+if (!app.isPackaged && process.env.PIDEX_TEST_USER_DATA) {
   const dir =
     process.env.PIDEX_TEST_USER_DATA !== '1'
       ? process.env.PIDEX_TEST_USER_DATA

@@ -73,10 +73,22 @@ function artifactsExtensionPath(): string {
 /**
  * E2E hook: PIDEX_PI_STUB points at a script that speaks the RPC protocol in
  * place of the real pi binary, so CI can smoke-test without an API key.
- * Never set in normal use.
+ *
+ * Gated on `!app.isPackaged`. The hook makes the main process execute an
+ * arbitrary script as Node (`ELECTRON_RUN_AS_NODE`) while reporting pi as
+ * healthy, so honoring it in a shipped app would turn an environment variable
+ * into local code execution. Playwright drives an unpackaged build, so the
+ * tests are unaffected.
  */
 function piStubPath(): string | undefined {
+  if (app.isPackaged) return undefined
   return process.env.PIDEX_PI_STUB || undefined
+}
+
+/** E2E hook, same packaging gate as {@link piStubPath}: skip the folder picker. */
+function e2eWorkspaceOverride(): string | undefined {
+  if (app.isPackaged) return undefined
+  return process.env.PIDEX_E2E_WORKSPACE || undefined
 }
 
 type Handler<C extends IpcInvokeChannel> = (
@@ -234,7 +246,8 @@ export function registerIpcHandlers(): void {
 
   handle('app:selectFolder', async (event) => {
     // E2E hook: avoid the native (undriveable) dialog.
-    if (process.env.PIDEX_E2E_WORKSPACE) return process.env.PIDEX_E2E_WORKSPACE
+    const override = e2eWorkspaceOverride()
+    if (override) return override
     const window = BrowserWindow.fromWebContents(event.sender)
     const result = await dialog.showOpenDialog(window!, {
       properties: ['openDirectory', 'createDirectory'],
