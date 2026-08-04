@@ -14,7 +14,7 @@ import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { workspaceName } from '@/lib/path'
-import { exportSessionHtml, renameSession } from './sessionActions'
+import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 
 interface GroupedSessions {
   workspacePath: string
@@ -406,44 +406,6 @@ function SessionRow({
 }
 
 /** Rename a disk or live session, then refresh the sidebar listing. */
-async function renameSidebarSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  if (await renameSession(pidexId, meta.name)) void store.refreshDisk(workspacePath)
-}
-
-async function cloneSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  if (livePidexId) {
-    const response = await window.pidex.piCommand(livePidexId, { type: 'clone' })
-    if (response.success && response.data?.cancelled) {
-      useChatStore.getState().setError(livePidexId, 'Clone was cancelled by an extension.')
-      return
-    }
-    void useSessionsStore.getState().refreshDisk(workspacePath)
-  } else {
-    await useSessionsStore.getState().createSession(workspacePath, { forkFrom: meta.path })
-  }
-}
-
-/** Export a disk or live session to HTML, opening it first if needed. */
-async function exportSidebarSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  await exportSessionHtml(pidexId, meta.name ?? 'session')
-}
-
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider">

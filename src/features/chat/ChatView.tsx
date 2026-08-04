@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type { GitInfo } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
@@ -11,7 +9,8 @@ import { SessionMenu } from './SessionMenu'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
-import { BranchIcon } from '@/components/icons'
+import { GitChips } from './GitChips'
+import { CrashBanner, NoModelsBanner } from './banners'
 
 export function ChatView({
   sessionId,
@@ -181,120 +180,3 @@ function HeaderIconButton({
 }
 
 /** Branch / ahead-behind / dirty chips, refreshed on fs changes. */
-function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
-  const [info, setInfo] = useState<GitInfo | null>(null)
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    const refresh = (): void => {
-      void window.pidex.invoke('git:info', workspacePath).then(setInfo)
-    }
-    refresh()
-    void window.pidex.invoke('fs:watchWorkspace', workspacePath)
-    const unsubscribe = window.pidex.onFsChanged((payload) => {
-      if (payload.workspacePath !== workspacePath) return
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(refresh, 500)
-    })
-    return () => {
-      unsubscribe()
-      if (timer) clearTimeout(timer)
-    }
-  }, [workspacePath])
-
-  if (!info?.isRepo || !info.branch) return null
-  return (
-    <span className="bg-bg-secondary text-text-secondary flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px]">
-      <BranchIcon size={10} />
-      <span className="max-w-36 truncate">{info.branch}</span>
-      {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
-      {(info.behind ?? 0) > 0 && <span className="text-info">↓{info.behind}</span>}
-      {(info.dirtyCount ?? 0) > 0 && <span className="text-warning">·{info.dirtyCount}</span>}
-    </span>
-  )
-}
-
-/** pi crashed: inline banner with one-click resume (session file survives). */
-function CrashBanner({
-  sessionId,
-  workspacePath,
-}: {
-  sessionId: string
-  workspacePath: string
-}): React.JSX.Element | null {
-  const error = useChatStore((s) => s.sessions[sessionId]?.error)
-  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
-  if (!error || !error.includes('exited unexpectedly')) return null
-
-  const resume = async (): Promise<void> => {
-    const store = useSessionsStore.getState()
-    await store.disposeSession(sessionId)
-    if (diskPath) {
-      const metas = await window.pidex.invoke('sessions:list', workspacePath)
-      const meta = metas.find((m) => m.path === diskPath)
-      if (meta) {
-        await store.openDiskSession(workspacePath, meta)
-        return
-      }
-    }
-    await store.createSession(workspacePath)
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-3xl px-6 pt-2">
-      <div className="bg-danger-soft border-danger/25 flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
-        <span className="text-danger text-[13px] font-medium">pi crashed</span>
-        <span className="text-text-secondary flex-1 truncate text-[12.5px]">{error}</span>
-        <button
-          onClick={() => void resume()}
-          className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors"
-        >
-          Resume session
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** No models configured: hand off to the built-in terminal for `pi` login. */
-function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
-  const models = useChatStore((s) => s.sessions[sessionId]?.models)
-  const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
-  if (!meta || models === undefined || models === null) return null
-  if (models.length > 0) return null
-
-  return (
-    <div className="mx-auto w-full max-w-3xl px-6 pt-2">
-      <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-[13px]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-text font-medium">No models configured</div>
-          {workspacePath && (
-            <button
-              onClick={() => {
-                void import('@/stores/terminal').then(({ runInTerminal }) =>
-                  runInTerminal(workspacePath, 'pi'),
-                )
-              }}
-              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors"
-            >
-              Open terminal with `pi`
-            </button>
-          )}
-        </div>
-        <div className="text-text-secondary mt-1 leading-relaxed">
-          Run <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code> in the
-          terminal and use{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
-          providers, set an API key env var (e.g.{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">ANTHROPIC_API_KEY</code>),
-          or add a custom endpoint in{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">
-            ~/.pi/agent/models.json
-          </code>
-          .
-        </div>
-      </div>
-    </div>
-  )
-}
