@@ -6,6 +6,7 @@ import {
   type Page,
 } from '@playwright/test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +25,12 @@ interface Harness {
  * Each test gets its own instance so no test can leave focus or pane state
  * that breaks the next one.
  */
+/**
+ * Scratch pi-agent dir for the whole e2e run, so stub sessions are never
+ * written into the developer's real ~/.pi.
+ */
+const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
+
 async function launch(
   options: { workspace?: string; userDataDir?: string } = {},
 ): Promise<Harness> {
@@ -38,6 +45,7 @@ async function launch(
       PIDEX_PI_STUB: piStub,
       PIDEX_E2E_WORKSPACE: workspace,
       PIDEX_TEST_USER_DATA: options.userDataDir ?? '1',
+      PI_CODING_AGENT_DIR: agentDir,
     },
   })
   const page = await app.firstWindow()
@@ -262,6 +270,75 @@ test('reopens the last session on relaunch instead of the picker', async () => {
     }
   } finally {
     await rm(workspace, { recursive: true, force: true })
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
+  // Two projects, one shared prefs store so both stay in "known workspaces".
+  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
+  const workspaceA = await mkdtemp(join(tmpdir(), 'pidex-e2e-a-'))
+  const workspaceB = await mkdtemp(join(tmpdir(), 'pidex-e2e-b-'))
+  const nameA = workspaceA.split('/').pop()!
+  const nameB = workspaceB.split('/').pop()!
+
+  try {
+    // Session in workspace A.
+    const first = await launch({ workspace: workspaceA, userDataDir })
+    try {
+      await openWorkspace(first.page)
+      await first.page.getByPlaceholder('Describe a task or ask a question').fill('work in A')
+      await first.page.getByRole('button', { name: /Start session/i }).click()
+      await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 20_000,
+      })
+    } finally {
+      await first.app.close()
+    }
+
+    // Session in workspace B — A must remain listed alongside it.
+    const second = await launch({ workspace: workspaceB, userDataDir })
+    try {
+      // The app restores A's session, so explicitly switch to B via the
+      // workspace switcher — the same path a user takes.
+      await expect(second.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 30_000,
+      })
+      await second.page.getByTestId('workspace-switcher').click()
+      await second.page.getByText('Open Folder…').click()
+      await expect(second.page.getByPlaceholder('Describe a task or ask a question')).toBeVisible({
+        timeout: 20_000,
+      })
+      await second.page.getByPlaceholder('Describe a task or ask a question').fill('work in B')
+      await second.page.getByRole('button', { name: /Start session/i }).click()
+      await expect(second.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 20_000,
+      })
+
+      // Both workspaces appear as sidebar groups.
+      const groups = second.page.getByTestId('workspace-group')
+      await expect(groups.filter({ hasText: nameA })).toBeVisible({ timeout: 20_000 })
+      await expect(groups.filter({ hasText: nameB })).toBeVisible()
+
+      // Pin a session from B's group; it moves to Pinned and gains a
+      // workspace badge — the badge is what identifies a project once the
+      // group no longer does.
+      const sessionRow = second.page
+        .locator(`[data-testid="session-row"][data-workspace="${nameB}"]`)
+        .first()
+      await sessionRow.click({ button: 'right' })
+      await second.page.getByRole('button', { name: /^Pin$/ }).click()
+
+      await expect(second.page.getByText('Pinned')).toBeVisible()
+      const badge = second.page.getByTestId('session-workspace-badge').first()
+      await expect(badge).toBeVisible()
+      await expect(badge).toHaveText(nameB)
+    } finally {
+      await second.app.close()
+    }
+  } finally {
+    await rm(workspaceA, { recursive: true, force: true })
+    await rm(workspaceB, { recursive: true, force: true })
     await rm(userDataDir, { recursive: true, force: true })
   }
 })

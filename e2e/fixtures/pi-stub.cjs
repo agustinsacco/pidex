@@ -33,9 +33,37 @@ const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 // check for the persisted resume target succeeds.
 const path = require('node:path')
 const fs = require('node:fs')
-const SESSION_FILE = path.join(process.cwd(), '.pidex-stub-session.jsonl')
+const os = require('node:os')
+// pi stores sessions under ~/.pi/agent/sessions/--<cwd with / as ->--/, and
+// pidex's sidebar scans exactly that path. Writing here (not into the
+// workspace) is what makes the session discoverable, mirroring real pi.
+const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
+const SESSION_DIR = path.join(
+  process.env.PI_CODING_AGENT_SESSION_DIR || path.join(AGENT_DIR, 'sessions'),
+  `--${fs.realpathSync.native(process.cwd()).split(path.sep).filter(Boolean).join('-')}--`,
+)
+const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
 try {
-  fs.writeFileSync(SESSION_FILE, JSON.stringify({ type: 'session', id: 'stub-session' }) + '\n')
+  fs.mkdirSync(SESSION_DIR, { recursive: true })
+  fs.writeFileSync(
+    SESSION_FILE,
+    JSON.stringify({
+      type: 'session',
+      version: 3,
+      id: `stub-${process.pid}`,
+      timestamp: new Date().toISOString(),
+      cwd: process.cwd(),
+    }) +
+      '\n' +
+      JSON.stringify({
+        type: 'message',
+        id: 'aaaa0001',
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        message: { role: 'user', content: process.env.PIDEX_STUB_SESSION_TITLE || 'stub session' },
+      }) +
+      '\n',
+  )
 } catch {
   /* best effort */
 }
