@@ -11,6 +11,7 @@ import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
 import { relativeTime } from '@/features/sessions/Sidebar'
+import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 
 /** Right-pane Artifacts region: gallery + versioned viewer. */
 export const ArtifactsPane = memo(function ArtifactsPane({
@@ -76,7 +77,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
                   : 'border-border text-text-secondary hover:text-text',
               )}
             >
-              <TypeIcon type={artifact.type} />
+              <span className="text-[13px] leading-none">{artifactGlyph(artifact.type)}</span>
               <span className="max-w-36 truncate">{artifact.title}</span>
               <span className="text-text-tertiary">v{artifact.versions.length}</span>
             </button>
@@ -127,7 +128,7 @@ function ArtifactViewer({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
-        <TypeIcon type={artifact.type} />
+        <span className="text-[13px] leading-none">{artifactGlyph(artifact.type)}</span>
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
           {shown.title || artifact.title}
         </span>
@@ -310,65 +311,4 @@ function ActionIcon({
       {children}
     </button>
   )
-}
-
-function TypeIcon({ type }: { type: Artifact['type'] }): React.JSX.Element {
-  const glyph =
-    type === 'html'
-      ? '🌐'
-      : type === 'svg'
-        ? '🎨'
-        : type === 'mermaid'
-          ? '📊'
-          : type === 'chart'
-            ? '📈'
-            : type === 'markdown'
-              ? '📄'
-              : '⌨️'
-  return <span className="text-[13px] leading-none">{glyph}</span>
-}
-
-function artifactLanguage(artifact: Artifact): string {
-  if (artifact.type === 'code') return artifact.language ?? 'text'
-  if (artifact.type === 'html') return 'html'
-  if (artifact.type === 'svg') return 'xml'
-  if (artifact.type === 'markdown') return 'markdown'
-  if (artifact.type === 'chart') return 'json'
-  if (artifact.type === 'mermaid') return 'mermaid'
-  return 'text'
-}
-
-function suggestedFileName(artifact: Artifact): string {
-  const base = artifact.id.replace(/[^a-z0-9-]/gi, '-')
-  const ext =
-    artifact.type === 'html'
-      ? 'html'
-      : artifact.type === 'svg'
-        ? 'svg'
-        : artifact.type === 'markdown'
-          ? 'md'
-          : artifact.type === 'mermaid'
-            ? 'mmd'
-            : artifact.type === 'chart'
-              ? 'json'
-              : extensionForLanguage(artifact.language)
-  return `${base}.${ext}`
-}
-
-function extensionForLanguage(language?: string): string {
-  const map: Record<string, string> = {
-    typescript: 'ts',
-    javascript: 'js',
-    python: 'py',
-    rust: 'rs',
-    go: 'go',
-    java: 'java',
-    ruby: 'rb',
-    shell: 'sh',
-    bash: 'sh',
-    css: 'css',
-    json: 'json',
-    yaml: 'yml',
-  }
-  return map[language?.toLowerCase() ?? ''] ?? 'txt'
 }

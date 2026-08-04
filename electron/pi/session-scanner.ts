@@ -1,10 +1,10 @@
 import { createReadStream } from 'node:fs'
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
-import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
 import { sessionDirForCwd } from './pi-paths'
+import { extractText } from './session-content'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
 
@@ -178,19 +178,6 @@ export async function parseSessionFile(path: string, mtimeMs: number): Promise<S
   }
 }
 
-function extractText(content: unknown): string | undefined {
-  if (typeof content === 'string') return content
-  if (Array.isArray(content)) {
-    const text = content
-      .filter((b) => (b as { type?: string }).type === 'text')
-      .map((b) => (b as { text?: string }).text ?? '')
-      .join(' ')
-      .trim()
-    return text || undefined
-  }
-  return undefined
-}
-
 /** Aggregate stats for the workspace home screen (tiles + heatmap). */
 export async function workspaceStats(workspacePath: string): Promise<WorkspaceSessionStats> {
   const sessions = await listSessions(workspacePath)
@@ -225,81 +212,4 @@ export async function workspaceStats(workspacePath: string): Promise<WorkspaceSe
   }
 }
 
-// ---------- tree reading (P2 tree view) ----------
-
-export async function readSessionTree(path: string): Promise<SessionTree> {
-  const raw = await readFile(path, 'utf8')
-  const lines = raw.split('\n').filter((l) => l.trim().length > 0)
-  const entries: SessionTreeEntry[] = []
-  let sessionId = ''
-  let cwd = ''
-  let leafId: string | null = null
-
-  for (const line of lines) {
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(line) as Record<string, unknown>
-    } catch {
-      continue
-    }
-    const type = entry.type as string
-    if (type === 'session') {
-      sessionId = (entry.id as string) ?? ''
-      cwd = (entry.cwd as string) ?? ''
-      continue
-    }
-    const id = entry.id as string
-    if (!id) continue
-    leafId = id
-
-    const node: SessionTreeEntry = {
-      id,
-      parentId: (entry.parentId as string | null) ?? null,
-      type,
-      timestamp: (entry.timestamp as string) ?? '',
-    }
-
-    if (type === 'message') {
-      const message = entry.message as { role?: string; content?: unknown } | undefined
-      node.role = message?.role
-      if (message?.role === 'user') {
-        node.preview = extractText(message.content)?.slice(0, 160)
-      } else if (message?.role === 'assistant') {
-        const content = message?.content
-        if (Array.isArray(content)) {
-          const text = content
-            .filter((b) => (b as { type?: string }).type === 'text')
-            .map((b) => (b as { text?: string }).text ?? '')
-            .join(' ')
-            .trim()
-          node.preview = text.slice(0, 160) || undefined
-          const tools = content.filter((b) => (b as { type?: string }).type === 'toolCall')
-          if (tools.length > 0) {
-            node.toolName = tools
-              .map((t) => (t as { name?: string }).name)
-              .filter(Boolean)
-              .join(', ')
-          }
-        }
-      } else if (message?.role === 'toolResult') {
-        node.toolName = (message as { toolName?: string }).toolName
-      }
-    } else if (type === 'label') {
-      node.targetId = entry.targetId as string
-      node.label = entry.label as string | undefined
-    } else if (type === 'branch_summary' || type === 'compaction') {
-      node.summary = (entry.summary as string | undefined)?.slice(0, 400)
-    } else if (type === 'session_info') {
-      node.name = entry.name as string | undefined
-    } else if (type === 'model_change') {
-      node.provider = entry.provider as string | undefined
-      node.modelId = entry.modelId as string | undefined
-    } else if (type === 'thinking_level_change') {
-      node.thinkingLevel = entry.thinkingLevel as string | undefined
-    }
-
-    entries.push(node)
-  }
-
-  return { sessionId, cwd, entries, leafId }
-}
+export { readSessionTree } from './session-tree'
