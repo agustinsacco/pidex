@@ -9,6 +9,7 @@ import {
   tryParseArgs,
   type EditDetails,
 } from './toolSummaries'
+import { formatDuration } from '@/lib/format'
 import { DiffView } from './DiffView'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { CopyButton } from '@/components/CopyButton'
@@ -380,8 +381,3 @@ function Chevron({ expanded }: { expanded: boolean }): React.JSX.Element {
   )
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
-  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
-}

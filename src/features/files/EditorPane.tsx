@@ -2,6 +2,7 @@ import { memo } from 'react'
 import clsx from 'clsx'
 import { useFilesStore, workspaceFiles, type OpenFile } from '@/stores/files'
 import { MonacoEditor } from './MonacoEditor'
+import { basename } from '@/lib/path'
 
 export const EditorPane = memo(function EditorPane({
   workspacePath,
@@ -78,7 +79,7 @@ function Tab({
   active: boolean
   workspacePath: string
 }): React.JSX.Element {
-  const name = file.relativePath.split('/').pop() ?? file.relativePath
+  const name = basename(file.relativePath)
   return (
     <div
       className={clsx(

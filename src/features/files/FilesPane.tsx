@@ -3,6 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './FileExplorer'
 import { EditorPane } from './EditorPane'
 import { useFilesStore } from '@/stores/files'
+import { dirname } from '@/lib/path'
 
 /** Files region: explorer tree + Monaco editor tabs, with live fs updates. */
 export const FilesPane = memo(function FilesPane({
@@ -18,7 +19,7 @@ export const FilesPane = memo(function FilesPane({
       void store.handleExternalChanges(workspacePath, payload.paths)
       void store.refreshGitStatus(workspacePath)
       // Refresh expanded dirs that contain changes.
-      const dirs = new Set(payload.paths.map((p) => p.slice(0, p.lastIndexOf('/'))))
+      const dirs = new Set(payload.paths.map(dirname))
       for (const dir of dirs) {
         if (store.entries[dir] !== undefined) void store.refreshDir(workspacePath, dir)
       }

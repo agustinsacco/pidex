@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  basename,
   toolText,
   editDiffStats,
   summarizeTool,
@@ -24,21 +23,6 @@ function tool(overrides: Partial<ToolState> = {}): ToolState {
 function res(details: unknown): { content: []; details: unknown } {
   return { content: [], details }
 }
-
-describe('basename', () => {
-  it.each([
-    ['src/lib/foo.ts', 'foo.ts'],
-    ['C:\\Users\\a\\foo.ts', 'foo.ts'],
-    ['foo.ts', 'foo.ts'],
-    ['', ''],
-  ])('reduces %s to %s', (input, expected) => {
-    expect(basename(input)).toBe(expected)
-  })
-
-  it('falls back to the whole path when it ends in a separator', () => {
-    expect(basename('src/lib/')).toBe('src/lib/')
-  })
-})
 
 describe('truncate', () => {
   it('collapses all whitespace runs to single spaces and trims', () => {

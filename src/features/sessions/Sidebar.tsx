@@ -13,6 +13,7 @@ import { Spinner } from '@/features/chat/tools/ToolCard'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/SettingsModal'
 import { useLayoutStore } from '@/stores/layout'
+import { workspaceName } from '@/lib/path'
 
 interface GroupedSessions {
   workspacePath: string
@@ -85,7 +86,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
         return {
           workspacePath: path,
-          name: path.split(/[/\\]/).filter(Boolean).pop() ?? path,
+          name: workspaceName(path),
           metas,
           liveCount,
         }
@@ -232,7 +233,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const currentPath = useActiveWorkspace()
   const recents = useWorkspacesStore((s) => s.recents)
   const [open, setOpen] = useState(false)
-  const name = currentPath?.split(/[/\\]/).filter(Boolean).pop() ?? 'Workspace'
+  const name = currentPath ? workspaceName(currentPath) : 'Workspace'
 
   return (
     <div className="relative px-3 pb-2 pt-1">
@@ -326,7 +327,7 @@ function SessionRow({
   const title = meta.name || meta.firstUserText || 'Untitled session'
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
-  const workspaceName = (meta.cwd || workspacePath).split(/[/\\]/).filter(Boolean).pop()
+  const rowWorkspaceName = workspaceName(meta.cwd || workspacePath)
 
   const open = (): void => {
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
@@ -372,7 +373,7 @@ function SessionRow({
       onClick={open}
       onContextMenu={contextMenu}
       data-testid="session-row"
-      data-workspace={workspaceName}
+      data-workspace={rowWorkspaceName}
       className={clsx(
         'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
@@ -394,13 +395,13 @@ function SessionRow({
           {meta.branchCount > 0 && ` · ${meta.branchCount + 1} branches`}
         </span>
       </span>
-      {showWorkspace && workspaceName && (
+      {showWorkspace && rowWorkspaceName && (
         <span
           data-testid="session-workspace-badge"
           title={meta.cwd || workspacePath}
           className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-[9.5px] font-medium"
         >
-          {workspaceName}
+          {rowWorkspaceName}
         </span>
       )}
       {unreadCount > 0 && !active && (

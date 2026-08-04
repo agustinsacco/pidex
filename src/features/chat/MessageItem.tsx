@@ -15,6 +15,7 @@ import { ToolCard } from './tools/ToolCard'
 import { CopyButton } from '@/components/CopyButton'
 import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
+import { formatTokens } from '@/lib/format'
 import { useChatUiStore } from './uiState'
 import { groupBlocks } from './items/groupBlocks'
 
@@ -358,7 +359,3 @@ function DividerShell({
   )
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
-  return String(n)
-}

@@ -1,15 +1,11 @@
 import type { ToolState } from '../reducer'
+import { basename } from '@/lib/path'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
 
 export interface EditDetails {
   diff?: string
   patch?: string
   firstChangedLine?: number
-}
-
-export function basename(path: string): string {
-  const parts = path.split(/[/\\]/)
-  return parts[parts.length - 1] || path
 }
 
 export function toolText(tool: ToolState): string {

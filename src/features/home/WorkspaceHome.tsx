@@ -5,6 +5,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { HomeModelPicker } from './HomeModelPicker'
+import { formatTokens } from '@/lib/format'
+import { workspaceName as workspaceDisplayName } from '@/lib/path'
 
 interface PendingImage {
   data: string
@@ -20,7 +22,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [images, setImages] = useState<PendingImage[]>([])
   const [starting, setStarting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const workspaceName = workspacePath.split(/[/\\]/).filter(Boolean).pop() ?? workspacePath
+  const workspaceName = workspaceDisplayName(workspacePath)
 
   const addImageFile = async (file: File): Promise<void> => {
     const buffer = await file.arrayBuffer()
@@ -381,11 +383,6 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return String(n)
-}
 
 function MonitorIcon(): React.JSX.Element {
   return (

@@ -10,6 +10,7 @@ import { Composer } from './Composer'
 import { SessionMenu } from './SessionMenu'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
+import { workspaceName as workspaceDisplayName } from '@/lib/path'
 
 export function ChatView({
   sessionId,
@@ -18,7 +19,7 @@ export function ChatView({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
-  const workspaceName = workspacePath.split(/[/\\]/).filter(Boolean).pop() ?? workspacePath
+  const workspaceName = workspaceDisplayName(workspacePath)
 
   return (
     <div className="flex h-full flex-col">

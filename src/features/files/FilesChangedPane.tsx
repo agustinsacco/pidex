@@ -7,6 +7,7 @@ import { collectTouchedFiles, type TouchedFile } from './collectTouchedFiles'
 import { reconstructOriginal } from './patch'
 import { MonacoDiff } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
+import { basename } from '@/lib/path'
 
 export const FilesChangedPane = memo(function FilesChangedPane({
   workspacePath,
@@ -103,7 +104,7 @@ function FileRow({
   baselineRef: string | null
   onOpen: () => void
 }): React.JSX.Element {
-  const name = file.relativePath.split('/').pop() ?? file.relativePath
+  const name = basename(file.relativePath)
   const dir = file.relativePath.slice(0, file.relativePath.length - name.length)
 
   const revert = async (event: React.MouseEvent): Promise<void> => {
