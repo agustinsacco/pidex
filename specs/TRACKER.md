@@ -17,6 +17,8 @@
 | P5    | Artifacts                                      | ✅     |
 | P6    | Settings, extension UI, theming, polish        | ✅     |
 | P7    | Packaging, installer, CI                       | ✅     |
+| P8    | Multi-workspace sessions                       | ✅     |
+| P9    | Tech-debt reduction pass                       | ✅     |
 
 ---
 
@@ -177,3 +179,38 @@ Specs: [10-packaging.md](10-packaging.md)
 **Log:**
 
 - 2026-08-03 — P7 complete. electron-builder: mac dmg+zip (arm64/x64, hardened runtime + entitlements for JIT/unsigned-memory so node-pty and the pi subprocess work, signs only when certs are present), linux AppImage+deb (arm64/x64, `artifactName` pinned to match install.sh), win nsis. `pi-ext/` ships as an **unpacked extraResource** because the pi subprocess must read the file from disk — verified in the built bundle (`Contents/Resources/pi-ext/artifacts.ts` present, `node-pty/build/Release/pty.node` in `app.asar.unpacked`), and **the packaged app launches clean**. Icons generated from an SVG into png/icns/ico. `install.sh` (POSIX sh, `sh -n` clean): OS/arch detect (matrix verified for Darwin/Linux × x64/arm64 and a Windows bail-out), latest-release resolve, sha256 verify against `checksums.txt`, dmg mount→/Applications with quarantine clear, or AppImage→`~/.local/bin` + .desktop entry; advisory pi presence/version check. **4 Playwright-Electron e2e tests pass locally** driving the real Electron app against a deterministic pi RPC stub (`PIDEX_PI_STUB`, plus `PIDEX_E2E_WORKSPACE` to bypass the native dialog and `PIDEX_TEST_USER_DATA` to isolate prefs): workspace→session→streamed answer→edit tool diff→Files Changed→Artifacts pane; settings theme switch + About versions; ⌘K palette; terminal spawning a real PTY. Each test launches its own app instance (shared instances leaked focus state between tests). The suite caught a **real a11y bug**: CSS `capitalize` on theme/scope/thinking labels left lowercase accessible names — replaced with real title-case text plus `role="group"`/`aria-pressed`. CI: PR job (typecheck, lint, prettier check, unit tests, build) + e2e matrix on ubuntu (xvfb) and macOS with report upload on failure; release job builds the 3-platform matrix on tag, collects artifacts, generates `checksums.txt`, and drafts a GitHub Release with install.sh and the curl one-liner. About tab reports app/pi/platform/runtime versions and warns when pi's minor is newer than the verified 0.78.x.
+
+---
+
+## P8 — Multi-workspace sessions `✅`
+
+Specs: [MULTI_WORKSPACE_PLAN.md](MULTI_WORKSPACE_PLAN.md) (see its **Outcome** section for deviations)
+
+- [x] Phase 1 — restore last location on launch (`aa55593`)
+- [x] Phase 2 — routing derives from the active session (`794de76`)
+- [x] Phases 3–5 — grouped sidebar, workspace popover, per-workspace files/terminal panes (`874730c`, PR #1)
+- [x] Follow-ups the merge left open: lazy-scan beyond the 8-workspace cap (unscanned groups default collapsed, first scan on expand), unwatch on group collapse (`sessions:unwatch`), collapse state persisted in prefs, `app:recordWorkspace` + resumeTarget fallback to the newest existing recent
+
+**Done when:** three projects stream concurrently; the sidebar lists and groups all of them; relaunch lands where you left off.
+
+**Log:**
+
+- 2026-08-05 — Phases 1–5 shipped across `aa55593`, `794de76`, `874730c`. Deviations recorded in the plan's Outcome section (badges only in Pinned; `homePath` instead of `homeWorkspacePath`; Routines/Customize dropped).
+- 2026-08-07 — Follow-up pass closed the gaps the squash merge shipped without: workspaces beyond the boot-scan cap now render as collapsed headers and lazy-scan on expand (previously invisible until restart); watchers now follow group visibility (expand ⇒ watch, collapse ⇒ unwatch) instead of accumulating per workspace for the process lifetime; collapse choices persist (`collapsedWorkspaces` pref); salvaged the uncommitted `app:recordWorkspace` work from the phase-3 worktree — most-recently-used workspace persistence plus `app:resumeTarget` falling back to the newest still-existing recent, with resume-target tests extended to cover the fallback. Also recovered the stranded composer polish from that worktree: shared `ComposerButtons` (attach / submit / stop icon buttons) across chat + home composers, and a searchable `ModelMenu` shared by both model pickers.
+
+---
+
+## P9 — Tech-debt reduction pass `✅`
+
+Record: [../TECH_DEBT_AUDIT.md](../TECH_DEBT_AUDIT.md)
+
+- [x] 6 bug fixes (formatTokens M-tier, nested-modal Escape, FilesChangedPane streaming details, watcher leak at quit, silent RPC failures → `piCall`/`piCallOk`, E2E env hooks gated on `!app.isPackaged`)
+- [x] `electron/ipc.ts` split into 7 per-domain registrars (channel list diff-verified); dead `RpcCommandType` repurposed as compile-time response-map drift guard
+- [x] Test suite 70 → 296 cases; renderer test typechecking fixed (`.test.tsx` now covered)
+
+**Done when:** audit findings either fixed or explicitly declined with reasons in TECH_DEBT_AUDIT.md.
+
+**Log:**
+
+- 2026-08-06 — Landed as `cb5fb86` (PR #2). Declined items (C11–C13 UI-shape refactors, §D component splits) documented with rationale in the audit. Known leftovers: `textFromContent` dedup (C3) only landed for the main process — three renderer copies remain (`MessageItem.tsx`, `messageContent.ts`, `toolSummaries.ts`); ~10 raw `piCommand` call sites still bypass `lib/rpc.ts` (mostly bootstrap/read paths).
+- 2026-08-07 — session-writer tests added (16 cases: appendLabel/appendBranchJump/forkSessionAt round-trips against the real tree reader), closing the highest-risk-untested-module gap.

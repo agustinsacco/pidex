@@ -1,5 +1,10 @@
 # Multi-workspace sessions — implementation plan
 
+> **Status: shipped.** Phases 1–2 landed as `aa55593` / `794de76`; phases
+> 3–5 landed squashed as `874730c` (PR #1). Deviations and follow-ups are
+> recorded in the **Outcome** section at the bottom — read that before
+> treating any phase text as current.
+
 Today pidex is a **single-workspace app**: you pick one folder, and every
 session, the sidebar, the file tree and the git chips are scoped to it.
 Working on three projects means closing one and opening another.
@@ -252,3 +257,35 @@ to feel like Claude Code.
 
 The badge assertion is the cheap regression guard for the whole feature:
 if a row's badge is wrong, session→workspace association has broken.
+
+---
+
+## Outcome (2026-08-07)
+
+All five phases shipped. Deviations from the text above, and where the plan's
+requirements landed late:
+
+- **Phase 2:** `homeWorkspacePath` shipped as `homePath` on
+  `useWorkspacesStore`; the derived answer is `useActiveWorkspace()` /
+  `getActiveWorkspace()` in `src/stores/workspaces.ts`.
+- **Phase 3 badges:** rows inside a workspace group omit the badge entirely
+  (the "dim or omit — decide by eye" call); only the cross-workspace
+  **Pinned** group renders badges (`showWorkspace` on `SessionRow`).
+- **Phase 3 collapse/lazy-scan/unwatch — landed late (2026-08-07), not in
+  `874730c`:** the original merge shipped the 8-workspace scan cap without
+  the lazy-load path (groups beyond the cap were invisible), never unwatched
+  on collapse (risk #2's mitigation), and kept collapse state in component
+  state only. Now: unscanned groups render collapsed by default and their
+  first scan runs on expand; expanded ⇔ watched, collapsed ⇒ unwatched
+  (`sessions:unwatch`, plus `unwatchAll` at quit); explicit collapse choices
+  persist in prefs (`collapsedWorkspaces`, `app:setCollapsedWorkspaces`).
+- **Phase 4:** New/Artifacts shipped as flat nav rows; the UX plan's
+  Routines · Customize rows and Home/Code toggle did **not** ship (see
+  `UX_REFACTOR_PLAN.md` A3).
+- **Risk #4 (`recordWorkspace` semantics) — landed late (2026-08-07):**
+  `app:recordWorkspace` now persists most-recently-used on workspace open and
+  session activation, and `app:resumeTarget` falls back to the newest
+  still-existing recent before showing the picker.
+- **e2e:** the two-workspaces + badge + relaunch-restore scenarios are in
+  `e2e/smoke.spec.ts`; the concurrent-streaming and pane-swap scenarios from
+  the list above are still untested.
