@@ -8,17 +8,18 @@ import type { ChatItem } from './reducer'
 /**
  * Leading space for an item, chosen by the boundary it sits on.
  *
- * Measured off the reference at 2×: ~28px between distinct messages, ~12px
- * where an assistant turn continues its own output, and a tight gap around
- * system dividers. Uniform padding is what made the transcript read flat.
+ * ~16px between distinct messages, ~8px where an assistant turn continues its
+ * own output or around system dividers. The hover-affordance rows inside each
+ * message (timestamp / copy) already reserve their own height, so anything
+ * larger here compounds into the yawning gaps the first pass had.
  */
 function spacingFor(item: ChatItem, previous: ChatItem | undefined): string {
-  if (!previous) return 'pb-1 pt-2'
+  if (!previous) return 'pb-0.5 pt-2'
   const sameSpeakerContinuation =
     previous.kind === 'assistant' && (item.kind === 'bash' || item.kind === 'custom')
-  if (sameSpeakerContinuation) return 'pb-1 pt-3'
-  if (item.kind === 'divider' || previous.kind === 'divider') return 'pb-1 pt-3'
-  return 'pb-1 pt-7'
+  if (sameSpeakerContinuation) return 'pb-0.5 pt-2'
+  if (item.kind === 'divider' || previous.kind === 'divider') return 'pb-0.5 pt-2'
+  return 'pb-0.5 pt-4'
 }
 
 export const MessageList = memo(function MessageList({

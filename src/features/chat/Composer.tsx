@@ -16,6 +16,7 @@ import {
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { Spinner } from '@/components/icons'
+import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
@@ -402,25 +403,16 @@ export function Composer({
             className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] outline-none"
           />
 
+          {/* Footer mirrors the reference: attach on the left, model +
+              thinking + meter on the right, submit/stop as a quiet icon at
+              the far right — never a filled pill. */}
           <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
             <div className="flex min-w-0 items-center gap-1">
-              {isStreaming ? (
-                <button
-                  onClick={() => void abort()}
-                  className="border-border hover:border-danger hover:text-danger flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors"
-                >
-                  <span className="bg-danger inline-block h-2 w-2 rounded-[3px]" />
-                  Stop
-                </button>
-              ) : (
-                <button
-                  onClick={() => void send()}
-                  disabled={!text.trim() && images.length === 0}
-                  className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-3 py-1 text-[12px] font-medium transition-colors disabled:opacity-40"
-                >
-                  Send ⏎
-                </button>
-              )}
+              <AttachButton
+                onFiles={(files) => {
+                  for (const file of files) void addImageFile(file)
+                }}
+              />
               {isCompacting && (
                 <span className="text-text-tertiary flex items-center gap-1.5 px-1.5 text-[11.5px]">
                   <Spinner /> compacting…
@@ -432,6 +424,15 @@ export function Composer({
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               {isStreaming && <Spinner />}
+              {isStreaming ? (
+                <StopIconButton onClick={() => void abort()} />
+              ) : (
+                <SubmitIconButton
+                  disabled={!text.trim() && images.length === 0}
+                  onClick={() => void send()}
+                  label="Send message"
+                />
+              )}
             </div>
           </div>
         </div>

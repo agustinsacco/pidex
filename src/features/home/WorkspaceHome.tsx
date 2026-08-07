@@ -4,10 +4,11 @@ import type { GitInfo, WorkspaceSessionStats } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
+import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { formatTokens } from '@/lib/format'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
-import { BranchIcon, CheckIcon, Spinner } from '@/components/icons'
+import { BranchIcon, CheckIcon } from '@/components/icons'
 import { bytesToBase64 } from '@/lib/base64'
 
 interface PendingImage {
@@ -46,18 +47,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     if (files.length === 0) return
     event.preventDefault()
     for (const file of files) void addImageFile(file)
-  }
-
-  /** Native file chooser for the "+" button (paste and drop also work). */
-  const pickImages = (): void => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.multiple = true
-    input.onchange = () => {
-      for (const file of [...(input.files ?? [])]) void addImageFile(file)
-    }
-    input.click()
   }
 
   useEffect(() => {
@@ -172,31 +161,19 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             {/* Footer mirrors the chat composer: attachments on the left,
                 model + thinking on the right, submit at the far right. */}
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
-              <button
-                onClick={() => void pickImages()}
-                aria-label="Attach images"
-                title="Attach images"
-                className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
+              <AttachButton
+                onFiles={(files) => {
+                  for (const file of files) void addImageFile(file)
+                }}
+              />
 
               <div className="flex shrink-0 items-center gap-0.5">
                 <HomeModelPicker />
-                <SubmitButton
-                  starting={starting}
+                <SubmitIconButton
+                  busy={starting}
                   disabled={!text.trim()}
                   onClick={() => void start()}
+                  label={starting ? 'Starting session' : 'Start session'}
                 />
               </div>
             </div>
@@ -204,44 +181,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         </div>
       </div>
     </div>
-  )
-}
-
-function SubmitButton({
-  starting,
-  disabled,
-  onClick,
-}: {
-  starting: boolean
-  disabled: boolean
-  onClick: () => void
-}): React.JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled || starting}
-      aria-label={starting ? 'Starting session' : 'Start session'}
-      title="Start session (⏎)"
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
-    >
-      {starting ? (
-        <Spinner className="text-current" />
-      ) : (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M9 10 4 15l5 5" />
-          <path d="M20 4v7a4 4 0 0 1-4 4H4" />
-        </svg>
-      )}
-    </button>
   )
 }
 
