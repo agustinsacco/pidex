@@ -19,6 +19,7 @@
 | P7    | Packaging, installer, CI                       | ✅     |
 | P8    | Multi-workspace sessions                       | ✅     |
 | P9    | Tech-debt reduction pass                       | ✅     |
+| P10   | Visual identity: Phosphor                      | 🟡     |
 
 ---
 
@@ -214,3 +215,21 @@ Record: [../TECH_DEBT_AUDIT.md](../TECH_DEBT_AUDIT.md)
 
 - 2026-08-06 — Landed as `cb5fb86` (PR #2). Declined items (C11–C13 UI-shape refactors, §D component splits) documented with rationale in the audit. Known leftovers: `textFromContent` dedup (C3) only landed for the main process — three renderer copies remain (`MessageItem.tsx`, `messageContent.ts`, `toolSummaries.ts`); ~10 raw `piCommand` call sites still bypass `lib/rpc.ts` (mostly bootstrap/read paths).
 - 2026-08-07 — session-writer tests added (16 cases: appendLabel/appendBranchJump/forkSessionAt round-trips against the real tree reader), closing the highest-risk-untested-module gap.
+
+---
+
+## P10 — Visual identity: Phosphor `🟡`
+
+Specs: [STYLE_GUIDE.md](STYLE_GUIDE.md) · [RESTYLE_PLAN.md](RESTYLE_PLAN.md)
+
+- [x] Brand definition: Phosphor system (amber-phosphor accent, paper/graphite neutrals, mono structural voice) with contrast ratios verified at design time
+- [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
+- [ ] RESTYLE_PLAN phases 1–3: token swap, xterm/Monaco, chart/mermaid (one PR)
+- [ ] Phase 4: mono structural-voice pass over labels/badges
+- [ ] Phase 5: both-themes sweep, e2e, regenerate `specs/screenshots/`
+
+**Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually, screenshots refreshed.
+
+**Log:**
+
+- 2026-08-07 — Brand adopted; guide + plan + icon landed on PR #4. Known dev-mode limitation documented in main.ts: macOS menu-bar title says "Electron" when unpackaged (Info.plist, not fixable at runtime); dock icon is set at runtime instead. Restyle deliberately deferred to its own PR — a half-migrated palette is the worst state.
