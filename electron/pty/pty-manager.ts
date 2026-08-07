@@ -9,7 +9,7 @@ interface PtySession {
 }
 
 /** Real PTYs (user shell), independent from the agent's bash tool. */
-export class PtyManager {
+class PtyManager {
   private readonly sessions = new Map<string, PtySession>()
 
   create(workspacePath: string, cols: number, rows: number): { ptyId: string } {

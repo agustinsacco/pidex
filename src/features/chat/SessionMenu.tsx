@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import type { QueueMode } from '@shared/rpc'
+import { piCallOk } from '@/lib/rpc'
+import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 
 /**
  * Auto-retry state isn't reported by get_state, so pidex tracks the last
@@ -15,72 +17,49 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
   const [autoRetry, setAutoRetryState] = useState(autoRetryLocal.get(sessionId) ?? true)
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
 
-  const toggleAutoRetry = (): Promise<unknown> =>
-    window.pidex.piCommand(sessionId, { type: 'set_auto_retry', enabled: !autoRetry }).then((r) => {
-      if (r.success) {
-        autoRetryLocal.set(sessionId, !autoRetry)
-        setAutoRetryState(!autoRetry)
-      }
-    })
+  const toggleAutoRetry = async (): Promise<void> => {
+    if (!(await piCallOk(sessionId, { type: 'set_auto_retry', enabled: !autoRetry }))) return
+    autoRetryLocal.set(sessionId, !autoRetry)
+    setAutoRetryState(!autoRetry)
+  }
 
   const command = async (run: () => Promise<unknown>): Promise<void> => {
     setOpen(false)
     await run()
   }
 
-  const toggleAutoCompaction = (): Promise<unknown> =>
-    window.pidex
-      .piCommand(sessionId, {
-        type: 'set_auto_compaction',
-        enabled: !(meta?.autoCompactionEnabled ?? true),
-      })
-      .then((r) => {
-        if (r.success)
-          useChatStore
-            .getState()
-            .patchMeta(sessionId, { autoCompactionEnabled: !(meta?.autoCompactionEnabled ?? true) })
-      })
+  const toggleAutoCompaction = async (): Promise<void> => {
+    const enabled = !(meta?.autoCompactionEnabled ?? true)
+    if (!(await piCallOk(sessionId, { type: 'set_auto_compaction', enabled }))) return
+    useChatStore.getState().patchMeta(sessionId, { autoCompactionEnabled: enabled })
+  }
 
-  const setSteeringMode = (mode: QueueMode): Promise<unknown> =>
-    window.pidex.piCommand(sessionId, { type: 'set_steering_mode', mode }).then((r) => {
-      if (r.success) useChatStore.getState().patchMeta(sessionId, { steeringMode: mode })
-    })
+  const setSteeringMode = async (mode: QueueMode): Promise<void> => {
+    if (!(await piCallOk(sessionId, { type: 'set_steering_mode', mode }))) return
+    useChatStore.getState().patchMeta(sessionId, { steeringMode: mode })
+  }
 
-  const setFollowUpMode = (mode: QueueMode): Promise<unknown> =>
-    window.pidex.piCommand(sessionId, { type: 'set_follow_up_mode', mode }).then((r) => {
-      if (r.success) useChatStore.getState().patchMeta(sessionId, { followUpMode: mode })
-    })
+  const setFollowUpMode = async (mode: QueueMode): Promise<void> => {
+    if (!(await piCallOk(sessionId, { type: 'set_follow_up_mode', mode }))) return
+    useChatStore.getState().patchMeta(sessionId, { followUpMode: mode })
+  }
 
   const compactNow = async (): Promise<void> => {
     const instructions = window.prompt(
       'Optional: custom instructions for the compaction summary (leave blank for default)',
     )
     if (instructions === null) return
-    const response = await window.pidex.piCommand(sessionId, {
+    await piCallOk(sessionId, {
       type: 'compact',
       ...(instructions ? { customInstructions: instructions } : {}),
     })
-    if (!response.success) useChatStore.getState().setError(sessionId, response.error)
   }
 
-  const exportHtml = async (): Promise<void> => {
-    const outputPath = await window.pidex.invoke('app:saveDialog', {
-      title: 'Export session as HTML',
-      defaultPath: `${meta?.sessionName ?? 'session'}.html`,
-      filters: [{ name: 'HTML', extensions: ['html'] }],
-    })
-    if (!outputPath) return
-    const response = await window.pidex.piCommand(sessionId, { type: 'export_html', outputPath })
-    if (response.success && response.data) {
-      await window.pidex.invoke('app:revealPath', response.data.path)
-    }
-  }
+  const exportHtml = (): Promise<void> =>
+    exportSessionHtml(sessionId, meta?.sessionName ?? 'session')
 
   const rename = async (): Promise<void> => {
-    const name = window.prompt('Session name', meta?.sessionName ?? '')
-    if (!name) return
-    const response = await window.pidex.piCommand(sessionId, { type: 'set_session_name', name })
-    if (response.success) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+    await renameSession(sessionId, meta?.sessionName)
   }
 
   return (

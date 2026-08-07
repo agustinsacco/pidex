@@ -38,7 +38,10 @@ export function watchWorkspaceSessions(workspacePath: string): void {
   watchers.set(workspacePath, watcher)
 }
 
+/** Close every session watcher and cancel pending debounced notifications. */
 export async function unwatchAll(): Promise<void> {
+  for (const timer of debounceTimers.values()) clearTimeout(timer)
+  debounceTimers.clear()
   await Promise.allSettled([...watchers.values()].map((w) => w.close()))
   watchers.clear()
 }

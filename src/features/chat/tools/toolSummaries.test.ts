@@ -1,0 +1,220 @@
+import { describe, it, expect } from 'vitest'
+import { toolText, editDiffStats, summarizeTool, tryParseArgs, truncate } from './toolSummaries'
+import type { ToolState } from '../reducer'
+
+function tool(overrides: Partial<ToolState> = {}): ToolState {
+  return {
+    toolCallId: 't1',
+    toolName: 'read',
+    argsText: '',
+    status: 'done',
+    output: null,
+    ...overrides,
+  }
+}
+
+/** ToolPartialResult requires `content`; these cases only exercise `details`. */
+function res(details: unknown): { content: []; details: unknown } {
+  return { content: [], details }
+}
+
+describe('truncate', () => {
+  it('collapses all whitespace runs to single spaces and trims', () => {
+    expect(truncate('  a \n\t b  ', 80)).toBe('a b')
+  })
+
+  it('leaves text at or under the limit untouched', () => {
+    expect(truncate('abcde', 5)).toBe('abcde')
+  })
+
+  it('cuts to max-1 chars and appends an ellipsis when over the limit', () => {
+    expect(truncate('abcdef', 5)).toBe('abcd…')
+    expect(truncate('abcdef', 5)).toHaveLength(5)
+  })
+})
+
+describe('tryParseArgs', () => {
+  it('returns undefined for empty text', () => {
+    expect(tryParseArgs('')).toBeUndefined()
+  })
+
+  it('parses a JSON object', () => {
+    expect(tryParseArgs('{"path":"a.ts"}')).toEqual({ path: 'a.ts' })
+  })
+
+  it('returns undefined for malformed JSON rather than throwing', () => {
+    expect(tryParseArgs('{"path":')).toBeUndefined()
+  })
+
+  it('rejects valid JSON that is not an object', () => {
+    expect(tryParseArgs('42')).toBeUndefined()
+    expect(tryParseArgs('null')).toBeUndefined()
+    expect(tryParseArgs('"str"')).toBeUndefined()
+  })
+
+  it('accepts arrays, which are objects', () => {
+    expect(tryParseArgs('[1,2]')).toEqual([1, 2])
+  })
+})
+
+describe('toolText', () => {
+  it('returns empty string when there is no content', () => {
+    expect(toolText(tool())).toBe('')
+  })
+
+  it('prefers output over result', () => {
+    const t = tool({
+      output: { content: [{ type: 'text', text: 'from-output' }] },
+      result: { content: [{ type: 'text', text: 'from-result' }] },
+    })
+    expect(toolText(t)).toBe('from-output')
+  })
+
+  it('falls back to result when output is null', () => {
+    const t = tool({ result: { content: [{ type: 'text', text: 'from-result' }] } })
+    expect(toolText(t)).toBe('from-result')
+  })
+
+  it('joins multiple text blocks with newlines and skips non-text blocks', () => {
+    const t = tool({
+      output: {
+        content: [
+          { type: 'text', text: 'one' },
+          { type: 'image', data: 'xxx', mimeType: 'image/png' },
+          { type: 'text', text: 'two' },
+        ],
+      },
+    })
+    expect(toolText(t)).toBe('one\ntwo')
+  })
+})
+
+describe('editDiffStats', () => {
+  // pi's display-diff format is `<marker><lineNo> <content>`.
+  const diff = ['+2 added line', '-2 removed line', ' 1 context'].join('\n')
+  const patch = ['--- a/f.ts', '+++ b/f.ts', '@@ -1,2 +1,2 @@', '-old', '+new'].join('\n')
+
+  it('returns null when neither diff nor patch is present', () => {
+    expect(editDiffStats(tool({ toolName: 'edit' }))).toBeNull()
+  })
+
+  it('reads details from result', () => {
+    expect(editDiffStats(tool({ toolName: 'edit', result: res({ diff }) }))).toEqual({
+      additions: 1,
+      deletions: 1,
+    })
+  })
+
+  it('reads details from output when result has none', () => {
+    expect(editDiffStats(tool({ toolName: 'edit', output: res({ diff }) }))).toEqual({
+      additions: 1,
+      deletions: 1,
+    })
+  })
+
+  it('prefers result over output', () => {
+    const t = tool({
+      toolName: 'edit',
+      result: res({ diff: '+1 a' }),
+      output: res({ diff: '+1 a\n+2 b\n+3 c' }),
+    })
+    expect(editDiffStats(t)).toEqual({ additions: 1, deletions: 0 })
+  })
+
+  it('prefers diff over patch when both are present', () => {
+    const t = tool({ toolName: 'edit', result: res({ diff: '+1 a\n+2 b', patch }) })
+    expect(editDiffStats(t)).toEqual({ additions: 2, deletions: 0 })
+  })
+
+  it('falls back to unified patch stats', () => {
+    expect(editDiffStats(tool({ toolName: 'edit', result: res({ patch }) }))).toEqual({
+      additions: 1,
+      deletions: 1,
+    })
+  })
+})
+
+describe('summarizeTool', () => {
+  it('uses past-tense labels when done and present participles while running', () => {
+    const args = { path: 'src/a.ts' }
+    expect(summarizeTool(tool({ toolName: 'read', args, status: 'done' })).label).toBe('Read')
+    expect(summarizeTool(tool({ toolName: 'read', args, status: 'running' })).label).toBe('Reading')
+    expect(summarizeTool(tool({ toolName: 'read', args, status: 'starting' })).label).toBe(
+      'Reading',
+    )
+  })
+
+  it('treats error status as not-running', () => {
+    expect(summarizeTool(tool({ toolName: 'read', status: 'error' })).label).toBe('Read')
+  })
+
+  it('reduces read/edit/write paths to a basename', () => {
+    const args = { path: 'src/deep/a.ts' }
+    expect(summarizeTool(tool({ toolName: 'read', args })).object).toBe('a.ts')
+    expect(summarizeTool(tool({ toolName: 'edit', args })).object).toBe('a.ts')
+    expect(summarizeTool(tool({ toolName: 'write', args })).object).toBe('a.ts')
+  })
+
+  it('parses args from argsText when args is absent', () => {
+    const t = tool({ toolName: 'read', argsText: '{"path":"src/from-text.ts"}' })
+    expect(summarizeTool(t).object).toBe('from-text.ts')
+  })
+
+  it('prefers validated args over streamed argsText', () => {
+    const t = tool({
+      toolName: 'read',
+      args: { path: 'validated.ts' },
+      argsText: '{"path":"streamed.ts"}',
+    })
+    expect(summarizeTool(t).object).toBe('validated.ts')
+  })
+
+  describe('bash', () => {
+    it('marks the command as monospace and truncates at 64 chars', () => {
+      const command = 'echo ' + 'x'.repeat(100)
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }))
+      expect(summary.mono).toBe(true)
+      expect(summary.object).toHaveLength(64)
+    })
+
+    it('falls back to "a command" without monospace when the command is missing', () => {
+      const summary = summarizeTool(tool({ toolName: 'bash' }))
+      expect(summary.object).toBe('a command')
+      expect(summary.mono).toBe(false)
+    })
+  })
+
+  describe('write', () => {
+    it('counts content lines as additions', () => {
+      const t = tool({ toolName: 'write', args: { path: 'a.ts', content: 'a\nb\nc' } })
+      expect(summarizeTool(t).stats).toEqual({ additions: 3, deletions: 0 })
+    })
+
+    it('reports null stats when content is absent', () => {
+      expect(summarizeTool(tool({ toolName: 'write', args: { path: 'a.ts' } })).stats).toBeNull()
+    })
+
+    it('counts empty-string content as one line', () => {
+      const t = tool({ toolName: 'write', args: { path: 'a.ts', content: '' } })
+      expect(summarizeTool(t).stats).toEqual({ additions: 1, deletions: 0 })
+    })
+  })
+
+  it('truncates grep and find patterns at 48 chars and marks them monospace', () => {
+    const pattern = 'y'.repeat(100)
+    for (const toolName of ['grep', 'find']) {
+      const summary = summarizeTool(tool({ toolName, args: { pattern } }))
+      expect(summary.object).toHaveLength(48)
+      expect(summary.mono).toBe(true)
+    }
+  })
+
+  it('defaults ls to "directory" when no path is given', () => {
+    expect(summarizeTool(tool({ toolName: 'ls' })).object).toBe('directory')
+  })
+
+  it('falls back to the tool name for unknown tools', () => {
+    const summary = summarizeTool(tool({ toolName: 'custom_thing' }))
+    expect(summary).toMatchObject({ label: 'Used', object: 'custom_thing', mono: true })
+  })
+})

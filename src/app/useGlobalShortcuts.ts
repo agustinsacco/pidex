@@ -3,7 +3,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
-import { useSettingsUiStore } from '@/features/settings/SettingsModal'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 /**
  * True when the event target is a text-entry surface (composer, Monaco,

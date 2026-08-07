@@ -17,7 +17,7 @@ const REHYPE_PLUGINS = [rehypeKatex]
  * Split streaming text at a trailing unclosed fence so the open fence renders
  * as plain mono until it closes (no rich-render flicker).
  */
-export function splitOpenFence(text: string): { closed: string; openFence: string | null } {
+function splitOpenFence(text: string): { closed: string; openFence: string | null } {
   const fenceMatches = [...text.matchAll(/^(```|~~~)/gm)]
   if (fenceMatches.length % 2 === 0) return { closed: text, openFence: null }
   const last = fenceMatches[fenceMatches.length - 1]!

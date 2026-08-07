@@ -1,15 +1,11 @@
 import type { ToolState } from '../reducer'
+import { basename } from '@/lib/path'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
 
 export interface EditDetails {
   diff?: string
   patch?: string
   firstChangedLine?: number
-}
-
-export function basename(path: string): string {
-  const parts = path.split(/[/\\]/)
-  return parts[parts.length - 1] || path
 }
 
 export function toolText(tool: ToolState): string {
@@ -21,14 +17,22 @@ export function toolText(tool: ToolState): string {
     .join('\n')
 }
 
+/**
+ * Read a tool's structured `details`, preferring the final result over the
+ * partial output so still-streaming tools still surface what they have.
+ */
+export function toolDetails<T>(tool: ToolState): T | undefined {
+  return (tool.result?.details ?? tool.output?.details) as T | undefined
+}
+
 export function editDiffStats(tool: ToolState): DiffStats | null {
-  const details = (tool.result?.details ?? tool.output?.details) as EditDetails | undefined
+  const details = toolDetails<EditDetails>(tool)
   if (details?.diff) return diffStats(parseDisplayDiff(details.diff))
   if (details?.patch) return unifiedPatchStats(details.patch)
   return null
 }
 
-export interface ToolSummary {
+interface ToolSummary {
   /** Leading verb phrase, e.g. "Edited", "Ran a command". */
   label: string
   /** Emphasized object, e.g. file basename or command. */

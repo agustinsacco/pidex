@@ -2,6 +2,7 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu } from '@/components/PopupMenu'
+import { formatTokens } from '@/lib/format'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
@@ -86,10 +87,4 @@ function StatRow({ label, value }: { label: string; value: string }): React.JSX.
       <span className="text-text-secondary font-mono text-[11.5px] tabular-nums">{value}</span>
     </div>
   )
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`
-  return String(n)
 }

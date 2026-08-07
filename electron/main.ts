@@ -1,14 +1,19 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
-import { registerIpcHandlers, registry } from './ipc'
+import { registerIpcHandlers } from './ipc'
+import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
+import { unwatchAll } from './pi/session-watcher'
+import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 // E2E runs must never touch the developer's real prefs. Tests that need
 // state to survive a relaunch (e.g. "reopens the last session") pin the
-// directory explicitly; everything else gets a per-pid scratch dir.
-if (process.env.PIDEX_TEST_USER_DATA) {
+// directory explicitly; everything else gets a per-pid scratch dir. Gated on
+// packaging so the env var cannot redirect a shipped app's user data
+// (see ipc/pi-session-handlers.ts:piStubPath).
+if (!app.isPackaged && process.env.PIDEX_TEST_USER_DATA) {
   const dir =
     process.env.PIDEX_TEST_USER_DATA !== '1'
       ? process.env.PIDEX_TEST_USER_DATA
@@ -70,7 +75,10 @@ app.on('before-quit', (event) => {
   if (quitting) return
   event.preventDefault()
   quitting = true
-  // Clean shutdown: SIGTERM to every pi child, kill all PTYs.
+  // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
+  // filesystem watchers so no chokidar handles or debounce timers outlive us.
   ptyManager.killAll()
-  void registry.disposeAll().finally(() => app.quit())
+  void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
+    () => app.quit(),
+  )
 })

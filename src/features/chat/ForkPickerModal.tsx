@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
+import { ModalOverlay } from '@/components/Modal'
 
 interface ForkCandidate {
   entryId: string
@@ -56,15 +56,9 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
     }
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={close}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl"
-      >
+  return (
+    <ModalOverlay onClose={close}>
+      <div className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <div>
             <div className="text-[13.5px] font-semibold">Fork from an earlier message</div>
@@ -103,7 +97,6 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
           ))}
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalOverlay>
   )
 }

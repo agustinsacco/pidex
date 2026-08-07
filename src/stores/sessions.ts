@@ -9,7 +9,7 @@ import { useChatStore } from './chat'
  * state is keyed by pidex session id and background handlers keep reducing.
  */
 
-export interface LiveSessionEntry {
+interface LiveSessionEntry {
   pidexId: string
   workspacePath: string
   /** Disk session file, learned from get_state after spawn. */
@@ -103,7 +103,7 @@ async function refreshStats(pidexId: string): Promise<void> {
   }
 }
 
-export function attachSessionPushHandler(pidexId: string): void {
+function attachSessionPushHandler(pidexId: string): void {
   const unsubscribe = window.pidex.onSessionPush(pidexId, (push: SessionPush) => {
     const chatStore = useChatStore.getState()
     switch (push.kind) {

@@ -3,6 +3,8 @@ import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
+import { BranchIcon } from '@/components/icons'
+import { createIn, renameEntry, trashEntry } from './fileActions'
 
 export const FileExplorer = memo(function FileExplorer({
   workspacePath,
@@ -42,7 +44,7 @@ export const FileExplorer = memo(function FileExplorer({
               useFilesStore.getState().setRespectGitignore(workspacePath, !respectGitignore)
             }
           >
-            <GitIgnoreIcon />
+            <BranchIcon size={12} />
           </IconToggle>
         </div>
       </div>
@@ -189,38 +191,6 @@ function ExplorerRow({
   )
 }
 
-async function createIn(
-  workspacePath: string,
-  entry: DirEntry,
-  kind: 'file' | 'folder',
-): Promise<void> {
-  const dir = entry.isDirectory ? entry.path : entry.path.slice(0, entry.path.lastIndexOf('/'))
-  const name = window.prompt(`New ${kind} name`)
-  if (!name) return
-  const target = `${dir}/${name}`
-  if (kind === 'file') await window.pidex.invoke('fs:createFile', target)
-  else await window.pidex.invoke('fs:createDir', target)
-  const store = useFilesStore.getState()
-  await store.refreshDir(workspacePath, dir)
-  if (kind === 'file') await store.openFile(workspacePath, target)
-}
-
-async function renameEntry(workspacePath: string, entry: DirEntry): Promise<void> {
-  const name = window.prompt('New name', entry.name)
-  if (!name || name === entry.name) return
-  const dir = entry.path.slice(0, entry.path.lastIndexOf('/'))
-  await window.pidex.invoke('fs:rename', entry.path, `${dir}/${name}`)
-  await useFilesStore.getState().refreshDir(workspacePath, dir)
-}
-
-async function trashEntry(workspacePath: string, entry: DirEntry): Promise<void> {
-  await window.pidex.invoke('fs:trash', entry.path)
-  const dir = entry.path.slice(0, entry.path.lastIndexOf('/'))
-  const store = useFilesStore.getState()
-  store.closeFile(workspacePath, entry.path)
-  await store.refreshDir(workspacePath, dir)
-}
-
 function IconToggle({
   title,
   active,
@@ -296,24 +266,6 @@ function EyeIcon(): React.JSX.Element {
     >
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
       <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function GitIgnoreIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="6" cy="18" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <path d="M6 8.5v7M18 8.5a9 9 0 0 1-9 9" />
     </svg>
   )
 }

@@ -9,10 +9,12 @@ import { relativeTimeShort as relativeTime } from '@/lib/time'
 
 export { relativeTimeShort as relativeTime } from '@/lib/time'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { Spinner } from '@/features/chat/tools/ToolCard'
+import { ChevronIcon, Spinner } from '@/components/icons'
 import { TreeViewModal } from './TreeViewModal'
-import { useSettingsUiStore } from '@/features/settings/SettingsModal'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
+import { workspaceName } from '@/lib/path'
+import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 
 interface GroupedSessions {
   workspacePath: string
@@ -85,7 +87,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
         return {
           workspacePath: path,
-          name: path.split(/[/\\]/).filter(Boolean).pop() ?? path,
+          name: workspaceName(path),
           metas,
           liveCount,
         }
@@ -174,17 +176,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
               >
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className={clsx('transition-transform', !isCollapsed && 'rotate-90')}
-                >
-                  <path d="m9 6 6 6-6 6" />
-                </svg>
+                <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
                 <span className="min-w-0 flex-1 truncate">{group.name}</span>
                 {group.liveCount > 0 && (
                   <span
@@ -232,7 +224,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const currentPath = useActiveWorkspace()
   const recents = useWorkspacesStore((s) => s.recents)
   const [open, setOpen] = useState(false)
-  const name = currentPath?.split(/[/\\]/).filter(Boolean).pop() ?? 'Workspace'
+  const name = currentPath ? workspaceName(currentPath) : 'Workspace'
 
   return (
     <div className="relative px-3 pb-2 pt-1">
@@ -326,7 +318,7 @@ function SessionRow({
   const title = meta.name || meta.firstUserText || 'Untitled session'
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
-  const workspaceName = (meta.cwd || workspacePath).split(/[/\\]/).filter(Boolean).pop()
+  const rowWorkspaceName = workspaceName(meta.cwd || workspacePath)
 
   const open = (): void => {
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
@@ -344,7 +336,7 @@ function SessionRow({
       {
         label: 'Rename…',
         separatorAbove: true,
-        onClick: () => void renameSession(workspacePath, meta, livePidexId),
+        onClick: () => void renameSidebarSession(workspacePath, meta, livePidexId),
       },
       {
         label: 'Fork (new branch session)',
@@ -356,7 +348,7 @@ function SessionRow({
       },
       {
         label: 'Export HTML…',
-        onClick: () => void exportSession(workspacePath, meta, livePidexId),
+        onClick: () => void exportSidebarSession(workspacePath, meta, livePidexId),
       },
       {
         label: 'Delete (move to trash)',
@@ -372,7 +364,7 @@ function SessionRow({
       onClick={open}
       onContextMenu={contextMenu}
       data-testid="session-row"
-      data-workspace={workspaceName}
+      data-workspace={rowWorkspaceName}
       className={clsx(
         'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
@@ -394,13 +386,13 @@ function SessionRow({
           {meta.branchCount > 0 && ` · ${meta.branchCount + 1} branches`}
         </span>
       </span>
-      {showWorkspace && workspaceName && (
+      {showWorkspace && rowWorkspaceName && (
         <span
           data-testid="session-workspace-badge"
           title={meta.cwd || workspacePath}
           className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-[9.5px] font-medium"
         >
-          {workspaceName}
+          {rowWorkspaceName}
         </span>
       )}
       {unreadCount > 0 && !active && (
@@ -413,58 +405,7 @@ function SessionRow({
   )
 }
 
-async function renameSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  const name = window.prompt('Session name', meta.name ?? '')
-  if (!name) return
-  const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  const response = await window.pidex.piCommand(pidexId, { type: 'set_session_name', name })
-  if (response.success) {
-    useChatStore.getState().patchMeta(pidexId, { sessionName: name })
-    void store.refreshDisk(workspacePath)
-  }
-}
-
-async function cloneSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  if (livePidexId) {
-    const response = await window.pidex.piCommand(livePidexId, { type: 'clone' })
-    if (response.success && response.data?.cancelled) {
-      useChatStore.getState().setError(livePidexId, 'Clone was cancelled by an extension.')
-      return
-    }
-    void useSessionsStore.getState().refreshDisk(workspacePath)
-  } else {
-    await useSessionsStore.getState().createSession(workspacePath, { forkFrom: meta.path })
-  }
-}
-
-async function exportSession(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePidexId?: string,
-): Promise<void> {
-  const outputPath = await window.pidex.invoke('app:saveDialog', {
-    title: 'Export session as HTML',
-    defaultPath: `${meta.name ?? 'session'}.html`,
-    filters: [{ name: 'HTML', extensions: ['html'] }],
-  })
-  if (!outputPath) return
-  const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  const response = await window.pidex.piCommand(pidexId, { type: 'export_html', outputPath })
-  if (response.success && response.data) {
-    await window.pidex.invoke('app:revealPath', response.data.path)
-  }
-}
-
+/** Rename a disk or live session, then refresh the sidebar listing. */
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider">

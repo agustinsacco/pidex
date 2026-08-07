@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { useTerminalStore, workspaceTerminals } from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
+import { CloseIcon } from '@/components/icons'
 
 /** Terminal pane: tab strip in the shell title, "+" as a pane action. */
 export const TerminalPane = memo(function TerminalPane({
@@ -79,16 +80,7 @@ export const TerminalPane = memo(function TerminalPane({
                   }}
                   className="text-text-tertiary hover:text-text hidden group-hover:block"
                 >
-                  <svg
-                    width="9"
-                    height="9"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  >
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
+                  <CloseIcon size={9} strokeWidth={3} />
                 </button>
               </div>
             ))}

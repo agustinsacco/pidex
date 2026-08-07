@@ -44,7 +44,7 @@ export interface PiSpawnOptions {
   env?: Record<string, string>
 }
 
-export interface PiRpcClientEvents {
+interface PiRpcClientEvents {
   /** Any protocol event from pi stdout (not responses, not extension UI). */
   event: [PiEvent]
   /** Extension UI request needing user interaction or display. */
