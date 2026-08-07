@@ -2,37 +2,41 @@
 @import 'katex/dist/katex.min.css';
 
 /* ---------------------------------------------------------------------------
- * pidex design tokens
- * Warm off-white light theme / deep warm dark theme, terracotta accent.
+ * pidex design tokens — the "Phosphor" system (specs/STYLE_GUIDE.md).
+ * Paper light theme / graphite dark theme, amber-phosphor accent.
  * Every surface in the app (Monaco, xterm, Shiki, Mermaid) reads these vars.
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* Light theme (default) */
-  --px-bg: #faf9f5;
-  --px-bg-secondary: #f4f2ea;
+  /* Light theme (default) — "paper" */
+  --px-bg: #f7f6f2;
+  --px-bg-secondary: #eeece5;
   --px-surface: #ffffff;
   --px-surface-raised: #ffffff;
-  --px-border: #e5e2d7;
-  --px-border-strong: #d5d1c3;
+  --px-border: #e2dfd6;
+  --px-border-strong: #cec9bc;
   /* Composer focus: one small step darker than the resting border, not a
      jump to border-strong. The reference barely moves on focus. */
-  --px-border-focus: #dcd8cb;
-  --px-text: #3d3d3a;
-  --px-text-secondary: #73726c;
-  --px-text-tertiary: #a3a29a;
-  --px-accent: #c96442;
-  --px-accent-hover: #b5583a;
-  --px-accent-soft: #f6e8e2;
+  --px-border-focus: #d8d4c8;
+  --px-text: #2c2a25;
+  --px-text-secondary: #6b675d;
+  --px-text-tertiary: #9b968a;
+  --px-accent: #b35c0f;
+  --px-accent-hover: #9d500b;
+  --px-accent-soft: #f6e9d4;
   --px-accent-text: #ffffff;
-  --px-success: #5a8a5e;
-  --px-warning: #b58a3d;
-  --px-danger: #b5483d;
-  --px-danger-soft: #f8e9e7;
-  --px-info: #4a7a9b;
-  --px-user-bubble: #f0eee4;
-  --px-code-bg: #f6f5ef;
-  --px-scrollbar: #d5d1c3;
+  --px-success: #4c8a54;
+  --px-warning: #a8842e;
+  --px-danger: #bb4a3c;
+  --px-danger-soft: #f8e8e4;
+  --px-info: #47708f;
+  --px-user-bubble: #efece2;
+  --px-code-bg: #f2f0e9;
+  --px-scrollbar: #cec9bc;
+  /* Terminal ground: white in light; in dark the terminal sits on --px-bg
+     itself (brand: the terminal is the page, not a card). Must stay in sync
+     with xtermTheme.ts backgrounds. */
+  --px-terminal-bg: #ffffff;
 
   --px-font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
@@ -52,28 +56,31 @@
 }
 
 .dark {
-  --px-bg: #262624;
-  --px-bg-secondary: #2d2d2b;
-  --px-surface: #30302e;
-  --px-surface-raised: #383836;
-  --px-border: #3e3e3a;
-  --px-border-strong: #4e4e48;
-  --px-border-focus: #4a4a45;
-  --px-text: #e8e6df;
-  --px-text-secondary: #a6a49c;
-  --px-text-tertiary: #737169;
-  --px-accent: #d97757;
-  --px-accent-hover: #e08a6d;
-  --px-accent-soft: #453832;
-  --px-accent-text: #ffffff;
-  --px-success: #7fae83;
-  --px-warning: #cfa75e;
-  --px-danger: #d3766c;
-  --px-danger-soft: #443230;
-  --px-info: #7aa3c0;
-  --px-user-bubble: #383632;
-  --px-code-bg: #2b2b29;
-  --px-scrollbar: #4e4e48;
+  /* Dark theme — "phosphor". NOTE: --px-accent-text flips to dark ink here;
+     white on amber fails contrast (2.2:1). Always use the token pair. */
+  --px-bg: #1e1c18;
+  --px-bg-secondary: #26231e;
+  --px-surface: #2a2721;
+  --px-surface-raised: #322e27;
+  --px-border: #3a352c;
+  --px-border-strong: #4b453a;
+  --px-border-focus: #453f34;
+  --px-text: #ece7db;
+  --px-text-secondary: #aca496;
+  --px-text-tertiary: #7c766a;
+  --px-accent: #eca03d;
+  --px-accent-hover: #f2b158;
+  --px-accent-soft: #3d3220;
+  --px-accent-text: #241503;
+  --px-success: #7fbe88;
+  --px-warning: #d8ab52;
+  --px-danger: #dd7663;
+  --px-danger-soft: #46302a;
+  --px-info: #82a9c9;
+  --px-user-bubble: #2f2b24;
+  --px-code-bg: #24211c;
+  --px-scrollbar: #4b453a;
+  --px-terminal-bg: #1e1c18;
 }
 
 @theme inline {
@@ -141,10 +148,7 @@ body {
 
 /* Terminal surface matches the xterm theme background */
 .terminal-surface {
-  background: #ffffff;
-}
-.dark .terminal-surface {
-  background: #262624;
+  background: var(--px-terminal-bg);
 }
 /**
  * The pane is a flex column, so every wrapper between it and xterm needs
@@ -169,7 +173,7 @@ body {
  * instead so it always matches the surrounding surface.
  */
 .terminal-container .xterm-viewport {
-  background-color: var(--px-surface) !important;
+  background-color: var(--px-terminal-bg) !important;
 }
 .terminal-container .xterm-screen {
   background-color: transparent;
@@ -358,7 +362,7 @@ body {
   margin-left: 1px;
 }
 
-/* The terracotta "working" spark (screenshot style) */
+/* The phosphor "working" spark */
 @keyframes px-pulse-spark {
   0%,
   100% {

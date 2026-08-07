@@ -5,6 +5,8 @@ import { handle } from './handle'
 import { userInfo } from 'node:os'
 import {
   getPrefs,
+  recordWorkspace,
+  setCollapsedWorkspaces,
   setFontPrefs,
   setLastSession,
   setPinnedSessions,
@@ -49,8 +51,16 @@ export function registerAppHandlers(): void {
     setLastSession(sessionPath)
   })
 
+  handle('app:setCollapsedWorkspaces', (_event, paths) => {
+    setCollapsedWorkspaces(paths)
+  })
+
+  handle('app:recordWorkspace', (_event, path: string) => {
+    recordWorkspace(path, basename(path))
+  })
+
   handle('app:resumeTarget', async () => {
-    const { lastSessionPath, lastWorkspacePath } = getPrefs()
+    const { lastSessionPath, lastWorkspacePath, recentWorkspaces } = getPrefs()
 
     // Prefer the exact session, but only if BOTH it and its workspace still
     // exist — a session file whose folder was deleted can't be resumed.
@@ -70,6 +80,15 @@ export function registerAppHandlers(): void {
 
     if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
       return { kind: 'workspace' as const, workspacePath: lastWorkspacePath }
+    }
+
+    // Fall back to the newest recent that still exists — the picker should
+    // only ever appear on a true first run, not because lastWorkspacePath
+    // went stale or was never written.
+    for (const ws of [...recentWorkspaces].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)) {
+      if (await pathExists(ws.path)) {
+        return { kind: 'workspace' as const, workspacePath: ws.path }
+      }
     }
 
     return { kind: 'none' as const }

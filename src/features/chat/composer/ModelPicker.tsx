@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import clsx from 'clsx'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { CheckIcon } from '@/components/icons'
 import { piCallOk } from '@/lib/rpc'
+import { ModelMenu } from './ModelMenu'
 
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
@@ -18,16 +19,6 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
-
-  const grouped = useMemo(() => {
-    const byProvider = new Map<string, Model[]>()
-    for (const model of models) {
-      const list = byProvider.get(model.provider) ?? []
-      list.push(model)
-      byProvider.set(model.provider, list)
-    }
-    return [...byProvider.entries()]
-  }, [models])
 
   if (!meta) return null
   const currentModel = meta.model
@@ -77,40 +68,17 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       )}
 
       {open === 'model' && (
-        <PopupMenu
+        <ModelMenu
+          models={models}
+          isCurrent={(m) => currentModel?.id === m.id && currentModel.provider === m.provider}
+          onPick={(m) => {
+            const model = models.find((x) => x.id === m.id && x.provider === m.provider)
+            if (model) void setModel(model)
+          }}
           onClose={() => setOpen(null)}
-          className="absolute bottom-full right-0 mb-2 max-h-80 w-72 overflow-y-auto py-1.5"
-        >
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Models</div>
-          {grouped.map(([provider, providerModels]) => (
-            <div key={provider}>
-              {grouped.length > 1 && (
-                <div className="text-text-tertiary px-3 pt-2 pb-0.5 text-[10.5px] uppercase tracking-wide">
-                  {provider}
-                </div>
-              )}
-              {providerModels.map((model) => {
-                const active =
-                  currentModel?.id === model.id && currentModel.provider === model.provider
-                return (
-                  <MenuRow
-                    key={`${model.provider}/${model.id}`}
-                    active={false}
-                    onClick={() => void setModel(model)}
-                  >
-                    <span className="flex-1 truncate">{model.name || model.id}</span>
-                    {active && <CheckIcon className="text-text" />}
-                  </MenuRow>
-                )
-              })}
-            </div>
-          ))}
-          {models.length === 0 && (
-            <div className="text-text-tertiary px-3 py-2 text-[12px]">
-              No models configured — sign in via the terminal (`pi /login`) or add API keys.
-            </div>
-          )}
-        </PopupMenu>
+          emptyText="No models configured — sign in via the terminal (`pi /login`) or add API keys."
+          className="absolute bottom-full right-0 mb-2 w-72"
+        />
       )}
 
       {open === 'thinking' && (

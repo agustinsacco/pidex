@@ -28,8 +28,9 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
         Chart.register(...registerables)
         if (disposed || !canvasRef.current) return
 
-        const textColor = resolvedTheme === 'dark' ? '#a6a49c' : '#73726c'
-        const gridColor = resolvedTheme === 'dark' ? '#3e3e3a' : '#e5e2d7'
+        // Phosphor text-secondary / border (specs/STYLE_GUIDE.md).
+        const textColor = resolvedTheme === 'dark' ? '#aca496' : '#6b675d'
+        const gridColor = resolvedTheme === 'dark' ? '#3a352c' : '#e2dfd6'
         Chart.defaults.color = textColor
         Chart.defaults.borderColor = gridColor
         Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif'

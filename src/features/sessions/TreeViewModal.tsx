@@ -265,7 +265,7 @@ export function TreeViewModal({
                         <div className="flex items-center gap-1">
                           <span
                             className={clsx(
-                              'text-[8.5px] font-bold uppercase tracking-wider',
+                              'text-[8.5px] font-bold font-mono uppercase tracking-wider',
                               node.kind === 'user' && 'text-info',
                               node.kind === 'summary' && 'text-accent',
                               node.kind === 'compaction' && 'text-warning',
@@ -281,7 +281,7 @@ export function TreeViewModal({
                                   : 'point'}
                           </span>
                           {node.isLeaf && (
-                            <span className="text-accent text-[8.5px] font-bold uppercase tracking-wider">
+                            <span className="text-accent text-[8.5px] font-bold font-mono uppercase tracking-wider">
                               · current
                             </span>
                           )}
@@ -348,7 +348,7 @@ export function TreeViewModal({
         {selected && (
           <div className="border-border bg-surface-raised absolute bottom-4 right-4 w-96 rounded-xl border p-4 shadow-xl">
             <div className="flex items-start justify-between gap-2">
-              <div className="text-[11px] font-semibold uppercase tracking-wide">
+              <div className="text-[11px] font-semibold font-mono uppercase tracking-wide">
                 {selected.kind === 'user' ? 'User message' : selected.kind}
                 {selected.isLeaf && <span className="text-accent"> · current position</span>}
               </div>

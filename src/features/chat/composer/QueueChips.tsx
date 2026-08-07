@@ -47,7 +47,7 @@ function QueueChip({
           : 'bg-info/10 text-info border-info/25 flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] transition-opacity hover:opacity-80'
       }
     >
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide">
+      <span className="shrink-0 text-[10px] font-semibold font-mono uppercase tracking-wide">
         {steer ? 'Steer' : 'Follow-up'}
       </span>
       <span className="truncate">{text}</span>

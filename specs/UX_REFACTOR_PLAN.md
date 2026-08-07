@@ -51,7 +51,14 @@ register the terminal toggle as `⌘\`` *and* `⌃\``.
 
 Files: `src/app/App.tsx` → new `src/app/useGlobalShortcuts.ts`.
 
-### A3 · Sidebar top nav is missing entirely — **P1**
+### A3 · Sidebar top nav is missing entirely — **P1** · **shipped (partial, `874730c`)**
+
+> **Outcome (2026-08-07):** **New** and **Artifacts** shipped as flat
+> icon+label nav rows (`NavRow` in `Sidebar.tsx`) — the bordered "New
+> session" button is gone, and New routes to the home screen. The
+> **Home/Code segmented toggle** and the collapsible **More** row did not
+> ship and remain open; Routines/Customize were dropped as planned. The
+> original item text follows for the reference details.
 
 Reference (`home-light`, `chat-tool-calls`) shows above the session list:
 

@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { piAgentDir } from './pi-paths'
+import { type CatalogueModel } from './model-catalogue'
 
 export interface PiAgentSettings {
   hideThinkingBlock?: boolean
@@ -127,25 +128,18 @@ export async function patchAgentSettings(
 }
 
 /** One selectable model, as recorded in pi's models.json. */
-export interface CatalogueModel {
-  id: string
-  name: string
-  provider: string
-  reasoning: boolean
-}
+export type { CatalogueModel } from './model-catalogue'
 
 /**
- * Models readable without a live pi process, for the home screen's picker.
+ * models.json-only view: what the *user* declared in pi's config.
  *
- * A session's own picker uses the `get_available_models` RPC, which is
- * authoritative. Nothing is running before the first prompt, so this reads
- * pi's models.json directly. It therefore lists what the user configured,
- * not any provider pi builds in — the session picker fills those in once the
- * session starts.
+ * This misses pi's built-in providers, so it is the fallback rather than the
+ * primary source — see `resolveCatalogueModels()` in model-catalogue.ts, which
+ * prefers `pi --list-models`. Kept separate so it stays hermetically testable
+ * against a fixture models.json, with no dependency on a pi binary.
  *
  * `reasoning` comes from the provider's `compat.supportsReasoningEffort`,
- * defaulting to false so a thinking control is only offered when the config
- * says the provider supports it.
+ * defaulting to true, because models.json carries no per-model signal.
  */
 export async function listCatalogueModels(): Promise<CatalogueModel[]> {
   const read = await readJson(join(piAgentDir(), 'models.json'))

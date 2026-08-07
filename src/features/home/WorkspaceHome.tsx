@@ -4,10 +4,11 @@ import type { GitInfo, WorkspaceSessionStats } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
+import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { formatTokens } from '@/lib/format'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
-import { BranchIcon, CheckIcon, Spinner } from '@/components/icons'
+import { BranchIcon, CheckIcon } from '@/components/icons'
 import { bytesToBase64 } from '@/lib/base64'
 
 interface PendingImage {
@@ -48,18 +49,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     for (const file of files) void addImageFile(file)
   }
 
-  /** Native file chooser for the "+" button (paste and drop also work). */
-  const pickImages = (): void => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.multiple = true
-    input.onchange = () => {
-      for (const file of [...(input.files ?? [])]) void addImageFile(file)
-    }
-    input.click()
-  }
-
   useEffect(() => {
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
     void window.pidex.invoke('git:info', workspacePath).then(setGit)
@@ -94,7 +83,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       <div className="titlebar-drag h-11 shrink-0" />
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
         <div className="w-full max-w-2xl pt-10">
-          <h1 className="text-center font-serif text-[30px] font-medium tracking-tight">
+          <h1 className="text-center text-[28px] font-semibold tracking-tight">
             <span className="text-accent mr-2">✳</span>
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
@@ -172,31 +161,19 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             {/* Footer mirrors the chat composer: attachments on the left,
                 model + thinking on the right, submit at the far right. */}
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
-              <button
-                onClick={() => void pickImages()}
-                aria-label="Attach images"
-                title="Attach images"
-                className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
+              <AttachButton
+                onFiles={(files) => {
+                  for (const file of files) void addImageFile(file)
+                }}
+              />
 
               <div className="flex shrink-0 items-center gap-0.5">
                 <HomeModelPicker />
-                <SubmitButton
-                  starting={starting}
+                <SubmitIconButton
+                  busy={starting}
                   disabled={!text.trim()}
                   onClick={() => void start()}
+                  label={starting ? 'Starting session' : 'Start session'}
                 />
               </div>
             </div>
@@ -207,48 +184,12 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   )
 }
 
-function SubmitButton({
-  starting,
-  disabled,
-  onClick,
-}: {
-  starting: boolean
-  disabled: boolean
-  onClick: () => void
-}): React.JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled || starting}
-      aria-label={starting ? 'Starting session' : 'Start session'}
-      title="Start session (⏎)"
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
-    >
-      {starting ? (
-        <Spinner className="text-current" />
-      ) : (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M9 10 4 15l5 5" />
-          <path d="M20 4v7a4 4 0 0 1-4 4H4" />
-        </svg>
-      )}
-    </button>
-  )
-}
-
 function StatTile({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
     <div className="bg-surface border-border rounded-lg border px-3 py-2.5">
-      <div className="text-text-tertiary text-[11px]">{label}</div>
+      <div className="text-text-tertiary font-mono text-[10px] uppercase tracking-wider">
+        {label}
+      </div>
       <div className="text-text mt-0.5 text-[17px] font-semibold tabular-nums">{value}</div>
     </div>
   )
@@ -287,7 +228,7 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
               style={
                 cell.count > 0
                   ? {
-                      backgroundColor: `color-mix(in srgb, var(--px-info) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)`,
+                      backgroundColor: `color-mix(in srgb, var(--px-accent) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)`,
                     }
                   : undefined
               }
@@ -524,7 +465,7 @@ function WorkspaceChip({
           onClose={() => setOpen(false)}
           className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Recent
           </div>
           {recents.map((ws) => (

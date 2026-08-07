@@ -83,6 +83,13 @@ export interface IpcInvokeMap {
   }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
+  'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
+  /**
+   * Persist "this workspace is now the home target": bumps it in recents and
+   * records it as lastWorkspacePath so the next launch lands here even if no
+   * session is ever created.
+   */
+  'app:recordWorkspace': { args: [path: string]; result: void }
   'app:userInfo': { args: []; result: { username: string } }
   'app:about': { args: []; result: AboutInfo }
   'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
@@ -114,6 +121,7 @@ export interface IpcInvokeMap {
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
+  'sessions:unwatch': { args: [workspacePath: string]; result: void }
   'sessions:delete': { args: [sessionFilePath: string]; result: void }
   'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
   'sessions:appendLabel': {

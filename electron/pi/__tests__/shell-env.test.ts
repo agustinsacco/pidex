@@ -17,7 +17,12 @@ vi.mock('node:child_process', () => ({
   }),
 }))
 
-import { getLoginShellPath, piProcessEnv, resetShellPathCache } from '../shell-env'
+import {
+  getLoginShellEnv,
+  getLoginShellPath,
+  piProcessEnv,
+  resetShellPathCache,
+} from '../shell-env'
 
 const ORIGINAL_PLATFORM = process.platform
 const ORIGINAL_ENV = { ...process.env }
@@ -172,5 +177,86 @@ describe('piProcessEnv', () => {
     process.env.SOME_MARKER = 'marker-value'
     shellReturns('/usr/bin')
     expect((await piProcessEnv()).SOME_MARKER).toBe('marker-value')
+  })
+})
+
+/** NUL-delimited `env -0` output from a fixture map. */
+function envRecords(vars: Record<string, string>): string {
+  return (
+    Object.entries(vars)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\0') + '\0'
+  )
+}
+
+describe('getLoginShellEnv', () => {
+  it('imports allowlisted provider vars', async () => {
+    shellReturns(envRecords({ AWS_PROFILE: 'dev', ANTHROPIC_API_KEY: 'sk-ant' }))
+    expect(await getLoginShellEnv()).toEqual({ AWS_PROFILE: 'dev', ANTHROPIC_API_KEY: 'sk-ant' })
+  })
+
+  it('drops vars outside the allowlist', async () => {
+    shellReturns(
+      envRecords({ AWS_REGION: 'us-east-1', SECRET_DIARY: 'no', ELECTRON_RUN_AS_NODE: '1' }),
+    )
+    const env = await getLoginShellEnv()
+    expect(env).toEqual({ AWS_REGION: 'us-east-1' })
+  })
+
+  it('preserves values containing newlines', async () => {
+    shellReturns(envRecords({ GOOGLE_APPLICATION_CREDENTIALS: '{\n  "a": 1\n}' }))
+    expect((await getLoginShellEnv()).GOOGLE_APPLICATION_CREDENTIALS).toBe('{\n  "a": 1\n}')
+  })
+
+  it('ignores rc-file chatter before the first record', async () => {
+    shellReturns('welcome to your shell\n' + envRecords({ AWS_PROFILE: 'dev' }))
+    expect(await getLoginShellEnv()).toEqual({ AWS_PROFILE: 'dev' })
+  })
+
+  it('returns {} when the shell prints nothing parseable', async () => {
+    shellReturns('/opt/homebrew/bin:/usr/bin')
+    expect(await getLoginShellEnv()).toEqual({})
+  })
+
+  it('returns {} when every shell form fails', async () => {
+    execFileMock.mockImplementation((...args: unknown[]) => {
+      ;(args[args.length - 1] as (e: Error) => void)(new Error('nope'))
+    })
+    expect(await getLoginShellEnv()).toEqual({})
+  })
+
+  it('spawns no shell on Windows', async () => {
+    setPlatform('win32')
+    expect(await getLoginShellEnv()).toEqual({})
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
+
+  it('caches, sharing one in-flight resolution between callers', async () => {
+    shellReturns(envRecords({ AWS_PROFILE: 'dev' }))
+    const [a, b] = await Promise.all([getLoginShellEnv(), getLoginShellEnv()])
+    expect(a).toEqual(b)
+    expect(execFileMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('piProcessEnv provider credentials', () => {
+  it('supplies shell credentials a GUI launch did not inherit', async () => {
+    delete process.env.AWS_PROFILE
+    shellReturns(envRecords({ AWS_PROFILE: 'dev', AWS_REGION: 'eu-central-1' }))
+    const env = await piProcessEnv()
+    expect(env.AWS_PROFILE).toBe('dev')
+    expect(env.AWS_REGION).toBe('eu-central-1')
+  })
+
+  it('does not override a value already in the inherited env', async () => {
+    process.env.AWS_PROFILE = 'inherited'
+    shellReturns(envRecords({ AWS_PROFILE: 'from-profile' }))
+    expect((await piProcessEnv()).AWS_PROFILE).toBe('inherited')
+  })
+
+  it('still lets explicit extra vars win over the shell', async () => {
+    delete process.env.AWS_REGION
+    shellReturns(envRecords({ AWS_REGION: 'eu-central-1' }))
+    expect((await piProcessEnv({ AWS_REGION: 'us-east-1' })).AWS_REGION).toBe('us-east-1')
   })
 })

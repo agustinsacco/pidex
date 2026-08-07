@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { ThinkingLevel } from '@shared/rpc'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 
 const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
@@ -50,21 +51,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
     })
   }, [])
 
-  const grouped = useMemo(() => {
-    const byProvider = new Map<string, CatalogueModel[]>()
-    for (const model of models) {
-      const list = byProvider.get(model.provider) ?? []
-      list.push(model)
-      byProvider.set(model.provider, list)
-    }
-    return [...byProvider.entries()]
-  }, [models])
-
   const current = models.find((m) => m.id === modelId && m.provider === provider)
-
-  // No configured models means nothing meaningful to pick between; the chat
-  // composer's picker still covers the live case.
-  if (models.length === 0) return null
 
   const chooseModel = (model: CatalogueModel): void => {
     setOpen(null)
@@ -115,31 +102,17 @@ export function HomeModelPicker(): React.JSX.Element | null {
       )}
 
       {open === 'model' && (
-        <PopupMenu
+        <ModelMenu
+          models={models}
+          isCurrent={(m) => m.id === modelId && m.provider === provider}
+          onPick={(m) => {
+            const model = models.find((x) => x.id === m.id && x.provider === m.provider)
+            if (model) chooseModel(model)
+          }}
           onClose={() => setOpen(null)}
-          className="absolute bottom-full right-0 mb-2 max-h-80 w-72 overflow-y-auto py-1.5"
-        >
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Models</div>
-          {grouped.map(([providerName, providerModels]) => (
-            <div key={providerName}>
-              {grouped.length > 1 && (
-                <div className="text-text-tertiary px-3 pb-0.5 pt-2 text-[10.5px] uppercase tracking-wide">
-                  {providerName}
-                </div>
-              )}
-              {providerModels.map((model) => (
-                <MenuRow
-                  key={`${model.provider}/${model.id}`}
-                  active={false}
-                  onClick={() => chooseModel(model)}
-                >
-                  <span className="flex-1 truncate">{model.name}</span>
-                  {model.id === modelId && model.provider === provider && <Check />}
-                </MenuRow>
-              ))}
-            </div>
-          ))}
-        </PopupMenu>
+          emptyText="No models found in pi's models.json. The next session starts with pi's default model — you can switch in the session composer once it's running."
+          className="absolute bottom-full right-0 mb-2 w-72"
+        />
       )}
 
       {open === 'thinking' && (
