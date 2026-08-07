@@ -19,6 +19,52 @@ const execFileAsync = promisify(execFile)
 
 let cachedPath: string | null = null
 let inFlight: Promise<string | null> | null = null
+let cachedShellEnv: Record<string, string> | null = null
+let envInFlight: Promise<Record<string, string>> | null = null
+
+/**
+ * Env vars worth importing from the login shell, by prefix.
+ *
+ * A GUI launch inherits a minimal environment, so provider credentials the
+ * user exported from their shell profile (`AWS_PROFILE`, `ANTHROPIC_API_KEY`,
+ * ...) are simply absent. pi then fails to authenticate in a packaged build
+ * while working fine under `npm run dev`, which inherits the terminal. This is
+ * the same class of bug as the PATH problem above, and needs the same fix.
+ *
+ * An allowlist rather than a wholesale env import on purpose: copying every
+ * shell variable would clobber Electron's own runtime vars and leak unrelated
+ * shell state into the subprocess.
+ */
+const FORWARDED_ENV_PREFIXES = [
+  'AWS_', // Bedrock: profile, region, keys, endpoint + cache overrides
+  'ANTHROPIC_',
+  'OPENAI_',
+  'AZURE_',
+  'GEMINI_',
+  'GOOGLE_',
+  'VERTEX_',
+  'CLOUDFLARE_',
+  'GROQ_',
+  'MISTRAL_',
+  'CEREBRAS_',
+  'XAI_',
+  'OPENROUTER_',
+  'BASETEN_',
+  'FIREWORKS_',
+  'QWEN_',
+  'PI_', // pi's own knobs, e.g. PI_CACHE_RETENTION
+]
+
+/** Exact names with no useful shared prefix. */
+const FORWARDED_ENV_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY']
+
+function isForwardedEnvName(name: string): boolean {
+  const upper = name.toUpperCase()
+  return (
+    FORWARDED_ENV_NAMES.includes(upper) ||
+    FORWARDED_ENV_PREFIXES.some((prefix) => upper.startsWith(prefix))
+  )
+}
 
 /** The user's login-shell PATH, or null when it can't be determined. */
 export async function getLoginShellPath(): Promise<string | null> {
@@ -58,14 +104,87 @@ async function resolveLoginShellPath(): Promise<string | null> {
 }
 
 /**
+ * Allowlisted provider/proxy vars exported by the user's login shell.
+ *
+ * Returns an empty object on Windows (GUI processes inherit the user
+ * environment there) and whenever the shell can't be probed.
+ */
+export async function getLoginShellEnv(): Promise<Record<string, string>> {
+  if (cachedShellEnv !== null) return cachedShellEnv
+  if (envInFlight) return envInFlight
+
+  envInFlight = resolveLoginShellEnv()
+    .then((value) => {
+      cachedShellEnv = value
+      return value
+    })
+    .finally(() => {
+      envInFlight = null
+    })
+  return envInFlight
+}
+
+async function resolveLoginShellEnv(): Promise<Record<string, string>> {
+  if (process.platform === 'win32') return {}
+
+  const shell = process.env.SHELL || '/bin/zsh'
+  for (const args of [
+    ['-lic', 'env -0'],
+    ['-lc', 'env -0'],
+  ]) {
+    try {
+      const { stdout } = await execFileAsync(shell, args, {
+        timeout: 15_000,
+        // Credentials are small, but rc-file chatter is unbounded.
+        maxBuffer: 4 * 1024 * 1024,
+      })
+      const parsed = parseNulEnv(stdout)
+      if (Object.keys(parsed).length > 0) return parsed
+    } catch {
+      // try the next form
+    }
+  }
+  return {}
+}
+
+/**
+ * Parse NUL-delimited `KEY=VALUE` records from `env -0`.
+ *
+ * NUL delimiting matters: values may legally contain newlines, so a
+ * line-oriented parse would split one variable into several bogus ones.
+ */
+function parseNulEnv(stdout: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const record of stdout.split('\0')) {
+    const eq = record.indexOf('=')
+    if (eq <= 0) continue
+    // rc-file chatter fuses into the first record ('hello\nAWS_PROFILE=dev'),
+    // so keep only what follows the last newline in the key.
+    const rawName = record.slice(0, eq)
+    const newline = rawName.lastIndexOf('\n')
+    const name = newline === -1 ? rawName : rawName.slice(newline + 1)
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue
+    if (!isForwardedEnvName(name)) continue
+    result[name] = record.slice(eq + 1)
+  }
+  return result
+}
+
+/**
  * Environment for spawning pi: the caller's env with PATH upgraded to the
- * login shell's, so `#!/usr/bin/env node` resolves under a version manager.
+ * login shell's, so `#!/usr/bin/env node` resolves under a version manager,
+ * plus allowlisted provider credentials the GUI launch didn't inherit.
  */
 export async function piProcessEnv(
   extra?: Record<string, string>,
 ): Promise<Record<string, string>> {
-  const shellPath = await getLoginShellPath()
+  const [shellPath, shellEnv] = await Promise.all([getLoginShellPath(), getLoginShellEnv()])
   const base = { ...process.env } as Record<string, string>
+  // Fill gaps only. An explicitly inherited value is more specific than the
+  // shell profile's, so a terminal launch keeps whatever it was given.
+  for (const [name, value] of Object.entries(shellEnv)) {
+    if (base[name] === undefined) base[name] = value
+  }
   if (shellPath) {
     // Prefer the shell's PATH, keeping any inherited entries as a fallback.
     const inherited = process.env.PATH ?? ''
@@ -83,8 +202,10 @@ function dedupePath(path: string): string {
     .join(':')
 }
 
-/** Test seam: forget the cached PATH. */
+/** Test seam: forget the cached PATH and shell env. */
 export function resetShellPathCache(): void {
   cachedPath = null
   inFlight = null
+  cachedShellEnv = null
+  envInFlight = null
 }
