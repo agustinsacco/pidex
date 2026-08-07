@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { SessionMeta, SessionPush } from '@shared/models'
+import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from './chat'
 
 /**
@@ -30,9 +31,19 @@ interface SessionsState {
 
   hydratePinned: () => Promise<void>
   refreshDisk: (workspacePath: string) => Promise<void>
+  /** Scan many workspaces in parallel (capped); powers the grouped sidebar. */
+  refreshAllDisk: (workspacePaths: string[], limit?: number) => Promise<void>
+  /** Start session-dir watchers for these workspaces (idempotent). */
+  watchWorkspaces: (workspacePaths: string[]) => void
   createSession: (
     workspacePath: string,
-    options?: { sessionPath?: string; forkFrom?: string; name?: string; firstPrompt?: string },
+    options?: {
+      sessionPath?: string
+      forkFrom?: string
+      name?: string
+      firstPrompt?: string
+      firstImages?: ImageContent[]
+    },
   ) => Promise<string>
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
   activate: (sessionId: string | null) => void
@@ -42,6 +53,8 @@ interface SessionsState {
 }
 
 const unsubscribers = new Map<string, () => void>()
+/** Workspaces already being watched, so repeat calls are no-ops. */
+const watchedWorkspaces = new Set<string>()
 
 async function bootstrapSession(pidexId: string): Promise<void> {
   const chat = useChatStore.getState()
@@ -165,6 +178,41 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     set((s) => ({ disk: { ...s.disk, [workspacePath]: metas } }))
   },
 
+  /**
+   * Scan several workspaces at once so the sidebar can list every project's
+   * sessions, not just the active one.
+   *
+   * Capped and parallel: the scanner has an mtime+size cache so warm boots
+   * are cheap, but a cold start with many known folders would otherwise do
+   * unbounded directory walks before first paint. Remaining workspaces load
+   * when their group is expanded.
+   */
+  refreshAllDisk: async (workspacePaths, limit = 8) => {
+    const targets = workspacePaths.slice(0, limit)
+    const results = await Promise.allSettled(
+      targets.map(async (path) => ({
+        path,
+        metas: await window.pidex.invoke('sessions:list', path),
+      })),
+    )
+    set((s) => {
+      const disk = { ...s.disk }
+      for (const result of results) {
+        // A workspace that has been deleted just yields no sessions.
+        if (result.status === 'fulfilled') disk[result.value.path] = result.value.metas
+      }
+      return { disk }
+    })
+  },
+
+  watchWorkspaces: (workspacePaths) => {
+    for (const path of workspacePaths) {
+      if (watchedWorkspaces.has(path)) continue
+      watchedWorkspaces.add(path)
+      void window.pidex.invoke('sessions:watch', path)
+    }
+  },
+
   createSession: async (workspacePath, options = {}) => {
     set({ creating: true })
     try {
@@ -214,9 +262,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       void bootstrapSession(pidexId)
 
       if (options.firstPrompt) {
-        useChatStore.getState().addUserMessage(pidexId, options.firstPrompt)
+        const images = options.firstImages?.length ? options.firstImages : undefined
+        useChatStore.getState().addUserMessage(pidexId, options.firstPrompt, images)
         void window.pidex
-          .piCommand(pidexId, { type: 'prompt', message: options.firstPrompt })
+          .piCommand(pidexId, {
+            type: 'prompt',
+            message: options.firstPrompt,
+            ...(images ? { images } : {}),
+          })
           .then((response) => {
             if (!response.success) useChatStore.getState().setError(pidexId, response.error)
           })

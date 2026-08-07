@@ -1,7 +1,7 @@
 import { memo, useEffect } from 'react'
 import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
-import { useFilesStore } from '@/stores/files'
+import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
 
 export const FileExplorer = memo(function FileExplorer({
@@ -80,8 +80,8 @@ function ExplorerRow({
 }): React.JSX.Element {
   const isExpanded = useFilesStore((s) => s.expanded[entry.path] ?? false)
   const children = useFilesStore((s) => s.entries[entry.path])
-  const gitStatus = useFilesStore((s) => s.gitStatus)
-  const isActive = useFilesStore((s) => s.activePath === entry.path)
+  const gitStatus = useFilesStore((s) => workspaceFiles(s, workspacePath).gitStatus)
+  const isActive = useFilesStore((s) => workspaceFiles(s, workspacePath).activePath === entry.path)
 
   const status = gitStatus[entry.relativePath]
   const statusChar = status?.trim()?.[0]
@@ -217,7 +217,7 @@ async function trashEntry(workspacePath: string, entry: DirEntry): Promise<void>
   await window.pidex.invoke('fs:trash', entry.path)
   const dir = entry.path.slice(0, entry.path.lastIndexOf('/'))
   const store = useFilesStore.getState()
-  store.closeFile(entry.path)
+  store.closeFile(workspacePath, entry.path)
   await store.refreshDir(workspacePath, dir)
 }
 

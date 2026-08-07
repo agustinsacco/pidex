@@ -101,6 +101,11 @@ export interface IpcInvokeMap {
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
+  /** Models from pi's models.json, for pickers with no live session yet. */
+  'pi:catalogueModels': {
+    args: []
+    result: { id: string; name: string; provider: string; reasoning: boolean }[]
+  }
   'pi:readConfigFile': {
     args: [name: 'settings' | 'models']
     result: { path: string; content: string }

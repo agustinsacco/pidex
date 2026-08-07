@@ -373,7 +373,7 @@ export function Composer({
           />
         )}
 
-        <div className="border-border bg-surface focus-within:border-border-strong rounded-xl border shadow-sm transition-colors">
+        <div className="border-border bg-surface hover:border-border-focus focus-within:border-border-focus rounded-xl border shadow-sm transition-colors">
           {images.length > 0 && (
             <div className="flex flex-wrap gap-2 px-3 pt-3">
               {images.map((img, index) => (
@@ -408,7 +408,7 @@ export function Composer({
             onDrop={handleDrop}
             placeholder={placeholder}
             rows={Math.min(10, Math.max(1, text.split('\n').length))}
-            className="text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] outline-none"
+            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] outline-none"
           />
 
           <div className="flex items-center justify-between gap-2 px-2.5 pb-2">

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { useTerminalStore } from '@/stores/terminal'
+import { useTerminalStore, workspaceTerminals } from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
 
@@ -10,8 +10,8 @@ export const TerminalPane = memo(function TerminalPane({
 }: {
   workspacePath: string
 }): React.JSX.Element {
-  const tabs = useTerminalStore((s) => s.tabs)
-  const activeId = useTerminalStore((s) => s.activeId)
+  const tabs = useTerminalStore((s) => workspaceTerminals(s, workspacePath).tabs)
+  const activeId = useTerminalStore((s) => workspaceTerminals(s, workspacePath).activeId)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -24,7 +24,7 @@ export const TerminalPane = memo(function TerminalPane({
   const spawnRequested = useRef(false)
   useEffect(() => {
     if (spawnRequested.current) return
-    if (useTerminalStore.getState().tabs.length > 0) return
+    if (workspaceTerminals(useTerminalStore.getState(), workspacePath).tabs.length > 0) return
     spawnRequested.current = true
     void useTerminalStore.getState().createTab(workspacePath)
   }, [workspacePath])
@@ -45,7 +45,7 @@ export const TerminalPane = memo(function TerminalPane({
                     : 'text-text-tertiary hover:text-text',
                   tab.exited && 'opacity-60',
                 )}
-                onClick={() => useTerminalStore.getState().setActive(tab.ptyId)}
+                onClick={() => useTerminalStore.getState().setActive(workspacePath, tab.ptyId)}
                 onDoubleClick={() => {
                   setRenaming(tab.ptyId)
                   setRenameValue(tab.title)
@@ -58,7 +58,9 @@ export const TerminalPane = memo(function TerminalPane({
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={() => {
                       if (renameValue.trim())
-                        useTerminalStore.getState().renameTab(tab.ptyId, renameValue.trim())
+                        useTerminalStore
+                          .getState()
+                          .renameTab(workspacePath, tab.ptyId, renameValue.trim())
                       setRenaming(null)
                     }}
                     onKeyDown={(e) => {
@@ -73,7 +75,7 @@ export const TerminalPane = memo(function TerminalPane({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    void useTerminalStore.getState().closeTab(tab.ptyId)
+                    void useTerminalStore.getState().closeTab(workspacePath, tab.ptyId)
                   }}
                   className="text-text-tertiary hover:text-text hidden group-hover:block"
                 >
@@ -113,7 +115,12 @@ export const TerminalPane = memo(function TerminalPane({
     >
       <div className="terminal-surface min-h-0 flex-1 p-1.5">
         {tabs.map((tab) => (
-          <TerminalView key={tab.ptyId} ptyId={tab.ptyId} visible={tab.ptyId === activeId} />
+          <TerminalView
+            key={tab.ptyId}
+            ptyId={tab.ptyId}
+            visible={tab.ptyId === activeId}
+            workspacePath={workspacePath}
+          />
         ))}
         {tabs.length === 0 && (
           <div className="text-text-tertiary flex h-full items-center justify-center text-[12.5px]">

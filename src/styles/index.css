@@ -15,6 +15,9 @@
   --px-surface-raised: #ffffff;
   --px-border: #e5e2d7;
   --px-border-strong: #d5d1c3;
+  /* Composer focus: one small step darker than the resting border, not a
+     jump to border-strong. The reference barely moves on focus. */
+  --px-border-focus: #dcd8cb;
   --px-text: #3d3d3a;
   --px-text-secondary: #73726c;
   --px-text-tertiary: #a3a29a;
@@ -55,6 +58,7 @@
   --px-surface-raised: #383836;
   --px-border: #3e3e3a;
   --px-border-strong: #4e4e48;
+  --px-border-focus: #4a4a45;
   --px-text: #e8e6df;
   --px-text-secondary: #a6a49c;
   --px-text-tertiary: #737169;
@@ -79,6 +83,7 @@
   --color-surface-raised: var(--px-surface-raised);
   --color-border: var(--px-border);
   --color-border-strong: var(--px-border-strong);
+  --color-border-focus: var(--px-border-focus);
   --color-text: var(--px-text);
   --color-text-secondary: var(--px-text-secondary);
   --color-text-tertiary: var(--px-text-tertiary);
@@ -446,6 +451,20 @@ button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
 textarea:focus:not(:focus-visible),
 select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/*
+ * Composer fields opt out of the accent ring. The card around them already
+ * signals focus by deepening its own border (grey → stronger grey), which is
+ * what the reference does; an accent outline on top of that read as a loud
+ * orange box around the whole input.
+ *
+ * Scoped to .composer-field rather than all textareas so keyboard focus stays
+ * visible everywhere else (rename fields, settings inputs, Monaco hosts).
+ */
+.composer-field:focus,
+.composer-field:focus-visible {
   outline: none;
 }
 
