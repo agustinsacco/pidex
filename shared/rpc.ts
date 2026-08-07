@@ -393,6 +393,15 @@ export interface RpcResponseDataMap {
   get_commands: { commands: RpcSlashCommand[] }
 }
 
+/**
+ * `RpcResponseDataMap` is maintained by hand alongside the `RpcCommand` union.
+ * These assertions fail to compile if the two ever drift — a missing key or a
+ * stale leftover — instead of surfacing as an `undefined` payload at runtime.
+ */
+type AssertNever<T extends never> = T
+export type _NoMissingResponseKeys = AssertNever<Exclude<RpcCommandType, keyof RpcResponseDataMap>>
+export type _NoExtraResponseKeys = AssertNever<Exclude<keyof RpcResponseDataMap, RpcCommandType>>
+
 // ---------- extension UI sub-protocol ----------
 
 export type ExtensionUIRequest =
@@ -456,6 +465,3 @@ export type ExtensionUIResponse =
   | { type: 'extension_ui_response'; id: string; value: string }
   | { type: 'extension_ui_response'; id: string; confirmed: boolean }
   | { type: 'extension_ui_response'; id: string; cancelled: true }
-
-/** Anything pi can write on stdout: a response, an event, or an extension UI request. */
-export type PiOutbound = RpcResponse | PiEvent | ExtensionUIRequest

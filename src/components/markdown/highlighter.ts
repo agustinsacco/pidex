@@ -22,9 +22,9 @@ const CORE_LANGUAGES = [
   'diff',
 ]
 
-export const SHIKI_THEMES = { light: 'vitesse-light', dark: 'vitesse-dark' } as const
+const SHIKI_THEMES = { light: 'vitesse-light', dark: 'vitesse-dark' } as const
 
-export function getHighlighter(): Promise<Highlighter> {
+function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = import('shiki').then(async (shiki) => {
       const highlighter = await shiki.createHighlighter({

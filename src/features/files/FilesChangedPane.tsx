@@ -3,70 +3,11 @@ import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { openFileInWorkspace } from '@/stores/layout'
-import { editDiffStats, type EditDetails } from '@/features/chat/tools/toolSummaries'
+import { collectTouchedFiles, type TouchedFile } from './collectTouchedFiles'
 import { reconstructOriginal } from './patch'
 import { MonacoDiff } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
-
-interface TouchedFile {
-  relativePath: string
-  created: boolean
-  additions: number
-  deletions: number
-  /** Unified patches in session order (edit tools only). */
-  patches: string[]
-}
-
-/** Aggregate edit/write tool results for the active session into per-file rows. */
-function collectTouchedFiles(
-  tools: Record<
-    string,
-    | {
-        toolName: string
-        status: string
-        args?: Record<string, unknown>
-        result?: { details?: unknown }
-      }
-    | undefined
-  >,
-  workspacePath: string,
-): TouchedFile[] {
-  const byPath = new Map<string, TouchedFile>()
-  for (const tool of Object.values(tools)) {
-    if (!tool || tool.status !== 'done') continue
-    if (tool.toolName !== 'edit' && tool.toolName !== 'write') continue
-    const rawPath = typeof tool.args?.path === 'string' ? tool.args.path : null
-    if (!rawPath) continue
-    const rel = rawPath.startsWith('/')
-      ? rawPath.startsWith(workspacePath + '/')
-        ? rawPath.slice(workspacePath.length + 1)
-        : rawPath
-      : rawPath
-
-    const entry = byPath.get(rel) ?? {
-      relativePath: rel,
-      created: false,
-      additions: 0,
-      deletions: 0,
-      patches: [],
-    }
-    if (tool.toolName === 'write') {
-      entry.created = true
-      const content = typeof tool.args?.content === 'string' ? tool.args.content : ''
-      entry.additions += content ? content.split('\n').length : 0
-    } else {
-      const stats = editDiffStats(tool as never)
-      if (stats) {
-        entry.additions += stats.additions
-        entry.deletions += stats.deletions
-      }
-      const details = tool.result?.details as EditDetails | undefined
-      if (details?.patch) entry.patches.push(details.patch)
-    }
-    byPath.set(rel, entry)
-  }
-  return [...byPath.values()]
-}
+import { basename } from '@/lib/path'
 
 export const FilesChangedPane = memo(function FilesChangedPane({
   workspacePath,
@@ -163,7 +104,7 @@ function FileRow({
   baselineRef: string | null
   onOpen: () => void
 }): React.JSX.Element {
-  const name = file.relativePath.split('/').pop() ?? file.relativePath
+  const name = basename(file.relativePath)
   const dir = file.relativePath.slice(0, file.relativePath.length - name.length)
 
   const revert = async (event: React.MouseEvent): Promise<void> => {

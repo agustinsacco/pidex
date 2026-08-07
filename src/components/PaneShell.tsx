@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { useLayoutStore } from '@/stores/layout'
+import { CloseIcon } from '@/components/icons'
 
 /**
  * Shared chrome for every right-hand pane (Files, Changes, Terminal,
@@ -51,16 +52,7 @@ export const PaneShell = memo(function PaneShell({
           title="Close pane"
           onClick={() => useLayoutStore.getState().setRightPane(null)}
         >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <CloseIcon size={13} />
         </PaneIconButton>
       </div>
       <div className="min-h-0 flex-1">{children}</div>

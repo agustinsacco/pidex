@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useLayoutStore } from './layout'
 
-export interface TerminalTab {
+interface TerminalTab {
   ptyId: string
   title: string
   exited: boolean

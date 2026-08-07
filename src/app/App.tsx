@@ -22,6 +22,7 @@ import { useGlobalShortcuts } from './useGlobalShortcuts'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
+import { workspaceName } from '@/lib/path'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
@@ -72,7 +73,7 @@ export function App(): React.JSX.Element {
 
   // Window title: workspace · session.
   useEffect(() => {
-    const name = currentWorkspace?.split(/[/\\]/).filter(Boolean).pop()
+    const name = currentWorkspace ? workspaceName(currentWorkspace) : undefined
     document.title = name ? `${name} — pidex` : 'pidex'
   }, [currentWorkspace])
 

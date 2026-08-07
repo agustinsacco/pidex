@@ -8,6 +8,8 @@
 import type { RpcCommand, RpcResponse, ExtensionUIResponse, RpcResponseDataMap } from './rpc'
 import type {
   AppPrefs,
+  AboutInfo,
+  AgentSettingsHealth,
   CreateSessionOptions,
   DirEntry,
   FileContent,
@@ -15,6 +17,8 @@ import type {
   GitInfo,
   LiveSessionInfo,
   PiHealth,
+  PiResources,
+  SaveDialogOptions,
   SessionMeta,
   SessionPush,
   ThemePreference,
@@ -80,23 +84,8 @@ export interface IpcInvokeMap {
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:userInfo': { args: []; result: { username: string } }
-  'app:about': {
-    args: []
-    result: {
-      appVersion: string
-      electron: string
-      chrome: string
-      node: string
-      platform: string
-      arch: string
-    }
-  }
-  'app:saveDialog': {
-    args: [
-      { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] },
-    ]
-    result: string | null
-  }
+  'app:about': { args: []; result: AboutInfo }
+  'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
   'app:revealPath': { args: [string]; result: void }
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
@@ -119,17 +108,8 @@ export interface IpcInvokeMap {
     ]
     result: void
   }
-  'pi:checkAgentSettings': {
-    args: [workspacePath?: string]
-    result: {
-      global: { exists: boolean; malformed: boolean; error?: string }
-      project: { exists: boolean; malformed: boolean; error?: string } | null
-    }
-  }
-  'pi:listResources': {
-    args: []
-    result: { skills: string[]; extensions: string[]; prompts: string[] }
-  }
+  'pi:checkAgentSettings': { args: [workspacePath?: string]; result: AgentSettingsHealth }
+  'pi:listResources': { args: []; result: PiResources }
 
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }

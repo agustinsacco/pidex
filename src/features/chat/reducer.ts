@@ -13,210 +13,46 @@ import type {
   AgentMessage,
   AssistantMessage,
   BashExecutionMessage,
-  CompactionReason,
   CustomMessage,
-  ImageContent,
   PiEvent,
-  StopReason,
-  ToolPartialResult,
   ToolResultMessage,
-  Usage,
 } from '@shared/rpc'
+import type {
+  AssistantBlock,
+  AssistantItem,
+  BashItem,
+  ChatSessionState,
+  CustomItem,
+  DividerItem,
+  ToolState,
+  UserItem,
+} from './chatItems'
+import { emptyChatSession, newItemId } from './chatItems'
+import {
+  blocksFromContent,
+  isAssistant,
+  lastAssistantIndex,
+  replaceItem,
+  toolsFromContent,
+  userMessageImages,
+  userMessageText,
+} from './messageContent'
 
-// ---------- item model ----------
-
-export interface UserItem {
-  id: string
-  kind: 'user'
-  text: string
-  images?: ImageContent[]
-  /** True when added locally before pi echoes it back. */
-  optimistic?: boolean
-  /** Unix ms from the AgentMessage, or local time for optimistic items. */
-  timestamp?: number
-}
-
-export type AssistantBlock =
-  | { type: 'text'; index: number; text: string; closed: boolean }
-  | { type: 'thinking'; index: number; text: string; closed: boolean }
-  | { type: 'tool'; index: number; toolCallId: string }
-
-export interface AssistantItem {
-  id: string
-  kind: 'assistant'
-  blocks: AssistantBlock[]
-  streaming: boolean
-  stopReason?: StopReason
-  errorMessage?: string
-  usage?: Usage
-  model?: string
-  /** Unix ms from the AgentMessage. */
-  timestamp?: number
-}
-
-export interface BashItem {
-  id: string
-  kind: 'bash'
-  command: string
-  output: string
-  exitCode: number | null
-  running: boolean
-  truncated: boolean
-  fullOutputPath?: string | null
-  excludeFromContext?: boolean
-}
-
-export interface DividerItem {
-  id: string
-  kind: 'divider'
-  variant: 'compaction' | 'branchSummary' | 'error'
-  summary?: string
-  tokensBefore?: number
-  reason?: CompactionReason
-}
-
-/**
- * Extension-injected message (`custom` / `customMessage` roles).
- * `inContext` mirrors pi's distinction: `custom_message` entries participate
- * in the LLM context, plain `custom` entries are extension state only.
- */
-export interface CustomItem {
-  id: string
-  kind: 'custom'
-  customType?: string
-  text: string
-  images?: ImageContent[]
-  inContext: boolean
-}
-
-export type ChatItem = UserItem | AssistantItem | BashItem | DividerItem | CustomItem
-
-export type ToolStatus = 'starting' | 'running' | 'done' | 'error'
-
-export interface ToolState {
-  toolCallId: string
-  toolName: string
-  /** Final validated args (from tool_execution_start), else parsed-from-stream. */
-  args?: Record<string, unknown>
-  /** Raw streamed JSON args text while the toolcall block is open. */
-  argsText: string
-  status: ToolStatus
-  /** Accumulated partial output; replaced wholesale on every update. */
-  output: ToolPartialResult | null
-  result?: ToolPartialResult
-  isError?: boolean
-  startedAt?: number
-  endedAt?: number
-}
-
-export interface RetryState {
-  attempt: number
-  maxAttempts: number
-  delayMs: number
-  errorMessage: string
-}
-
-export interface ChatSessionState {
-  items: ChatItem[]
-  tools: Record<string, ToolState>
-  isStreaming: boolean
-  isCompacting: boolean
-  queues: { steering: string[]; followUp: string[] }
-  retry: RetryState | null
-  /** Transport-level error (pi crashed / spawn failed). */
-  error: string | null
-}
-
-export const emptyChatSession = (): ChatSessionState => ({
-  items: [],
-  tools: {},
-  isStreaming: false,
-  isCompacting: false,
-  queues: { steering: [], followUp: [] },
-  retry: null,
-  error: null,
-})
-
-let nextId = 1
-export const newItemId = (): string => `ci-${nextId++}`
-
-// ---------- helpers ----------
-
-function isAssistant(message: AgentMessage): message is AssistantMessage {
-  return 'role' in message && message.role === 'assistant'
-}
-
-function lastAssistantIndex(items: ChatItem[]): number {
-  for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i]!.kind === 'assistant') return i
-  }
-  return -1
-}
-
-function replaceItem(items: ChatItem[], index: number, item: ChatItem): ChatItem[] {
-  const next = items.slice()
-  next[index] = item
-  return next
-}
-
-/** Extract plain text from a user message's content. */
-export function userMessageText(message: {
-  content: string | Array<{ type: string; text?: string }>
-}): string {
-  if (typeof message.content === 'string') return message.content
-  return message.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text ?? '')
-    .join('\n')
-}
-
-function userMessageImages(message: {
-  content: string | Array<{ type: string; data?: string; mimeType?: string }>
-}): ImageContent[] | undefined {
-  if (typeof message.content === 'string') return undefined
-  const images = message.content
-    .filter((b) => b.type === 'image' && typeof b.data === 'string')
-    .map((b) => ({ type: 'image' as const, data: b.data!, mimeType: b.mimeType ?? 'image/png' }))
-  return images.length > 0 ? images : undefined
-}
-
-/** Build assistant blocks from a final AssistantMessage content array. */
-function blocksFromContent(message: AssistantMessage): AssistantBlock[] {
-  return message.content.map((block, index) => {
-    if (block.type === 'text')
-      return { type: 'text' as const, index, text: block.text, closed: true }
-    if (block.type === 'thinking')
-      return { type: 'thinking' as const, index, text: block.thinking, closed: true }
-    return { type: 'tool' as const, index, toolCallId: block.id }
-  })
-}
-
-/** Merge tool states out of a final assistant message (ids/names/args). */
-function toolsFromContent(
-  message: AssistantMessage,
-  tools: Record<string, ToolState>,
-): Record<string, ToolState> {
-  let next = tools
-  for (const block of message.content) {
-    if (block.type !== 'toolCall') continue
-    const existing = next[block.id]
-    if (existing && existing.args) continue
-    if (next === tools) next = { ...tools }
-    next[block.id] = {
-      toolCallId: block.id,
-      toolName: block.name,
-      args: block.arguments,
-      argsText: existing?.argsText ?? JSON.stringify(block.arguments ?? {}),
-      status: existing?.status ?? 'starting',
-      output: existing?.output ?? null,
-      result: existing?.result,
-      isError: existing?.isError,
-      startedAt: existing?.startedAt,
-      endedAt: existing?.endedAt,
-    }
-  }
-  return next
-}
+// The chat surface imports its types from here, so keep one public entry point.
+export type {
+  AssistantBlock,
+  AssistantItem,
+  BashItem,
+  ChatItem,
+  ChatSessionState,
+  CustomItem,
+  DividerItem,
+  ToolState,
+  ToolStatus,
+  UserItem,
+} from './chatItems'
+export { emptyChatSession, newItemId } from './chatItems'
+export { userMessageText } from './messageContent'
 
 // ---------- the reducer ----------
 
@@ -385,6 +221,29 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
   }
 }
 
+/**
+ * Append streamed text to the block at `contentIndex`, creating it when the
+ * delta arrives before its `*_start` event. Blocks stay sorted by index so
+ * out-of-order arrivals still render in the model's order.
+ *
+ * Shared by the `text` and `thinking` paths, which differ only in discriminant.
+ */
+function appendTextishDelta(
+  blocks: AssistantBlock[],
+  contentIndex: number,
+  delta: string,
+  kind: 'text' | 'thinking',
+): AssistantBlock[] {
+  if (blocks.some((b) => b.index === contentIndex)) {
+    return blocks.map((b) =>
+      b.index === contentIndex && b.type === kind ? { ...b, text: b.text + delta } : b,
+    )
+  }
+  return [...blocks, { type: kind, index: contentIndex, text: delta, closed: false }].sort(
+    (a, b) => a.index - b.index,
+  )
+}
+
 function applyAssistantDelta(
   state: ChatSessionState,
   event: Extract<PiEvent, { type: 'message_update' }>,
@@ -407,42 +266,11 @@ function applyAssistantDelta(
     case 'start':
       return state
 
-    case 'text_start': {
-      const blocks = ensureBlock(item.blocks, delta.contentIndex, () => ({
-        type: 'text',
-        index: delta.contentIndex,
-        text: '',
-        closed: false,
-      }))
-      return { ...state, items: replaceItem(state.items, index, { ...item, blocks }) }
-    }
-
-    case 'text_delta': {
-      const blocks = item.blocks.some((b) => b.index === delta.contentIndex)
-        ? item.blocks.map((b) =>
-            b.index === delta.contentIndex && b.type === 'text'
-              ? { ...b, text: b.text + delta.delta }
-              : b,
-          )
-        : [
-            ...item.blocks,
-            { type: 'text' as const, index: delta.contentIndex, text: delta.delta, closed: false },
-          ].sort((a, b) => a.index - b.index)
-      return { ...state, items: replaceItem(state.items, index, { ...item, blocks }) }
-    }
-
-    case 'text_end': {
-      const blocks = item.blocks.map((b) =>
-        b.index === delta.contentIndex && b.type === 'text'
-          ? { ...b, text: delta.content ?? b.text, closed: true }
-          : b,
-      )
-      return { ...state, items: replaceItem(state.items, index, { ...item, blocks }) }
-    }
-
+    case 'text_start':
     case 'thinking_start': {
+      const kind = delta.type === 'text_start' ? 'text' : 'thinking'
       const blocks = ensureBlock(item.blocks, delta.contentIndex, () => ({
-        type: 'thinking',
+        type: kind,
         index: delta.contentIndex,
         text: '',
         closed: false,
@@ -450,28 +278,18 @@ function applyAssistantDelta(
       return { ...state, items: replaceItem(state.items, index, { ...item, blocks }) }
     }
 
+    case 'text_delta':
     case 'thinking_delta': {
-      const blocks = item.blocks.some((b) => b.index === delta.contentIndex)
-        ? item.blocks.map((b) =>
-            b.index === delta.contentIndex && b.type === 'thinking'
-              ? { ...b, text: b.text + delta.delta }
-              : b,
-          )
-        : [
-            ...item.blocks,
-            {
-              type: 'thinking' as const,
-              index: delta.contentIndex,
-              text: delta.delta,
-              closed: false,
-            },
-          ].sort((a, b) => a.index - b.index)
+      const kind = delta.type === 'text_delta' ? 'text' : 'thinking'
+      const blocks = appendTextishDelta(item.blocks, delta.contentIndex, delta.delta, kind)
       return { ...state, items: replaceItem(state.items, index, { ...item, blocks }) }
     }
 
+    case 'text_end':
     case 'thinking_end': {
+      const kind = delta.type === 'text_end' ? 'text' : 'thinking'
       const blocks = item.blocks.map((b) =>
-        b.index === delta.contentIndex && b.type === 'thinking'
+        b.index === delta.contentIndex && b.type === kind
           ? { ...b, text: delta.content ?? b.text, closed: true }
           : b,
       )

@@ -1,0 +1,126 @@
+/**
+ * Chat view-model types: what the chat surface renders, as opposed to the raw
+ * pi protocol shapes in `@shared/rpc`.
+ */
+import type {
+  CompactionReason,
+  ImageContent,
+  StopReason,
+  ToolPartialResult,
+  Usage,
+} from '@shared/rpc'
+
+export interface UserItem {
+  id: string
+  kind: 'user'
+  text: string
+  images?: ImageContent[]
+  /** True when added locally before pi echoes it back. */
+  optimistic?: boolean
+  /** Unix ms from the AgentMessage, or local time for optimistic items. */
+  timestamp?: number
+}
+
+export type AssistantBlock =
+  | { type: 'text'; index: number; text: string; closed: boolean }
+  | { type: 'thinking'; index: number; text: string; closed: boolean }
+  | { type: 'tool'; index: number; toolCallId: string }
+
+export interface AssistantItem {
+  id: string
+  kind: 'assistant'
+  blocks: AssistantBlock[]
+  streaming: boolean
+  stopReason?: StopReason
+  errorMessage?: string
+  usage?: Usage
+  model?: string
+  /** Unix ms from the AgentMessage. */
+  timestamp?: number
+}
+
+export interface BashItem {
+  id: string
+  kind: 'bash'
+  command: string
+  output: string
+  exitCode: number | null
+  running: boolean
+  truncated: boolean
+  fullOutputPath?: string | null
+  excludeFromContext?: boolean
+}
+
+export interface DividerItem {
+  id: string
+  kind: 'divider'
+  variant: 'compaction' | 'branchSummary' | 'error'
+  summary?: string
+  tokensBefore?: number
+  reason?: CompactionReason
+}
+
+/**
+ * Extension-injected message (`custom` / `customMessage` roles).
+ * `inContext` mirrors pi's distinction: `custom_message` entries participate
+ * in the LLM context, plain `custom` entries are extension state only.
+ */
+export interface CustomItem {
+  id: string
+  kind: 'custom'
+  customType?: string
+  text: string
+  images?: ImageContent[]
+  inContext: boolean
+}
+
+export type ChatItem = UserItem | AssistantItem | BashItem | DividerItem | CustomItem
+
+export type ToolStatus = 'starting' | 'running' | 'done' | 'error'
+
+export interface ToolState {
+  toolCallId: string
+  toolName: string
+  /** Final validated args (from tool_execution_start), else parsed-from-stream. */
+  args?: Record<string, unknown>
+  /** Raw streamed JSON args text while the toolcall block is open. */
+  argsText: string
+  status: ToolStatus
+  /** Accumulated partial output; replaced wholesale on every update. */
+  output: ToolPartialResult | null
+  result?: ToolPartialResult
+  isError?: boolean
+  startedAt?: number
+  endedAt?: number
+}
+
+interface RetryState {
+  attempt: number
+  maxAttempts: number
+  delayMs: number
+  errorMessage: string
+}
+
+export interface ChatSessionState {
+  items: ChatItem[]
+  tools: Record<string, ToolState>
+  isStreaming: boolean
+  isCompacting: boolean
+  queues: { steering: string[]; followUp: string[] }
+  retry: RetryState | null
+  /** Transport-level error (pi crashed / spawn failed). */
+  error: string | null
+}
+
+export const emptyChatSession = (): ChatSessionState => ({
+  items: [],
+  tools: {},
+  isStreaming: false,
+  isCompacting: false,
+  queues: { steering: [], followUp: [] },
+  retry: null,
+  error: null,
+})
+
+let nextId = 1
+export const newItemId = (): string => `ci-${nextId++}`

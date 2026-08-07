@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
+import { CloseIcon } from '@/components/icons'
 
 /** Modal host for extension dialogs (select / confirm / input / editor). */
 export function ExtensionDialogHost(): React.JSX.Element | null {
@@ -199,16 +200,7 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
         onClick={() => useExtensionUiStore.getState().dismissToast(toast.id)}
         className="text-text-tertiary hover:text-text shrink-0"
       >
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
+        <CloseIcon size={11} strokeWidth={2.5} />
       </button>
     </div>
   )
