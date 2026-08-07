@@ -126,3 +126,27 @@ leftover terracotta-era one-offs.
 
 Phases 1–3 are one sitting and should land as **one PR** (a half-migrated
 palette is the worst state — see STYLE_GUIDE "Don't"). Phase 4 can trail.
+
+---
+
+## Outcome (2026-08-07)
+
+Phases 1–4 shipped together (same sitting, one PR) plus phase 5's automated
+gates. Deviations and notes:
+
+- Phase 1 added a token the plan didn't list: `--px-terminal-bg` (white /
+  `--px-bg`), because `.terminal-surface` and xterm's viewport CSS had to
+  agree with the JS theme objects — one variable now owns that contract.
+- Phase 4 went slightly wider than the listed sites: all 18
+  `uppercase tracking-*` label sites got the mono voice via one sweep, the
+  four `font-serif` chrome sites (home greeting, picker, pi-missing screen,
+  chat empty state) moved to sans per the guide, and the home activity
+  heatmap moved from `--px-info` to `--px-accent` (a heat map should glow
+  phosphor, not blue).
+- Verified: exit-criteria grep clean (zero v1 hexes outside `__fixtures__`),
+  typecheck/lint/prettier/348 unit tests/8 e2e green, and a manual
+  both-themes sweep in the browser harness (picker, home, chat with tool
+  cards + diff counts, terminal with phosphor cursor, dark accent-text flip
+  confirmed on the pane toggle).
+- Still open: `specs/screenshots/` regeneration (needs a real-app capture
+  session), and the Shiki revisit if vitesse clashes in daily use.

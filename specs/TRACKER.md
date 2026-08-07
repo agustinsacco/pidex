@@ -224,12 +224,13 @@ Specs: [STYLE_GUIDE.md](STYLE_GUIDE.md) · [RESTYLE_PLAN.md](RESTYLE_PLAN.md)
 
 - [x] Brand definition: Phosphor system (amber-phosphor accent, paper/graphite neutrals, mono structural voice) with contrast ratios verified at design time
 - [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
-- [ ] RESTYLE_PLAN phases 1–3: token swap, xterm/Monaco, chart/mermaid (one PR)
-- [ ] Phase 4: mono structural-voice pass over labels/badges
-- [ ] Phase 5: both-themes sweep, e2e, regenerate `specs/screenshots/`
+- [x] RESTYLE_PLAN phases 1–3: token swap, xterm/Monaco, chart/mermaid (one PR)
+- [x] Phase 4: mono structural-voice pass over labels/badges + serif retirement
+- [ ] Phase 5 leftover: regenerate `specs/screenshots/` (sweep + e2e done; PNGs still show v1)
 
 **Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually, screenshots refreshed.
 
 **Log:**
 
 - 2026-08-07 — Brand adopted; guide + plan + icon landed on PR #4. Known dev-mode limitation documented in main.ts: macOS menu-bar title says "Electron" when unpackaged (Info.plist, not fixable at runtime); dock icon is set at runtime instead. Restyle deliberately deferred to its own PR — a half-migrated palette is the worst state.
+- 2026-08-07 — Restyle phases 1–4 executed (see RESTYLE_PLAN Outcome): token swap + new `--px-terminal-bg`, xterm/Monaco/Mermaid/Chart.js re-themed, mono voice on all 18 uppercase-label sites, serif retired from chrome, heatmap info→accent. Exit grep clean; typecheck/lint/prettier/348 unit/8 e2e green; both-themes manual sweep in the browser harness (dark accent-text flip verified). Screenshots regen still pending.

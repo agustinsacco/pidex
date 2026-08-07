@@ -1,9 +1,9 @@
 # pidex visual identity — "Phosphor"
 
-> **Status: adopted 2026-08-07.** The icon and brand assets ship first (PR #4);
-> the in-app token migration is planned in [RESTYLE_PLAN.md](RESTYLE_PLAN.md).
-> Until that plan executes, `src/styles/index.css` still carries the v1
-> (terracotta) values — this document is the target, not yet the code.
+> **Status: implemented 2026-08-07.** Icon/brand assets and the full in-app
+> migration ([RESTYLE_PLAN.md](RESTYLE_PLAN.md) phases 1–4) are live —
+> `src/styles/index.css` carries these values. Outstanding: refreshing
+> `specs/screenshots/` (still shows the v1 terracotta theme).
 
 pidex started as a study of Claude Desktop and it shows: warm cream, terracotta,
 soft radii. That was the right way to learn the shape of the product; it is the
