@@ -35,6 +35,8 @@ interface SessionsState {
   refreshAllDisk: (workspacePaths: string[], limit?: number) => Promise<void>
   /** Start session-dir watchers for these workspaces (idempotent). */
   watchWorkspaces: (workspacePaths: string[]) => void
+  /** Stop watching these workspaces (collapsed sidebar groups). */
+  unwatchWorkspaces: (workspacePaths: string[]) => void
   createSession: (
     workspacePath: string,
     options?: {
@@ -213,6 +215,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
+  unwatchWorkspaces: (workspacePaths) => {
+    for (const path of workspacePaths) {
+      if (!watchedWorkspaces.delete(path)) continue
+      void window.pidex.invoke('sessions:unwatch', path)
+    }
+  },
+
   createSession: async (workspacePath, options = {}) => {
     set({ creating: true })
     try {
@@ -297,8 +306,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }))
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
-    const diskPath = sessionId ? get().live[sessionId]?.diskPath : undefined
-    void window.pidex.invoke('app:setLastSession', sessionId ? diskPath : undefined)
+    const live = sessionId ? get().live[sessionId] : undefined
+    void window.pidex.invoke('app:setLastSession', live?.diskPath)
+    // Keep the persisted workspace paired with the persisted session —
+    // resumeTarget reunites the two on launch, and a stale lastWorkspacePath
+    // would resume this session against another project's cwd.
+    if (live?.workspacePath) {
+      void window.pidex.invoke('app:recordWorkspace', live.workspacePath)
+    }
   },
 
   disposeSession: async (sessionId) => {

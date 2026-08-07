@@ -31,7 +31,8 @@ interface WorkspaceFiles {
   gitStatus: Record<string, string>
 }
 
-const emptyWorkspaceFiles = (): WorkspaceFiles => ({
+/** Stable empty value so selectors don't allocate a new object per render. */
+const EMPTY_WORKSPACE_FILES: WorkspaceFiles = Object.freeze({
   openFiles: [],
   activePath: null,
   gitStatus: {},
@@ -64,16 +65,9 @@ interface FilesState {
   keepBuffer: (workspacePath: string, path: string) => void
 }
 
-/** Files state for a workspace, creating an empty record on first access. */
+/** Files state for a workspace; the shared empty value when none exists yet. */
 export function workspaceFiles(state: FilesState, workspacePath: string): WorkspaceFiles {
   return state.byWorkspace[workspacePath] ?? EMPTY_WORKSPACE_FILES
-}
-
-/** Stable empty value so selectors don't allocate a new object per render. */
-const EMPTY_WORKSPACE_FILES: WorkspaceFiles = {
-  openFiles: [],
-  activePath: null,
-  gitStatus: {},
 }
 
 function relativeTo(workspacePath: string, path: string): string {
@@ -87,7 +81,7 @@ function patchWorkspace(
   workspacePath: string,
   update: (current: WorkspaceFiles) => WorkspaceFiles,
 ): Pick<FilesState, 'byWorkspace'> {
-  const current = state.byWorkspace[workspacePath] ?? emptyWorkspaceFiles()
+  const current = state.byWorkspace[workspacePath] ?? EMPTY_WORKSPACE_FILES
   return { byWorkspace: { ...state.byWorkspace, [workspacePath]: update(current) } }
 }
 

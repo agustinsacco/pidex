@@ -1,6 +1,6 @@
 import { shell } from 'electron'
 import { handle } from './handle'
-import { watchWorkspaceSessions } from '../pi/session-watcher'
+import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
 import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 
@@ -12,6 +12,10 @@ export function registerSessionsHandlers(): void {
 
   handle('sessions:watch', (_event, workspacePath: string) => {
     watchWorkspaceSessions(workspacePath)
+  })
+
+  handle('sessions:unwatch', async (_event, workspacePath: string) => {
+    await unwatchWorkspaceSessions(workspacePath)
   })
 
   handle('sessions:delete', async (_event, sessionFilePath: string) => {
