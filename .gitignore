@@ -4,7 +4,7 @@
 .vite/
 coverage/
 dist/
-node_modules/
+node_modules
 out/
 playwright-report/
 release/
