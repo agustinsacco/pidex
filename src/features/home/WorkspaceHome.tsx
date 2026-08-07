@@ -195,7 +195,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
               <div className="flex shrink-0 items-center gap-0.5">
                 <HomeModelPicker />
-                <SubmitButton starting={starting} disabled={!text.trim()} onClick={() => void start()} />
+                <SubmitButton
+                  starting={starting}
+                  disabled={!text.trim()}
+                  onClick={() => void start()}
+                />
               </div>
             </div>
           </div>
@@ -222,33 +226,33 @@ function SubmitButton({
       title="Start session (⏎)"
       className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
     >
-              {starting ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                  <path
-                    className="opacity-90"
-                    fill="currentColor"
-                    d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+      {starting ? (
+        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="3"
+          />
+          <path
+            className="opacity-90"
+            fill="currentColor"
+            d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
+          />
+        </svg>
+      ) : (
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M9 10 4 15l5 5" />
           <path d="M20 4v7a4 4 0 0 1-4 4H4" />
         </svg>
@@ -496,7 +500,9 @@ function BranchChip({
           <div className="px-3 pb-1.5 pt-1">
             <div className="text-text truncate text-[13px] font-medium">{git.branch}</div>
             <div className="text-text-secondary mt-1 text-[12px]">
-              {dirty > 0 ? `${dirty} uncommitted change${dirty === 1 ? '' : 's'}` : 'Working tree clean'}
+              {dirty > 0
+                ? `${dirty} uncommitted change${dirty === 1 ? '' : 's'}`
+                : 'Working tree clean'}
               {git.ahead ? ` · ${git.ahead} ahead` : ''}
               {git.behind ? ` · ${git.behind} behind` : ''}
             </div>

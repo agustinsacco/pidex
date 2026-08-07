@@ -396,7 +396,12 @@ export function installMockPidex(): void {
           return Promise.resolve([
             { id: 'claude-opus-5', name: 'Opus 5', provider: 'anthropic', reasoning: true },
             { id: 'claude-sonnet-5', name: 'Sonnet 5', provider: 'anthropic', reasoning: true },
-            { id: 'Qwen 3.5 122b', name: 'Qwen 3.5 122b', provider: 'local-stark', reasoning: false },
+            {
+              id: 'Qwen 3.5 122b',
+              name: 'Qwen 3.5 122b',
+              provider: 'local-stark',
+              reasoning: false,
+            },
           ])
         case 'app:userInfo':
           return Promise.resolve({ username: 'dev' })
