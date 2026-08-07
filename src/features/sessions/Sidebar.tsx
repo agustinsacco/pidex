@@ -12,28 +12,50 @@ import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { Spinner } from '@/features/chat/tools/ToolCard'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/SettingsModal'
+import { useLayoutStore } from '@/stores/layout'
+
+interface GroupedSessions {
+  workspacePath: string
+  name: string
+  metas: SessionMeta[]
+  liveCount: number
+}
 
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
-  const disk = useSessionsStore((s) => s.disk[workspacePath]) ?? []
+  const disk = useSessionsStore((s) => s.disk)
   const live = useSessionsStore((s) => s.live)
   const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const recents = useWorkspacesStore((s) => s.recents)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
-  // Initial scan + live chokidar updates.
+  /**
+   * Every workspace worth listing: the known recents plus the active one and
+   * any folder that currently has a live session (a session can outlive its
+   * entry in recents).
+   */
+  const knownWorkspaces = useMemo(() => {
+    const paths = new Set<string>([workspacePath])
+    for (const entry of Object.values(live)) paths.add(entry.workspacePath)
+    for (const ws of recents) paths.add(ws.path)
+    return [...paths].filter(Boolean)
+  }, [workspacePath, live, recents])
+
+  // Scan and watch every known workspace, not just the active one.
   useEffect(() => {
     const store = useSessionsStore.getState()
-    void store.refreshDisk(workspacePath)
+    void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
-    void window.pidex.invoke('sessions:watch', workspacePath)
+    store.watchWorkspaces(knownWorkspaces)
+
     const unsubscribe = window.pidex.onSessionsChanged((payload) => {
-      if (payload.workspacePath === workspacePath) {
-        void useSessionsStore.getState().refreshDisk(workspacePath)
-      }
+      // Re-scan only the workspace that actually changed.
+      void useSessionsStore.getState().refreshDisk(payload.workspacePath)
     })
     return unsubscribe
-  }, [workspacePath])
+  }, [knownWorkspaces])
 
   const liveByDisk = useMemo(() => {
     const map = new Map<string, string>()
@@ -43,64 +65,146 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return map
   }, [live])
 
-  const { pinnedMetas, recentMetas } = useMemo(() => {
-    const pinnedSet = new Set(pinned)
-    return {
-      pinnedMetas: disk.filter((m) => pinnedSet.has(m.path)),
-      recentMetas: disk.filter((m) => !pinnedSet.has(m.path)),
-    }
-  }, [disk, pinned])
+  const pinnedSet = useMemo(() => new Set(pinned), [pinned])
+
+  /** Pinned sessions across every workspace — this group deliberately mixes. */
+  const pinnedMetas = useMemo(
+    () =>
+      Object.values(disk)
+        .flat()
+        .filter((m) => pinnedSet.has(m.path))
+        .sort((a, b) => b.mtimeMs - a.mtimeMs),
+    [disk, pinnedSet],
+  )
+
+  /** Remaining sessions grouped by workspace, live projects first. */
+  const groups = useMemo<GroupedSessions[]>(() => {
+    return knownWorkspaces
+      .map((path) => {
+        const metas = (disk[path] ?? []).filter((m) => !pinnedSet.has(m.path))
+        const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
+        return {
+          workspacePath: path,
+          name: path.split(/[/\\]/).filter(Boolean).pop() ?? path,
+          metas,
+          liveCount,
+        }
+      })
+      .filter((g) => g.metas.length > 0 || g.workspacePath === workspacePath)
+      .sort((a, b) => {
+        if (a.liveCount !== b.liveCount) return b.liveCount - a.liveCount
+        if (a.workspacePath === workspacePath) return -1
+        if (b.workspacePath === workspacePath) return 1
+        return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
+      })
+  }, [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath])
+
+  const rowProps = (meta: SessionMeta) => ({
+    meta,
+    workspacePath: meta.cwd || workspacePath,
+    livePidexId: liveByDisk.get(meta.path),
+    active: liveByDisk.get(meta.path) === activeSessionId && activeSessionId !== null,
+    unreadCount: unread[liveByDisk.get(meta.path) ?? ''] ?? 0,
+    onOpenTree: () => setTreeFor(meta),
+  })
 
   return (
     <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
       <div className="titlebar-drag h-11 shrink-0" />
       <WorkspaceSwitcher />
 
-      <div className="px-3 pb-2">
-        <button
+      {/* Flat nav rows, matching the reference: icon + label, no border or
+          shadow. New routes to the home screen; the folder is chosen there
+          via the composer's workspace chip. */}
+      <nav className="px-2 pb-2">
+        <NavRow
+          label="New"
+          badge
           onClick={() => useSessionsStore.getState().activate(null)}
-          className="border-border bg-surface hover:border-border-strong text-text flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-medium shadow-sm transition-colors"
-        >
-          <span className="text-accent text-base leading-none">+</span> New session
-        </button>
-      </div>
+          icon={
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          }
+        />
+        <NavRow
+          label="Artifacts"
+          onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
+          icon={
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="3" y="3" width="18" height="14" rx="2" />
+              <path d="M3 9h18M9 21h6" />
+            </svg>
+          }
+        />
+      </nav>
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>
             {pinnedMetas.map((meta) => (
-              <SessionRow
-                key={meta.path}
-                meta={meta}
-                workspacePath={workspacePath}
-                livePidexId={liveByDisk.get(meta.path)}
-                active={liveByDisk.get(meta.path) === activeSessionId && activeSessionId !== null}
-                unreadCount={unread[liveByDisk.get(meta.path) ?? ''] ?? 0}
-                isPinned
-                onOpenTree={() => setTreeFor(meta)}
-              />
+              <SessionRow key={meta.path} {...rowProps(meta)} isPinned showWorkspace />
             ))}
           </>
         )}
-        <SectionLabel>Recent</SectionLabel>
-        {recentMetas.length === 0 && (
-          <div className="text-text-tertiary px-2 py-3 text-center text-[12px]">
-            Sessions you start will show up here
-          </div>
-        )}
-        {recentMetas.map((meta) => (
-          <SessionRow
-            key={meta.path}
-            meta={meta}
-            workspacePath={workspacePath}
-            livePidexId={liveByDisk.get(meta.path)}
-            active={liveByDisk.get(meta.path) === activeSessionId && activeSessionId !== null}
-            unreadCount={unread[liveByDisk.get(meta.path) ?? ''] ?? 0}
-            isPinned={false}
-            onOpenTree={() => setTreeFor(meta)}
-          />
-        ))}
+
+        {groups.map((group) => {
+          const isCollapsed = collapsed[group.workspacePath] ?? false
+          return (
+            <div key={group.workspacePath}>
+              <button
+                onClick={() => setCollapsed((c) => ({ ...c, [group.workspacePath]: !isCollapsed }))}
+                data-testid="workspace-group"
+                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold uppercase tracking-wider transition-colors"
+                title={group.workspacePath}
+              >
+                <svg
+                  width="8"
+                  height="8"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className={clsx('transition-transform', !isCollapsed && 'rotate-90')}
+                >
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
+                <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                {group.liveCount > 0 && (
+                  <span
+                    className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
+                    title={`${group.liveCount} live`}
+                  />
+                )}
+              </button>
+              {!isCollapsed &&
+                group.metas.map((meta) => (
+                  <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
+                ))}
+              {!isCollapsed && group.metas.length === 0 && (
+                <div className="text-text-tertiary px-2 py-2 text-[11.5px]">
+                  Sessions you start will show up here
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div className="border-border border-t px-3 py-2.5">
@@ -116,7 +220,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       {treeFor && (
         <TreeViewModal
           meta={treeFor}
-          workspacePath={workspacePath}
+          workspacePath={treeFor.cwd || workspacePath}
           onClose={() => setTreeFor(null)}
         />
       )}
@@ -134,6 +238,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
     <div className="relative px-3 pb-2 pt-1">
       <button
         onClick={() => setOpen((o) => !o)}
+        data-testid="workspace-switcher"
         className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
       >
         <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[12px] font-bold uppercase">
@@ -173,7 +278,15 @@ function WorkspaceSwitcher(): React.JSX.Element {
             active={false}
             onClick={() => {
               setOpen(false)
-              void useWorkspacesStore.getState().pickAndOpen()
+              void useWorkspacesStore
+                .getState()
+                .pickAndOpen()
+                .then((path) => {
+                  // Leave the active session, or the derived workspace keeps
+                  // returning that session's folder and the newly opened one
+                  // never appears.
+                  if (path) useSessionsStore.getState().activate(null)
+                })
             }}
           >
             <span className="text-[13px]">Open Folder…</span>
@@ -191,6 +304,7 @@ function SessionRow({
   active,
   unreadCount,
   isPinned,
+  showWorkspace = false,
   onOpenTree,
 }: {
   meta: SessionMeta
@@ -199,12 +313,20 @@ function SessionRow({
   active: boolean
   unreadCount: number
   isPinned: boolean
+  /**
+   * Show the workspace badge. Set for groups that mix projects (Pinned),
+   * where the group header cannot tell you which app a thread belongs to.
+   */
+  showWorkspace?: boolean
   onOpenTree: () => void
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) =>
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
   const title = meta.name || meta.firstUserText || 'Untitled session'
+  // Badge reads the session's own cwd, so a Pinned row shows the project it
+  // actually belongs to rather than whatever is on screen.
+  const workspaceName = (meta.cwd || workspacePath).split(/[/\\]/).filter(Boolean).pop()
 
   const open = (): void => {
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
@@ -249,6 +371,8 @@ function SessionRow({
     <button
       onClick={open}
       onContextMenu={contextMenu}
+      data-testid="session-row"
+      data-workspace={workspaceName}
       className={clsx(
         'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
@@ -270,6 +394,15 @@ function SessionRow({
           {meta.branchCount > 0 && ` · ${meta.branchCount + 1} branches`}
         </span>
       </span>
+      {showWorkspace && workspaceName && (
+        <span
+          data-testid="session-workspace-badge"
+          title={meta.cwd || workspacePath}
+          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-[9.5px] font-medium"
+        >
+          {workspaceName}
+        </span>
+      )}
       {unreadCount > 0 && !active && (
         <span className="bg-accent text-accent-text flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9.5px] font-bold">
           {unreadCount > 9 ? '9+' : unreadCount}
@@ -383,5 +516,40 @@ function GearIcon(): React.JSX.Element {
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
+  )
+}
+
+/**
+ * Flat sidebar nav row, matching the reference: a bordered circular icon
+ * badge, then the label at full text weight. No row border or background at
+ * rest — the badge is the only chrome, and hover tints the whole row.
+ */
+function NavRow({
+  label,
+  icon,
+  badge = false,
+  onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  /** Draw the icon in a bordered circle (the reference does this for New only). */
+  badge?: boolean
+  onClick: () => void
+}): React.JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[14px] transition-colors"
+    >
+      <span
+        className={clsx(
+          'text-text-secondary group-hover:text-text flex h-[22px] w-[22px] shrink-0 items-center justify-center transition-colors',
+          badge && 'border-border group-hover:border-border-strong rounded-full border',
+        )}
+      >
+        {icon}
+      </span>
+      {label}
+    </button>
   )
 }

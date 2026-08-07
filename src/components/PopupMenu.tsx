@@ -54,8 +54,8 @@ export function MenuRow({
       ref={ref}
       onMouseMove={onHover}
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
-        active ? 'bg-bg-secondary' : ''
+      className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
+        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'
       }`}
     >
       {children}
