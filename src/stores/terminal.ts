@@ -17,7 +17,8 @@ interface WorkspaceTerminals {
   activeId: string | null
 }
 
-const EMPTY_TERMINALS: WorkspaceTerminals = { tabs: [], activeId: null }
+/** Stable empty value so selectors don't allocate a new object per render. */
+const EMPTY_TERMINALS: WorkspaceTerminals = Object.freeze({ tabs: [], activeId: null })
 
 interface TerminalState {
   /** workspacePath → that workspace's terminal tabs. */

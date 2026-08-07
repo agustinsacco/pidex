@@ -21,6 +21,8 @@ interface GroupedSessions {
   name: string
   metas: SessionMeta[]
   liveCount: number
+  /** False until this workspace's session dir has been scanned. */
+  scanned: boolean
 }
 
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
@@ -31,7 +33,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const recents = useWorkspacesStore((s) => s.recents)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  /** Explicit collapse choices (prefs + this run); null until prefs load. */
+  const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
 
   /**
    * Every workspace worth listing: the known recents plus the active one and
@@ -45,12 +48,11 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return [...paths].filter(Boolean)
   }, [workspacePath, live, recents])
 
-  // Scan and watch every known workspace, not just the active one.
+  // Scan every known workspace (capped; collapsed groups lazy-load on expand).
   useEffect(() => {
     const store = useSessionsStore.getState()
     void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
-    store.watchWorkspaces(knownWorkspaces)
 
     const unsubscribe = window.pidex.onSessionsChanged((payload) => {
       // Re-scan only the workspace that actually changed.
@@ -58,6 +60,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     })
     return unsubscribe
   }, [knownWorkspaces])
+
+  useEffect(() => {
+    void window.pidex.invoke('app:getPrefs').then((prefs) => {
+      setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
+    })
+  }, [])
 
   const liveByDisk = useMemo(() => {
     const map = new Map<string, string>()
@@ -81,25 +89,64 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   /** Remaining sessions grouped by workspace, live projects first. */
   const groups = useMemo<GroupedSessions[]>(() => {
-    return knownWorkspaces
-      .map((path) => {
-        const metas = (disk[path] ?? []).filter((m) => !pinnedSet.has(m.path))
-        const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
-        return {
-          workspacePath: path,
-          name: workspaceName(path),
-          metas,
-          liveCount,
-        }
-      })
-      .filter((g) => g.metas.length > 0 || g.workspacePath === workspacePath)
-      .sort((a, b) => {
-        if (a.liveCount !== b.liveCount) return b.liveCount - a.liveCount
-        if (a.workspacePath === workspacePath) return -1
-        if (b.workspacePath === workspacePath) return 1
-        return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
-      })
+    return (
+      knownWorkspaces
+        .map((path) => {
+          const metas = (disk[path] ?? []).filter((m) => !pinnedSet.has(m.path))
+          const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
+          return {
+            workspacePath: path,
+            name: workspaceName(path),
+            metas,
+            liveCount,
+            scanned: path in disk,
+          }
+        })
+        // Unscanned workspaces (beyond the boot-scan cap) still get a header —
+        // hiding them would make their sessions unreachable until restart.
+        .filter((g) => g.metas.length > 0 || !g.scanned || g.workspacePath === workspacePath)
+        .sort((a, b) => {
+          if (a.liveCount !== b.liveCount) return b.liveCount - a.liveCount
+          if (a.workspacePath === workspacePath) return -1
+          if (b.workspacePath === workspacePath) return 1
+          return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
+        })
+    )
   }, [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath])
+
+  /**
+   * Collapse resolution: an explicit choice wins; otherwise scanned groups
+   * are open and unscanned ones start closed. That default IS the lazy-load
+   * path — workspaces beyond the boot-scan cap sit collapsed until expanded,
+   * which is when their first scan happens. The active workspace is always
+   * open by default, even before its scan lands.
+   */
+  const isGroupCollapsed = (group: GroupedSessions): boolean =>
+    collapsed?.[group.workspacePath] ??
+    (group.scanned ? false : group.workspacePath !== workspacePath)
+
+  const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
+    const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
+    setCollapsed(next)
+    void window.pidex.invoke(
+      'app:setCollapsedWorkspaces',
+      Object.keys(next).filter((p) => next[p]),
+    )
+    // Expanding catches up on anything missed while the group was unwatched.
+    if (wasCollapsed) void useSessionsStore.getState().refreshDisk(group.workspacePath)
+  }
+
+  // Watch exactly the visible groups: expanded ⇒ watching, collapsed ⇒ not.
+  // Idempotent both ways, so re-running on scan results is fine. Gated on
+  // prefs hydration to avoid a watch-then-unwatch churn at mount.
+  useEffect(() => {
+    if (collapsed === null) return
+    const store = useSessionsStore.getState()
+    const expanded = groups.filter((g) => !isGroupCollapsed(g)).map((g) => g.workspacePath)
+    const closed = groups.filter((g) => isGroupCollapsed(g)).map((g) => g.workspacePath)
+    store.watchWorkspaces(expanded)
+    store.unwatchWorkspaces(closed)
+  }, [groups, collapsed])
 
   const rowProps = (meta: SessionMeta) => ({
     meta,
@@ -167,13 +214,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         )}
 
         {groups.map((group) => {
-          const isCollapsed = collapsed[group.workspacePath] ?? false
+          const isCollapsed = isGroupCollapsed(group)
           return (
             <div key={group.workspacePath}>
               <button
-                onClick={() => setCollapsed((c) => ({ ...c, [group.workspacePath]: !isCollapsed }))}
+                onClick={() => toggleGroup(group, isCollapsed)}
                 data-testid="workspace-group"
-                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold uppercase tracking-wider transition-colors"
+                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold font-mono uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
               >
                 <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
@@ -189,7 +236,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 group.metas.map((meta) => (
                   <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
                 ))}
-              {!isCollapsed && group.metas.length === 0 && (
+              {!isCollapsed && !group.scanned && (
+                <div className="text-text-tertiary px-2 py-2 text-[11.5px]">Loading sessions…</div>
+              )}
+              {!isCollapsed && group.scanned && group.metas.length === 0 && (
                 <div className="text-text-tertiary px-2 py-2 text-[11.5px]">
                   Sessions you start will show up here
                 </div>
@@ -245,7 +295,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
           onClose={() => setOpen(false)}
           className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Workspaces
           </div>
           {recents.map((ws) => (
@@ -408,7 +458,7 @@ function SessionRow({
 /** Rename a disk or live session, then refresh the sidebar listing. */
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider">
+    <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
   )

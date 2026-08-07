@@ -2,7 +2,7 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**', 'release/**', '**/*.cjs'] },
+  { ignores: ['out/**', 'dist/**', 'node_modules/**', 'release/**', '.claude/**', '**/*.cjs'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -13,5 +13,10 @@ export default tseslint.config(
       ],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
     },
+  },
+  {
+    // Maintainer scripts run under plain Node (no tsconfig project).
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
   },
 )

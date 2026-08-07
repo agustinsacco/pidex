@@ -76,7 +76,7 @@ export function CommandMenu({
             {entry.description ?? ''}
           </span>
           <span
-            className={`shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}
+            className={`shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold font-mono uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}
           >
             {entry.badge}
           </span>

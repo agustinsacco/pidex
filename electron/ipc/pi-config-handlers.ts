@@ -8,13 +8,22 @@ import {
   readConfigFile,
   writeConfigFile,
 } from '../pi/agent-settings'
+import { resolveCatalogueModels } from '../pi/model-catalogue'
+import { checkPiHealth } from '../pi/health'
 import { type ConfigFileHealth } from '@shared/models'
 
 /** Reading and patching pi's own agent settings files. */
 export function registerPiConfigHandlers(): void {
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
 
-  handle('pi:catalogueModels', () => listCatalogueModels())
+  // Prefer pi's own catalogue (built-ins + models.json), falling back to
+  // parsing models.json when pi can't be run.
+  handle('pi:catalogueModels', () =>
+    resolveCatalogueModels(async () => {
+      const health = await checkPiHealth()
+      return health.ok ? (health.binaryPath ?? null) : null
+    }, listCatalogueModels),
+  )
 
   handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
 

@@ -8,9 +8,7 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
       <div className="titlebar-drag h-10 shrink-0" />
       <div className="flex flex-1 flex-col items-center justify-center gap-8 px-8 pb-16">
         <div className="text-center">
-          <h1 className="font-serif text-[32px] font-medium tracking-tight">
-            What are we building today?
-          </h1>
+          <h1 className="text-[30px] font-semibold tracking-tight">What are we building today?</h1>
           <p className="text-text-secondary mt-2 text-sm">
             Open a project folder to start a coding session with pi
             {piVersion ? ` ${piVersion}` : ''}.

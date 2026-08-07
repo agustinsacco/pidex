@@ -359,6 +359,7 @@ export function installMockPidex(): void {
               },
             ],
             pinnedSessions: [],
+            collapsedWorkspaces: [],
             fonts: {
               uiScale: 1,
               chatFontSize: 14.5,
@@ -447,6 +448,7 @@ export function installMockPidex(): void {
           return Promise.resolve('// baseline content\n')
         case 'fs:watchWorkspace':
         case 'sessions:watch':
+        case 'sessions:unwatch':
           return Promise.resolve(undefined)
         case 'pty:create': {
           const ptyId = 'mock-pty-' + Math.random().toString(36).slice(2, 8)
@@ -479,6 +481,8 @@ export function installMockPidex(): void {
         case 'pi:writeConfigFile':
         case 'app:setFontPrefs':
         case 'app:setRecentWorkspaces':
+        case 'app:setCollapsedWorkspaces':
+        case 'app:recordWorkspace':
           return Promise.resolve(undefined)
         default:
           return Promise.resolve(undefined)

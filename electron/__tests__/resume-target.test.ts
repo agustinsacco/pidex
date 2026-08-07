@@ -12,10 +12,16 @@ import { access } from 'node:fs/promises'
  * degrade to the workspace, and a deleted workspace must degrade to the
  * picker — never route into a screen that cannot load.
  *
- * Mirrors the `app:resumeTarget` handler in electron/ipc.ts. Kept as a pure
+ * Mirrors the `app:resumeTarget` handler in electron/ipc/app-handlers.ts.
+ * Kept as a pure
  * function here because the handler itself is bound to ipcMain.
  */
-type Prefs = { lastSessionPath?: string; lastWorkspacePath?: string }
+type RecentWorkspace = { path: string; lastOpenedAt: number }
+type Prefs = {
+  lastSessionPath?: string
+  lastWorkspacePath?: string
+  recentWorkspaces?: RecentWorkspace[]
+}
 type Target =
   | { kind: 'session'; sessionPath: string; workspacePath: string }
   | { kind: 'workspace'; workspacePath: string }
@@ -31,7 +37,7 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 async function resolveResumeTarget(prefs: Prefs): Promise<Target> {
-  const { lastSessionPath, lastWorkspacePath } = prefs
+  const { lastSessionPath, lastWorkspacePath, recentWorkspaces = [] } = prefs
   if (lastSessionPath && lastWorkspacePath) {
     const [sessionOk, workspaceOk] = await Promise.all([
       pathExists(lastSessionPath),
@@ -43,6 +49,11 @@ async function resolveResumeTarget(prefs: Prefs): Promise<Target> {
   }
   if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
     return { kind: 'workspace', workspacePath: lastWorkspacePath }
+  }
+  for (const ws of [...recentWorkspaces].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)) {
+    if (await pathExists(ws.path)) {
+      return { kind: 'workspace', workspacePath: ws.path }
+    }
   }
   return { kind: 'none' }
 }
@@ -96,5 +107,39 @@ describe('resume target resolution', () => {
     await expect(resolveResumeTarget({ lastSessionPath: sessionPath })).resolves.toEqual({
       kind: 'none',
     })
+  })
+
+  it('falls back to the newest recent that still exists', async () => {
+    await expect(
+      resolveResumeTarget({
+        recentWorkspaces: [
+          { path: join(workspace, 'deleted'), lastOpenedAt: 30 },
+          { path: workspace, lastOpenedAt: 20 },
+          { path: join(workspace, 'also-deleted'), lastOpenedAt: 10 },
+        ],
+      }),
+    ).resolves.toEqual({ kind: 'workspace', workspacePath: workspace })
+  })
+
+  it('prefers a valid lastWorkspacePath over a newer recent', async () => {
+    const newer = await mkdtemp(join(tmpdir(), 'pidex-resume-newer-'))
+    try {
+      await expect(
+        resolveResumeTarget({
+          lastWorkspacePath: workspace,
+          recentWorkspaces: [{ path: newer, lastOpenedAt: Date.now() }],
+        }),
+      ).resolves.toEqual({ kind: 'workspace', workspacePath: workspace })
+    } finally {
+      await rm(newer, { recursive: true, force: true })
+    }
+  })
+
+  it('lands on the picker when every recent is gone too', async () => {
+    await expect(
+      resolveResumeTarget({
+        recentWorkspaces: [{ path: join(workspace, 'deleted'), lastOpenedAt: 1 }],
+      }),
+    ).resolves.toEqual({ kind: 'none' })
   })
 })

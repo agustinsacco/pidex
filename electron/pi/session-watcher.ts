@@ -38,6 +38,16 @@ export function watchWorkspaceSessions(workspacePath: string): void {
   watchers.set(workspacePath, watcher)
 }
 
+/** Stop watching one workspace's session dir (collapsed sidebar groups). */
+export async function unwatchWorkspaceSessions(workspacePath: string): Promise<void> {
+  const timer = debounceTimers.get(workspacePath)
+  if (timer) clearTimeout(timer)
+  debounceTimers.delete(workspacePath)
+  const watcher = watchers.get(workspacePath)
+  watchers.delete(workspacePath)
+  await watcher?.close()
+}
+
 /** Close every session watcher and cancel pending debounced notifications. */
 export async function unwatchAll(): Promise<void> {
   for (const timer of debounceTimers.values()) clearTimeout(timer)

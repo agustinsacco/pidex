@@ -1,14 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    pidex mark — "prompt bubble".
+    A chat bubble carrying a terminal prompt (>_): the two things the app
+    fuses. Phosphor amber on warm graphite (see specs/STYLE_GUIDE.md).
+    Regenerate platform assets with: node scripts/generate-icons.mjs
+  -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#faf9f5"/>
-      <stop offset="100%" stop-color="#efece1"/>
+    <linearGradient id="bubble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f2ab4e"/>
+      <stop offset="100%" stop-color="#e2922e"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
-  <g fill="none" stroke="#c96442" stroke-width="58" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M300 380 L200 512 L300 644"/>
-    <path d="M724 380 L824 512 L724 644"/>
-    <path d="M588 320 L436 704"/>
+  <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
+  <path d="M 296 232
+           L 728 232
+           C 794 232 848 286 848 352
+           L 848 544
+           C 848 610 794 664 728 664
+           L 468 664
+           L 312 796
+           C 300 806 282 797 285 782
+           L 308 664
+           L 296 664
+           C 230 664 176 610 176 544
+           L 176 352
+           C 176 286 230 232 296 232 Z"
+        fill="url(#bubble)"/>
+  <g fill="none" stroke="#1f1c18" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 372 364 L 462 440 L 372 516"/>
+    <path d="M 532 540 L 660 540"/>
   </g>
 </svg>

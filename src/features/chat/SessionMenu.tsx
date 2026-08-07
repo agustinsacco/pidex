@@ -100,7 +100,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
             <ToggleDot on={autoRetry} />
           </MenuRow>
           <Separator />
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Steering delivery
           </div>
           <MenuRow active={false} onClick={() => void command(() => setSteeringMode('all'))}>
@@ -114,7 +114,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
             <span className="flex-1">One at a time</span>
             {meta?.steeringMode === 'one-at-a-time' && <Dot />}
           </MenuRow>
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Follow-up delivery
           </div>
           <MenuRow active={false} onClick={() => void command(() => setFollowUpMode('all'))}>

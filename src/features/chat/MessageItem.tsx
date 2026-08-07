@@ -56,7 +56,7 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
         >
           <path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
-        <span className="text-info text-[10.5px] font-semibold uppercase tracking-wide">
+        <span className="text-info text-[10.5px] font-semibold font-mono uppercase tracking-wide">
           {item.customType ? `Extension · ${item.customType}` : 'Extension message'}
         </span>
         {item.inContext && (
@@ -92,7 +92,7 @@ function UserMessage({
   sessionId: string
 }): React.JSX.Element {
   return (
-    <div className="group flex flex-col items-end gap-1.5">
+    <div className="group flex flex-col items-end gap-1">
       {item.images && item.images.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2">
           {item.images.map((img, i) => (
@@ -121,7 +121,7 @@ function UserMessage({
       )}
       {item.timestamp != null && (
         <span
-          className="text-text-tertiary h-4 pr-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100"
+          className="text-text-tertiary h-3.5 pr-1 text-[11px] leading-none opacity-0 transition-opacity group-hover:opacity-100"
           title={absoluteTime(item.timestamp)}
         >
           {relativeTime(item.timestamp)}
@@ -219,7 +219,7 @@ function AssistantMessage({
        * conditionally) keeps hovering from shifting the transcript.
        */}
       {!item.streaming && fullText && (
-        <div className="mt-1 flex h-6 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+        <div className="mt-0.5 flex h-5 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
           <CopyButton text={fullText} label="Copy" />
           {item.timestamp != null && (
             <span className="text-text-tertiary text-[11px]" title={absoluteTime(item.timestamp)}>

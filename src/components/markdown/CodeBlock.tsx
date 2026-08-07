@@ -76,7 +76,9 @@ export const CodeBlock = memo(function CodeBlock({
   return (
     <div className="code-block border-border bg-code-bg group/code relative my-3 overflow-hidden rounded-lg border">
       <div className="border-border text-text-tertiary flex h-8 items-center justify-between border-b px-3">
-        <span className="font-mono text-[11px] uppercase tracking-wide">{language || 'text'}</span>
+        <span className="font-mono text-[11px] font-mono uppercase tracking-wide">
+          {language || 'text'}
+        </span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
           {actions}
           <button

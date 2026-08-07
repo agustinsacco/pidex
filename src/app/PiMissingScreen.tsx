@@ -12,7 +12,7 @@ export function PiMissingScreen({
   return (
     <div className="titlebar-drag flex h-full flex-col items-center justify-center gap-6 px-8">
       <div className="bg-surface border-border w-full max-w-lg rounded-lg border p-8 shadow-sm">
-        <h1 className="font-serif text-2xl font-medium">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="text-text-secondary mt-3 text-sm leading-relaxed">
           pidex is powered by the pi coding agent. {health.message}
         </p>

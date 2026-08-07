@@ -8,6 +8,15 @@ import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
+// Brand identity when running unpackaged (`npm run dev`): packaged builds get
+// name + icon from electron-builder (productName / build/icon.*), but a dev
+// run is the stock Electron.app, so macOS shows the Electron dock icon and
+// the switcher says "Electron". The dock icon is fixable at runtime; the
+// menu-bar/switcher *title* is read from Electron.app's Info.plist and is not
+// — only a packaged build shows "pidex" there.
+app.setName('pidex')
+const devIcon = !app.isPackaged ? join(app.getAppPath(), 'build/icon.png') : undefined
+
 // E2E runs must never touch the developer's real prefs. Tests that need
 // state to survive a relaunch (e.g. "reopens the last session") pin the
 // directory explicitly; everything else gets a per-pid scratch dir. Gated on
@@ -29,7 +38,10 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#faf9f5',
+    backgroundColor: '#f7f6f2',
+    // Window/taskbar icon for unpackaged linux runs (packaged linux resolves
+    // it from the desktop entry; macOS ignores this option).
+    ...(devIcon && process.platform === 'linux' ? { icon: devIcon } : {}),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/preload.cjs'),
       contextIsolation: true,
@@ -58,6 +70,9 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  if (devIcon && process.platform === 'darwin') {
+    app.dock?.setIcon(devIcon)
+  }
   registerIpcHandlers()
   createWindow()
 

@@ -69,7 +69,7 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-text-tertiary text-[10.5px] font-semibold uppercase tracking-wider">
+        <span className="text-text-tertiary text-[10.5px] font-semibold font-mono uppercase tracking-wider">
           Files changed
         </span>
         <span className="text-[11.5px] font-medium">

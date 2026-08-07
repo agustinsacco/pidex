@@ -135,6 +135,8 @@ export interface AppPrefs {
   lastSessionPath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
+  /** Sidebar workspace groups the user collapsed, by workspace path. */
+  collapsedWorkspaces: string[]
   fonts: FontPrefs
 }
 
@@ -142,6 +144,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'system',
   recentWorkspaces: [],
   pinnedSessions: [],
+  collapsedWorkspaces: [],
   fonts: DEFAULT_FONT_PREFS,
 }
 

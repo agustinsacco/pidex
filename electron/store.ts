@@ -30,6 +30,7 @@ export function getPrefs(): AppPrefs {
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
+    collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
   }
 }
@@ -44,6 +45,10 @@ export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): v
 
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
+}
+
+export function setCollapsedWorkspaces(paths: string[]): void {
+  prefs().set('collapsedWorkspaces', paths)
 }
 
 /**

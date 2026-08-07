@@ -28,13 +28,16 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
 
   openWorkspace: (path) => {
     set((s) => {
-      if (s.recents.some((w) => w.path === path)) return { homePath: path }
       const name = path.split(/[/\\]/).filter(Boolean).pop() ?? path
+      const entry = { path, name, lastOpenedAt: Date.now() }
       return {
         homePath: path,
-        recents: [{ path, name, lastOpenedAt: Date.now() }, ...s.recents],
+        recents: [entry, ...s.recents.filter((w) => w.path !== path)],
       }
     })
+    // Persist immediately (recents + lastWorkspacePath) so the next launch
+    // lands here even if no session is ever created in this one.
+    void window.pidex.invoke('app:recordWorkspace', path)
   },
 
   pickAndOpen: async () => {

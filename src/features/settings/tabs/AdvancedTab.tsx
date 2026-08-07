@@ -66,7 +66,7 @@ export function AdvancedTab(): React.JSX.Element {
       <div className="grid grid-cols-3 gap-3">
         {(['skills', 'extensions', 'prompts'] as const).map((kind) => (
           <div key={kind} className="border-border bg-surface rounded-xl border p-3">
-            <div className="text-text-tertiary text-[10.5px] font-semibold uppercase tracking-wider">
+            <div className="text-text-tertiary text-[10.5px] font-semibold font-mono uppercase tracking-wider">
               {kind}
             </div>
             <div className="mt-1.5 space-y-0.5">
