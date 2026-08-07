@@ -72,7 +72,9 @@ export const MessageList = memo(function MessageList({
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="font-serif text-text-secondary text-[22px]">Describe a task to begin</div>
+          <div className="text-text-secondary text-[20px] font-medium tracking-tight">
+            Describe a task to begin
+          </div>
           <div className="text-text-tertiary mt-1.5 text-[13px]">
             pi runs with full permissions in this workspace — markdown, diffs, diagrams and previews
             render right here.

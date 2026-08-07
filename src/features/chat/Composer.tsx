@@ -406,33 +406,35 @@ export function Composer({
           {/* Footer mirrors the reference: attach on the left, model +
               thinking + meter on the right, submit/stop as a quiet icon at
               the far right — never a filled pill. */}
-          <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
-            <div className="flex min-w-0 items-center gap-1">
+          <div className="flex items-center justify-between gap-3 px-2.5 pb-2">
+            <div className="flex min-w-0 items-center gap-1.5">
               <AttachButton
                 onFiles={(files) => {
                   for (const file of files) void addImageFile(file)
                 }}
               />
               {isCompacting && (
-                <span className="text-text-tertiary flex items-center gap-1.5 px-1.5 text-[11.5px]">
+                <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-[11.5px]">
                   <Spinner /> compacting…
                 </span>
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-0.5">
+            <div className="flex shrink-0 items-center gap-2">
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
-              {isStreaming && <Spinner />}
-              {isStreaming ? (
-                <StopIconButton onClick={() => void abort()} />
-              ) : (
-                <SubmitIconButton
-                  disabled={!text.trim() && images.length === 0}
-                  onClick={() => void send()}
-                  label="Send message"
-                />
-              )}
+              <div className="flex items-center gap-1.5">
+                {isStreaming && <Spinner />}
+                {isStreaming ? (
+                  <StopIconButton onClick={() => void abort()} />
+                ) : (
+                  <SubmitIconButton
+                    disabled={!text.trim() && images.length === 0}
+                    onClick={() => void send()}
+                    label="Send message"
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>

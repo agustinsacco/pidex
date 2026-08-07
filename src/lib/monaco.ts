@@ -52,24 +52,26 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     },
   }
 
+  // Phosphor editor themes (specs/STYLE_GUIDE.md). Hex literals on purpose —
+  // Monaco takes a JS object; keep in sync with --px-* in src/styles/index.css.
   monaco.editor.defineTheme('pidex-light', {
     base: 'vs',
     inherit: true,
     rules: [],
     colors: {
       'editor.background': '#ffffff',
-      'editor.foreground': '#3d3d3a',
-      'editorLineNumber.foreground': '#a3a29a',
-      'editorLineNumber.activeForeground': '#73726c',
-      'editor.selectionBackground': '#f6e8e2',
-      'editor.lineHighlightBackground': '#faf9f5',
-      'editorCursor.foreground': '#c96442',
+      'editor.foreground': '#2c2a25',
+      'editorLineNumber.foreground': '#9b968a',
+      'editorLineNumber.activeForeground': '#6b675d',
+      'editor.selectionBackground': '#f6e9d4',
+      'editor.lineHighlightBackground': '#f7f6f2',
+      'editorCursor.foreground': '#b35c0f',
       'editorWidget.background': '#ffffff',
-      'editorWidget.border': '#e5e2d7',
-      'diffEditor.insertedTextBackground': '#5a8a5e26',
-      'diffEditor.removedTextBackground': '#b5483d21',
-      'diffEditor.insertedLineBackground': '#5a8a5e14',
-      'diffEditor.removedLineBackground': '#b5483d10',
+      'editorWidget.border': '#e2dfd6',
+      'diffEditor.insertedTextBackground': '#4c8a5426',
+      'diffEditor.removedTextBackground': '#bb4a3c21',
+      'diffEditor.insertedLineBackground': '#4c8a5414',
+      'diffEditor.removedLineBackground': '#bb4a3c10',
     },
   })
 
@@ -78,19 +80,21 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#262624',
-      'editor.foreground': '#e8e6df',
-      'editorLineNumber.foreground': '#737169',
-      'editorLineNumber.activeForeground': '#a6a49c',
-      'editor.selectionBackground': '#453832',
-      'editor.lineHighlightBackground': '#2d2d2b',
-      'editorCursor.foreground': '#d97757',
-      'editorWidget.background': '#30302e',
-      'editorWidget.border': '#3e3e3a',
-      'diffEditor.insertedTextBackground': '#7fae8330',
-      'diffEditor.removedTextBackground': '#d3766c28',
-      'diffEditor.insertedLineBackground': '#7fae831a',
-      'diffEditor.removedLineBackground': '#d3766c15',
+      // Editor sits on --px-surface (it lives inside the files-pane card);
+      // the terminal is the one dark surface that sits on --px-bg instead.
+      'editor.background': '#2a2721',
+      'editor.foreground': '#ece7db',
+      'editorLineNumber.foreground': '#7c766a',
+      'editorLineNumber.activeForeground': '#aca496',
+      'editor.selectionBackground': '#3d3220',
+      'editor.lineHighlightBackground': '#322e27',
+      'editorCursor.foreground': '#eca03d',
+      'editorWidget.background': '#322e27',
+      'editorWidget.border': '#3a352c',
+      'diffEditor.insertedTextBackground': '#7fbe8830',
+      'diffEditor.removedTextBackground': '#dd766328',
+      'diffEditor.insertedLineBackground': '#7fbe881a',
+      'diffEditor.removedLineBackground': '#dd766315',
     },
   })
 

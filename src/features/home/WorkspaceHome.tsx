@@ -83,7 +83,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       <div className="titlebar-drag h-11 shrink-0" />
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
         <div className="w-full max-w-2xl pt-10">
-          <h1 className="text-center font-serif text-[30px] font-medium tracking-tight">
+          <h1 className="text-center text-[28px] font-semibold tracking-tight">
             <span className="text-accent mr-2">✳</span>
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
@@ -187,7 +187,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 function StatTile({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
     <div className="bg-surface border-border rounded-lg border px-3 py-2.5">
-      <div className="text-text-tertiary text-[11px]">{label}</div>
+      <div className="text-text-tertiary font-mono text-[10px] uppercase tracking-wider">
+        {label}
+      </div>
       <div className="text-text mt-0.5 text-[17px] font-semibold tabular-nums">{value}</div>
     </div>
   )
@@ -226,7 +228,7 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
               style={
                 cell.count > 0
                   ? {
-                      backgroundColor: `color-mix(in srgb, var(--px-info) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)`,
+                      backgroundColor: `color-mix(in srgb, var(--px-accent) ${Math.round(intensity * 100)}%, var(--px-border) ${Math.round((1 - intensity) * 60)}%)`,
                     }
                   : undefined
               }
@@ -463,7 +465,7 @@ function WorkspaceChip({
           onClose={() => setOpen(false)}
           className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Recent
           </div>
           {recents.map((ws) => (

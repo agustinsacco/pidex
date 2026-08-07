@@ -220,7 +220,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
               <button
                 onClick={() => toggleGroup(group, isCollapsed)}
                 data-testid="workspace-group"
-                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold uppercase tracking-wider transition-colors"
+                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold font-mono uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
               >
                 <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
@@ -295,7 +295,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
           onClose={() => setOpen(false)}
           className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
             Workspaces
           </div>
           {recents.map((ws) => (
@@ -458,7 +458,7 @@ function SessionRow({
 /** Rename a disk or live session, then refresh the sidebar listing. */
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider">
+    <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
   )

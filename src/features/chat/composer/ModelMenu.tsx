@@ -112,7 +112,7 @@ export function ModelMenu({
           ? grouped.map(([provider, providerModels]) => (
               <div key={provider}>
                 {grouped.length > 1 && (
-                  <div className="text-text-tertiary px-3 pb-0.5 pt-2 text-[10.5px] uppercase tracking-wide">
+                  <div className="text-text-tertiary px-3 pb-0.5 pt-2 text-[10.5px] font-mono uppercase tracking-wide">
                     {provider}
                   </div>
                 )}

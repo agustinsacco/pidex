@@ -38,7 +38,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#faf9f5',
+    backgroundColor: '#f7f6f2',
     // Window/taskbar icon for unpackaged linux runs (packaged linux resolves
     // it from the desktop entry; macOS ignores this option).
     ...(devIcon && process.platform === 'linux' ? { icon: devIcon } : {}),

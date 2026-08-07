@@ -22,9 +22,25 @@ export const MermaidBlock = memo(function MermaidBlock({
     void (async () => {
       try {
         const mermaid = (await import('mermaid')).default
+        // Phosphor theme variables (specs/STYLE_GUIDE.md) instead of the
+        // built-in neutral/dark themes, so diagrams read as pidex surfaces.
+        const dark = resolvedTheme === 'dark'
         mermaid.initialize({
           startOnLoad: false,
-          theme: resolvedTheme === 'dark' ? 'dark' : 'neutral',
+          theme: 'base',
+          themeVariables: {
+            darkMode: dark,
+            background: dark ? '#2a2721' : '#ffffff',
+            primaryColor: dark ? '#3d3220' : '#f6e9d4',
+            primaryTextColor: dark ? '#ece7db' : '#2c2a25',
+            primaryBorderColor: dark ? '#4b453a' : '#cec9bc',
+            secondaryColor: dark ? '#26231e' : '#eeece5',
+            tertiaryColor: dark ? '#322e27' : '#f7f6f2',
+            lineColor: dark ? '#aca496' : '#6b675d',
+            textColor: dark ? '#ece7db' : '#2c2a25',
+            noteBkgColor: dark ? '#322e27' : '#f2f0e9',
+            noteTextColor: dark ? '#ece7db' : '#2c2a25',
+          },
           fontFamily: 'var(--px-font-sans)',
           securityLevel: 'strict',
         })

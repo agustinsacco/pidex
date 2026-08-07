@@ -56,7 +56,7 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
         >
           <path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
-        <span className="text-info text-[10.5px] font-semibold uppercase tracking-wide">
+        <span className="text-info text-[10.5px] font-semibold font-mono uppercase tracking-wide">
           {item.customType ? `Extension · ${item.customType}` : 'Extension message'}
         </span>
         {item.inContext && (
