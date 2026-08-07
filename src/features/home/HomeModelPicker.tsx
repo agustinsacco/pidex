@@ -41,7 +41,10 @@ export function HomeModelPicker(): React.JSX.Element | null {
       const defaultThinking = settings.defaultThinkingLevel
       if (typeof defaultProvider === 'string') setProvider(defaultProvider)
       if (typeof defaultModel === 'string') setModelId(defaultModel)
-      if (typeof defaultThinking === 'string' && THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)) {
+      if (
+        typeof defaultThinking === 'string' &&
+        THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
+      ) {
         setThinking(defaultThinking as ThinkingLevel)
       }
     })
@@ -144,7 +147,9 @@ export function HomeModelPicker(): React.JSX.Element | null {
           onClose={() => setOpen(null)}
           className="absolute bottom-full right-0 mb-2 w-44 py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Thinking</div>
+          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
+            Thinking
+          </div>
           {THINKING_LEVELS.map((level) => (
             <MenuRow key={level} active={false} onClick={() => chooseThinking(level)}>
               <span className="flex-1">{titleCase(level)}</span>
