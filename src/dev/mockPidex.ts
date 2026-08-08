@@ -117,6 +117,13 @@ function respond(command: RpcCommand): RpcResponse {
           ],
         },
       } as RpcResponse
+    case 'get_available_thinking_levels':
+      return {
+        type: 'response',
+        command: 'get_available_thinking_levels',
+        success: true,
+        data: { levels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] },
+      } as RpcResponse
     case 'get_session_stats':
       return {
         type: 'response',
@@ -395,8 +402,22 @@ export function installMockPidex(): void {
           })
         case 'pi:catalogueModels':
           return Promise.resolve([
-            { id: 'claude-opus-5', name: 'Opus 5', provider: 'anthropic', reasoning: true },
-            { id: 'claude-sonnet-5', name: 'Sonnet 5', provider: 'anthropic', reasoning: true },
+            {
+              id: 'claude-opus-5',
+              name: 'Opus 5',
+              api: 'anthropic',
+              provider: 'anthropic',
+              reasoning: true,
+              thinkingLevelMap: { xhigh: 'high-boost', max: null },
+            },
+            {
+              id: 'claude-sonnet-5',
+              name: 'Sonnet 5',
+              api: 'anthropic',
+              provider: 'anthropic',
+              reasoning: true,
+              thinkingLevelMap: null,
+            },
             {
               id: 'Qwen 3.5 122b',
               name: 'Qwen 3.5 122b',

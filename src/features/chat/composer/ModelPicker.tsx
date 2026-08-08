@@ -1,27 +1,43 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { Model, ThinkingLevel } from '@shared/rpc'
+import { hasThinkingChoice, supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { CheckIcon } from '@/components/icons'
 import { piCallOk } from '@/lib/rpc'
+import { refreshThinkingLevels } from '@/stores/sessions'
 import { ModelMenu } from './ModelMenu'
-
-const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
 
 /** Real title-case text (not a CSS transform) so labels are accessible. */
 function titleCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-/** Model + thinking-level pickers, screenshot-style: chips in the composer footer. */
+/**
+ * Model + thinking-level pickers in the composer footer.
+ *
+ * The thinking chip only appears when the model has more than one level to
+ * choose from. The levels rendered are:
+ *   - pi's authoritative answer (`get_available_thinking_levels`) when available
+ *   - local derivation (`supportedThinkingLevels`) otherwise — same algorithm,
+ *     just computed client-side to match rather than a hardcoded list that was
+ *     wrong for most models.
+ */
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
+  const thinkingLevels = useChatStore((s) => s.sessions[sessionId]?.thinkingLevels)
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
 
   if (!meta) return null
   const currentModel = meta.model
+
+  /**
+   * Levels to render. Prefer pi's answer; derive locally when missing.
+   */
+  const levelsToRender: ThinkingLevel[] =
+    thinkingLevels ?? (currentModel ? supportedThinkingLevels(currentModel) : [])
 
   const setModel = async (model: Model): Promise<void> => {
     setOpen(null)
@@ -30,7 +46,11 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       provider: model.provider,
       modelId: model.id,
     })
-    if (ok) useChatStore.getState().patchMeta(sessionId, { model })
+    if (ok) {
+      useChatStore.getState().patchMeta(sessionId, { model })
+      // Supported levels are per-model — re-ask pi after a switch.
+      void refreshThinkingLevels(sessionId)
+    }
   }
 
   const setThinking = async (level: ThinkingLevel): Promise<void> => {
@@ -53,7 +73,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         {currentModel?.name ?? 'No model'}
       </button>
 
-      {currentModel?.reasoning && (
+      {currentModel && hasThinkingChoice(currentModel) && (
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           className={clsx(
@@ -89,7 +109,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
             Thinking
           </div>
-          {THINKING_LEVELS.map((level) => (
+          {levelsToRender.map((level) => (
             <MenuRow key={level} active={false} onClick={() => void setThinking(level)}>
               <span className="flex-1">{titleCase(level)}</span>
               {meta.thinkingLevel === level && <CheckIcon className="text-text" />}
