@@ -1,0 +1,136 @@
+/**
+ * Tool identity while a `toolcall` block is still streaming.
+ *
+ * Providers disagree about *when* a tool call's real id and name become known:
+ *
+ * - Anthropic direct puts both in the first `partial` on `toolcall_start`.
+ * - Bedrock-routed Claude sends neither until `toolcall_end` — i.e. after the
+ *   entire argument payload has streamed, which for a large `write` or
+ *   `artifact_create` is minutes of wall clock.
+ *
+ * Until the real id arrives the tool has to be keyed under *something*, so we
+ * mint a deterministic placeholder from the item id + content index and leave
+ * `toolName` null (rather than the string `'unknown'`, which leaked into the UI
+ * as "Running unknown" / "unknown arguments").
+ *
+ * The important part is that every later event which learns the real identity —
+ * a `partial` on a subsequent delta, `toolcall_end`, or a `tool_execution_*`
+ * event arriving first — **adopts** that placeholder instead of inserting a
+ * second tool entry. Before this, the placeholder stayed on screen forever at
+ * `status: 'starting'` while the real entry (holding the actual output)
+ * accumulated under a key nothing rendered.
+ */
+import type { AssistantMessage } from '@shared/rpc'
+import type { AssistantItem, ChatSessionState, ToolState } from './chatItems'
+import { replaceItem } from './messageContent'
+
+export const pendingToolId = (itemId: string, contentIndex: number): string =>
+  `pending-${itemId}-${contentIndex}`
+
+export const isPendingToolId = (toolCallId: string): boolean => toolCallId.startsWith('pending-')
+
+export interface RevealedTool {
+  id: string
+  name: string
+}
+
+/** The real id/name for a content index, if this partial message carries them. */
+export function revealedToolCall(
+  partial: AssistantMessage | undefined,
+  contentIndex: number,
+): RevealedTool | null {
+  const block = partial?.content?.[contentIndex]
+  if (!block || typeof block !== 'object' || block.type !== 'toolCall') return null
+  if (!block.id) return null
+  return { id: block.id, name: block.name }
+}
+
+/**
+ * Re-key a streaming tool block onto its real id/name, preserving everything
+ * accumulated under the placeholder (streamed args text, status, output).
+ * No-op when the block already carries that identity.
+ */
+export function applyRevealedIdentity(
+  state: ChatSessionState,
+  itemIndex: number,
+  contentIndex: number,
+  revealed: RevealedTool,
+): ChatSessionState {
+  const item = state.items[itemIndex]
+  if (!item || item.kind !== 'assistant') return state
+  const block = item.blocks.find((b) => b.index === contentIndex)
+  if (!block || block.type !== 'tool') return state
+
+  const oldId = block.toolCallId
+  const previous = state.tools[oldId]
+  if (oldId === revealed.id && previous?.toolName === revealed.name) return state
+
+  const tools = { ...state.tools }
+  if (oldId !== revealed.id) delete tools[oldId]
+  tools[revealed.id] = {
+    ...(previous ?? { argsText: '', status: 'starting' as const, output: null }),
+    toolCallId: revealed.id,
+    toolName: revealed.name,
+  }
+
+  const blocks =
+    oldId === revealed.id
+      ? item.blocks
+      : item.blocks.map((b) =>
+          b.index === contentIndex && b.type === 'tool' ? { ...b, toolCallId: revealed.id } : b,
+        )
+
+  return { ...state, items: replaceItem(state.items, itemIndex, { ...item, blocks }), tools }
+}
+
+/**
+ * A `tool_execution_*` event arrived for an id we've never seen, because the
+ * stream never revealed it. Hand the oldest still-unidentified tool block that
+ * identity, so the running card is the one the user is already looking at.
+ *
+ * Ordering: pi emits `tool_execution_start` in call order and blocks are sorted
+ * by content index, so first-unadopted-wins matches the provider's own pairing
+ * for parallel tool calls.
+ */
+export function adoptPendingTool(
+  state: ChatSessionState,
+  revealed: RevealedTool,
+): ChatSessionState | null {
+  for (let itemIndex = state.items.length - 1; itemIndex >= 0; itemIndex--) {
+    const item = state.items[itemIndex]
+    if (!item || item.kind !== 'assistant') continue
+    const candidate = pendingBlocks(item).find((block) => {
+      const tool = state.tools[block.toolCallId]
+      return tool != null && (tool.toolName == null || tool.toolName === revealed.name)
+    })
+    if (!candidate) continue
+    return applyRevealedIdentity(state, itemIndex, candidate.index, revealed)
+  }
+  return null
+}
+
+function pendingBlocks(item: AssistantItem): { index: number; toolCallId: string }[] {
+  return item.blocks
+    .flatMap((b) => (b.type === 'tool' ? [{ index: b.index, toolCallId: b.toolCallId }] : []))
+    .filter((b) => isPendingToolId(b.toolCallId))
+    .sort((a, b) => a.index - b.index)
+}
+
+/**
+ * Merge a `tool_execution_*` event into the tools map, adopting a placeholder
+ * entry first when the id is unknown.
+ */
+export function withExecutionIdentity(
+  state: ChatSessionState,
+  toolCallId: string,
+  toolName: string,
+  patch: (existing: ToolState | undefined) => ToolState,
+): ChatSessionState {
+  const base = state.tools[toolCallId]
+    ? state
+    : (adoptPendingTool(state, { id: toolCallId, name: toolName }) ?? state)
+  return {
+    ...base,
+    tools: { ...base.tools, [toolCallId]: patch(base.tools[toolCallId]) },
+  }
+}

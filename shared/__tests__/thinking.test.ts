@@ -11,7 +11,7 @@ describe('ALL_THINKING_LEVELS', () => {
   it('includes max, which pidex omitted', () => {
     expect(ALL_THINKING_LEVELS).toContain('max')
   })
-  it('matches pi\'s own order', () => {
+  it("matches pi's own order", () => {
     // From dist/node_modules/@earendil-works/pi-ai/dist/models.js
     expect(ALL_THINKING_LEVELS).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
   })
@@ -31,17 +31,19 @@ describe('supportedThinkingLevels', () => {
     ])
   })
   it('filters out null-marked levels (Kimi K2.5, minimal:null)', () => {
-    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: { minimal: null } })).toEqual(
-      ['off', 'low', 'medium', 'high'],
-    )
+    expect(
+      supportedThinkingLevels({ reasoning: true, thinkingLevelMap: { minimal: null } }),
+    ).toEqual(['off', 'low', 'medium', 'high'])
   })
   it('requires xhigh and max to be explicitly defined', () => {
     // Absent key = unsupported for xhigh/max (pi rule)
-    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: {} })).not.toContain('xhigh')
-    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: {} })).not.toContain('max')
-    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: { xhigh: 'boost' } })).toContain(
+    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: {} })).not.toContain(
       'xhigh',
     )
+    expect(supportedThinkingLevels({ reasoning: true, thinkingLevelMap: {} })).not.toContain('max')
+    expect(
+      supportedThinkingLevels({ reasoning: true, thinkingLevelMap: { xhigh: 'boost' } }),
+    ).toContain('xhigh')
   })
   it('mirrors Kimi K2.5 exactly', () => {
     // From amazon-bedrock.json: thinkingLevelMap: null

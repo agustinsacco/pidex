@@ -11,8 +11,15 @@ import {
   ReadDetail,
   WriteDetail,
 } from './toolDetails'
+import { ArtifactDetail } from './ArtifactDetail'
 
-export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): React.JSX.Element {
+export const ToolCard = memo(function ToolCard({
+  tool,
+  sessionId,
+}: {
+  tool: ToolState
+  sessionId: string
+}): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const summary = summarizeTool(tool)
   const running = tool.status === 'starting' || tool.status === 'running'
@@ -51,6 +58,11 @@ export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): R
             <span className="text-danger">−{summary.stats.deletions}</span>
           </span>
         )}
+        {summary.hint && (
+          <span className="text-text-tertiary shrink-0 font-mono text-[11.5px]">
+            {summary.hint}
+          </span>
+        )}
         {failed && (
           <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium">
             failed
@@ -59,15 +71,21 @@ export const ToolCard = memo(function ToolCard({ tool }: { tool: ToolState }): R
         <ChevronIcon expanded={expanded} className="text-text-tertiary" />
       </button>
       {expanded && (
-        <div className="border-border bg-surface expand-enter mb-2 mt-0.5 overflow-hidden rounded-lg border">
-          <ToolDetail tool={tool} />
+        <div className="border-border bg-surface expand-enter mt-1 mb-1 overflow-hidden rounded-lg border">
+          <ToolDetail tool={tool} sessionId={sessionId} />
         </div>
       )}
     </div>
   )
 })
 
-function ToolDetail({ tool }: { tool: ToolState }): React.JSX.Element {
+function ToolDetail({
+  tool,
+  sessionId,
+}: {
+  tool: ToolState
+  sessionId: string
+}): React.JSX.Element {
   switch (tool.toolName) {
     case 'bash':
       return <BashDetail tool={tool} />
@@ -81,6 +99,9 @@ function ToolDetail({ tool }: { tool: ToolState }): React.JSX.Element {
     case 'find':
     case 'ls':
       return <ListDetail tool={tool} />
+    case 'artifact_create':
+    case 'artifact_update':
+      return <ArtifactDetail tool={tool} sessionId={sessionId} />
     default:
       return <GenericDetail tool={tool} />
   }

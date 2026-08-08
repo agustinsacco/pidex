@@ -30,7 +30,14 @@ export const MessageItemView = memo(function MessageItemView({
     case 'user':
       return <UserMessage item={item} sessionId={sessionId} />
     case 'assistant':
-      return <AssistantMessage item={item} tools={tools} hideThinking={hideThinking} />
+      return (
+        <AssistantMessage
+          item={item}
+          tools={tools}
+          hideThinking={hideThinking}
+          sessionId={sessionId}
+        />
+      )
     case 'bash':
       return <BashExecution item={item} />
     case 'divider':
@@ -135,10 +142,12 @@ function AssistantMessage({
   item,
   tools,
   hideThinking,
+  sessionId,
 }: {
   item: AssistantItem
   tools: Record<string, ToolState>
   hideThinking: boolean
+  sessionId: string
 }): React.JSX.Element {
   const groups = groupBlocks(item.blocks)
   const failed = item.stopReason === 'error'
@@ -152,14 +161,20 @@ function AssistantMessage({
     <div className="group/msg relative">
       {groups.map((group, i) => {
         if (Array.isArray(group)) {
+          /*
+           * No vertical margin: `spacingFor` owns the gap between rows, and
+           * consecutive tool rows inside one turn are meant to read as a single
+           * block of work (grouping by ink, not air).
+           */
           return (
-            <div key={`tools-${i}`} className="my-2">
+            <div key={`tools-${i}`}>
               {group.map((block) =>
                 block.type === 'tool' ? (
                   <ToolBlockView
                     key={block.toolCallId}
                     toolCallId={block.toolCallId}
                     tools={tools}
+                    sessionId={sessionId}
                   />
                 ) : null,
               )}
@@ -240,11 +255,13 @@ function AssistantMessage({
 function ToolBlockView({
   toolCallId,
   tools,
+  sessionId,
 }: {
   toolCallId: string
   tools: Record<string, ToolState>
+  sessionId: string
 }): React.JSX.Element | null {
   const tool = tools[toolCallId]
   if (!tool) return null
-  return <ToolCard tool={tool} />
+  return <ToolCard tool={tool} sessionId={sessionId} />
 }

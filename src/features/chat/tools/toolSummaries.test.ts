@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { toolText, editDiffStats, summarizeTool, tryParseArgs, truncate } from './toolSummaries'
+import {
+  toolText,
+  editDiffStats,
+  partialStringArg,
+  summarizeTool,
+  tryParseArgs,
+  truncate,
+} from './toolSummaries'
 import type { ToolState } from '../reducer'
 
 function tool(overrides: Partial<ToolState> = {}): ToolState {
@@ -216,5 +223,94 @@ describe('summarizeTool', () => {
   it('falls back to the tool name for unknown tools', () => {
     const summary = summarizeTool(tool({ toolName: 'custom_thing' }))
     expect(summary).toMatchObject({ label: 'Used', object: 'custom_thing', mono: true })
+  })
+
+  describe('unidentified streaming tools', () => {
+    it('reads as "Preparing tool", never as a literal name', () => {
+      const summary = summarizeTool(tool({ toolName: null, status: 'starting' }))
+      expect(summary.label).toBe('Preparing tool')
+      expect(summary.object).toBeUndefined()
+      // The whole point: nothing in the UI may say "unknown".
+      expect(JSON.stringify(summary)).not.toContain('unknown')
+    })
+
+    it('reports streamed payload size as the only honest progress signal', () => {
+      const summary = summarizeTool(
+        tool({ toolName: null, status: 'running', argsText: 'x'.repeat(2048) }),
+      )
+      expect(summary.hint).toBe('2.0 KB')
+    })
+
+    it('omits the size hint before any args arrive', () => {
+      expect(summarizeTool(tool({ toolName: null, status: 'starting' })).hint).toBeUndefined()
+    })
+  })
+
+  describe('artifact tools', () => {
+    it('labels creation and updates distinctly, in both tenses', () => {
+      expect(summarizeTool(tool({ toolName: 'artifact_create', status: 'running' })).label).toBe(
+        'Writing artifact',
+      )
+      expect(summarizeTool(tool({ toolName: 'artifact_create', status: 'done' })).label).toBe(
+        'Created artifact',
+      )
+      expect(summarizeTool(tool({ toolName: 'artifact_update', status: 'running' })).label).toBe(
+        'Updating artifact',
+      )
+      expect(summarizeTool(tool({ toolName: 'artifact_update', status: 'done' })).label).toBe(
+        'Updated artifact',
+      )
+    })
+
+    it('shows the title from the result details and the version as the hint', () => {
+      const summary = summarizeTool(
+        tool({
+          toolName: 'artifact_create',
+          status: 'done',
+          result: res({ id: 'a', title: 'Spacing plan', version: 3 }),
+        }),
+      )
+      expect(summary).toMatchObject({ object: 'Spacing plan', hint: 'v3' })
+    })
+
+    it('recovers the title mid-stream from unparseable args', () => {
+      // Artifact payloads are one huge `content` field, so JSON.parse fails for
+      // most of the call's lifetime; the title still streams first.
+      const argsText = '{"title": "Chat spacing audit", "type": "markdown", "content": "# Cha'
+      const summary = summarizeTool(
+        tool({ toolName: 'artifact_create', status: 'running', argsText }),
+      )
+      expect(summary.object).toBe('Chat spacing audit')
+      expect(summary.hint).toBe('69 B')
+    })
+  })
+})
+
+describe('partialStringArg', () => {
+  it('reads a completed string value out of a truncated payload', () => {
+    expect(partialStringArg('{"title": "Done", "content": "unfinis', 'title')).toBe('Done')
+  })
+
+  it('tolerates no whitespace and other keys first', () => {
+    expect(partialStringArg('{"type":"markdown","title":"T"}', 'title')).toBe('T')
+  })
+
+  it('returns undefined until the closing quote arrives', () => {
+    expect(partialStringArg('{"title": "Half arri', 'title')).toBeUndefined()
+  })
+
+  it('returns undefined for a missing key or a non-string value', () => {
+    expect(partialStringArg('{"other": "x"}', 'title')).toBeUndefined()
+    expect(partialStringArg('{"title": 42}', 'title')).toBeUndefined()
+    expect(partialStringArg('', 'title')).toBeUndefined()
+  })
+
+  it('unescapes quotes, newlines and tabs inside the value', () => {
+    expect(partialStringArg('{"title": "a\\"b"}', 'title')).toBe('a"b')
+    expect(partialStringArg('{"title": "a\\nb\\tc"}', 'title')).toBe('a\nb\tc')
+  })
+
+  it('does not read past an escaped closing quote', () => {
+    expect(partialStringArg('{"title": "end\\\\"}', 'title')).toBe('end\\')
   })
 })

@@ -386,3 +386,137 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
     await shutdown(harness)
   }
 })
+
+test('artifact pane scrolls a long document', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page
+      .getByPlaceholder('Describe a task or ask a question')
+      .fill('write a longartifact please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // The artifact tool card carries the artifact's identity now, not a
+    // generic "Used artifact_create" row.
+    const card = page.getByRole('button', { name: /Created artifact\s+E2E Long Doc/ })
+    await expect(card).toBeVisible({ timeout: 30_000 })
+
+    // The artifacts pane auto-opens on the session's first artifact, so don't
+    // click the header toggle here — that would close it again.
+    const scroller = page.getByTestId('artifact-scroll')
+    await expect(scroller).toBeVisible({ timeout: 10_000 })
+
+    // Regression: the pane used to clip its body with no scrollbar at all, so
+    // everything past the first screen of a long artifact was unreachable.
+    const metrics = await scroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight + 200)
+
+    const moved = await scroller.evaluate((el) => {
+      el.scrollTop = 400
+      return el.scrollTop
+    })
+    expect(moved).toBeGreaterThan(0)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('transcript: reading back during a stream is not undone, and rows sit flush', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('do a longstream now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const scroller = page.getByTestId('transcript-scroll')
+    await expect(scroller).toBeVisible({ timeout: 30_000 })
+
+    // An unidentified streaming tool must never surface as a literal name.
+    await expect(page.getByText('unknown', { exact: false })).toHaveCount(0)
+
+    // Wait until the transcript overflows, then read back.
+    await expect
+      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(300)
+
+    const box = (await scroller.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, -400)
+
+    // Keep streaming: geometry-derived pinning used to re-pin right here (the
+    // virtualizer re-measures, scrollHeight shrinks, scrollTop is clamped to
+    // the bottom) and slam the viewport back down mid-sentence.
+    await page.waitForTimeout(1200)
+    const position = await scroller.evaluate((el) => ({
+      top: el.scrollTop,
+      max: el.scrollHeight - el.clientHeight,
+    }))
+    expect(position.max - position.top).toBeGreaterThan(100)
+    // The app agrees it is no longer following the tail.
+    await expect(
+      page.getByRole('button', { name: /Following stream|Jump to bottom/ }),
+    ).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('transcript rows are dense and sit flush', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // 40 tool-only turns: the shape a long agent run takes, and the only shape
+    // where virtualization and per-row spacing actually show up.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('run manyitems now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText('many items complete')).toBeVisible({ timeout: 60_000 })
+
+    const geometry = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
+      const sorted = rows
+        .map((el) => ({ index: Number(el.dataset.index), rect: el.getBoundingClientRect() }))
+        .sort((a, b) => a.index - b.index)
+      let worstGap = 0
+      for (let i = 1; i < sorted.length; i++) {
+        const previous = sorted[i - 1]!
+        const current = sorted[i]!
+        if (current.index !== previous.index + 1) continue
+        worstGap = Math.max(worstGap, current.rect.top - previous.rect.bottom)
+      }
+      // Measure rows that actually contain a tool card. Filtering by "has no
+      // markdown body" also caught the user bubble (plain pre-wrap text, not
+      // markdown), whose padding + timestamp row is legitimately ~58px — the
+      // assertion failed on a message it was never meant to measure.
+      const toolRowHeights = rows
+        .filter((el) => el.querySelector('.tool-card'))
+        .map((el) => el.getBoundingClientRect().height)
+      return {
+        worstGap,
+        tallestToolRow: Math.max(...toolRowHeights),
+        toolRows: toolRowHeights.length,
+        rows: sorted.length,
+      }
+    })
+
+    expect(geometry.rows).toBeGreaterThan(5)
+    expect(geometry.toolRows).toBeGreaterThan(3)
+    // Density: one tool row used to occupy 63px for ~20px of text, because the
+    // row's gap was owned in four places at once (pt-4 + pb-0.5 + my-2 + py-1).
+    // With `spacingFor` as the single owner it is ~33px. 44px leaves headroom
+    // for font-metric differences between platforms while still failing on a
+    // regression to the old stacking.
+    expect(geometry.tallestToolRow).toBeLessThan(44)
+    // Spacing lives *inside* each measured wrapper, so measured rows are flush.
+    expect(geometry.worstGap).toBeLessThan(8)
+  } finally {
+    await shutdown(harness)
+  }
+})

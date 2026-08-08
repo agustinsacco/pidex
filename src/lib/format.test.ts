@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatTokens, formatDuration } from './format'
+import { formatTokens, formatDuration, formatBytes } from './format'
 
 describe('formatTokens', () => {
   it.each([
@@ -69,5 +69,41 @@ describe('formatDuration', () => {
 
   it('rounds the seconds remainder rather than truncating', () => {
     expect(formatDuration(61_600)).toBe('1m 2s')
+  })
+})
+
+describe('formatBytes', () => {
+  it.each([
+    [0, '0 B'],
+    [1, '1 B'],
+    [1023, '1023 B'],
+  ])('renders %i as exact bytes below 1 KiB', (input, expected) => {
+    expect(formatBytes(input)).toBe(expected)
+  })
+
+  it.each([
+    [1024, '1.0 KB'],
+    [12_700, '12.4 KB'],
+    [1_048_575, '1024.0 KB'],
+  ])('renders %i in the KB tier with one decimal', (input, expected) => {
+    expect(formatBytes(input)).toBe(expected)
+  })
+
+  it.each([
+    [1_048_576, '1.0 MB'],
+    [13_800_000, '13.2 MB'],
+  ])('renders %i in the MB tier', (input, expected) => {
+    expect(formatBytes(input)).toBe(expected)
+  })
+
+  /*
+   * This drives the streaming label on a tool card whose args are still
+   * arriving, so it is called on every delta: it must never widen mid-stream in
+   * a way that reflows the row (one decimal, single unit switch per tier).
+   */
+  it('grows monotonically as a payload streams', () => {
+    const sizes = [0, 512, 1024, 20_000, 500_000, 2_000_000]
+    const rendered = sizes.map(formatBytes)
+    expect(rendered).toEqual(['0 B', '512 B', '1.0 KB', '19.5 KB', '488.3 KB', '1.9 MB'])
   })
 })

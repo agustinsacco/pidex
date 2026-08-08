@@ -41,7 +41,7 @@ export function DividerShell({
   children?: React.ReactNode
 }): React.JSX.Element {
   return (
-    <div className="my-1">
+    <div>
       <div
         className={clsx(
           'flex items-center gap-2.5 text-[11.5px]',
