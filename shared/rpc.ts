@@ -1,11 +1,19 @@
 /**
  * pi RPC protocol types, mirrored from the installed
- * @earendil-works/pi-coding-agent (verified against 0.78.0):
+ * @earendil-works/pi-coding-agent (verified against 0.84.1):
+ *   dist/modes/rpc/rpc-mode.js  (the command switch — the real command list)
  *   dist/modes/rpc/rpc-types.d.ts
  *   docs/rpc.md
  *
  * Self-contained on purpose — pidex spawns pi as a subprocess and never
  * imports its code, so the contract is duplicated here and unit-tested.
+ *
+ * Note on the drift guards at the bottom of this file: they prove the command
+ * union and `RpcResponseDataMap` agree with *each other*. They cannot see pi,
+ * so a command pi supports but pidex never declared stays invisible to them —
+ * that is how `get_available_thinking_levels` went missing. When re-verifying
+ * against a new pi, diff this file against pi's command switch, not just
+ * against itself.
  */
 
 // ---------- content blocks ----------
@@ -38,7 +46,25 @@ export type UserContentBlock = TextContent | ImageContent
 
 // ---------- models ----------
 
-export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+/**
+ * Ascending order of effort. `max` is real — pi's `EXTENDED_THINKING_LEVELS`
+ * and `--thinking` arg validator both accept it, and 98 catalogued models
+ * support it. Omitting it made those models unable to reach their top level.
+ */
+export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/**
+ * Per-model mapping of pi's thinking levels onto provider-specific values.
+ *
+ * The tri-state is the whole point, so it must not be collapsed to a boolean:
+ *   - a string/number value → supported, sent as that value
+ *   - `null`               → explicitly NOT supported
+ *   - key absent           → provider default for `off…high`, but
+ *                            NOT supported for `xhigh`/`max`
+ *
+ * See `shared/thinking.ts`, which implements those rules.
+ */
+export type ThinkingLevelMap = Partial<Record<ThinkingLevel, string | null>>
 
 export interface ModelCost {
   input: number
@@ -53,7 +79,14 @@ export interface Model {
   api: string
   provider: string
   baseUrl?: string
+  /**
+   * Whether the model reasons at all. Necessary but NOT sufficient for showing
+   * a thinking picker — consult `thinkingLevelMap` via
+   * `supportedThinkingLevels()` for *which* levels are selectable.
+   */
   reasoning: boolean
+  /** Absent or null when the model has no level overrides. */
+  thinkingLevelMap?: ThinkingLevelMap | null
   input: string[]
   contextWindow: number
   maxTokens: number
@@ -264,6 +297,8 @@ export type RpcCommand =
   | { id?: string; type: 'get_available_models' }
   | { id?: string; type: 'set_thinking_level'; level: ThinkingLevel }
   | { id?: string; type: 'cycle_thinking_level' }
+  /** Levels the *current* model supports. Authoritative; prefer over inference. */
+  | { id?: string; type: 'get_available_thinking_levels' }
   | { id?: string; type: 'set_steering_mode'; mode: QueueMode }
   | { id?: string; type: 'set_follow_up_mode'; mode: QueueMode }
   | { id?: string; type: 'compact'; customInstructions?: string }
@@ -373,6 +408,7 @@ export interface RpcResponseDataMap {
   get_available_models: { models: Model[] }
   set_thinking_level: undefined
   cycle_thinking_level: { level: ThinkingLevel } | null
+  get_available_thinking_levels: { levels: ThinkingLevel[] }
   set_steering_mode: undefined
   set_follow_up_mode: undefined
   compact: CompactionResult

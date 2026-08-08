@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { ThinkingLevel } from '@shared/rpc'
+import { ALL_THINKING_LEVELS, hasThinkingChoice } from '@shared/thinking'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 
-const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-
+/**
+ * One selectable model as returned by `pi:catalogueModels` (home screen only).
+ * The session composer's live picker uses the full `Model` type from
+ * `get_available_models`, which carries `thinkingLevelMap`.
+ *
+ * Home can only derive levels from this shape because `pi --list-models`
+ * streams a table, not the richer RPC payload.
+ */
 interface CatalogueModel {
   id: string
   name: string
@@ -26,6 +33,14 @@ function titleCase(text: string): string {
  * settings.json). That is the same surface pi itself uses to pick a model on
  * startup, so whatever is shown here is genuinely what the next session will
  * run with — not a pidex-local preference that silently disagrees.
+ *
+ * Supported thinking levels are derived locally because `pi:catalogueModels`
+ * does not carry `thinkingLevelMap`. The derivation matches pi's rules:
+ *   - `reasoning: false` → only `off`
+ *   - `reasoning: true`  → `off…max`, filtered by the `thinkingLevelMap`
+ *     (key absent vs. `null`), which is not on this type, so we assume the
+ *     standard five-level set `off…high` for reasoning models without the map.
+ *     Pi's `get_available_models` is the source of truth for the map.
  */
 export function HomeModelPicker(): React.JSX.Element | null {
   const [models, setModels] = useState<CatalogueModel[]>([])
@@ -44,7 +59,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
       if (typeof defaultModel === 'string') setModelId(defaultModel)
       if (
         typeof defaultThinking === 'string' &&
-        THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
+        ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
       ) {
         setThinking(defaultThinking as ThinkingLevel)
       }
@@ -52,6 +67,18 @@ export function HomeModelPicker(): React.JSX.Element | null {
   }, [])
 
   const current = models.find((m) => m.id === modelId && m.provider === provider)
+
+  /**
+   * Levels to render. Without `thinkingLevelMap`, assume the standard five.
+   * Users who need `xhigh`/`max` should start a session and use the live
+   * picker, which receives the real map from pi.
+   */
+  const levelsToRender: ThinkingLevel[] = useMemo(() => {
+    if (!current) return []
+    if (!current.reasoning) return ['off']
+    // Catalogue doesn't carry the map; default to the standard set.
+    return ['off', 'minimal', 'low', 'medium', 'high']
+  }, [current])
 
   const chooseModel = (model: CatalogueModel): void => {
     setOpen(null)
@@ -86,7 +113,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
         {current?.name ?? modelId ?? 'Select model'}
       </button>
 
-      {current?.reasoning && (
+      {current && hasThinkingChoice(current) && (
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           data-testid="home-thinking-picker"
@@ -123,7 +150,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
           <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
             Thinking
           </div>
-          {THINKING_LEVELS.map((level) => (
+          {levelsToRender.map((level) => (
             <MenuRow key={level} active={false} onClick={() => chooseThinking(level)}>
               <span className="flex-1">{titleCase(level)}</span>
               {thinking === level && <Check />}

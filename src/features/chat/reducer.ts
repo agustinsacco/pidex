@@ -29,6 +29,12 @@ import type {
 } from './chatItems'
 import { emptyChatSession, newItemId } from './chatItems'
 import {
+  applyRevealedIdentity,
+  pendingToolId,
+  revealedToolCall,
+  withExecutionIdentity,
+} from './toolIdentity'
+import {
   blocksFromContent,
   isAssistant,
   lastAssistantIndex,
@@ -92,62 +98,48 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
     case 'message_end':
       return applyMessageEnd(state, event.message)
 
-    case 'tool_execution_start': {
-      const existing = state.tools[event.toolCallId]
-      return {
-        ...state,
-        tools: {
-          ...state.tools,
-          [event.toolCallId]: {
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            args: event.args,
-            argsText: existing?.argsText ?? JSON.stringify(event.args ?? {}),
-            status: 'running',
-            output: existing?.output ?? null,
-            startedAt: Date.now(),
-          },
-        },
-      }
-    }
-
-    case 'tool_execution_update': {
-      const existing = state.tools[event.toolCallId]
-      if (!existing) return state
-      return {
-        ...state,
-        tools: {
-          ...state.tools,
-          // partialResult is accumulated: replace, don't append.
-          [event.toolCallId]: { ...existing, output: event.partialResult, status: 'running' },
-        },
-      }
-    }
-
-    case 'tool_execution_end': {
-      const existing = state.tools[event.toolCallId]
-      const base: ToolState = existing ?? {
+    case 'tool_execution_start':
+      // The id may be unknown here: providers that withhold tool identity
+      // during streaming leave a placeholder entry to adopt (see toolIdentity).
+      return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
         toolCallId: event.toolCallId,
         toolName: event.toolName,
-        argsText: '',
+        args: event.args,
+        argsText: existing?.argsText ?? JSON.stringify(event.args ?? {}),
         status: 'running',
-        output: null,
-      }
-      return {
-        ...state,
-        tools: {
-          ...state.tools,
-          [event.toolCallId]: {
-            ...base,
-            result: event.result,
-            output: event.result,
-            isError: event.isError,
-            status: event.isError ? 'error' : 'done',
-            endedAt: Date.now(),
-          },
-        },
-      }
-    }
+        output: existing?.output ?? null,
+        startedAt: Date.now(),
+      }))
+
+    case 'tool_execution_update':
+      // Adopt first: a placeholder may still be holding this call's identity,
+      // and dropping the event would strand the partial output.
+      return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
+        ...(existing ?? {
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          argsText: '',
+          output: null,
+        }),
+        // partialResult is accumulated: replace, don't append.
+        output: event.partialResult,
+        status: 'running' as const,
+      }))
+
+    case 'tool_execution_end':
+      return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
+        ...(existing ?? {
+          toolCallId: event.toolCallId,
+          argsText: '',
+          output: null,
+        }),
+        toolName: event.toolName,
+        result: event.result,
+        output: event.result,
+        isError: event.isError,
+        status: event.isError ? 'error' : 'done',
+        endedAt: Date.now(),
+      }))
 
     case 'queue_update':
       return { ...state, queues: { steering: event.steering, followUp: event.followUp } }
@@ -297,14 +289,11 @@ function applyAssistantDelta(
     }
 
     case 'toolcall_start': {
-      // The partial message may already carry the toolCall id/name.
-      const partialBlock = delta.partial?.content?.[delta.contentIndex]
-      const toolCallId =
-        partialBlock && partialBlock.type === 'toolCall'
-          ? partialBlock.id
-          : `pending-${item.id}-${delta.contentIndex}`
-      const toolName =
-        partialBlock && partialBlock.type === 'toolCall' ? partialBlock.name : 'unknown'
+      // The partial message may already carry the toolCall id/name; when it
+      // doesn't, key the tool under a placeholder and leave the name unknown
+      // rather than inventing one (see toolIdentity).
+      const revealed = revealedToolCall(delta.partial, delta.contentIndex)
+      const toolCallId = revealed?.id ?? pendingToolId(item.id, delta.contentIndex)
 
       const blocks = ensureBlock(item.blocks, delta.contentIndex, () => ({
         type: 'tool',
@@ -317,7 +306,7 @@ function applyAssistantDelta(
             ...state.tools,
             [toolCallId]: {
               toolCallId,
-              toolName,
+              toolName: revealed?.name ?? null,
               argsText: '',
               status: 'starting' as const,
               output: null,
@@ -327,14 +316,22 @@ function applyAssistantDelta(
     }
 
     case 'toolcall_delta': {
-      const block = item.blocks.find((b) => b.index === delta.contentIndex)
-      if (!block || block.type !== 'tool') return state
-      const tool = state.tools[block.toolCallId]
-      if (!tool) return state
+      // Identity often shows up in a later partial than the one on
+      // `toolcall_start`; adopt it as soon as it does, so the card stops
+      // reading "Preparing tool…" while a large payload streams.
+      const revealed = revealedToolCall(delta.partial, delta.contentIndex)
+      const base = revealed
+        ? applyRevealedIdentity(state, index, delta.contentIndex, revealed)
+        : state
+      const current = base.items[index] as AssistantItem
+      const block = current.blocks.find((b) => b.index === delta.contentIndex)
+      if (!block || block.type !== 'tool') return base
+      const tool = base.tools[block.toolCallId]
+      if (!tool) return base
       return {
-        ...state,
+        ...base,
         tools: {
-          ...state.tools,
+          ...base.tools,
           [block.toolCallId]: { ...tool, argsText: tool.argsText + delta.delta },
         },
       }

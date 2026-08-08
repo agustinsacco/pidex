@@ -193,7 +193,13 @@ body {
   outline: none !important;
 }
 
-/* Pane resize handles (react-resizable-panels) */
+/*
+ * Pane resize handles (react-resizable-panels).
+ *
+ * The right pane is a floating rounded card (see RightPane), so the gutter has
+ * to read as empty background: the grab affordance only appears on hover or
+ * while dragging. An always-on rule here welded the card to the chat column.
+ */
 .pane-handle {
   width: 5px;
   background: transparent;
@@ -204,7 +210,9 @@ body {
   content: '';
   position: absolute;
   inset: 0 2px;
-  background: var(--px-border);
+  background: transparent;
+  border-radius: 1px;
+  transition: background 0.15s;
 }
 .pane-handle:hover,
 .pane-handle[data-resize-handle-active] {

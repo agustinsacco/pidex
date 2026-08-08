@@ -234,3 +234,28 @@ Specs: [STYLE_GUIDE.md](STYLE_GUIDE.md) · [RESTYLE_PLAN.md](RESTYLE_PLAN.md)
 
 - 2026-08-07 — Brand adopted; guide + plan + icon landed on PR #4. Known dev-mode limitation documented in main.ts: macOS menu-bar title says "Electron" when unpackaged (Info.plist, not fixable at runtime); dock icon is set at runtime instead. Restyle deliberately deferred to its own PR — a half-migrated palette is the worst state.
 - 2026-08-07 — Restyle phases 1–4 executed (see RESTYLE_PLAN Outcome): token swap + new `--px-terminal-bg`, xterm/Monaco/Mermaid/Chart.js re-themed, mono voice on all 18 uppercase-label sites, serif retired from chrome, heatmap info→accent. Exit grep clean; typecheck/lint/prettier/348 unit/8 e2e green; both-themes manual sweep in the browser harness (dark accent-text flip verified). Screenshots regen still pending.
+
+---
+
+## P11 — Chat UX correctness pass (Phase 0) `🟡`
+
+Plan: [CHAT_UX_PHASE0_PLAN.md](CHAT_UX_PHASE0_PLAN.md)
+
+- [x] B1 Streaming tool identity: `toolIdentity.ts` (placeholder ids, `toolName: null`, adoption on `tool_execution_*` / later partials) — no more "Running unknown", no more output routed to an orphan key
+- [x] B2 Autoscroll: `items/autoscroll.ts` intent-based pinning + a synchronous pin ref + self-scroll suppression — reading back during a stream survives (e2e measures `scrollTop` holding while the stream grows the scroll range)
+- [x] A3 **hypothesis refuted by measurement**: the virtualizer was innocent. With the old `estimateSize: 96` a 40-row harness run still measured 0.1px gaps — dynamic measurement corrects every mounted row. The 100px+ holes in the screenshots were spacing stacking (a tool row's wrapper was **63px for ~20px of text**: `pt-4` + `pb-0.5` + `my-2` + row `py-1`, four owners at once). `estimateSize` set to 40 to match measured reality, which affects scrollbar proportions only.
+- [x] Phase 1 (pulled forward, since A3 made it the actual fix): `items/spacing.ts` is the single owner of vertical rhythm — one step (`pt-3`), one tight step for consecutive tool-only turns, no trailing padding; duplicate margins deleted from the tool group, `ThinkingBlock`, `DividerShell` and the expanded tool detail. Measured: tool row **63px → 33px (−48%)**, 40-tool transcript **2676px → 1468px (−45%)**, gaps still flush at 0.1px.
+- [x] B3 Session title: `lib/sessionTitle.ts` shared by header + sidebar (pi never auto-titles)
+- [x] B4 Floating right pane: `.pane-handle::after` transparent until hover/drag
+- [x] B5 Pane scrolling: `PaneShell` content slot is a flex column, so `flex-1` bodies constrain their scrollers
+- [x] Artifact tool UX: `ArtifactDetail` card (glyph/title/type/version, "Open in panel"), artifact-aware labels, live byte counter while content streams
+- [ ] B6 Cost honesty: `—` for all-zero `ModelCost`, per-component cost rows in the usage popover
+- [ ] Phases 2–5 of the plan (type scale, further ink-based grouping, unified CTA rows, `Notice` primitive)
+
+**Done when:** the plan's Phase 0 exit criteria hold in e2e and Phases 1–5 are either landed or explicitly deferred here.
+
+**Log:**
+
+- 2026-08-08 — Phase 0 landed. Evidence: 409 unit tests (30 files) + 12 e2e green. The transcript e2e asserts unpin-survives-stream, zero "unknown" tool labels, and **row density** (tallest tool row < 44px, gaps < 8px) — verified non-vacuous by restoring a single duplicate margin, which pushes the row to 48.9px and fails the test. The artifacts e2e asserts the pane's scroller actually overflows and scrolls. B6 verified as _correct_ rather than fixed — pi prices cacheRead/cacheWrite separately and pidex only displays its numbers (arithmetic checked against a live session: 50/14.9k/706k/115k tokens at $5/$25/$0.50/$6.25 per 1M = $1.4445 vs $1.4410 displayed, the delta being token-display rounding). Remaining B6 work is display honesty for models with no pricing configured, not a math fix.
+- 2026-08-08 — Method note: the A3 "virtualizer estimate causes the gaps" hypothesis was **refuted** by the measurement it was gated behind (0.1px gaps at the old estimate). Restyling margins first would have "fixed" the symptom for the wrong reason. The plan's Phase 0 gate earned its place; keep gating layout hypotheses on a harness measurement.
+- 2026-08-08 — Process note: two agent sessions edited this tree concurrently; one committed `1e55008` and discarded the rest of the working tree, destroying unrelated uncommitted work (a WorkingIndicator component, an extracted `items/spacing.ts`, model-catalogue changes). Untracked files were unrecoverable. Checkpoint-commit before parallel work on the same tree.

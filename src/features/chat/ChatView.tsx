@@ -9,6 +9,7 @@ import { SessionMenu } from './SessionMenu'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { sessionTitle } from '@/lib/sessionTitle'
 import { GitChips } from './GitChips'
 import { CrashBanner, NoModelsBanner } from './banners'
 
@@ -42,6 +43,13 @@ function Header({
   workspaceName: string
 }): React.JSX.Element {
   const sessionName = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionName)
+  // pi never auto-titles, so fall back to the thread's own first prompt — the
+  // same chain the sidebar uses (see lib/sessionTitle).
+  const firstUserText = useChatStore((s) => {
+    const first = s.sessions[sessionId]?.items.find((item) => item.kind === 'user')
+    return first?.kind === 'user' ? first.text : undefined
+  })
+  const title = sessionTitle({ explicitName: sessionName, firstUserText })
   const rightPane = useLayoutStore((s) => s.rightPane)
   const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
 
@@ -49,7 +57,7 @@ function Header({
     <header className="titlebar-drag flex h-11 shrink-0 items-center gap-2 pl-4 pr-3">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="text-text truncate text-[13px] font-semibold">
-          {sessionName ?? 'New session'}
+          {title ?? 'New session'}
         </span>
         <span className="bg-bg-secondary text-text-secondary shrink-0 rounded-md px-2 py-0.5 text-[11.5px]">
           {workspaceName}

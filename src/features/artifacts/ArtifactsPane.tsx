@@ -195,7 +195,7 @@ function ArtifactViewer({
         </ActionIcon>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" data-testid="artifact-scroll">
         {mode === 'preview' && <ArtifactPreview artifact={artifact} content={shown.content} />}
         {mode === 'code' && (
           <div className="[&_.code-block]:my-0 [&_.code-block]:rounded-none [&_.code-block]:border-0">

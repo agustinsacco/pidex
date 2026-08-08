@@ -1,5 +1,6 @@
 import type { ToolState } from '../reducer'
 import { basename } from '@/lib/path'
+import { formatBytes } from '@/lib/format'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
 
 export interface EditDetails {
@@ -40,11 +41,24 @@ interface ToolSummary {
   /** Monospace object (commands, patterns). */
   mono?: boolean
   stats?: DiffStats | null
+  /** Tertiary trailing note, e.g. streamed payload size. */
+  hint?: string
 }
 
 export function summarizeTool(tool: ToolState): ToolSummary {
   const args = tool.args ?? tryParseArgs(tool.argsText)
   const running = tool.status === 'starting' || tool.status === 'running'
+
+  // Identity not yet revealed by the provider (see toolIdentity.ts). Show that
+  // args are still arriving instead of a fabricated name; large payloads like
+  // `write` or `artifact_create` sit here for a while, so the size is the only
+  // honest progress signal available.
+  if (!tool.toolName) {
+    return {
+      label: 'Preparing tool',
+      hint: tool.argsText ? formatBytes(tool.argsText.length) : undefined,
+    }
+  }
 
   switch (tool.toolName) {
     case 'read': {
@@ -96,6 +110,35 @@ export function summarizeTool(tool: ToolState): ToolSummary {
       const path = typeof args?.path === 'string' ? args.path : undefined
       return { label: running ? 'Listing' : 'Listed', object: path ? basename(path) : 'directory' }
     }
+    case 'artifact_create':
+    case 'artifact_update': {
+      const updating = tool.toolName === 'artifact_update'
+      // While the (large) content field streams, `args` won't parse yet, so
+      // recover the title from the raw prefix — models emit `title` first.
+      const details = toolDetails<{ title?: string; version?: number }>(tool)
+      const title =
+        details?.title ??
+        (typeof args?.title === 'string' ? args.title : undefined) ??
+        partialStringArg(tool.argsText, 'title')
+      const version = details?.version
+      return {
+        label: running
+          ? updating
+            ? 'Updating artifact'
+            : 'Writing artifact'
+          : updating
+            ? 'Updated artifact'
+            : 'Created artifact',
+        object: title ? truncate(title, 56) : undefined,
+        hint: running
+          ? tool.argsText
+            ? formatBytes(tool.argsText.length)
+            : undefined
+          : version != null
+            ? `v${version}`
+            : undefined,
+      }
+    }
     default:
       return { label: running ? 'Running' : 'Used', object: tool.toolName, mono: true }
   }
@@ -109,6 +152,38 @@ export function tryParseArgs(argsText: string): Record<string, unknown> | undefi
   } catch {
     return undefined
   }
+}
+
+/**
+ * Best-effort read of one string field out of a *partially streamed* JSON args
+ * payload, for labelling a tool card before its arguments finish arriving.
+ * Returns undefined unless the value's closing quote has streamed, so a
+ * half-arrived title never renders truncated-but-confident.
+ */
+export function partialStringArg(argsText: string, key: string): string | undefined {
+  const at = argsText.indexOf(`"${key}"`)
+  if (at === -1) return undefined
+  const colon = argsText.indexOf(':', at + key.length + 2)
+  if (colon === -1) return undefined
+  let i = colon + 1
+  while (i < argsText.length && /\s/.test(argsText[i]!)) i++
+  if (argsText[i] !== '"') return undefined
+  i++
+  let value = ''
+  while (i < argsText.length) {
+    const char = argsText[i]!
+    if (char === '\\') {
+      const next = argsText[i + 1]
+      if (next === undefined) return undefined
+      value += next === 'n' ? '\n' : next === 't' ? '\t' : next
+      i += 2
+      continue
+    }
+    if (char === '"') return value
+    value += char
+    i++
+  }
+  return undefined
 }
 
 export function truncate(text: string, max: number): string {

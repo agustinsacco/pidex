@@ -162,10 +162,17 @@ function handle(cmd) {
       })
       break
 
-    case 'prompt':
+    case 'prompt': {
       out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
-      runTurn()
+      // Scenario switch, keyed off the prompt text: the default turn is what
+      // most tests assert on, so extra scenarios must not change it.
+      const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (message.includes('longartifact')) runLongArtifactTurn()
+      else if (message.includes('manyitems')) runManyItemsTurn()
+      else if (message.includes('longstream')) runLongStreamTurn()
+      else runTurn()
       break
+    }
 
     case 'abort':
       out({ id: cmd.id, type: 'response', command: 'abort', success: true })
@@ -355,3 +362,233 @@ function runTurn() {
 }
 
 process.on('SIGTERM', () => process.exit(0))
+
+// ---------- extra scenarios ----------
+
+/** Run a step list sequentially, 40ms apart, awaiting any step that returns. */
+function play(steps, gapMs = 40) {
+  void (async () => {
+    for (const step of steps) {
+      await step()
+      await new Promise((resolve) => setTimeout(resolve, gapMs))
+    }
+  })()
+}
+
+/**
+ * One markdown artifact far taller than the pane, to prove the artifact pane
+ * scrolls (it used to clip: PaneShell's content slot wasn't a flex container,
+ * so the viewer's `flex-1` scroller collapsed to auto height).
+ */
+function runLongArtifactTurn() {
+  const body = Array.from(
+    { length: 160 },
+    (_, i) => `## Section ${i + 1}\n\nParagraph ${i + 1} of the long artifact body.`,
+  ).join('\n\n')
+  const content = `# E2E Long Doc\n\n${body}\n`
+
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              id: 'call_long',
+              name: 'artifact_create',
+              arguments: { title: 'E2E Long Doc' },
+            },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    () =>
+      out({
+        type: 'tool_execution_start',
+        toolCallId: 'call_long',
+        toolName: 'artifact_create',
+        args: { title: 'E2E Long Doc' },
+      }),
+    () =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: 'call_long',
+        toolName: 'artifact_create',
+        isError: false,
+        result: {
+          content: [{ type: 'text', text: 'Created artifact' }],
+          details: {
+            id: 'e2e-long-doc',
+            title: 'E2E Long Doc',
+            type: 'markdown',
+            content,
+            version: 1,
+          },
+        },
+      }),
+    () => out({ type: 'agent_end', messages: [] }),
+  ])
+}
+
+/**
+ * A long, slow stream plus a tool call whose identity is withheld until
+ * execution starts (the Bedrock shape). Exercises two things at once:
+ * scrolling back while the transcript grows, and that an unidentified tool
+ * never renders as "unknown".
+ */
+function runLongStreamTurn() {
+  const steps = [
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+  ]
+
+  // Anonymous tool call: no id/name anywhere until tool_execution_start.
+  steps.push(() =>
+    out({
+      type: 'message_update',
+      message: { role: 'assistant', content: [] },
+      assistantMessageEvent: { type: 'toolcall_start', contentIndex: 1 },
+    }),
+  )
+  for (const chunk of ['{"command"', ':"npm ', 'test"}']) {
+    steps.push(() =>
+      out({
+        type: 'message_update',
+        message: { role: 'assistant', content: [] },
+        assistantMessageEvent: { type: 'toolcall_delta', contentIndex: 1, delta: chunk },
+      }),
+    )
+  }
+  steps.push(() =>
+    out({
+      type: 'tool_execution_start',
+      toolCallId: 'late_id',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+    }),
+  )
+
+  const lines = []
+  for (let i = 0; i < 70; i++) {
+    const delta = `Streamed line ${i + 1} of a long reply that overflows the viewport.\n\n`
+    lines.push(delta)
+    steps.push(() =>
+      out({
+        type: 'message_update',
+        message: { role: 'assistant', content: [] },
+        assistantMessageEvent: {
+          type: 'text_delta',
+          contentIndex: 0,
+          delta,
+        },
+      }),
+    )
+  }
+
+  steps.push(() =>
+    out({
+      type: 'tool_execution_end',
+      toolCallId: 'late_id',
+      toolName: 'bash',
+      isError: false,
+      result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+    }),
+  )
+  steps.push(() =>
+    out({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        // message_end is authoritative in the reducer, so it has to carry the
+        // whole streamed body — echoing only a summary line here collapsed the
+        // transcript back to one screen and made scroll assertions meaningless.
+        content: [
+          { type: 'text', text: `${lines.join('')}long stream complete` },
+          {
+            type: 'toolCall',
+            id: 'late_id',
+            name: 'bash',
+            arguments: { command: 'npm test' },
+          },
+        ],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
+    }),
+  )
+  steps.push(() => out({ type: 'agent_end', messages: [] }))
+
+  play(steps)
+}
+
+/**
+ * Many short tool-only turns — the shape a long agent run actually takes (pi
+ * emits a fresh message per tool round). This is the case where virtualization
+ * matters: only a window of rows is in the DOM, so an over-large size estimate
+ * for the rest shows up as dead space between rendered rows.
+ */
+function runManyItemsTurn() {
+  const steps = [() => out({ type: 'agent_start' }), () => out({ type: 'turn_start' })]
+  for (let i = 0; i < 40; i++) {
+    const id = `many_${i}`
+    steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+    steps.push(() =>
+      out({
+        type: 'message_update',
+        message: { role: 'assistant', content: [] },
+        assistantMessageEvent: { type: 'toolcall_start', contentIndex: 0 },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'tool_execution_start',
+        toolCallId: id,
+        toolName: 'bash',
+        args: { command: `echo step ${i}` },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: id,
+        toolName: 'bash',
+        isError: false,
+        result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id, name: 'bash', arguments: { command: `echo step ${i}` } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    )
+  }
+  steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+  steps.push(() =>
+    out({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'many items complete' }],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
+    }),
+  )
+  steps.push(() => out({ type: 'agent_end', messages: [] }))
+  play(steps, 4)
+}

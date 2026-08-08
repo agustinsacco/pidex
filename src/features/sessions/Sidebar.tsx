@@ -14,6 +14,7 @@ import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { workspaceName } from '@/lib/path'
+import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 
 interface GroupedSessions {
@@ -365,7 +366,9 @@ function SessionRow({
   const isStreaming = useChatStore((s) =>
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
-  const title = meta.name || meta.firstUserText || 'Untitled session'
+  const title =
+    sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
+    'Untitled session'
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
   const rowWorkspaceName = workspaceName(meta.cwd || workspacePath)
