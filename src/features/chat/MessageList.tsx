@@ -3,24 +3,13 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
-import type { ChatItem } from './reducer'
-
-/**
- * Leading space for an item, chosen by the boundary it sits on.
- *
- * ~16px between distinct messages, ~8px where an assistant turn continues its
- * own output or around system dividers. The hover-affordance rows inside each
- * message (timestamp / copy) already reserve their own height, so anything
- * larger here compounds into the yawning gaps the first pass had.
- */
-function spacingFor(item: ChatItem, previous: ChatItem | undefined): string {
-  if (!previous) return 'pb-0.5 pt-2'
-  const sameSpeakerContinuation =
-    previous.kind === 'assistant' && (item.kind === 'bash' || item.kind === 'custom')
-  if (sameSpeakerContinuation) return 'pb-0.5 pt-2'
-  if (item.kind === 'divider' || previous.kind === 'divider') return 'pb-0.5 pt-2'
-  return 'pb-0.5 pt-4'
-}
+import {
+  isFollowIntent,
+  isScrollBackIntent,
+  isScrollBackKey,
+  nextPinnedState,
+} from './items/autoscroll'
+import { spacingFor } from './items/spacing'
 
 export const MessageList = memo(function MessageList({
   sessionId,
@@ -34,39 +23,152 @@ export const MessageList = memo(function MessageList({
   const hideThinking = useSettingsStore((s) => s.hideThinkingBlock)
 
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [pinned, setPinned] = useState(true)
+  /**
+   * `pinnedRef` is the source of truth and is written *synchronously*; `pinned`
+   * state exists only to render the jump-to-bottom affordance. Reading the pin
+   * state from React state alone lost the race that made scrolling up during a
+   * stream impossible: between the wheel event and React's re-render, a
+   * streaming render could still see "pinned" and slam the view back down.
+   */
   const pinnedRef = useRef(true)
-  pinnedRef.current = pinned
+  const [pinned, setPinned] = useState(true)
+  /** Last observed scrollHeight, to tell re-measurement apart from user scrolls. */
+  const lastHeightRef = useRef(0)
+  /** Set while our own scroll is in flight, so its scroll event isn't read as intent. */
+  const selfScrollRef = useRef(false)
+
+  const setPinnedNow = useCallback((next: boolean): void => {
+    pinnedRef.current = next
+    setPinned((current) => (current === next ? current : next))
+  }, [])
+
+  const scrollToBottom = useCallback((el: HTMLElement): void => {
+    selfScrollRef.current = true
+    el.scrollTop = el.scrollHeight
+    lastHeightRef.current = el.scrollHeight
+    requestAnimationFrame(() => {
+      selfScrollRef.current = false
+    })
+  }, [])
 
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 96,
+    /*
+     * Unmeasured-row height. Measured in the e2e harness (see "rows are dense
+     * and sit flush"): a collapsed tool row's wrapper is ~36px after the
+     * spacing refactor, and prose turns are taller. This value only affects
+     * rows that have never been rendered — dynamic measurement corrects each
+     * row as it mounts, which the harness confirms (gaps stay ~0.1px), so the
+     * estimate matters for scrollbar proportions, not for layout gaps.
+     */
+    estimateSize: () => 40,
     overscan: 8,
     getItemKey: (index) => items[index]?.id ?? index,
   })
 
-  // Follow the stream while pinned to the bottom.
+  // Follow the stream while pinned. Deliberately dep-less (content grows on
+  // every token) but deferred to the next frame so it lands after the
+  // virtualizer's measurement pass instead of racing it.
   useEffect(() => {
+    if (!pinnedRef.current) return
     const el = scrollRef.current
-    if (el && pinnedRef.current) {
-      el.scrollTop = el.scrollHeight
-    }
+    if (!el) return
+    const frame = requestAnimationFrame(() => {
+      if (!pinnedRef.current) return
+      scrollToBottom(el)
+    })
+    return () => cancelAnimationFrame(frame)
   })
+
+  // Explicit "read back" gestures unpin immediately, before any geometry is
+  // consulted — during a stream the geometry is unreliable by definition.
+  //
+  // Attached via a callback ref rather than an effect: the empty-transcript
+  // branch below returns a different tree, so on first render there is no
+  // scroll element for an effect to find, and a mount-only effect would never
+  // attach anything.
+  const detachRef = useRef<(() => void) | null>(null)
+  const attachScroller = useCallback(
+    (el: HTMLDivElement | null): void => {
+      detachRef.current?.()
+      detachRef.current = null
+      scrollRef.current = el
+      if (!el) return
+
+      // Unpinning a transcript that doesn't overflow strands the view: no
+      // scroll events can ever fire to re-pin it, so the next long answer
+      // streams below the fold unfollowed.
+      const unpin = (): void => {
+        if (el.scrollHeight > el.clientHeight) setPinnedNow(false)
+      }
+      const onWheel = (event: WheelEvent): void => {
+        if (isScrollBackIntent(event.deltaY)) unpin()
+        // Wheel-down at the bottom re-pins directly: the geometry path can
+        // hold the landing sample as layout during a stream (see autoscroll).
+        else if (isFollowIntent(event.deltaY, el.scrollHeight - el.scrollTop - el.clientHeight)) {
+          setPinnedNow(true)
+        }
+      }
+      const onKeyDown = (event: KeyboardEvent): void => {
+        if (isScrollBackKey(event.key)) unpin()
+      }
+      // Scrollbar-thumb drags emit only scroll events, which the follow
+      // effect's self-scroll mask can eat during a fast stream. A press in
+      // the scrollbar gutter (right of the content box) IS read-back intent.
+      const onPointerDown = (event: PointerEvent): void => {
+        if (event.offsetX >= el.clientWidth) unpin()
+      }
+      el.addEventListener('wheel', onWheel, { passive: true })
+      el.addEventListener('touchmove', unpin, { passive: true })
+      el.addEventListener('keydown', onKeyDown)
+      el.addEventListener('pointerdown', onPointerDown)
+      detachRef.current = () => {
+        el.removeEventListener('wheel', onWheel)
+        el.removeEventListener('touchmove', unpin)
+        el.removeEventListener('keydown', onKeyDown)
+        el.removeEventListener('pointerdown', onPointerDown)
+      }
+    },
+    [setPinnedNow],
+  )
 
   const handleScroll = useCallback((): void => {
     const el = scrollRef.current
     if (!el) return
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 64
-    setPinned(nearBottom)
-  }, [])
+    // Our own follow-the-tail scroll produces a scroll event too; reading it as
+    // user intent is what re-pinned the view immediately after an unpin.
+    if (selfScrollRef.current) {
+      lastHeightRef.current = el.scrollHeight
+      return
+    }
+    const heightChanged = el.scrollHeight !== lastHeightRef.current
+    lastHeightRef.current = el.scrollHeight
+    setPinnedNow(
+      nextPinnedState(pinnedRef.current, {
+        distanceFromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
+        heightChanged,
+      }),
+    )
+  }, [setPinnedNow])
 
   const jumpToBottom = useCallback((): void => {
     const el = scrollRef.current
     if (!el) return
-    el.scrollTop = el.scrollHeight
-    setPinned(true)
-  }, [])
+    setPinnedNow(true)
+    scrollToBottom(el)
+  }, [scrollToBottom, setPinnedNow])
+
+  // Sending a message is follow intent: the user's own bubble (and the reply)
+  // must not stream off-screen because they had scrolled up beforehand.
+  const lastItemIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const last = items.at(-1)
+    const previousId = lastItemIdRef.current
+    lastItemIdRef.current = last?.id ?? null
+    if (!last || last.id === previousId) return
+    if (last.kind === 'user' && last.optimistic) jumpToBottom()
+  }, [items, jumpToBottom])
 
   if (items.length === 0 && !error) {
     return (
@@ -88,7 +190,15 @@ export const MessageList = memo(function MessageList({
 
   return (
     <div className="relative flex-1 overflow-hidden">
-      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+      {/* tabIndex makes the scroller focusable so PageUp/ArrowUp/Home actually
+          reach the keydown unpin listener (a plain div never receives keys). */}
+      <div
+        ref={attachScroller}
+        onScroll={handleScroll}
+        data-testid="transcript-scroll"
+        tabIndex={-1}
+        className="h-full overflow-y-auto outline-none"
+      >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"
           style={{ height: virtualizer.getTotalSize() + 32 }}
@@ -152,7 +262,9 @@ export const MessageList = memo(function MessageList({
           >
             <path d="M12 5v14m7-7-7 7-7-7" />
           </svg>
-          {isStreaming ? 'Following stream' : 'Jump to bottom'}
+          {/* Imperative: this labels the action the click performs, never the
+              current state (the pill only shows while NOT following). */}
+          {isStreaming ? 'Follow stream' : 'Jump to bottom'}
         </button>
       )}
     </div>

@@ -5,7 +5,13 @@
  * `IpcInvokeMap`. Streams are pushed from main on per-session channels
  * (`pi:event:<sessionId>`) declared by `sessionEventChannel`.
  */
-import type { RpcCommand, RpcResponse, ExtensionUIResponse, RpcResponseDataMap } from './rpc'
+import type {
+  RpcCommand,
+  RpcResponse,
+  ExtensionUIResponse,
+  RpcResponseDataMap,
+  ThinkingLevelMap,
+} from './rpc'
 import type {
   AppPrefs,
   AboutInfo,
@@ -100,7 +106,13 @@ export interface IpcInvokeMap {
   /** Models from pi's models.json, for pickers with no live session yet. */
   'pi:catalogueModels': {
     args: []
-    result: { id: string; name: string; provider: string; reasoning: boolean }[]
+    result: {
+      id: string
+      name: string
+      provider: string
+      reasoning: boolean
+      thinkingLevelMap?: ThinkingLevelMap | null
+    }[]
   }
   'pi:readConfigFile': {
     args: [name: 'settings' | 'models']

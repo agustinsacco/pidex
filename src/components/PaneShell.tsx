@@ -55,7 +55,14 @@ export const PaneShell = memo(function PaneShell({
           <CloseIcon size={13} />
         </PaneIconButton>
       </div>
-      <div className="min-h-0 flex-1">{children}</div>
+      {/*
+       * Flex column, not a plain block: panes size their body with `flex-1` +
+       * `overflow-y-auto`, which silently collapses to auto height (no
+       * scrollbar, content clipped by RightPane's `overflow-hidden`) if this
+       * slot isn't a flex container. That was the artifact pane's "can't
+       * scroll, can't see the artifact" bug.
+       */}
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   )
 })

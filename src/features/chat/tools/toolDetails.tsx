@@ -8,7 +8,7 @@ import {
   tryParseArgs,
   type EditDetails,
 } from './toolSummaries'
-import { formatDuration } from '@/lib/format'
+import { formatBytes, formatDuration } from '@/lib/format'
 import { DiffView } from './DiffView'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { CopyButton } from '@/components/CopyButton'
@@ -193,8 +193,11 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
           className="text-text-tertiary hover:text-text flex items-center gap-1 text-[11.5px] transition-colors"
         >
           <ChevronIcon expanded={argsExpanded} className="text-text-tertiary" />
-          <span className="font-mono">{tool.toolName}</span>
+          {tool.toolName && <span className="font-mono">{tool.toolName}</span>}
           <span>arguments</span>
+          {!tool.toolName && tool.argsText && (
+            <span className="text-text-tertiary">· {formatBytes(tool.argsText.length)} so far</span>
+          )}
         </button>
         {argsExpanded && (
           <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">

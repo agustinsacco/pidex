@@ -7,6 +7,7 @@ import type {
   RpcSessionState,
   RpcSlashCommand,
   SessionStats,
+  ThinkingLevel,
 } from '@shared/rpc'
 import {
   emptyChatSession,
@@ -23,6 +24,13 @@ export interface ChatSession extends ChatSessionState {
   stats: SessionStats | null
   models: Model[]
   commands: RpcSlashCommand[]
+  /**
+   * Levels the current model supports, straight from pi
+   * (`get_available_thinking_levels`). `null` means "not asked yet" — the
+   * picker then derives them locally rather than falling back to a hardcoded
+   * list that is wrong for most models.
+   */
+  thinkingLevels: ThinkingLevel[] | null
 }
 
 const emptySession = (): ChatSession => ({
@@ -31,6 +39,7 @@ const emptySession = (): ChatSession => ({
   stats: null,
   models: [],
   commands: [],
+  thinkingLevels: null,
 })
 
 interface ChatStore {
@@ -47,6 +56,7 @@ interface ChatStore {
   setStats: (sessionId: string, stats: SessionStats) => void
   setModels: (sessionId: string, models: Model[]) => void
   setCommands: (sessionId: string, commands: RpcSlashCommand[]) => void
+  setThinkingLevels: (sessionId: string, levels: ThinkingLevel[] | null) => void
   remove: (sessionId: string) => void
 }
 
@@ -155,6 +165,8 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models }) })),
   setCommands: (sessionId, commands) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { commands }) })),
+  setThinkingLevels: (sessionId, levels) =>
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { thinkingLevels: levels }) })),
 
   remove: (sessionId) =>
     set((state) => {

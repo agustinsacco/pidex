@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
 import { useLayoutStore } from './layout'
 
-type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
+export type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
 
 interface ArtifactVersion {
   version: number
@@ -20,7 +20,18 @@ export interface Artifact {
   updatedAt: number
 }
 
-interface ArtifactDetailsPayload {
+/**
+ * The `details` payload pi-ext's artifact tools attach to their results —
+ * the ONE renderer-side mirror of pi-ext/artifacts.ts's ArtifactDetails.
+ * Import this everywhere the payload is read (store ingest, tool cards,
+ * summaries) instead of re-declaring the shape.
+ *
+ * Caveat carried by the payload, owned here: `artifact_update` results ship
+ * `type: 'update'` (a tool sentinel, not an artifact type) and default their
+ * `title` to the slug id — use `normalizeArtifactType` and prefer the
+ * store's metadata when rendering.
+ */
+export interface ArtifactToolDetails {
   id?: string
   title?: string
   type?: string
@@ -34,6 +45,8 @@ interface ArtifactsState {
   bySession: Record<string, Record<string, Artifact>>
   /** sessionId → selected artifact id in the viewer. */
   selected: Record<string, string | undefined>
+  /** sessionId → version explicitly requested by a "open at vN" navigation. */
+  selectedVersion: Record<string, number | undefined>
   /** Unseen version count while the pane is closed. */
   unseen: Record<string, number>
 
@@ -48,20 +61,32 @@ interface ArtifactsState {
     sessionId: string,
     artifact: { title: string; type: ArtifactType; language?: string; content: string },
   ) => void
-  select: (sessionId: string, artifactId: string) => void
+  select: (sessionId: string, artifactId: string, version?: number) => void
   clearUnseen: (sessionId: string) => void
   remove: (sessionId: string) => void
 }
 
 const VALID_TYPES = new Set(['html', 'markdown', 'svg', 'mermaid', 'code', 'chart'])
 
+/**
+ * A payload `type` is only trustworthy when it names a real artifact type —
+ * `artifact_update` payloads carry the sentinel `'update'` instead.
+ */
+export function normalizeArtifactType(
+  type: string | undefined,
+  fallback: ArtifactType = 'code',
+): ArtifactType {
+  return VALID_TYPES.has(type ?? '') ? (type as ArtifactType) : fallback
+}
+
 export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
   bySession: {},
   selected: {},
+  selectedVersion: {},
   unseen: {},
 
   ingest: (sessionId, toolName, rawDetails, opts = {}) => {
-    const details = rawDetails as ArtifactDetailsPayload | undefined
+    const details = rawDetails as ArtifactToolDetails | undefined
     if (!details?.id || typeof details.content !== 'string') return
 
     set((state) => {
@@ -88,9 +113,7 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
           updatedAt: Date.now(),
         }
       } else {
-        const type = VALID_TYPES.has(details.type ?? '')
-          ? (details.type as ArtifactType)
-          : (existing?.type ?? 'code')
+        const type = normalizeArtifactType(details.type, existing?.type ?? 'code')
         session[details.id!] = {
           id: details.id!,
           title: details.title ?? details.id!,
@@ -112,9 +135,16 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
         layout.setRightPane('artifacts')
       }
 
+      // Don't yank the open viewer off an artifact the user is reading: an
+      // incoming version only claims selection when nothing is selected, when
+      // it targets the already-selected artifact, or when the pane is closed
+      // (in which case selection just decides what opens later).
+      const alreadySelected = state.selected[sessionId]
+      const claimSelection = !paneOpen || alreadySelected == null || alreadySelected === details.id
+
       return {
         bySession: { ...state.bySession, [sessionId]: session },
-        selected: { ...state.selected, [sessionId]: details.id },
+        selected: claimSelection ? { ...state.selected, [sessionId]: details.id } : state.selected,
         unseen: paneOpen
           ? state.unseen
           : { ...state.unseen, [sessionId]: (state.unseen[sessionId] ?? 0) + 1 },
@@ -148,8 +178,11 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
     })
   },
 
-  select: (sessionId, artifactId) =>
-    set((s) => ({ selected: { ...s.selected, [sessionId]: artifactId } })),
+  select: (sessionId, artifactId, version) =>
+    set((s) => ({
+      selected: { ...s.selected, [sessionId]: artifactId },
+      selectedVersion: { ...s.selectedVersion, [sessionId]: version },
+    })),
 
   clearUnseen: (sessionId) => set((s) => ({ unseen: { ...s.unseen, [sessionId]: 0 } })),
 

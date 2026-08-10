@@ -80,7 +80,12 @@ export type ToolStatus = 'starting' | 'running' | 'done' | 'error'
 
 export interface ToolState {
   toolCallId: string
-  toolName: string
+  /**
+   * `null` while a tool call streams under a provider that withholds its
+   * identity (see toolIdentity.ts) — render that state as "preparing", never
+   * as a literal tool name.
+   */
+  toolName: string | null
   /** Final validated args (from tool_execution_start), else parsed-from-stream. */
   args?: Record<string, unknown>
   /** Raw streamed JSON args text while the toolcall block is open. */
@@ -106,6 +111,8 @@ export interface ChatSessionState {
   tools: Record<string, ToolState>
   isStreaming: boolean
   isCompacting: boolean
+  /** Wall-clock ms when the current agent run started; null while idle. */
+  agentStartedAt: number | null
   queues: { steering: string[]; followUp: string[] }
   retry: RetryState | null
   /** Transport-level error (pi crashed / spawn failed). */
@@ -117,6 +124,7 @@ export const emptyChatSession = (): ChatSessionState => ({
   tools: {},
   isStreaming: false,
   isCompacting: false,
+  agentStartedAt: null,
   queues: { steering: [], followUp: [] },
   retry: null,
   error: null,

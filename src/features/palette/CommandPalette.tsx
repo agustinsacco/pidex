@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
+import { sessionTitle } from '@/lib/sessionTitle'
 
 interface PaletteState {
   open: boolean
@@ -142,7 +143,9 @@ export function CommandPalette({
     for (const meta of disk.slice(0, 8)) {
       base.push({
         id: `session-${meta.path}`,
-        label: `Open session: ${meta.name || meta.firstUserText || 'Untitled'}`,
+        label: `Open session: ${
+          sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'Untitled'
+        }`,
         run: () => void sessions.openDiskSession(workspacePath, meta),
       })
     }

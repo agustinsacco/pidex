@@ -15,6 +15,7 @@ import {
 } from './composer/CommandMenu'
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
+import { WorkingIndicator } from './WorkingIndicator'
 import { Spinner } from '@/components/icons'
 import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
@@ -334,6 +335,7 @@ export function Composer({
 
   return (
     <div className="shrink-0 px-6 pb-4 pt-1">
+      <WorkingIndicator sessionId={sessionId} />
       <RetryStrip sessionId={sessionId} />
       <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
       <QueueChips
