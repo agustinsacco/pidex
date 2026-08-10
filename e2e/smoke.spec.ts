@@ -268,6 +268,14 @@ test('reopens the last session on relaunch instead of the picker', async () => {
       await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
       })
+      // …but "live" is not "persisted": the session file path arrives with
+      // get_state, after the composer renders. Closing before that lands
+      // leaves no lastSessionPath and the relaunch falls back to home —
+      // which is exactly how this test failed on (slower) Linux CI. Wait for
+      // the sidebar row, which only appears once the session is on disk.
+      await expect(first.page.getByTestId('session-row').first()).toBeVisible({
+        timeout: 20_000,
+      })
     } finally {
       await first.app.close()
     }

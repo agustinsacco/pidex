@@ -78,13 +78,23 @@ const watchedWorkspaces = new Set<string>()
 
 async function bootstrapSession(pidexId: string): Promise<void> {
   const chat = useChatStore.getState()
-  const [state, models, commands, stats, thinkingLevels] = await Promise.allSettled([
-    window.pidex.piCommand(pidexId, { type: 'get_state' }),
+  // get_state is awaited on its own, ahead of the rest: it carries
+  // `sessionFile`, and "reopen my last session" depends on that path being
+  // persisted. Batching it with the slower catalogue calls meant a window
+  // closed before the batch settled lost the pref entirely — a race the
+  // relaunch e2e caught on Linux CI once a fifth call joined the batch.
+  const statePromise = window.pidex.piCommand(pidexId, { type: 'get_state' })
+  const restPromise = Promise.allSettled([
     window.pidex.piCommand(pidexId, { type: 'get_available_models' }),
     window.pidex.piCommand(pidexId, { type: 'get_commands' }),
     window.pidex.piCommand(pidexId, { type: 'get_session_stats' }),
     window.pidex.piCommand(pidexId, { type: 'get_available_thinking_levels' }),
   ])
+
+  const state = await statePromise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason: unknown) => ({ status: 'rejected' as const, reason }),
+  )
   if (state.status === 'fulfilled' && state.value.success && state.value.data) {
     chat.setMeta(pidexId, state.value.data)
     const diskPath = state.value.data.sessionFile
@@ -102,6 +112,7 @@ async function bootstrapSession(pidexId: string): Promise<void> {
       }
     }
   }
+  const [models, commands, stats, thinkingLevels] = await restPromise
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
     chat.setModels(pidexId, models.value.data.models)
   }
