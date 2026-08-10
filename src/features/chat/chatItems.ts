@@ -111,6 +111,8 @@ export interface ChatSessionState {
   tools: Record<string, ToolState>
   isStreaming: boolean
   isCompacting: boolean
+  /** Wall-clock ms when the current agent run started; null while idle. */
+  agentStartedAt: number | null
   queues: { steering: string[]; followUp: string[] }
   retry: RetryState | null
   /** Transport-level error (pi crashed / spawn failed). */
@@ -122,6 +124,7 @@ export const emptyChatSession = (): ChatSessionState => ({
   tools: {},
   isStreaming: false,
   isCompacting: false,
+  agentStartedAt: null,
   queues: { steering: [], followUp: [] },
   retry: null,
   error: null,

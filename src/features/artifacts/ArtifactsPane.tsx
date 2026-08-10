@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
 import { useSessionsStore } from '@/stores/sessions'
@@ -25,6 +25,9 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   )
   const selectedId = useArtifactsStore((s) =>
     activeSessionId ? s.selected[activeSessionId] : undefined,
+  )
+  const requestedVersion = useArtifactsStore((s) =>
+    activeSessionId ? s.selectedVersion[activeSessionId] : undefined,
   )
 
   useEffect(() => {
@@ -85,7 +88,12 @@ export const ArtifactsPane = memo(function ArtifactsPane({
         </div>
       )}
       {selected && (
-        <ArtifactViewer key={selected.id} artifact={selected} workspacePath={workspacePath} />
+        <ArtifactViewer
+          key={selected.id}
+          artifact={selected}
+          workspacePath={workspacePath}
+          requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
+        />
       )}
     </PaneShell>
   )
@@ -94,16 +102,37 @@ export const ArtifactsPane = memo(function ArtifactsPane({
 function ArtifactViewer({
   artifact,
   workspacePath,
+  requestedVersion,
 }: {
   artifact: Artifact
   workspacePath: string
+  /** Version explicitly navigated to (e.g. a chat card's "Open in panel"). */
+  requestedVersion?: number
 }): React.JSX.Element {
   const latest = artifact.versions[artifact.versions.length - 1]!
   const [mode, setMode] = useState<'preview' | 'code' | 'diff'>('preview')
-  const [versionIndex, setVersionIndex] = useState<number>(artifact.versions.length - 1)
+  const [versionIndex, setVersionIndex] = useState<number>(() => {
+    const requested = artifact.versions.findIndex((v) => v.version === requestedVersion)
+    return requested >= 0 ? requested : artifact.versions.length - 1
+  })
 
+  // A version-targeted navigation (chat card click) wins over current state.
   useEffect(() => {
-    setVersionIndex(artifact.versions.length - 1)
+    if (requestedVersion == null) return
+    const requested = artifact.versions.findIndex((v) => v.version === requestedVersion)
+    if (requested >= 0) setVersionIndex(requested)
+  }, [requestedVersion, artifact.versions])
+
+  // Follow the tip only when the user was already at it — a reader pinned to
+  // an older version (comparing, reviewing) must not be yanked to latest by
+  // an incoming update.
+  const prevLengthRef = useRef(artifact.versions.length)
+  useEffect(() => {
+    const prevLength = prevLengthRef.current
+    prevLengthRef.current = artifact.versions.length
+    setVersionIndex((current) =>
+      current >= prevLength - 1 ? artifact.versions.length - 1 : current,
+    )
   }, [artifact.versions.length])
 
   const shown = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1)] ?? latest

@@ -2,18 +2,13 @@ import type { ToolState } from '../reducer'
 import { toolDetails, toolText } from './toolSummaries'
 import { ErrorText } from './toolDetails'
 import { artifactGlyph } from '@/features/artifacts/artifactKinds'
-import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
+import {
+  normalizeArtifactType,
+  useArtifactsStore,
+  type ArtifactToolDetails,
+} from '@/stores/artifacts'
 import { useLayoutStore } from '@/stores/layout'
 import { formatBytes } from '@/lib/format'
-
-interface ArtifactToolDetails {
-  id?: string
-  title?: string
-  type?: string
-  language?: string
-  content?: string
-  version?: number
-}
 
 /**
  * Detail view for `artifact_create` / `artifact_update`.
@@ -56,13 +51,17 @@ export function ArtifactDetail({
   }
 
   const artifactId = details.id
-  const type = (details.type ?? known?.type ?? 'code') as Artifact['type']
-  const title = details.title ?? known?.title ?? artifactId
+  // The store's metadata wins: artifact_update payloads carry the sentinel
+  // type 'update' and default their title to the slug id, so trusting the
+  // payload rendered wrong glyph/type/title on every completed update card.
+  const type = known?.type ?? normalizeArtifactType(details.type)
+  const title = known?.title ?? details.title ?? artifactId
   const version = details.version ?? known?.versions.length
   const size = details.content ? formatBytes(details.content.length) : undefined
 
   const open = (): void => {
-    useArtifactsStore.getState().select(sessionId, artifactId)
+    // Navigate to the version THIS card represents, not just the artifact.
+    useArtifactsStore.getState().select(sessionId, artifactId, version)
     useArtifactsStore.getState().clearUnseen(sessionId)
     useLayoutStore.getState().setRightPane('artifacts')
   }

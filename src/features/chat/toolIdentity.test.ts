@@ -196,4 +196,41 @@ describe('streaming tool identity', () => {
     expect(state.tools['known']!.toolName).toBe('read')
     expect(state.tools['other']!.toolName).toBe('bash')
   })
+
+  it('handles the ordering real pi produces: message_end reveals identity before any tool_execution_*', () => {
+    // pi-agent-core's loop awaits the assistant stream (emitting the
+    // authoritative message_end) BEFORE executeToolCalls emits any
+    // tool_execution_start. A provider that never revealed identity during
+    // streaming therefore re-keys via message_end content — the placeholder
+    // entry must be pruned, and execution events must land on the real id.
+    const state = run([
+      { type: 'agent_start' },
+      assistantStart,
+      anonymousToolStart(),
+      argsDelta('{"command":"npm test"}'),
+      {
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id: 'real-9', name: 'bash', arguments: { command: 'npm test' } },
+          ],
+          stopReason: 'toolUse',
+        },
+      },
+      { type: 'tool_execution_start', toolCallId: 'real-9', toolName: 'bash', args: {} },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'real-9',
+        toolName: 'bash',
+        result: { content: [{ type: 'text', text: 'ok' }] },
+        isError: false,
+      },
+    ])
+    // Exactly one tools entry: the real id. No leaked pending-* placeholder.
+    expect(Object.keys(state.tools)).toEqual(['real-9'])
+    expect(state.tools['real-9']!.status).toBe('done')
+    const item = state.items[0] as AssistantItem
+    expect(item.blocks[0]).toMatchObject({ toolCallId: 'real-9' })
+  })
 })

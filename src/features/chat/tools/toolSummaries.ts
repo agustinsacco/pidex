@@ -1,6 +1,7 @@
 import type { ToolState } from '../reducer'
 import { basename } from '@/lib/path'
 import { formatBytes } from '@/lib/format'
+import type { ArtifactToolDetails } from '@/stores/artifacts'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
 
 export interface EditDetails {
@@ -115,7 +116,7 @@ export function summarizeTool(tool: ToolState): ToolSummary {
       const updating = tool.toolName === 'artifact_update'
       // While the (large) content field streams, `args` won't parse yet, so
       // recover the title from the raw prefix — models emit `title` first.
-      const details = toolDetails<{ title?: string; version?: number }>(tool)
+      const details = toolDetails<ArtifactToolDetails>(tool)
       const title =
         details?.title ??
         (typeof args?.title === 'string' ? args.title : undefined) ??
@@ -175,15 +176,41 @@ export function partialStringArg(argsText: string, key: string): string | undefi
     if (char === '\\') {
       const next = argsText[i + 1]
       if (next === undefined) return undefined
-      value += next === 'n' ? '\n' : next === 't' ? '\t' : next
-      i += 2
-      continue
+      const simple = JSON_ESCAPES[next]
+      if (simple !== undefined) {
+        value += simple
+        i += 2
+        continue
+      }
+      if (next === 'u') {
+        const hex = argsText.slice(i + 2, i + 6)
+        // Half-arrived or malformed \uXXXX: under-label rather than mangle.
+        if (hex.length < 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) return undefined
+        value += String.fromCharCode(parseInt(hex, 16))
+        i += 6
+        continue
+      }
+      // Unknown escape — this function's contract is "never render
+      // truncated-but-confident", so bail instead of guessing.
+      return undefined
     }
     if (char === '"') return value
     value += char
     i++
   }
   return undefined
+}
+
+/** The JSON single-character escapes (\uXXXX handled separately). */
+const JSON_ESCAPES: Record<string, string> = {
+  '"': '"',
+  '\\': '\\',
+  '/': '/',
+  b: '\b',
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
 }
 
 export function truncate(text: string, max: number): string {

@@ -43,4 +43,14 @@ describe('sessionTitle', () => {
     const name = 'a'.repeat(80)
     expect(sessionTitle({ explicitName: name })).toBe(name)
   })
+
+  it('never splits an astral character at the elision boundary', () => {
+    // 79 chars then an emoji spanning the cut point: a UTF-16 slice would
+    // leave a lone surrogate (mojibake) right before the ellipsis.
+    const title = sessionTitle({ firstUserText: 'x'.repeat(79) + '🎨🎨🎨' })!
+    expect(title.endsWith('…')).toBe(true)
+    expect(title).not.toMatch(/[\uD800-\uDBFF]…$/)
+    // Round-trippable: every code point in the output is whole.
+    expect([...title].join('')).toBe(title)
+  })
 })

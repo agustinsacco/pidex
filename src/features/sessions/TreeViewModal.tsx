@@ -7,6 +7,7 @@ import { buildTreeLayout, type DisplayNode } from './treeLayout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useEscapeKey } from '@/components/Modal'
 import { panBy, zoomAtPoint } from './panZoom'
+import { sessionTitle } from '@/lib/sessionTitle'
 
 const COL_WIDTH = 220
 const ROW_HEIGHT = 92
@@ -141,7 +142,8 @@ export function TreeViewModal({
         <TreeIcon />
         <div className="min-w-0 flex-1">
           <span className="text-[13.5px] font-semibold">
-            {meta.name || meta.firstUserText || 'Session tree'}
+            {sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
+              'Session tree'}
           </span>
           <span className="text-text-tertiary ml-2 text-[11.5px]">
             {layout ? `${layout.nodes.length - 1} nodes` : 'loading…'}

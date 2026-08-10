@@ -3,7 +3,12 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
-import { isScrollBackIntent, isScrollBackKey, nextPinnedState } from './items/autoscroll'
+import {
+  isFollowIntent,
+  isScrollBackIntent,
+  isScrollBackKey,
+  nextPinnedState,
+} from './items/autoscroll'
 import { spacingFor } from './items/spacing'
 
 export const MessageList = memo(function MessageList({
@@ -91,20 +96,38 @@ export const MessageList = memo(function MessageList({
       scrollRef.current = el
       if (!el) return
 
-      const unpin = (): void => setPinnedNow(false)
+      // Unpinning a transcript that doesn't overflow strands the view: no
+      // scroll events can ever fire to re-pin it, so the next long answer
+      // streams below the fold unfollowed.
+      const unpin = (): void => {
+        if (el.scrollHeight > el.clientHeight) setPinnedNow(false)
+      }
       const onWheel = (event: WheelEvent): void => {
         if (isScrollBackIntent(event.deltaY)) unpin()
+        // Wheel-down at the bottom re-pins directly: the geometry path can
+        // hold the landing sample as layout during a stream (see autoscroll).
+        else if (isFollowIntent(event.deltaY, el.scrollHeight - el.scrollTop - el.clientHeight)) {
+          setPinnedNow(true)
+        }
       }
       const onKeyDown = (event: KeyboardEvent): void => {
         if (isScrollBackKey(event.key)) unpin()
       }
+      // Scrollbar-thumb drags emit only scroll events, which the follow
+      // effect's self-scroll mask can eat during a fast stream. A press in
+      // the scrollbar gutter (right of the content box) IS read-back intent.
+      const onPointerDown = (event: PointerEvent): void => {
+        if (event.offsetX >= el.clientWidth) unpin()
+      }
       el.addEventListener('wheel', onWheel, { passive: true })
       el.addEventListener('touchmove', unpin, { passive: true })
       el.addEventListener('keydown', onKeyDown)
+      el.addEventListener('pointerdown', onPointerDown)
       detachRef.current = () => {
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('touchmove', unpin)
         el.removeEventListener('keydown', onKeyDown)
+        el.removeEventListener('pointerdown', onPointerDown)
       }
     },
     [setPinnedNow],
@@ -136,6 +159,17 @@ export const MessageList = memo(function MessageList({
     scrollToBottom(el)
   }, [scrollToBottom, setPinnedNow])
 
+  // Sending a message is follow intent: the user's own bubble (and the reply)
+  // must not stream off-screen because they had scrolled up beforehand.
+  const lastItemIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const last = items.at(-1)
+    const previousId = lastItemIdRef.current
+    lastItemIdRef.current = last?.id ?? null
+    if (!last || last.id === previousId) return
+    if (last.kind === 'user' && last.optimistic) jumpToBottom()
+  }, [items, jumpToBottom])
+
   if (items.length === 0 && !error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -156,11 +190,14 @@ export const MessageList = memo(function MessageList({
 
   return (
     <div className="relative flex-1 overflow-hidden">
+      {/* tabIndex makes the scroller focusable so PageUp/ArrowUp/Home actually
+          reach the keydown unpin listener (a plain div never receives keys). */}
       <div
         ref={attachScroller}
         onScroll={handleScroll}
         data-testid="transcript-scroll"
-        className="h-full overflow-y-auto"
+        tabIndex={-1}
+        className="h-full overflow-y-auto outline-none"
       >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"
@@ -225,7 +262,9 @@ export const MessageList = memo(function MessageList({
           >
             <path d="M12 5v14m7-7-7 7-7-7" />
           </svg>
-          {isStreaming ? 'Following stream' : 'Jump to bottom'}
+          {/* Imperative: this labels the action the click performs, never the
+              current state (the pill only shows while NOT following). */}
+          {isStreaming ? 'Follow stream' : 'Jump to bottom'}
         </button>
       )}
     </div>

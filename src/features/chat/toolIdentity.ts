@@ -85,8 +85,10 @@ export function applyRevealedIdentity(
 
 /**
  * A `tool_execution_*` event arrived for an id we've never seen, because the
- * stream never revealed it. Hand the oldest still-unidentified tool block that
- * identity, so the running card is the one the user is already looking at.
+ * stream never revealed it. Hand that identity to the lowest-content-index
+ * still-unidentified tool block within the MOST RECENT assistant item (items
+ * are scanned newest-first, so a stale placeholder from a dead earlier turn
+ * can never steal a new execution).
  *
  * Ordering: pi emits `tool_execution_start` in call order and blocks are sorted
  * by content index, so first-unadopted-wins matches the provider's own pairing
@@ -100,8 +102,10 @@ export function adoptPendingTool(
     const item = state.items[itemIndex]
     if (!item || item.kind !== 'assistant') continue
     const candidate = pendingBlocks(item).find((block) => {
+      // Pending entries always carry toolName null (a revealed name re-keys
+      // the entry off its pending id), so name matching is unnecessary here.
       const tool = state.tools[block.toolCallId]
-      return tool != null && (tool.toolName == null || tool.toolName === revealed.name)
+      return tool != null && tool.toolName == null
     })
     if (!candidate) continue
     return applyRevealedIdentity(state, itemIndex, candidate.index, revealed)
@@ -114,6 +118,35 @@ function pendingBlocks(item: AssistantItem): { index: number; toolCallId: string
     .flatMap((b) => (b.type === 'tool' ? [{ index: b.index, toolCallId: b.toolCallId }] : []))
     .filter((b) => isPendingToolId(b.toolCallId))
     .sort((a, b) => a.index - b.index)
+}
+
+/**
+ * Drop placeholder tools-map entries no block references anymore.
+ *
+ * Real pi emits the authoritative `message_end` BEFORE any `tool_execution_*`
+ * event (pi-agent-core's loop awaits the stream, then executes tools). When a
+ * provider never revealed identity during streaming, `message_end` re-keys
+ * the rendered blocks to real ids via content — leaving the accumulated
+ * `pending-*` entry orphaned in `state.tools` forever unless pruned here.
+ */
+export function pruneOrphanedPendingTools(
+  tools: Record<string, ToolState>,
+  items: ChatSessionState['items'],
+): Record<string, ToolState> {
+  const referenced = new Set<string>()
+  for (const item of items) {
+    if (item.kind !== 'assistant') continue
+    for (const block of item.blocks) {
+      if (block.type === 'tool') referenced.add(block.toolCallId)
+    }
+  }
+  let next = tools
+  for (const key of Object.keys(tools)) {
+    if (!isPendingToolId(key) || referenced.has(key)) continue
+    if (next === tools) next = { ...tools }
+    delete next[key]
+  }
+  return next
 }
 
 /**

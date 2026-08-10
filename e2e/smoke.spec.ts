@@ -198,10 +198,15 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     // The in-flight window is short, so watch for it with a MutationObserver
     // rather than polling — a poll can straddle the whole window and miss it.
     await page.evaluate(() => {
-      const w = window as unknown as { __sawRunning?: boolean }
+      const w = window as unknown as { __sawRunning?: boolean; __sawWorkingIndicator?: boolean }
+      const workingIndicator = () =>
+        /\d[\d.]*(ms|s)\s*·\s*[\d.]+[kM]?\s*tokens/.test(document.body.innerText) &&
+        document.querySelector('.pi-spark') !== null
       w.__sawRunning = document.querySelector('.tool-running-dot') !== null
+      w.__sawWorkingIndicator = workingIndicator()
       new MutationObserver(() => {
         if (document.querySelector('.tool-running-dot')) w.__sawRunning = true
+        if (workingIndicator()) w.__sawWorkingIndicator = true
       }).observe(document.body, { childList: true, subtree: true, attributes: true })
     })
 
@@ -213,6 +218,15 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     ).toBe(true)
     // …and is gone now that the run finished.
     await expect(page.locator('.tool-running-dot')).toHaveCount(0)
+
+    // The persistent working strip (elapsed time · tokens, Claude-Code-style)
+    // appeared above the composer during the run and disappears once done.
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __sawWorkingIndicator: boolean }).__sawWorkingIndicator,
+      ),
+    ).toBe(true)
+    await expect(page.getByText(/tokens$/)).toBeHidden()
 
     // All three calls from the run are present as rows.
     await expect(page.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
@@ -437,7 +451,18 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
     await expect(scroller).toBeVisible({ timeout: 30_000 })
 
     // An unidentified streaming tool must never surface as a literal name.
-    await expect(page.getByText('unknown', { exact: false })).toHaveCount(0)
+    // The anonymous window is a few stub ticks wide and adoption closes it,
+    // so a point-in-time count-0 assertion passes vacuously (verified: it
+    // stayed green with "Running unknown" restored). Watch the whole stream
+    // with a MutationObserver instead, and assert at the end.
+    await page.evaluate(() => {
+      const w = window as unknown as { __sawUnknown?: boolean }
+      w.__sawUnknown = /unknown/i.test(document.body.innerText)
+      new MutationObserver(() => {
+        if (/unknown/i.test(document.body.innerText)) w.__sawUnknown = true
+      }).observe(document.body, { childList: true, subtree: true, characterData: true })
+    })
+    await expect(page.locator('.tool-card').first()).toBeVisible({ timeout: 30_000 })
 
     // Wait until the transcript overflows, then read back.
     await expect
@@ -459,10 +484,14 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
       max: el.scrollHeight - el.clientHeight,
     }))
     expect(position.max - position.top).toBeGreaterThan(100)
-    // The app agrees it is no longer following the tail.
-    await expect(
-      page.getByRole('button', { name: /Following stream|Jump to bottom/ }),
-    ).toBeVisible()
+    // The app agrees it is no longer following the tail. The pill labels the
+    // ACTION (it only renders while unpinned), never the current state.
+    await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeVisible()
+
+    // …and no fabricated tool name ever appeared during the whole stream.
+    expect(
+      await page.evaluate(() => (window as unknown as { __sawUnknown: boolean }).__sawUnknown),
+    ).toBe(false)
   } finally {
     await shutdown(harness)
   }

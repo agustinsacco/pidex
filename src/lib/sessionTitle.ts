@@ -50,5 +50,12 @@ function firstLine(text: string): string {
 }
 
 function truncateTitle(text: string): string {
-  return text.length > MAX_TITLE ? `${text.slice(0, MAX_TITLE - 1).trimEnd()}…` : text
+  if (text.length <= MAX_TITLE) return text
+  // Slice by code points, not UTF-16 units: a string slice through the middle
+  // of an astral character (emoji, CJK extensions) leaves a lone surrogate
+  // that renders as mojibake right before the ellipsis.
+  return `${[...text]
+    .slice(0, MAX_TITLE - 1)
+    .join('')
+    .trimEnd()}…`
 }

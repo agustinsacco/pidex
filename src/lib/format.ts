@@ -19,7 +19,15 @@ export function formatDuration(ms: number): string {
   return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
 }
 
-/** Byte size for streamed payloads: `812 B`, `12.4 KB`, `1.2 MB`. */
+/**
+ * Size label for streamed payloads: `812 B`, `12.4 KB`, `1.2 MB`.
+ *
+ * Callers feed it `string.length` — UTF-16 code units, a LOWER BOUND on the
+ * UTF-8 byte size (exact for ASCII payloads like JSON args; up to ~3x under
+ * for CJK/emoji-heavy content). Deliberate: re-encoding a multi-MB payload
+ * with TextEncoder on every streaming delta just to label a hint is waste.
+ * Treat the value as progress, not as an exact transfer size.
+ */
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`

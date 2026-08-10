@@ -170,8 +170,12 @@ function AssistantMessage({
             <div key={`tools-${i}`}>
               {group.map((block) =>
                 block.type === 'tool' ? (
+                  // Keyed by stable position, NOT toolCallId: identity
+                  // adoption re-keys pending-* ids to real ids mid-stream,
+                  // and an id-based key would remount the card and collapse
+                  // the expansion the user just opened.
                   <ToolBlockView
-                    key={block.toolCallId}
+                    key={`${item.id}-${block.index}`}
                     toolCallId={block.toolCallId}
                     tools={tools}
                     sessionId={sessionId}

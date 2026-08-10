@@ -31,6 +31,7 @@ import { emptyChatSession, newItemId } from './chatItems'
 import {
   applyRevealedIdentity,
   pendingToolId,
+  pruneOrphanedPendingTools,
   revealedToolCall,
   withExecutionIdentity,
 } from './toolIdentity'
@@ -65,13 +66,15 @@ export { userMessageText } from './messageContent'
 export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSessionState {
   switch (event.type) {
     case 'agent_start':
-      return { ...state, isStreaming: true, error: null }
+      // agentStartedAt survives message_start/message_end rounds inside the
+      // run: one continuous timer for the working indicator, not per-turn.
+      return { ...state, isStreaming: true, error: null, agentStartedAt: Date.now() }
 
     case 'agent_end': {
       const items = state.items.map((item) =>
         item.kind === 'assistant' && item.streaming ? { ...item, streaming: false } : item,
       )
-      return { ...state, isStreaming: false, retry: null, items }
+      return { ...state, isStreaming: false, retry: null, items, agentStartedAt: null }
     }
 
     case 'turn_start':
@@ -341,33 +344,32 @@ function applyAssistantDelta(
       const block = item.blocks.find((b) => b.index === delta.contentIndex)
       if (!block || block.type !== 'tool' || !delta.toolCall) return state
       const finalId = delta.toolCall.id
-      const oldId = block.toolCallId
-      const old = state.tools[oldId]
 
-      const tools = { ...state.tools }
-      if (oldId !== finalId) delete tools[oldId]
-      tools[finalId] = {
+      // Re-key through the single owner of identity moves (toolIdentity.ts),
+      // then overlay what only this event is authoritative for: final args.
+      const rekeyed = applyRevealedIdentity(state, index, delta.contentIndex, {
+        id: finalId,
+        name: delta.toolCall.name,
+      })
+      const tool = rekeyed.tools[finalId] ?? {
         toolCallId: finalId,
         toolName: delta.toolCall.name,
-        args: delta.toolCall.arguments,
-        argsText: old?.argsText || JSON.stringify(delta.toolCall.arguments ?? {}),
-        status: old?.status === 'running' || old?.status === 'done' ? old.status : 'starting',
-        output: old?.output ?? null,
-        result: old?.result,
-        isError: old?.isError,
-        startedAt: old?.startedAt,
-        endedAt: old?.endedAt,
+        argsText: '',
+        status: 'starting' as const,
+        output: null,
       }
-
-      const blocks =
-        oldId === finalId
-          ? item.blocks
-          : item.blocks.map((b) =>
-              b.index === delta.contentIndex && b.type === 'tool'
-                ? { ...b, toolCallId: finalId }
-                : b,
-            )
-      return { ...state, items: replaceItem(state.items, index, { ...item, blocks }), tools }
+      return {
+        ...rekeyed,
+        tools: {
+          ...rekeyed.tools,
+          [finalId]: {
+            ...tool,
+            args: delta.toolCall.arguments,
+            argsText: tool.argsText || JSON.stringify(delta.toolCall.arguments ?? {}),
+            status: tool.status === 'running' || tool.status === 'done' ? tool.status : 'starting',
+          },
+        },
+      }
     }
 
     case 'done': {
@@ -412,10 +414,11 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
           model: assistant.model,
           timestamp: assistant.timestamp,
         }
+        const items = [...state.items, item]
         return {
           ...state,
-          items: [...state.items, item],
-          tools: toolsFromContent(assistant, state.tools),
+          items,
+          tools: pruneOrphanedPendingTools(toolsFromContent(assistant, state.tools), items),
         }
       }
       const item = state.items[index] as AssistantItem
@@ -429,10 +432,14 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
         model: assistant.model,
         timestamp: assistant.timestamp,
       }
+      const items = replaceItem(state.items, index, updated)
       return {
         ...state,
-        items: replaceItem(state.items, index, updated),
-        tools: toolsFromContent(assistant, state.tools),
+        items,
+        // The authoritative content re-keys blocks to real ids; drop any
+        // pending-* entries that no longer back a rendered block (the
+        // ordering real pi produces — message_end before tool_execution_*).
+        tools: pruneOrphanedPendingTools(toolsFromContent(assistant, state.tools), items),
       }
     }
 

@@ -313,4 +313,23 @@ describe('partialStringArg', () => {
   it('does not read past an escaped closing quote', () => {
     expect(partialStringArg('{"title": "end\\\\"}', 'title')).toBe('end\\')
   })
+
+  it('decodes \\uXXXX escapes instead of pasting the escape body through', () => {
+    // A serializer that escapes non-ASCII rendered "Café" as "Cafu00e9" on
+    // the streaming card for the whole (minutes-long) content stream.
+    expect(partialStringArg('{"title": "Caf\\u00e9 menu"}', 'title')).toBe('Café menu')
+  })
+
+  it('decodes the remaining JSON escapes (\\r, \\b, \\f, \\/)', () => {
+    expect(partialStringArg('{"title": "a\\rb"}', 'title')).toBe('a\rb')
+    expect(partialStringArg('{"title": "a\\bb\\fc"}', 'title')).toBe('a\bb\fc')
+    expect(partialStringArg('{"title": "a\\/b"}', 'title')).toBe('a/b')
+  })
+
+  it('under-labels rather than mangling an unknown or half-arrived escape', () => {
+    // Contract: never render truncated-but-confident.
+    expect(partialStringArg('{"title": "a\\qb"}', 'title')).toBeUndefined()
+    expect(partialStringArg('{"title": "Caf\\u00', 'title')).toBeUndefined()
+    expect(partialStringArg('{"title": "Caf\\uZZZZ"}', 'title')).toBeUndefined()
+  })
 })

@@ -26,6 +26,9 @@ export const ToolCard = memo(function ToolCard({
   const failed = tool.status === 'error'
 
   return (
+    // `.tool-card` has no CSS behind it — it is the selector the e2e density
+    // test (e2e/smoke.spec.ts "rows are dense and sit flush") measures rows
+    // by. Load-bearing: renaming it turns that test into a confusing red run.
     <div className="tool-card">
       <button
         onClick={() => setExpanded((e) => !e)}

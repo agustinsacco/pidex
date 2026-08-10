@@ -42,6 +42,18 @@ export function isScrollBackIntent(deltaY: number): boolean {
   return deltaY < 0
 }
 
+/**
+ * Wheel-down at (or near) the bottom means "follow again".
+ *
+ * The geometry path can miss this re-pin: if the landing scroll sample
+ * coincides with a stream-driven height change it is held as layout, and once
+ * the user rests at the bottom no further scroll events arrive. The gesture
+ * itself is unambiguous, so honor it directly.
+ */
+export function isFollowIntent(deltaY: number, distanceFromBottom: number): boolean {
+  return deltaY > 0 && distanceFromBottom <= REPIN_PX
+}
+
 /** Keys that move the viewport away from the tail. */
 const SCROLL_BACK_KEYS = new Set(['PageUp', 'ArrowUp', 'Home'])
 

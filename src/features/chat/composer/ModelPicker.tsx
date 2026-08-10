@@ -1,18 +1,12 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { Model, ThinkingLevel } from '@shared/rpc'
-import { hasThinkingChoice, supportedThinkingLevels } from '@shared/thinking'
+import { supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { CheckIcon } from '@/components/icons'
-import { piCallOk } from '@/lib/rpc'
+import { piCall, piCallOk } from '@/lib/rpc'
 import { refreshThinkingLevels } from '@/stores/sessions'
 import { ModelMenu } from './ModelMenu'
-
-/** Real title-case text (not a CSS transform) so labels are accessible. */
-function titleCase(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
+import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
 
 /**
  * Model + thinking-level pickers in the composer footer.
@@ -47,9 +41,22 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       modelId: model.id,
     })
     if (ok) {
-      useChatStore.getState().patchMeta(sessionId, { model })
-      // Supported levels are per-model — re-ask pi after a switch.
+      const chat = useChatStore.getState()
+      chat.patchMeta(sessionId, { model })
+      // Supported levels are per-model. Clear the previous model's list
+      // synchronously so the ?? fallback derives from the NEW model during
+      // the refresh gap (and permanently, if the refresh fails) — a stale
+      // list offered levels the new model silently clamps away.
+      chat.setThinkingLevels(sessionId, null)
       void refreshThinkingLevels(sessionId)
+      // pi's set_model re-clamps the session's thinking level (e.g. max →
+      // high on a 5-level model). Re-read state so the chip reports the
+      // level the session actually runs at, not the pre-switch setting.
+      void piCall(sessionId, { type: 'get_state' }).then((state) => {
+        if (state?.thinkingLevel) {
+          useChatStore.getState().patchMeta(sessionId, { thinkingLevel: state.thinkingLevel })
+        }
+      })
     }
   }
 
@@ -73,7 +80,11 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         {currentModel?.name ?? 'No model'}
       </button>
 
-      {currentModel && hasThinkingChoice(currentModel) && (
+      {/* Gate on what the menu will actually render (pi's answer when
+          present), not the local guess — if the two ever disagree, a chip
+          opening a one-item menu (or a hidden chip over real choices) is the
+          bug this avoids. */}
+      {levelsToRender.length > 1 && (
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           className={clsx(
@@ -83,7 +94,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
           )}
         >
-          {meta.thinkingLevel === 'off' ? 'No thinking' : titleCase(meta.thinkingLevel)}
+          {thinkingLabel(meta.thinkingLevel)}
         </button>
       )}
 
@@ -102,20 +113,12 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       )}
 
       {open === 'thinking' && (
-        <PopupMenu
+        <ThinkingMenu
+          levels={levelsToRender}
+          current={meta.thinkingLevel}
+          onPick={(level) => void setThinking(level)}
           onClose={() => setOpen(null)}
-          className="absolute bottom-full right-0 mb-2 w-44 py-1.5"
-        >
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
-            Thinking
-          </div>
-          {levelsToRender.map((level) => (
-            <MenuRow key={level} active={false} onClick={() => void setThinking(level)}>
-              <span className="flex-1">{titleCase(level)}</span>
-              {meta.thinkingLevel === level && <CheckIcon className="text-text" />}
-            </MenuRow>
-          ))}
-        </PopupMenu>
+        />
       )}
     </div>
   )

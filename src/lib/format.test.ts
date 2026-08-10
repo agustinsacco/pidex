@@ -101,9 +101,17 @@ describe('formatBytes', () => {
    * arriving, so it is called on every delta: it must never widen mid-stream in
    * a way that reflows the row (one decimal, single unit switch per tier).
    */
-  it('grows monotonically as a payload streams', () => {
+  it('renders streaming size samples across the tiers', () => {
     const sizes = [0, 512, 1024, 20_000, 500_000, 2_000_000]
     const rendered = sizes.map(formatBytes)
     expect(rendered).toEqual(['0 B', '512 B', '1.0 KB', '19.5 KB', '488.3 KB', '1.9 MB'])
+  })
+
+  it('never widens past a fixed budget while a payload streams (no row reflow)', () => {
+    // The real property the streaming hint depends on: rendered width stays
+    // bounded, so a label repainted on every delta can't reflow its row.
+    for (let n = 0; n <= 4_000_000; n += 4093) {
+      expect(formatBytes(n).length).toBeLessThanOrEqual(9)
+    }
   })
 })

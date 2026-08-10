@@ -22,19 +22,23 @@ import type { AssistantItem, ChatItem } from '../reducer'
  *   fresh message per tool round), so they close up to a tight gap.
  */
 
-/** One vertical step, matching `--px-stream-gap`. */
+/** One vertical step (pt-3 = 12px). The literal IS the single source. */
 export const STREAM_GAP = 'pt-3'
 /** Continuation of the same action (tool round after tool round). */
 export const STREAM_GAP_TIGHT = 'pt-1'
 
 /**
- * True when an assistant item never produced any closed, non-blank text — i.e.
- * it was purely tool calls (optionally with thinking), no reply prose. pi emits
- * a fresh `message_start`/`message_end` for each such round, so a multi-step
- * tool run arrives as several consecutive `AssistantItem`s rather than one.
+ * True when an assistant item has produced no visible prose — i.e. it is
+ * purely tool calls (optionally with thinking). pi emits a fresh
+ * `message_start`/`message_end` for each such round, so a multi-step tool run
+ * arrives as several consecutive `AssistantItem`s rather than one.
+ *
+ * Streaming (not-yet-closed) text counts as prose the moment it is non-blank:
+ * classifying on `closed` made the gap jump 8px at `text_end` — a reflow of
+ * the very row the user is reading — for every tools-then-prose turn.
  */
 export function isToolOnlyTurn(item: AssistantItem): boolean {
-  return !item.blocks.some((b) => b.type === 'text' && b.closed && b.text.trim() !== '')
+  return !item.blocks.some((b) => b.type === 'text' && b.text.trim() !== '')
 }
 
 export function spacingFor(item: ChatItem, previous: ChatItem | undefined): string {

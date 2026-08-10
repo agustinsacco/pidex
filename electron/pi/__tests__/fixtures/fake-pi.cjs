@@ -102,6 +102,44 @@ function handle(cmd) {
       break
     }
 
+    case 'get_available_models':
+      // Test hook: simulate a hang (no response ever sent).
+      if (process.env.FAKE_PI_HANG_MODELS) break
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: 'get_available_models',
+        success: true,
+        data: {
+          models: [
+            {
+              id: 'us.anthropic.claude-opus-5',
+              name: 'Claude Opus 5 (US)',
+              api: 'bedrock-converse-stream',
+              provider: 'amazon-bedrock',
+              reasoning: true,
+              thinkingLevelMap: { xhigh: 'xhigh', max: 'max' },
+              input: ['text', 'image'],
+              contextWindow: 1_000_000,
+              maxTokens: 128_000,
+              cost: { input: 5, output: 25, cacheRead: 0, cacheWrite: 0 },
+            },
+            {
+              id: 'Qwen 3.5 122b',
+              name: 'Qwen 3.5 122b',
+              api: 'openai-completions',
+              provider: 'local-stark',
+              reasoning: false,
+              input: ['text'],
+              contextWindow: 128_000,
+              maxTokens: 16_384,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            },
+          ],
+        },
+      })
+      break
+
     case 'set_model':
       out({
         id: cmd.id,

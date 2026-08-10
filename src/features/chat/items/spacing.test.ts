@@ -92,17 +92,25 @@ describe('isToolOnlyTurn', () => {
     expect(isToolOnlyTurn(assistantText())).toBe(false)
   })
 
-  it('ignores blank or still-streaming text', () => {
+  it('ignores blank text but counts streaming prose from its first token', () => {
+    // Blank blocks never make a turn "prose"…
     expect(
       isToolOnlyTurn({
         id: 'a',
         kind: 'assistant',
         streaming: true,
-        blocks: [
-          { type: 'text', index: 0, text: '   ', closed: true },
-          { type: 'text', index: 1, text: 'partial', closed: false },
-        ],
+        blocks: [{ type: 'text', index: 0, text: '   ', closed: true }],
       }),
     ).toBe(true)
+    // …but visible streaming text does, immediately. Classifying on `closed`
+    // reflowed the row by 8px at text_end, mid-read, on every mixed turn.
+    expect(
+      isToolOnlyTurn({
+        id: 'b',
+        kind: 'assistant',
+        streaming: true,
+        blocks: [{ type: 'text', index: 0, text: 'partial', closed: false }],
+      }),
+    ).toBe(false)
   })
 })

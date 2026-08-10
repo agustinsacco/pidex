@@ -16,8 +16,10 @@ import { type ConfigFileHealth } from '@shared/models'
 export function registerPiConfigHandlers(): void {
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
 
-  // Prefer pi's own catalogue (built-ins + models.json), falling back to
-  // parsing models.json when pi can't be run.
+  // Ask a throwaway pi RPC process for its full catalogue (built-ins +
+  // models.json, with real display names and thinkingLevelMap — see
+  // model-catalogue.ts), falling back to parsing models.json directly when
+  // pi can't be run.
   handle('pi:catalogueModels', () =>
     resolveCatalogueModels(async () => {
       const health = await checkPiHealth()
