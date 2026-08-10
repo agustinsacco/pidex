@@ -21,6 +21,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 /**
+ * The right pane only exists inside a session (`MainWithPanes` in App.tsx is
+ * gated on `activeSessionId`). Toggling it from the home screen used to flip
+ * store state with nothing rendered — invisible, and worse, it left the pane
+ * "open" so the next press inside a session appeared to do nothing.
+ */
+export function canToggleRightPane(): boolean {
+  return useSessionsStore.getState().activeSessionId !== null
+}
+
+/**
  * App-wide keyboard shortcuts.
  *
  * Uses `event.code` for the punctuation bindings: `event.key` is
@@ -34,10 +44,12 @@ export function useGlobalShortcuts(): void {
       if (!mod) return
 
       // Backquote: toggle terminal. Accept the shifted (~) form too, and
-      // match on physical key so keyboard layout doesn't matter.
+      // match on physical key so keyboard layout doesn't matter. Deliberately
+      // above the isEditableTarget guard: it must work while the composer has
+      // focus, which is where you are when you want a terminal.
       if (event.code === 'Backquote') {
         event.preventDefault()
-        useLayoutStore.getState().toggleRightPane('terminal')
+        if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('terminal')
         return
       }
 
@@ -70,12 +82,12 @@ export function useGlobalShortcuts(): void {
         case 'KeyE':
           if (!event.shiftKey) return
           event.preventDefault()
-          useLayoutStore.getState().toggleRightPane('files')
+          if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('files')
           break
         case 'KeyG':
           if (!event.shiftKey) return
           event.preventDefault()
-          useLayoutStore.getState().toggleRightPane('changes')
+          if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('changes')
           break
         default:
           break

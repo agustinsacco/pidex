@@ -325,7 +325,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         name: options.name,
       })
       const pidexId = info.sessionId
-      useChatStore.getState().ensure(pidexId)
+      // Resuming from disk means history is on its way; the transcript shows a
+      // skeleton instead of the "nothing here yet" empty state until it lands.
+      useChatStore.getState().ensure(pidexId, { resuming: Boolean(options.sessionPath) })
       attachSessionPushHandler(pidexId)
 
       // Git baseline for the Files Changed panel ("changes since session start").
@@ -359,6 +361,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           }
         } catch {
           // non-fatal
+        } finally {
+          // hydrate() clears this, but a failed or empty get_messages must not
+          // leave the transcript stuck behind a skeleton forever.
+          useChatStore.getState().doneResuming(pidexId)
         }
       }
       void bootstrapSession(pidexId)

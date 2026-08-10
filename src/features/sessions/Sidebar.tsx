@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
@@ -382,11 +382,13 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const currentPath = useActiveWorkspace()
   const recents = useWorkspacesStore((s) => s.recents)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const name = currentPath ? workspaceName(currentPath) : 'Workspace'
 
   return (
     <div className="relative px-3 pb-2 pt-1">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
         className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
@@ -401,6 +403,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
           className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
         >
           <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">

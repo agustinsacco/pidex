@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu } from '@/components/PopupMenu'
@@ -10,6 +10,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const usage = stats?.contextUsage
   if (!stats || !usage || usage.percent == null) return null
@@ -21,6 +22,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={`Context: ${percent}% of ${formatTokens(usage.contextWindow)}`}
         className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
@@ -60,6 +62,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
           className="absolute bottom-full right-0 mb-2 w-64 p-3"
         >
           <div className="text-text text-[12.5px] font-medium">Session usage</div>

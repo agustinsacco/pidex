@@ -162,8 +162,16 @@ test('command palette opens with the keyboard shortcut', async () => {
     const palette = page.getByPlaceholder('Type a command…')
     await expect(palette).toBeVisible({ timeout: 10_000 })
 
+    // Right-pane commands are session-scoped: the pane is rendered by
+    // MainWithPanes, which requires an active session, so offering them on the
+    // home screen was a no-op that also desynced the pane state.
     await palette.fill('terminal')
-    await expect(page.getByText('Toggle terminal')).toBeVisible()
+    await expect(page.getByText('Toggle terminal')).toBeHidden()
+
+    // A command that is always available still resolves, so this is testing
+    // the filter and not just an empty palette.
+    await palette.fill('sidebar')
+    await expect(page.getByText('Toggle sidebar')).toBeVisible()
 
     await page.keyboard.press('Escape')
     await expect(palette).toBeHidden()
@@ -486,6 +494,14 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
       await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
       })
+      // A live composer is not a persisted session: the file path arrives with
+      // get_state, after the composer renders, and closing before it lands
+      // leaves no lastSessionPath — so the relaunch below opens the picker and
+      // never restores A. Same race the relaunch test guards against; wait for
+      // the sidebar row, which only appears once the session is on disk.
+      await expect(first.page.getByTestId('session-row').first()).toBeVisible({
+        timeout: 20_000,
+      })
     } finally {
       await first.app.close()
     }
@@ -576,7 +592,7 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
     await expect(page.getByText(/Open folder/)).toBeHidden()
 
     // Attachment affordance is present next to the pickers.
-    await expect(page.getByRole('button', { name: 'Attach images' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Attach files' })).toBeVisible()
   } finally {
     await shutdown(harness)
   }

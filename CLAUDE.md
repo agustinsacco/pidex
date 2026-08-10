@@ -104,5 +104,7 @@ stops before the slow part.
 
 `npm run dev` requires `pi` on PATH (`npm i -g @earendil-works/pi-coding-agent`,
 Node ≥ 22.19). Without it the app boots to the "pi missing" setup screen —
-still useful for shell/UI work. For pure renderer work, `npx vite dev` in the
-browser uses the mock API. The `/run` and `/e2e` skills cover both flows.
+still useful for shell/UI work. For pure renderer work, `npm run dev:web` in
+the browser uses the mock API (plain `vite` reads the root `vite.config.ts`,
+which mirrors the `renderer` block of `electron.vite.config.ts` — keep the two
+in sync). The `/run` and `/e2e` skills cover both flows.

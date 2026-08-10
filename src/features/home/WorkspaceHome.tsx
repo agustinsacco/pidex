@@ -10,13 +10,14 @@ import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
 import { CheckIcon } from '@/components/icons'
-import { bytesToBase64 } from '@/lib/base64'
+import {
+  composePrompt,
+  formatFileSize,
+  toAttachment,
+  toImageContents,
+  type PendingAttachment,
+} from '@/features/chat/attachments'
 import { BranchWorktreeChip, type StartTarget } from '@/features/worktrees/BranchWorktreeChip'
-
-interface PendingImage {
-  data: string
-  mimeType: string
-}
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
@@ -24,33 +25,50 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [git, setGit] = useState<GitInfo | null>(null)
   const [username, setUsername] = useState('')
   const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingImage[]>([])
+  const [images, setImages] = useState<PendingAttachment[]>([])
+  const [dragging, setDragging] = useState(false)
   const [starting, setStarting] = useState(false)
   /** Where the next session runs: null = this workspace, else a worktree. */
   const [startTarget, setStartTarget] = useState<StartTarget | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const workspaceName = workspaceDisplayName(workspacePath)
 
-  const addImageFile = async (file: File): Promise<void> => {
-    const data = bytesToBase64(await file.arrayBuffer())
-    setImages((current) => [...current, { data, mimeType: file.type }])
+  /** Images inline; everything else attaches by path (see attachments.ts). */
+  const addFile = async (file: File): Promise<void> => {
+    const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
+    if (!attachment) return
+    setImages((current) => [...current, attachment])
   }
 
   const handlePaste = (event: React.ClipboardEvent): void => {
-    const items = [...event.clipboardData.items].filter((item) => item.type.startsWith('image/'))
-    if (items.length === 0) return
+    const files = [...event.clipboardData.items]
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    if (files.length === 0) return
     event.preventDefault()
-    for (const item of items) {
-      const file = item.getAsFile()
-      if (file) void addImageFile(file)
-    }
+    for (const file of files) void addFile(file)
+  }
+
+  /** Without preventDefault on dragover the card is never a drop target. */
+  const handleDragOver = (event: React.DragEvent): void => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    if (!dragging) setDragging(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent): void => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDragging(false)
   }
 
   const handleDrop = (event: React.DragEvent): void => {
-    const files = [...event.dataTransfer.files].filter((f) => f.type.startsWith('image/'))
+    const files = [...event.dataTransfer.files]
+    setDragging(false)
     if (files.length === 0) return
     event.preventDefault()
-    for (const file of files) void addImageFile(file)
+    for (const file of files) void addFile(file)
   }
 
   useEffect(() => {
@@ -71,12 +89,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       // Worktree sessions start in the worktree's cwd — pi records sessions
       // under that folder, so the sidebar groups them under the worktree.
       await useSessionsStore.getState().createSession(startTarget?.cwd ?? workspacePath, {
-        firstPrompt: message,
-        firstImages: images.map((img) => ({
-          type: 'image',
-          data: img.data,
-          mimeType: img.mimeType,
-        })),
+        firstPrompt: composePrompt(message, images),
+        firstImages: toImageContents(images),
       })
       setText('')
       setImages([])
@@ -134,18 +148,49 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           </div>
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
-          <div className="border-border bg-surface hover:border-border-focus focus-within:border-border-focus relative rounded-xl border shadow-sm transition-colors">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={clsx(
+              'bg-surface relative rounded-xl border shadow-sm transition-colors',
+              dragging
+                ? 'border-accent ring-accent/25 ring-2'
+                : 'border-border hover:border-border-focus focus-within:border-border-focus',
+            )}
+          >
+            {dragging && (
+              <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
+                <span className="text-text text-[12.5px] font-medium">
+                  Drop to attach — images inline, other files by path
+                </span>
+              </div>
+            )}
             {images.length > 0 && (
               <div className="flex flex-wrap gap-2 px-3 pt-3">
-                {images.map((img, index) => (
+                {images.map((attachment, index) => (
                   <div key={index} className="group/img relative">
-                    <img
-                      src={`data:${img.mimeType};base64,${img.data}`}
-                      className="border-border h-16 w-16 rounded-lg border object-cover"
-                    />
+                    {attachment.kind === 'image' ? (
+                      <img
+                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                        className="border-border h-16 w-16 rounded-lg border object-cover"
+                      />
+                    ) : (
+                      <div
+                        title={attachment.path}
+                        className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
+                      >
+                        <span className="text-text truncate text-[11.5px] font-medium">
+                          {attachment.name}
+                        </span>
+                        <span className="text-text-tertiary font-mono text-[10px]">
+                          {formatFileSize(attachment.size)} · sent as path
+                        </span>
+                      </div>
+                    )}
                     <button
                       onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
-                      aria-label="Remove image"
+                      aria-label="Remove attachment"
                       className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-full text-[10px] group-hover/img:flex"
                     >
                       ✕
@@ -165,7 +210,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 }
               }}
               onPaste={handlePaste}
-              onDrop={handleDrop}
               placeholder="Describe a task or ask a question"
               rows={Math.min(8, Math.max(2, text.split('\n').length))}
               className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] outline-none"
@@ -176,7 +220,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
               <AttachButton
                 onFiles={(files) => {
-                  for (const file of files) void addImageFile(file)
+                  for (const file of files) void addFile(file)
                 }}
               />
 
@@ -253,6 +297,7 @@ function Chip({
   testId,
   onClick,
   open,
+  triggerRef,
   children,
 }: {
   icon?: React.ReactNode
@@ -260,10 +305,13 @@ function Chip({
   testId?: string
   onClick: () => void
   open: boolean
+  /** Passed to PopupMenu so a second click closes instead of re-opening. */
+  triggerRef?: React.RefObject<HTMLButtonElement | null>
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <button
+      ref={triggerRef}
       onClick={onClick}
       title={title}
       data-testid={testId}
@@ -337,6 +385,7 @@ function WorkspaceChip({
   name: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const recents = useWorkspacesStore((s) => s.recents)
 
   const choose = (path: string): void => {
@@ -355,6 +404,7 @@ function WorkspaceChip({
         testId="workspace-chip"
         onClick={() => setOpen((o) => !o)}
         open={open}
+        triggerRef={triggerRef}
       >
         {name}
       </Chip>
@@ -362,6 +412,7 @@ function WorkspaceChip({
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
           className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
         >
           <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">

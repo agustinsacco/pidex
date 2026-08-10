@@ -3,25 +3,48 @@ import { useEffect, useRef } from 'react'
 /**
  * Anchored popup list used by the command menu, @-mentions and pickers.
  * Handles outside-click dismissal and keeps the active row scrolled into view.
+ *
+ * `triggerRef` is what makes a click-toggled menu closeable. Without it the
+ * trigger button counts as "outside": mousedown closes the menu, then the
+ * button's own click re-opens it, so the menu never appears to close. Every
+ * click-toggled caller must pass the ref of the element that toggles it.
+ * (Menus opened by typing — `/`, `@` — have no trigger and can omit it.)
  */
 export function PopupMenu({
   children,
   onClose,
   className,
+  triggerRef,
 }: {
   children: React.ReactNode
   onClose: () => void
   className?: string
+  triggerRef?: React.RefObject<HTMLElement | null>
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = (event: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(event.target as Node)) onClose()
+      const target = event.target as Node
+      if (ref.current?.contains(target)) return
+      // The trigger toggles on click; letting mousedown close here first would
+      // make that click a re-open.
+      if (triggerRef?.current?.contains(target)) return
+      onClose()
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+      }
     }
     window.addEventListener('mousedown', handler)
-    return () => window.removeEventListener('mousedown', handler)
-  }, [onClose])
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', handler)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose, triggerRef])
 
   return (
     <div
