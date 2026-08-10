@@ -12,7 +12,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="my-1.5">
+    <div>
       <button
         onClick={() => setExpanded((e) => !e)}
         className="text-text-tertiary hover:text-text-secondary flex items-center gap-1.5 py-0.5 text-[12.5px] italic transition-colors"
@@ -35,7 +35,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         )}
       </button>
       {expanded && (
-        <div className="border-border text-text-secondary my-1 border-l-2 pl-3 text-[13px] italic opacity-90 [&_.md-content]:text-[13px]">
+        <div className="border-border text-text-secondary mt-1 mb-0.5 border-l-2 pl-3 text-[13px] italic opacity-90 [&_.md-content]:text-[13px]">
           <Markdown text={text} streaming={streaming} />
         </div>
       )}

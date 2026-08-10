@@ -198,10 +198,15 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     // The in-flight window is short, so watch for it with a MutationObserver
     // rather than polling — a poll can straddle the whole window and miss it.
     await page.evaluate(() => {
-      const w = window as unknown as { __sawRunning?: boolean }
+      const w = window as unknown as { __sawRunning?: boolean; __sawWorkingIndicator?: boolean }
+      const workingIndicator = () =>
+        /\d[\d.]*(ms|s)\s*·\s*[\d.]+[kM]?\s*tokens/.test(document.body.innerText) &&
+        document.querySelector('.pi-spark') !== null
       w.__sawRunning = document.querySelector('.tool-running-dot') !== null
+      w.__sawWorkingIndicator = workingIndicator()
       new MutationObserver(() => {
         if (document.querySelector('.tool-running-dot')) w.__sawRunning = true
+        if (workingIndicator()) w.__sawWorkingIndicator = true
       }).observe(document.body, { childList: true, subtree: true, attributes: true })
     })
 
@@ -213,6 +218,15 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     ).toBe(true)
     // …and is gone now that the run finished.
     await expect(page.locator('.tool-running-dot')).toHaveCount(0)
+
+    // The persistent working strip (elapsed time · tokens, Claude-Code-style)
+    // appeared above the composer during the run and disappears once done.
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __sawWorkingIndicator: boolean }).__sawWorkingIndicator,
+      ),
+    ).toBe(true)
+    await expect(page.getByText(/tokens$/)).toBeHidden()
 
     // All three calls from the run are present as rows.
     await expect(page.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
@@ -252,6 +266,14 @@ test('reopens the last session on relaunch instead of the picker', async () => {
       await first.page.getByRole('button', { name: /Start session/i }).click()
       // Session is live once the chat composer replaces the greeting composer.
       await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 20_000,
+      })
+      // …but "live" is not "persisted": the session file path arrives with
+      // get_state, after the composer renders. Closing before that lands
+      // leaves no lastSessionPath and the relaunch falls back to home —
+      // which is exactly how this test failed on (slower) Linux CI. Wait for
+      // the sidebar row, which only appears once the session is on disk.
+      await expect(first.page.getByTestId('session-row').first()).toBeVisible({
         timeout: 20_000,
       })
     } finally {
@@ -382,6 +404,155 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
 
     // Attachment affordance is present next to the pickers.
     await expect(page.getByRole('button', { name: 'Attach images' })).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('artifact pane scrolls a long document', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page
+      .getByPlaceholder('Describe a task or ask a question')
+      .fill('write a longartifact please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // The artifact tool card carries the artifact's identity now, not a
+    // generic "Used artifact_create" row.
+    const card = page.getByRole('button', { name: /Created artifact\s+E2E Long Doc/ })
+    await expect(card).toBeVisible({ timeout: 30_000 })
+
+    // The artifacts pane auto-opens on the session's first artifact, so don't
+    // click the header toggle here — that would close it again.
+    const scroller = page.getByTestId('artifact-scroll')
+    await expect(scroller).toBeVisible({ timeout: 10_000 })
+
+    // Regression: the pane used to clip its body with no scrollbar at all, so
+    // everything past the first screen of a long artifact was unreachable.
+    const metrics = await scroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight + 200)
+
+    const moved = await scroller.evaluate((el) => {
+      el.scrollTop = 400
+      return el.scrollTop
+    })
+    expect(moved).toBeGreaterThan(0)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('transcript: reading back during a stream is not undone, and rows sit flush', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('do a longstream now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const scroller = page.getByTestId('transcript-scroll')
+    await expect(scroller).toBeVisible({ timeout: 30_000 })
+
+    // An unidentified streaming tool must never surface as a literal name.
+    // The anonymous window is a few stub ticks wide and adoption closes it,
+    // so a point-in-time count-0 assertion passes vacuously (verified: it
+    // stayed green with "Running unknown" restored). Watch the whole stream
+    // with a MutationObserver instead, and assert at the end.
+    await page.evaluate(() => {
+      const w = window as unknown as { __sawUnknown?: boolean }
+      w.__sawUnknown = /unknown/i.test(document.body.innerText)
+      new MutationObserver(() => {
+        if (/unknown/i.test(document.body.innerText)) w.__sawUnknown = true
+      }).observe(document.body, { childList: true, subtree: true, characterData: true })
+    })
+    await expect(page.locator('.tool-card').first()).toBeVisible({ timeout: 30_000 })
+
+    // Wait until the transcript overflows, then read back.
+    await expect
+      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(300)
+
+    const box = (await scroller.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, -400)
+
+    // Keep streaming: geometry-derived pinning used to re-pin right here (the
+    // virtualizer re-measures, scrollHeight shrinks, scrollTop is clamped to
+    // the bottom) and slam the viewport back down mid-sentence.
+    await page.waitForTimeout(1200)
+    const position = await scroller.evaluate((el) => ({
+      top: el.scrollTop,
+      max: el.scrollHeight - el.clientHeight,
+    }))
+    expect(position.max - position.top).toBeGreaterThan(100)
+    // The app agrees it is no longer following the tail. The pill labels the
+    // ACTION (it only renders while unpinned), never the current state.
+    await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeVisible()
+
+    // …and no fabricated tool name ever appeared during the whole stream.
+    expect(
+      await page.evaluate(() => (window as unknown as { __sawUnknown: boolean }).__sawUnknown),
+    ).toBe(false)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('transcript rows are dense and sit flush', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // 40 tool-only turns: the shape a long agent run takes, and the only shape
+    // where virtualization and per-row spacing actually show up.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('run manyitems now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText('many items complete')).toBeVisible({ timeout: 60_000 })
+
+    const geometry = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
+      const sorted = rows
+        .map((el) => ({ index: Number(el.dataset.index), rect: el.getBoundingClientRect() }))
+        .sort((a, b) => a.index - b.index)
+      let worstGap = 0
+      for (let i = 1; i < sorted.length; i++) {
+        const previous = sorted[i - 1]!
+        const current = sorted[i]!
+        if (current.index !== previous.index + 1) continue
+        worstGap = Math.max(worstGap, current.rect.top - previous.rect.bottom)
+      }
+      // Measure rows that actually contain a tool card. Filtering by "has no
+      // markdown body" also caught the user bubble (plain pre-wrap text, not
+      // markdown), whose padding + timestamp row is legitimately ~58px — the
+      // assertion failed on a message it was never meant to measure.
+      const toolRowHeights = rows
+        .filter((el) => el.querySelector('.tool-card'))
+        .map((el) => el.getBoundingClientRect().height)
+      return {
+        worstGap,
+        tallestToolRow: Math.max(...toolRowHeights),
+        toolRows: toolRowHeights.length,
+        rows: sorted.length,
+      }
+    })
+
+    expect(geometry.rows).toBeGreaterThan(5)
+    expect(geometry.toolRows).toBeGreaterThan(3)
+    // Density: one tool row used to occupy 63px for ~20px of text, because the
+    // row's gap was owned in four places at once (pt-4 + pb-0.5 + my-2 + py-1).
+    // With `spacingFor` as the single owner it is ~33px. 44px leaves headroom
+    // for font-metric differences between platforms while still failing on a
+    // regression to the old stacking.
+    expect(geometry.tallestToolRow).toBeLessThan(44)
+    // Spacing lives *inside* each measured wrapper, so measured rows are flush.
+    expect(geometry.worstGap).toBeLessThan(8)
   } finally {
     await shutdown(harness)
   }

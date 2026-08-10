@@ -1,7 +1,25 @@
 import { create } from 'zustand'
 import type { SessionMeta, SessionPush } from '@shared/models'
-import type { ImageContent } from '@shared/rpc'
+import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
+
+/**
+ * Whether an event should trigger a stats refresh.
+ *
+ * `get_session_stats` reads pi's in-memory session state (no I/O — verified
+ * against pi's own rpc-mode.js, `session.getSessionStats()`), so refreshing
+ * on every completed sub-step keeps the context meter and working indicator
+ * climbing live instead of jumping once per turn. Exported as a pure
+ * predicate so the trigger set is unit-testable without mocking IPC.
+ */
+export function shouldRefreshStatsOn(eventType: PiEvent['type']): boolean {
+  return (
+    eventType === 'agent_end' ||
+    eventType === 'compaction_end' ||
+    eventType === 'message_end' ||
+    eventType === 'tool_execution_end'
+  )
+}
 
 /**
  * Live pi subprocesses + on-disk session catalogue.
@@ -60,12 +78,23 @@ const watchedWorkspaces = new Set<string>()
 
 async function bootstrapSession(pidexId: string): Promise<void> {
   const chat = useChatStore.getState()
-  const [state, models, commands, stats] = await Promise.allSettled([
-    window.pidex.piCommand(pidexId, { type: 'get_state' }),
+  // get_state is awaited on its own, ahead of the rest: it carries
+  // `sessionFile`, and "reopen my last session" depends on that path being
+  // persisted. Batching it with the slower catalogue calls meant a window
+  // closed before the batch settled lost the pref entirely — a race the
+  // relaunch e2e caught on Linux CI once a fifth call joined the batch.
+  const statePromise = window.pidex.piCommand(pidexId, { type: 'get_state' })
+  const restPromise = Promise.allSettled([
     window.pidex.piCommand(pidexId, { type: 'get_available_models' }),
     window.pidex.piCommand(pidexId, { type: 'get_commands' }),
     window.pidex.piCommand(pidexId, { type: 'get_session_stats' }),
+    window.pidex.piCommand(pidexId, { type: 'get_available_thinking_levels' }),
   ])
+
+  const state = await statePromise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason: unknown) => ({ status: 'rejected' as const, reason }),
+  )
   if (state.status === 'fulfilled' && state.value.success && state.value.data) {
     chat.setMeta(pidexId, state.value.data)
     const diskPath = state.value.data.sessionFile
@@ -83,6 +112,7 @@ async function bootstrapSession(pidexId: string): Promise<void> {
       }
     }
   }
+  const [models, commands, stats, thinkingLevels] = await restPromise
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
     chat.setModels(pidexId, models.value.data.models)
   }
@@ -91,6 +121,34 @@ async function bootstrapSession(pidexId: string): Promise<void> {
   }
   if (stats.status === 'fulfilled' && stats.value.success && stats.value.data) {
     chat.setStats(pidexId, stats.value.data)
+  }
+  // Older pi builds lack this command; leaving it null makes the picker derive
+  // the levels locally instead of showing a wrong hardcoded list.
+  if (
+    thinkingLevels.status === 'fulfilled' &&
+    thinkingLevels.value.success &&
+    thinkingLevels.value.data
+  ) {
+    chat.setThinkingLevels(pidexId, thinkingLevels.value.data.levels)
+  }
+}
+
+/**
+ * Re-ask pi which thinking levels are selectable.
+ *
+ * Must run after every model switch: the supported set is per-model, so a
+ * stale list would offer levels the new model silently clamps away.
+ */
+export async function refreshThinkingLevels(pidexId: string): Promise<void> {
+  try {
+    const response = await window.pidex.piCommand(pidexId, {
+      type: 'get_available_thinking_levels',
+    })
+    if (response.success && response.data) {
+      useChatStore.getState().setThinkingLevels(pidexId, response.data.levels)
+    }
+  } catch {
+    // Session gone, or pi too old — the picker's local derivation covers it.
   }
 }
 
@@ -135,7 +193,7 @@ function attachSessionPushHandler(pidexId: string): void {
             unread: { ...s.unread, [pidexId]: (s.unread[pidexId] ?? 0) + 1 },
           }))
         }
-        if (push.event.type === 'agent_end' || push.event.type === 'compaction_end') {
+        if (shouldRefreshStatsOn(push.event.type)) {
           void refreshStats(pidexId)
         }
         break

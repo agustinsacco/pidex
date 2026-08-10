@@ -1,20 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { ThinkingLevel } from '@shared/rpc'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import type { ThinkingLevel, ThinkingLevelMap } from '@shared/rpc'
+import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
+import { ThinkingMenu, thinkingLabel } from '@/features/chat/composer/ThinkingMenu'
 
-const THINKING_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-
+/**
+ * One selectable model as returned by `pi:catalogueModels` (home screen only).
+ * Same source as the session composer in substance: main asks a throwaway pi
+ * RPC process `get_available_models`, so this carries the real display name
+ * and `thinkingLevelMap` — home derives levels with the same rules as a live
+ * session instead of guessing.
+ */
 interface CatalogueModel {
   id: string
   name: string
   provider: string
   reasoning: boolean
-}
-
-function titleCase(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
+  thinkingLevelMap?: ThinkingLevelMap | null
 }
 
 /**
@@ -26,6 +29,12 @@ function titleCase(text: string): string {
  * settings.json). That is the same surface pi itself uses to pick a model on
  * startup, so whatever is shown here is genuinely what the next session will
  * run with — not a pidex-local preference that silently disagrees.
+ *
+ * Supported thinking levels are derived locally via `supportedThinkingLevels`
+ * (shared/thinking.ts), which implements pi's per-model rules over the
+ * `thinkingLevelMap` the catalogue now carries. A live session still prefers
+ * pi's own `get_available_thinking_levels` answer; this derivation is what a
+ * new session will get, computed from the same data pi computes it from.
  */
 export function HomeModelPicker(): React.JSX.Element | null {
   const [models, setModels] = useState<CatalogueModel[]>([])
@@ -44,7 +53,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
       if (typeof defaultModel === 'string') setModelId(defaultModel)
       if (
         typeof defaultThinking === 'string' &&
-        THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
+        ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
       ) {
         setThinking(defaultThinking as ThinkingLevel)
       }
@@ -52,6 +61,20 @@ export function HomeModelPicker(): React.JSX.Element | null {
   }, [])
 
   const current = models.find((m) => m.id === modelId && m.provider === provider)
+
+  /** Levels to render, derived per-model — including xhigh/max when mapped. */
+  const levelsToRender: ThinkingLevel[] = useMemo(
+    () => (current ? supportedThinkingLevels(current) : []),
+    [current],
+  )
+
+  /**
+   * The chip shows what the next session will RUN at, not the raw persisted
+   * value: pi writes defaultThinkingLevel on every in-session change, so a
+   * 'max' persisted from another model must display as this model's clamp
+   * (pi applies the same clamp on startup).
+   */
+  const displayedThinking = current ? clampThinkingLevel(current, thinking) : thinking
 
   const chooseModel = (model: CatalogueModel): void => {
     setOpen(null)
@@ -86,7 +109,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
         {current?.name ?? modelId ?? 'Select model'}
       </button>
 
-      {current?.reasoning && (
+      {levelsToRender.length > 1 && (
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           data-testid="home-thinking-picker"
@@ -97,7 +120,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
           )}
         >
-          {thinking === 'off' ? 'No thinking' : titleCase(thinking)}
+          {thinkingLabel(displayedThinking)}
         </button>
       )}
 
@@ -116,37 +139,13 @@ export function HomeModelPicker(): React.JSX.Element | null {
       )}
 
       {open === 'thinking' && (
-        <PopupMenu
+        <ThinkingMenu
+          levels={levelsToRender}
+          current={displayedThinking}
+          onPick={chooseThinking}
           onClose={() => setOpen(null)}
-          className="absolute bottom-full right-0 mb-2 w-44 py-1.5"
-        >
-          <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">
-            Thinking
-          </div>
-          {THINKING_LEVELS.map((level) => (
-            <MenuRow key={level} active={false} onClick={() => chooseThinking(level)}>
-              <span className="flex-1">{titleCase(level)}</span>
-              {thinking === level && <Check />}
-            </MenuRow>
-          ))}
-        </PopupMenu>
+        />
       )}
     </div>
-  )
-}
-
-function Check(): React.JSX.Element {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      className="text-text shrink-0"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
   )
 }

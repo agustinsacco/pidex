@@ -256,6 +256,37 @@ describe('chat reducer — queues, compaction, retry', () => {
   })
 })
 
+describe('chat reducer — agentStartedAt (working indicator)', () => {
+  it('is null before any run starts', () => {
+    expect(emptyChatSession().agentStartedAt).toBeNull()
+  })
+
+  it('sets a timestamp on agent_start and clears it on agent_end', () => {
+    let state = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })
+    expect(state.agentStartedAt).toEqual(expect.any(Number))
+    expect(state.agentStartedAt).toBeGreaterThan(0)
+
+    state = reduceChatEvent(state, { type: 'agent_end', messages: [] })
+    expect(state.agentStartedAt).toBeNull()
+  })
+
+  it('keeps one continuous timer across a multi-step tool run', () => {
+    // A run with several think-then-call rounds must NOT reset the timer
+    // between message_start/message_end pairs — only agent_start/agent_end
+    // bracket it. This is what keeps the elapsed time counting through a
+    // whole tool-heavy turn instead of restarting on every sub-step.
+    const state = run([
+      { type: 'agent_start' },
+      assistantStart,
+      { type: 'message_end', message: { role: 'assistant', content: [] } },
+      assistantStart,
+      { type: 'message_end', message: { role: 'assistant', content: [] } },
+    ])
+    expect(state.agentStartedAt).toEqual(expect.any(Number))
+    expect(state.isStreaming).toBe(true)
+  })
+})
+
 describe('chat reducer — user echo dedup', () => {
   it('marks the optimistic user item instead of duplicating on echo', () => {
     const withOptimistic: ChatSessionState = {
