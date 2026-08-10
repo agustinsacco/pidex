@@ -1,4 +1,5 @@
 .claude/
+.pidex/
 node_modules/
 out/
 dist/
