@@ -2,10 +2,13 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu } from '@/components/PopupMenu'
-import { formatTokens } from '@/lib/format'
+import { formatCost, formatTokens } from '@/lib/format'
+import { hasNoPricing } from './pricing'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
+  const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const [open, setOpen] = useState(false)
 
   const usage = stats?.contextUsage
@@ -61,21 +64,49 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         >
           <div className="text-text text-[12.5px] font-medium">Session usage</div>
           <div className="mt-2 space-y-1 text-[12px]">
+            <SectionLabel>Context</SectionLabel>
             <StatRow
-              label="Context"
+              label="Window"
               value={`${formatTokens(usage.tokens ?? 0)} / ${formatTokens(usage.contextWindow)} (${percent}%)`}
             />
-            <StatRow label="Input tokens" value={formatTokens(stats.tokens.input)} />
-            <StatRow label="Output tokens" value={formatTokens(stats.tokens.output)} />
+            <SectionLabel>Tokens</SectionLabel>
+            <StatRow label="Input" value={formatTokens(stats.tokens.input)} />
+            <StatRow label="Output" value={formatTokens(stats.tokens.output)} />
             <StatRow label="Cache read" value={formatTokens(stats.tokens.cacheRead)} />
             <StatRow label="Cache write" value={formatTokens(stats.tokens.cacheWrite)} />
-            <div className="border-border my-1.5 border-t" />
-            <StatRow label="Cost" value={`$${stats.cost.toFixed(4)}`} />
+            <SectionLabel>Session</SectionLabel>
+            {stats.cost === 0 && hasNoPricing(model) ? (
+              <div className="text-text-tertiary flex items-center justify-between gap-3">
+                <span>Cost</span>
+                <button
+                  onClick={() => {
+                    setOpen(false)
+                    const settingsUi = useSettingsUiStore.getState()
+                    settingsUi.setTab('advanced')
+                    settingsUi.setOpen(true)
+                  }}
+                  title={`No pricing configured for ${model?.name ?? 'this model'} — add cost rates to models.json`}
+                  className="text-warning hover:underline"
+                >
+                  no pricing configured →
+                </button>
+              </div>
+            ) : (
+              <StatRow label="Cost" value={formatCost(stats.cost)} />
+            )}
             <StatRow label="Messages" value={String(stats.totalMessages)} />
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
           </div>
         </PopupMenu>
       )}
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: string }): React.JSX.Element {
+  return (
+    <div className="text-text-tertiary pb-0.5 pt-1.5 font-mono text-[9.5px] uppercase tracking-wider first:pt-0">
+      {children}
     </div>
   )
 }

@@ -22,6 +22,8 @@ import { useGlobalShortcuts } from './useGlobalShortcuts'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
+import { UsageModal } from '@/features/usage/UsageModal'
+import { useTerminalStore } from '@/stores/terminal'
 import { workspaceName } from '@/lib/path'
 
 export function App(): React.JSX.Element {
@@ -37,6 +39,12 @@ export function App(): React.JSX.Element {
     void useWorkspacesStore.getState().hydrate()
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
+
+  // Terminal busy-map broadcast → store (drives header badges + tab dots).
+  useEffect(
+    () => window.pidex.onPtyStatus((statuses) => useTerminalStore.getState().applyStatus(statuses)),
+    [],
+  )
 
   // Land where the user left off. Main validates that the workspace and
   // session file still exist, so a deleted folder degrades to the picker
@@ -126,6 +134,7 @@ export function App(): React.JSX.Element {
       <ToastHost />
       <CommandPalette workspacePath={currentWorkspace} />
       <SettingsModal />
+      <UsageModal />
     </div>
   )
 }
@@ -158,7 +167,7 @@ function MainWithPanes({
         <>
           <PanelResizeHandle className="pane-handle" />
           <Panel ref={rightPanelRef} id="right" order={2} defaultSize={45} minSize={24}>
-            <RightPane workspacePath={workspacePath} />
+            <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
           </Panel>
         </>
       )}

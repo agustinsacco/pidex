@@ -1,7 +1,7 @@
 import { shell } from 'electron'
 import { handle } from './handle'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
-import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
+import { listSessions, readSessionTree, usageSummary, workspaceStats } from '../pi/session-scanner'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 
 /** On-disk session discovery, tree reading and history rewrites. */
@@ -9,6 +9,8 @@ export function registerSessionsHandlers(): void {
   handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
 
   handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
+
+  handle('sessions:usage', () => usageSummary())
 
   handle('sessions:watch', (_event, workspacePath: string) => {
     watchWorkspaceSessions(workspacePath)

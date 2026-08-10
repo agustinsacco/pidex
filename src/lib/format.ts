@@ -12,6 +12,20 @@ export function formatTokens(n: number): string {
   return String(n)
 }
 
+/**
+ * Dollar cost: `$12.40`, `$0.53`, `$0.0042`, `$0`.
+ *
+ * Two decimals once the amount is real money (≥ $0.10); below that, four
+ * significant-ish decimals with trailing zeros trimmed so tiny per-session
+ * costs stay honest without reading as `$0.00`.
+ */
+export function formatCost(cost: number): string {
+  if (cost === 0) return '$0'
+  if (cost >= 0.1) return `$${cost.toFixed(2)}`
+  const s = cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
+  return `$${s}`
+}
+
 /** Elapsed time for tool runs: `840ms`, `1.4s`, `2m 5s`. */
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`

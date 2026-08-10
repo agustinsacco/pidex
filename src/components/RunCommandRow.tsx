@@ -1,0 +1,62 @@
+import { useState } from 'react'
+import { CopyButton } from './CopyButton'
+
+/**
+ * A fix presented as one runnable command: the command in mono, a play button
+ * that sends it to the session terminal, and copy for the "I'll run it
+ * elsewhere" case.
+ *
+ * Used wherever pidex can name the exact shell fix for a failure (expired SSO
+ * token, missing login) so the user never has to go hunt for the incantation.
+ */
+export function RunCommandRow({
+  command,
+  label = 'Run',
+  workspacePath,
+  onRun,
+}: {
+  command: string
+  label?: string
+  /** Spawn cwd fallback for the terminal; omit to disable the play button. */
+  workspacePath?: string
+  /** Called after the command is sent (e.g. to retry the failed turn). */
+  onRun?: () => void
+}): React.JSX.Element {
+  const [ran, setRan] = useState(false)
+
+  const run = (): void => {
+    if (!workspacePath) return
+    setRan(true)
+    void import('@/stores/terminal').then(({ runInTerminal }) =>
+      runInTerminal(workspacePath, command, { execute: true }),
+    )
+    onRun?.()
+  }
+
+  return (
+    <div className="border-border bg-code-bg mt-2 flex items-center gap-2 rounded-lg border px-2 py-1.5">
+      <code className="text-text min-w-0 flex-1 truncate font-mono text-[12px]" title={command}>
+        {command}
+      </code>
+      <CopyButton text={command} />
+      {workspacePath && (
+        <button
+          onClick={run}
+          title={`Run in the session terminal: ${command}`}
+          className="bg-accent hover:bg-accent-hover text-accent-text flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors"
+        >
+          <PlayIcon />
+          {ran ? 'Ran' : label}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PlayIcon(): React.JSX.Element {
+  return (
+    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}

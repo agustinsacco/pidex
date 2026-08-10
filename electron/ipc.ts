@@ -5,6 +5,7 @@ import { registerSessionsHandlers } from './ipc/sessions-handlers'
 import { registerGitHandlers } from './ipc/git-handlers'
 import { registerFsHandlers } from './ipc/fs-handlers'
 import { registerPtyHandlers } from './ipc/pty-handlers'
+import { registerMcpHandlers } from './ipc/mcp-handlers'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -20,4 +21,5 @@ export function registerIpcHandlers(): void {
   registerGitHandlers()
   registerFsHandlers()
   registerPtyHandlers()
+  registerMcpHandlers()
 }

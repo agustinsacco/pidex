@@ -12,11 +12,9 @@ import { xtermTheme } from './xtermTheme'
 export const TerminalView = memo(function TerminalView({
   ptyId,
   visible,
-  workspacePath,
 }: {
   ptyId: string
   visible: boolean
-  workspacePath: string
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -67,7 +65,7 @@ export const TerminalView = memo(function TerminalView({
     const unsubscribeData = window.pidex.onPtyData(ptyId, (data) => term.write(data))
     const unsubscribeExit = window.pidex.onPtyExit(ptyId, (exitCode) => {
       term.write(`\r\n\x1b[2m[process exited with code ${exitCode}]\x1b[0m\r\n`)
-      useTerminalStore.getState().markExited(workspacePath, ptyId)
+      useTerminalStore.getState().markExited(ptyId)
     })
 
     // Resize plumbing (pane drags included).
