@@ -10,8 +10,12 @@
 export interface ErrorRemedy {
   /** Short imperative label for the button. */
   label: string
-  /** Shell command pasted into the session terminal. */
-  command: string
+  /**
+   * Shell command pasted into the session terminal. Omitted when the fix is
+   * not a shell command at all (an AWS console setting, say) — inventing a
+   * runnable-looking command for those would be worse than showing none.
+   */
+  command?: string
   /** One-line explanation shown under the error. */
   hint: string
   /**
@@ -19,6 +23,14 @@ export interface ErrorRemedy {
    * user must restart the session (or at least retry) after running it.
    */
   retryAfter: boolean
+  /** Docs to read when the fix is a configuration change, not a command. */
+  docsUrl?: string
+  /**
+   * True when switching models is a viable workaround, i.e. the failure is a
+   * property of the chosen model rather than of the session or credentials.
+   * Drives the "pick another model" affordance next to the error.
+   */
+  suggestModelSwitch?: boolean
 }
 
 /**
@@ -51,6 +63,32 @@ export function matchErrorRemedy(
 ): ErrorRemedy | null {
   if (!message) return null
   const text = message.toLowerCase()
+
+  // Bedrock data retention mode. An account/profile-level Bedrock setting that
+  // newer Claude models refuse to run under; nothing about the session, the
+  // credentials or pidex can change it, so the only honest advice is "an admin
+  // changes the account setting, or pick another model meanwhile".
+  if (text.includes('data retention mode')) {
+    return {
+      label: 'Read the data retention docs',
+      hint: 'This model requires a Bedrock data retention mode your AWS account does not have set. It is an account-level Bedrock setting, so a Bedrock admin has to change it — switching to a Claude 4.x model works meanwhile.',
+      docsUrl: 'https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html',
+      retryAfter: false,
+      suggestModelSwitch: true,
+    }
+  }
+
+  // Bare Bedrock foundation id invoked on-demand. The model menu now blocks
+  // picking these, but a session pinned to one before that (or via pi's own
+  // settings.json) still fails here.
+  if (text.includes('on-demand throughput') && text.includes("isn't supported")) {
+    return {
+      label: 'Pick an inference profile',
+      hint: 'This Bedrock model can only be invoked through an inference profile. Pick the region-prefixed variant of the same model (US, EU, or Global) from the model menu.',
+      retryAfter: false,
+      suggestModelSwitch: true,
+    }
+  }
 
   // AWS SSO token expiry (Bedrock). The message names the fix explicitly.
   if (

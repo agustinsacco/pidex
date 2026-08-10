@@ -514,6 +514,37 @@ export function installMockPidex(): void {
               provider: 'local-stark',
               reasoning: false,
             },
+            // Bedrock's real shape: a bare foundation id that cannot be invoked
+            // on-demand, alongside the region-prefixed inference profiles that
+            // can. Present so the harness exercises the disabled-row path in
+            // ModelMenu (see lib/modelAvailability).
+            {
+              id: 'anthropic.claude-fable-5',
+              name: 'Claude Fable 5',
+              provider: 'amazon-bedrock',
+              reasoning: true,
+              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+            },
+            {
+              id: 'us.anthropic.claude-fable-5',
+              name: 'Claude Fable 5 (US)',
+              provider: 'amazon-bedrock',
+              reasoning: true,
+              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+            },
+            {
+              id: 'global.anthropic.claude-fable-5',
+              name: 'Claude Fable 5 (Global)',
+              provider: 'amazon-bedrock',
+              reasoning: true,
+              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+            },
+            {
+              id: 'amazon.nova-pro-v1:0',
+              name: 'Nova Pro',
+              provider: 'amazon-bedrock',
+              reasoning: false,
+            },
           ])
         case 'app:userInfo':
           return Promise.resolve({ username: 'dev', awsProfile: 'dev' })

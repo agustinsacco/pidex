@@ -32,6 +32,39 @@ describe('matchErrorRemedy', () => {
     expect(remedy?.label).toBe('Run pi /login')
   })
 
+  it('explains the Bedrock data retention failure without inventing a command', () => {
+    const remedy = matchErrorRemedy(
+      "Validation error: The model returned the following errors: data retention mode 'default' is not available for this model See https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html for supported data retention modes.",
+    )
+    expect(remedy?.command).toBeUndefined()
+    expect(remedy?.docsUrl).toBe(
+      'https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html',
+    )
+    expect(remedy?.suggestModelSwitch).toBe(true)
+    expect(remedy?.retryAfter).toBe(false)
+    expect(remedy?.hint).toMatch(/account-level/i)
+  })
+
+  it('points on-demand-throughput failures at an inference profile', () => {
+    const remedy = matchErrorRemedy(
+      "Validation error: Invocation of model ID anthropic.claude-fable-5 with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model.",
+    )
+    expect(remedy?.label).toBe('Pick an inference profile')
+    expect(remedy?.command).toBeUndefined()
+    expect(remedy?.suggestModelSwitch).toBe(true)
+    expect(remedy?.hint).toMatch(/region-prefixed/i)
+  })
+
+  it('prefers the retention diagnosis over the auth rules', () => {
+    // The retention message mentions a docs URL and can co-occur with words the
+    // OAuth/401 rule keys on; the specific diagnosis must win.
+    const remedy = matchErrorRemedy(
+      "data retention mode 'default' is not available for this model; unauthorized login",
+    )
+    expect(remedy?.docsUrl).toBeTruthy()
+    expect(remedy?.command).toBeUndefined()
+  })
+
   it('returns null for unknown errors rather than guessing a command', () => {
     expect(matchErrorRemedy('The model request failed.')).toBeNull()
     expect(matchErrorRemedy('rate limit exceeded, please slow down')).toBeNull()

@@ -58,13 +58,22 @@ export function PopupMenu({
 
 export function MenuRow({
   active,
+  disabled,
   onClick,
   onHover,
+  title,
   children,
 }: {
   active: boolean
+  /**
+   * Renders the row inert: no click, no hover highlight, dimmed. Callers must
+   * also skip disabled rows in their own ↑/↓ handling — this only stops the
+   * pointer.
+   */
+  disabled?: boolean
   onClick: () => void
   onHover?: () => void
+  title?: string
   children: React.ReactNode
 }): React.JSX.Element {
   const ref = useRef<HTMLButtonElement>(null)
@@ -75,10 +84,14 @@ export function MenuRow({
   return (
     <button
       ref={ref}
-      onMouseMove={onHover}
-      onClick={onClick}
-      className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
-        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'
+      onMouseMove={disabled ? undefined : onHover}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={title}
+      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
+        disabled
+          ? 'cursor-not-allowed opacity-45'
+          : `cursor-pointer ${active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'}`
       }`}
     >
       {children}
