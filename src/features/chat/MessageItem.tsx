@@ -1,49 +1,70 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type { AssistantItem, ChatItem, CustomItem, ToolState, UserItem } from './reducer'
+import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } from './reducer'
 import { Markdown } from '@/components/markdown/Markdown'
-import { ThinkingBlock } from './blocks/ThinkingBlock'
-import { ToolCard } from './tools/ToolCard'
 import { CopyButton } from '@/components/CopyButton'
 import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatUiStore } from './uiState'
-import { groupBlocks } from './items/groupBlocks'
+import { ActivityGroup } from './items/ActivityGroup'
+import type { TranscriptRow } from './items/transcriptRows'
+import { RunCommandRow } from '@/components/RunCommandRow'
+import { matchErrorRemedy } from './errorRemedies'
+import { useActiveWorkspace } from '@/stores/workspaces'
 import { BranchIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
 import { Divider } from './items/Divider'
 
 interface MessageItemProps {
-  item: ChatItem
+  row: TranscriptRow
   tools: Record<string, ToolState>
   hideThinking: boolean
   sessionId: string
 }
 
+/**
+ * One transcript row. Rows come from `buildTranscriptRows`, which groups agent
+ * activity across pi's message boundaries — so an `activity` row can span
+ * several assistant messages, while prose and outcomes stay per-message.
+ */
 export const MessageItemView = memo(function MessageItemView({
-  item,
+  row,
   tools,
   hideThinking,
   sessionId,
-}: MessageItemProps): React.JSX.Element {
-  switch (item.kind) {
-    case 'user':
-      return <UserMessage item={item} sessionId={sessionId} />
-    case 'assistant':
+}: MessageItemProps): React.JSX.Element | null {
+  switch (row.kind) {
+    case 'activity':
       return (
-        <AssistantMessage
-          item={item}
+        <ActivityGroup
+          steps={row.steps}
           tools={tools}
           hideThinking={hideThinking}
           sessionId={sessionId}
         />
       )
-    case 'bash':
-      return <BashExecution item={item} />
-    case 'divider':
-      return <Divider item={item} />
-    case 'custom':
-      return <CustomMessageItem item={item} />
+    case 'text':
+      return <AssistantText item={row.item} block={row.block} isLastInItem={row.isLastInItem} />
+    case 'outcome':
+      return <AssistantOutcome item={row.item} />
+    case 'item':
+      switch (row.item.kind) {
+        case 'user':
+          return <UserMessage item={row.item} sessionId={sessionId} />
+        case 'assistant':
+          // Only reached for an empty streaming turn (spinner placeholder).
+          return (
+            <div className="py-1">
+              <PiSpark />
+            </div>
+          )
+        case 'bash':
+          return <BashExecution item={row.item} />
+        case 'divider':
+          return <Divider item={row.item} />
+        case 'custom':
+          return <CustomMessageItem item={row.item} />
+      }
   }
 })
 
@@ -138,134 +159,101 @@ function UserMessage({
   )
 }
 
-function AssistantMessage({
+/**
+ * One assistant prose block, with the hover meta pill.
+ *
+ * The pill copies the WHOLE message's prose (not just this block), since that
+ * is what a reader means by "copy the answer" when a turn interleaves text
+ * with tool calls.
+ */
+function AssistantText({
   item,
-  tools,
-  hideThinking,
-  sessionId,
+  block,
+  isLastInItem,
 }: {
   item: AssistantItem
-  tools: Record<string, ToolState>
-  hideThinking: boolean
-  sessionId: string
+  block: Extract<AssistantBlock, { type: 'text' }>
+  isLastInItem: boolean
 }): React.JSX.Element {
-  const groups = groupBlocks(item.blocks)
-  const failed = item.stopReason === 'error'
-  const aborted = item.stopReason === 'aborted'
   const fullText = item.blocks
     .filter((b) => b.type === 'text')
     .map((b) => (b.type === 'text' ? b.text : ''))
     .join('\n\n')
+  const streamingTail = item.streaming && isLastInItem && !block.closed
 
   return (
     <div className="group/msg relative">
-      {groups.map((group, i) => {
-        if (Array.isArray(group)) {
-          /*
-           * No vertical margin: `spacingFor` owns the gap between rows, and
-           * consecutive tool rows inside one turn are meant to read as a single
-           * block of work (grouping by ink, not air).
-           */
-          return (
-            <div key={`tools-${i}`}>
-              {group.map((block) =>
-                block.type === 'tool' ? (
-                  // Keyed by stable position, NOT toolCallId: identity
-                  // adoption re-keys pending-* ids to real ids mid-stream,
-                  // and an id-based key would remount the card and collapse
-                  // the expansion the user just opened.
-                  <ToolBlockView
-                    key={`${item.id}-${block.index}`}
-                    toolCallId={block.toolCallId}
-                    tools={tools}
-                    sessionId={sessionId}
-                  />
-                ) : null,
-              )}
-            </div>
-          )
-        }
-        if (group.type === 'thinking') {
-          if (hideThinking) return null
-          const isLast = i === groups.length - 1
-          return (
-            <ThinkingBlock
-              key={`b-${group.index}`}
-              text={group.text}
-              streaming={item.streaming && isLast && !group.closed}
-            />
-          )
-        }
-        if (group.type === 'text') {
-          const isLast = i === groups.length - 1
-          return (
-            <div
-              key={`b-${group.index}`}
-              className={clsx(item.streaming && isLast && !group.closed && 'streaming-tail')}
-            >
-              <Markdown text={group.text} streaming={item.streaming && !group.closed} />
-            </div>
-          )
-        }
-        return null
-      })}
-
-      {item.streaming && item.blocks.length === 0 && (
-        <div className="py-1">
-          <PiSpark />
-        </div>
-      )}
-
-      {failed && (
-        <div className="bg-danger-soft border-danger/25 mt-2 rounded-lg border px-3.5 py-2.5 text-[13px]">
-          <span className="text-danger font-medium">Error</span>
-          <span className="text-text-secondary">
-            {' '}
-            — {item.errorMessage ?? 'The model request failed.'}
-          </span>
-        </div>
-      )}
-      {aborted && (
-        <div className="text-text-tertiary my-2 flex items-center gap-2.5 text-[11.5px]">
-          <span className="bg-border h-px flex-1" />
-          stopped
-          <span className="bg-border h-px flex-1" />
-        </div>
-      )}
+      <div className={clsx(streamingTail && 'streaming-tail')}>
+        <Markdown text={block.text} streaming={item.streaming && !block.closed} />
+      </div>
 
       {/*
-       * Reserved-height affordance row: rendering it always (rather than
-       * conditionally) keeps hovering from shifting the transcript.
+       * Hover affordances float above the row's top-right corner as an
+       * absolutely-positioned pill: zero layout height, so hover can never
+       * reflow the virtualized transcript (measured heights stay stable).
        */}
       {!item.streaming && fullText && (
-        <div className="mt-0.5 flex h-5 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
-          <CopyButton text={fullText} label="Copy" />
-          {item.timestamp != null && (
-            <span className="text-text-tertiary text-[11px]" title={absoluteTime(item.timestamp)}>
-              {relativeTime(item.timestamp)}
-            </span>
-          )}
-          {item.usage?.cost?.total != null && (
-            <span className="text-text-tertiary text-[10.5px]">
-              ${item.usage.cost.total.toFixed(4)}
-            </span>
-          )}
+        <div className="pointer-events-none absolute -top-2 right-0 z-10 opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100">
+          <div className="border-border bg-surface-raised flex items-center gap-1 rounded-md border px-1.5 py-0.5 shadow-sm">
+            <CopyButton text={fullText} label="Copy" />
+            {item.timestamp != null && (
+              <span className="text-text-tertiary text-[11px]" title={absoluteTime(item.timestamp)}>
+                {relativeTime(item.timestamp)}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function ToolBlockView({
-  toolCallId,
-  tools,
-  sessionId,
-}: {
-  toolCallId: string
-  tools: Record<string, ToolState>
-  sessionId: string
-}): React.JSX.Element | null {
-  const tool = tools[toolCallId]
-  if (!tool) return null
-  return <ToolCard tool={tool} sessionId={sessionId} />
+/** How an assistant turn ended, when it did not end cleanly. */
+function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element | null {
+  if (item.stopReason === 'error') return <ErrorBlock message={item.errorMessage} />
+  if (item.stopReason === 'aborted') {
+    return (
+      <div className="text-text-tertiary my-1 flex items-center gap-2.5 text-[11.5px]">
+        <span className="bg-border h-px flex-1" />
+        stopped
+        <span className="bg-border h-px flex-1" />
+      </div>
+    )
+  }
+  return null
+}
+
+/**
+ * Failed turn. When the message names a failure pidex knows the shell fix for
+ * (expired AWS SSO token, missing pi login), that fix is offered as one
+ * runnable command instead of leaving the user to go find the incantation.
+ */
+function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
+  const workspacePath = useActiveWorkspace()
+  const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    void window.pidex.invoke('app:userInfo').then((info) => setAwsProfile(info.awsProfile))
+  }, [])
+
+  const remedy = matchErrorRemedy(message, { awsProfile })
+
+  return (
+    <div className="bg-danger-soft border-danger/25 mt-2 rounded-lg border px-3.5 py-2.5 text-[13px]">
+      <span className="text-danger font-medium">Error</span>
+      <span className="text-text-secondary"> — {message ?? 'The model request failed.'}</span>
+      {remedy && (
+        <>
+          <div className="text-text-secondary mt-1.5 text-[12px] leading-relaxed">
+            {remedy.hint}
+          </div>
+          <RunCommandRow
+            command={remedy.command}
+            label={remedy.label}
+            workspacePath={workspacePath ?? undefined}
+          />
+        </>
+      )}
+    </div>
+  )
 }

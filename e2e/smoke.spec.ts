@@ -102,8 +102,13 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     // Streamed assistant text.
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
+    // The settled activity run collapses to a summary; expand it.
+    await page.getByTestId('activity-summary').first().click()
+
     // Edit tool card with its diff.
-    const editRow = page.getByRole('button', { name: /Edited\s+hello\.ts/ })
+    const editRow = page
+      .getByTestId('activity-group')
+      .getByRole('button', { name: /Edited\s+hello\.ts/ })
     await expect(editRow).toBeVisible()
     await editRow.click()
     await expect(page.getByText('return "new"').first()).toBeVisible()
@@ -197,8 +202,14 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
 
     // The in-flight window is short, so watch for it with a MutationObserver
     // rather than polling — a poll can straddle the whole window and miss it.
+    // Also capture whether a LIVE activity group was expanded at the time,
+    // which is the live-vs-settled behavior (open while working).
     await page.evaluate(() => {
-      const w = window as unknown as { __sawRunning?: boolean; __sawWorkingIndicator?: boolean }
+      const w = window as unknown as {
+        __sawRunning?: boolean
+        __sawWorkingIndicator?: boolean
+        __liveOpen?: string
+      }
       const workingIndicator = () =>
         /\d[\d.]*(ms|s)\s*·\s*[\d.]+[kM]?\s*tokens/.test(document.body.innerText) &&
         document.querySelector('.pi-spark') !== null
@@ -207,6 +218,12 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
       new MutationObserver(() => {
         if (document.querySelector('.tool-running-dot')) w.__sawRunning = true
         if (workingIndicator()) w.__sawWorkingIndicator = true
+        const live = document.querySelector('[data-testid="activity-group"][data-live="true"]')
+        if (live && w.__liveOpen === undefined) {
+          w.__liveOpen =
+            live.querySelector('[data-testid="activity-summary"]')?.getAttribute('aria-expanded') ??
+            'missing'
+        }
       }).observe(document.body, { childList: true, subtree: true, attributes: true })
     })
 
@@ -228,9 +245,37 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     ).toBe(true)
     await expect(page.getByText(/tokens$/)).toBeHidden()
 
-    // All three calls from the run are present as rows.
-    await expect(page.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Ran/ })).toBeVisible()
+    // Live vs settled: the group was expanded while work was in flight…
+    expect(
+      await page.evaluate(() => (window as unknown as { __liveOpen?: string }).__liveOpen),
+    ).toBe('true')
+
+    // Settled runs collapse to a verb-counted summary. Counting (rather than
+    // listing every call) is what keeps an 18-deep run to one line.
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toBeVisible()
+    // …and auto-collapsed once it settled.
+    await expect(summary).toHaveAttribute('aria-expanded', 'false')
+    await expect(summary).toContainText(/step/)
+    await expect(summary).toContainText(/edited 1 file/)
+    await expect(summary).toContainText(/ran 1 command/)
+
+    // The whole run is ONE group even though pi sent one message per tool
+    // call — this is the regression that made runs march down the page.
+    await expect(page.getByTestId('activity-group')).toHaveCount(1)
+
+    // Expanding shows the individual calls as rows.
+    await summary.click()
+    const group = page.getByTestId('activity-group')
+    await expect(group.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
+    await expect(group.getByRole('button', { name: /Ran/ })).toBeVisible()
+
+    // Placeholder tool names never surface (pi ≥0.84 omits the name until
+    // toolcall_end).
+    await expect(page.getByText(/unknown/)).toHaveCount(0)
+
+    // Per-message cost is gone from the transcript (usage lives elsewhere).
+    await expect(page.locator('text=/\\$\\d+\\.\\d{4}/')).toHaveCount(0)
 
     // Streaming repair: the transcript briefly contained "**hello.ts" before
     // its closing marker arrived. Raw asterisks must never survive to the DOM.
@@ -246,6 +291,133 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
       })
     })
     expect(Math.max(...gaps)).toBeGreaterThanOrEqual(12)
+
+    // Extension status line arrived styled with ANSI SGR codes; the strip
+    // must show clean (optionally colored) text, never raw escape bytes.
+    const statusText = await page.getByText(/MCP: 2 servers enabled/).innerText()
+    expect(statusText).not.toContain('[38;2')
+    expect(statusText).not.toContain('\u001b')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('usage view aggregates cost and tokens from session files', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    await page.getByRole('button', { name: 'Usage' }).click()
+    await expect(page.getByText('Total cost')).toBeVisible({ timeout: 10_000 })
+
+    // The stub persisted an assistant message with usage → nonzero rollup.
+    await expect(page.getByText('$0.033').first()).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByText('Total cost')).toBeHidden()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('worktree flow: create from the branch chip, session groups under it', async () => {
+  // The workspace must be a git repo BEFORE the app queries git:info.
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-wt-'))
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const run = promisify(execFile)
+  await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
+  await run('git', ['init', '-b', 'main'], { cwd: workspace })
+  await run('git', ['config', 'user.email', 'e2e@pidex.dev'], { cwd: workspace })
+  await run('git', ['config', 'user.name', 'pidex e2e'], { cwd: workspace })
+  await run('git', ['add', '-A'], { cwd: workspace })
+  await run('git', ['commit', '-m', 'initial'], { cwd: workspace })
+
+  const harness = await launch({ workspace })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Create a worktree from the branch chip.
+    await page.getByTestId('branch-chip').click()
+    await page.getByRole('button', { name: 'New worktree…' }).click()
+    await page.getByPlaceholder('worktree / branch name').fill('task-1')
+    await page.getByRole('button', { name: 'Create worktree' }).click()
+
+    // Chip now targets the worktree.
+    await expect(page.getByTestId('branch-chip')).toContainText('task-1', { timeout: 10_000 })
+
+    // Start a session — it runs in the worktree cwd and groups under it.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('workspace-group').filter({ hasText: 'task-1' })).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // The chat header's git chip marks the worktree.
+    await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('MCP settings: chain rows, disable toggle, add project server', async () => {
+  // Seed a global server in the isolated agent dir (pi-global scope).
+  await writeFile(
+    join(agentDir, 'mcp.json'),
+    JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/sse' } } }),
+  )
+  // Dedicated prefs dir: project-scope writes target the ACTIVE workspace, so
+  // a `lastSessionPath` left by an earlier test could restore a different
+  // workspace and send the write there.
+  const harness = await launch({ userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-mcp-')) })
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'MCP', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'MCP servers' })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // The seeded global server resolves into the list.
+    await expect(page.getByText('linear', { exact: true })).toBeVisible()
+    await expect(page.getByText('https://mcp.linear.app/sse').first()).toBeVisible()
+
+    // Disable writes `"disabled": true` into the owning file. Plain click:
+    // the checkbox is controlled and only re-renders after the IPC round
+    // trip, which uncheck()'s immediate post-click assertion would race.
+    await page.getByRole('checkbox').first().click()
+    await expect
+      .poll(async () => {
+        const raw = await readFile(join(agentDir, 'mcp.json'), 'utf8')
+        return (JSON.parse(raw).mcpServers.linear as { disabled?: boolean }).disabled === true
+      })
+      .toBe(true)
+
+    // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
+    await page.getByRole('button', { name: 'Add server…' }).click()
+    await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
+    await page.getByRole('radio', { name: 'Local command' }).check()
+    await page.getByPlaceholder('npx some-mcp-server --flag').fill('npx local-tools-mcp')
+    await page.getByRole('radio', { name: /This project/ }).check()
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(join(workspace, '.pi', 'mcp.json'), 'utf8')
+          return (JSON.parse(raw).mcpServers['local-tools'] as { command?: string }).command
+        } catch {
+          return null
+        }
+      })
+      .toBe('npx')
   } finally {
     await shutdown(harness)
   }

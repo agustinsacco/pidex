@@ -280,3 +280,53 @@ Specs: [WORKTREES.md](WORKTREES.md) · [11-mcp.md](11-mcp.md)
 **Log:**
 
 - 2026-08-10 — All ten items landed in one pass. Verification: typecheck, lint, prettier, 415+ unit tests, 12 e2e (3 new: usage view, worktree flow, MCP settings). UX_REFACTOR_PLAN item C6 (worktree chip) is now implemented by `BranchWorktreeChip`. Deviations from the approved plan: terminal scrollback preserved by keeping all sessions' xterm views mounted (existing idiom) instead of a main-process ring buffer + `pty:buffer` IPC; MCP raw file editing uses a plain textarea escape hatch instead of refactoring the Monaco `ConfigFileEditor`.
+
+---
+
+## P12 — Transcript density: turn-level activity grouping `✅`
+
+Design review artifact: four options measured against real session files
+(`~/.pi/agent/sessions`), 356 assistant messages analysed.
+
+**The finding that drove it:** pi emits ONE assistant message per tool call
+(302 of 356 messages carried exactly one). P11's grouping worked only _inside_
+a single message, so it could never collapse a run — every call became its own
+top-level row paying full inter-message spacing. Runs are commonly 3 deep and
+go to 18. That is why "Thought · Ran …" repeated down the page instead of
+stacking, and why framed and bare rows alternated.
+
+- [x] **A · turn-level spine** — new `items/transcriptRows.ts`
+      (`buildTranscriptRows`) groups activity ACROSS message boundaries: a
+      contiguous run of thinking + tool calls is one row regardless of how many
+      messages produced it. Prose, user, bash and dividers stay their own rows,
+      so ordering is preserved. `MessageList` now virtualizes over
+      `TranscriptRow[]` rather than raw items. Measured on a real 22-tool turn:
+      **1135px → 274px (4.1× tighter)**.
+- [x] **B · thinking demoted to the gutter** — thinking never occupies a row.
+      It becomes a `✳` mark in the left gutter of the step it preceded; hover or
+      focus previews, click pins. Zero vertical cost until asked for (median
+      thinking is 337 chars, p90 1.6k — a preview, not a document).
+- [x] **D · live vs settled** — a group with work in flight is open and
+      accent-bordered; once settled it auto-collapses to the summary line. An
+      explicit user toggle always wins, and is reset if the group goes live again.
+- [x] Collapsed head is verb-counted (`summarizeActivity` + new `settledVerb`),
+      not a list: "9 steps · edited 5 files, ran 2 commands · 1 thought". Counting
+      is what keeps an 18-deep run to one line. Failures surface as an
+      "N failed" badge.
+- [x] Fixed "Running unknown" — pi ≥0.84 sends no tool name on `toolcall_start`,
+      so the placeholder now reads "Starting a tool" until `toolcall_end`.
+- [x] `items/groupBlocks.ts` deleted (superseded); `AssistantMessage` split into
+      `AssistantText` + `AssistantOutcome` row renderers.
+
+**Done when:** a multi-tool run reads as one collapsible unit; typecheck, lint,
+prettier, unit and e2e green.
+
+**Log:**
+
+- 2026-08-10 — Landed with 16 new unit tests for the grouping layer (including
+  a regression test that a 4-message tool run produces ONE activity row) and
+  e2e assertions for the collapsed summary, single-group invariant, live-open →
+  settled-collapsed transition, and absence of placeholder tool names. Also
+  hardened the MCP e2e test with its own prefs dir: project-scope writes target
+  the active workspace, and a `lastSessionPath` left by an earlier test could
+  restore a different one (observed as a one-off flake).
