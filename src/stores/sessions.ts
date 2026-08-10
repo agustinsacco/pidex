@@ -201,12 +201,14 @@ function attachSessionPushHandler(pidexId: string): void {
           useSessionsStore.setState((s) => ({
             unread: { ...s.unread, [pidexId]: (s.unread[pidexId] ?? 0) + 1 },
           }))
-        } else if (push.event.type === 'message_end' || push.event.type === 'agent_end') {
-          // Foreground activity is being watched — keep the seen marker current
-          // so it never resurfaces as an unseen pill.
-          const diskPath = useSessionsStore.getState().live[pidexId]?.diskPath
-          if (diskPath) useSessionsStore.getState().markSeen(diskPath)
         }
+        // NOTE: deliberately no markSeen() here. Marking the *active* session
+        // seen on every message_end looked harmless but wrote to prefs on every
+        // token-batch, and that write raced `setLastSession` during teardown —
+        // a session closed right after a reply lost its resume path (caught by
+        // the multi-workspace sidebar e2e). It is also redundant: opening a
+        // session marks it seen via `activate` / `bootstrapSession`, and the
+        // unseen pill only ever describes sessions you are NOT looking at.
         if (shouldRefreshStatsOn(push.event.type)) {
           void refreshStats(pidexId)
         }

@@ -237,6 +237,15 @@ describe('summarizeActivity', () => {
     expect(s.detail).toBe('read 2 files')
   })
 
+  it('names artifact tools properly (they used to summarize as "used 1 tool")', () => {
+    const ids: Array<[string, string]> = [
+      ['a', 'artifact_create'],
+      ['b', 'artifact_update'],
+    ]
+    const s = summarizeActivity(mkSteps(ids), toolsFor(ids), labelFor)
+    expect(s.detail).toBe('created 1 artifact, updated 1 artifact')
+  })
+
   it('handles a thinking-only group', () => {
     const s = summarizeActivity(mkSteps([], 2), {}, labelFor)
     expect(s.stepLabel).toBe('2 steps')

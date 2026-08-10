@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -567,12 +567,13 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
     const [r, g, b] = focused.match(/\d+/g)!.map(Number) as [number, number, number]
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
 
-    // Every chip opens a popover.
-    await page.getByRole('button', { name: 'Local' }).click()
-    await expect(page.getByText(/pi runs as a subprocess/)).toBeVisible()
+    // Every chip opens a popover. (The informational "Local" chip was removed —
+    // pidex only ever runs pi as a local subprocess.)
+    await page.getByTestId('workspace-chip').click()
+    await expect(page.getByText(/Open folder/)).toBeVisible()
     // PopupMenu dismisses on outside mousedown.
     await page.mouse.click(20, 400)
-    await expect(page.getByText(/pi runs as a subprocess/)).toBeHidden()
+    await expect(page.getByText(/Open folder/)).toBeHidden()
 
     // Attachment affordance is present next to the pickers.
     await expect(page.getByRole('button', { name: 'Attach images' })).toBeVisible()
@@ -592,7 +593,14 @@ test('artifact pane scrolls a long document', async () => {
     await page.getByRole('button', { name: /Start session/i }).click()
 
     // The artifact tool card carries the artifact's identity now, not a
-    // generic "Used artifact_create" row.
+    // generic "Used artifact_create" row. Tool rows live inside the turn's
+    // activity group, which collapses once the run settles.
+    // Wait for the run to settle (the group auto-collapses) before expanding —
+    // reading aria-expanded while it is still live races that transition.
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toBeVisible({ timeout: 30_000 })
+    await expect(summary).toHaveAttribute('aria-expanded', 'false', { timeout: 30_000 })
+    await summary.click()
     const card = page.getByRole('button', { name: /Created artifact\s+E2E Long Doc/ })
     await expect(card).toBeVisible({ timeout: 30_000 })
 
@@ -677,17 +685,34 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
   }
 })
 
-test('transcript rows are dense and sit flush', async () => {
+test('a long tool run collapses to one dense group', async () => {
   const harness = await launch()
   const { page } = harness
   try {
     await openWorkspace(page)
     // 40 tool-only turns: the shape a long agent run takes, and the only shape
-    // where virtualization and per-row spacing actually show up.
+    // where grouping and per-row spacing actually show up.
     await page.getByPlaceholder('Describe a task or ask a question').fill('run manyitems now')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText('many items complete')).toBeVisible({ timeout: 60_000 })
 
+    // pi emits one assistant message per tool call, so this run arrives as ~40
+    // messages. They must render as ONE activity row — that regression is what
+    // made long runs march down the page.
+    await expect(page.getByTestId('activity-group')).toHaveCount(1)
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toContainText(/\d+ steps/)
+
+    // Settled ⇒ collapsed: the whole run costs a single line until asked for.
+    await expect(summary).toHaveAttribute('aria-expanded', 'false')
+    const collapsedHeight = await page.evaluate(
+      () =>
+        document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect().height ??
+        0,
+    )
+    expect(collapsedHeight).toBeLessThan(44)
+
+    await summary.click()
     const geometry = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
       const sorted = rows
@@ -700,29 +725,21 @@ test('transcript rows are dense and sit flush', async () => {
         if (current.index !== previous.index + 1) continue
         worstGap = Math.max(worstGap, current.rect.top - previous.rect.bottom)
       }
-      // Measure rows that actually contain a tool card. Filtering by "has no
-      // markdown body" also caught the user bubble (plain pre-wrap text, not
-      // markdown), whose padding + timestamp row is legitimately ~58px — the
-      // assertion failed on a message it was never meant to measure.
-      const toolRowHeights = rows
-        .filter((el) => el.querySelector('.tool-card'))
-        .map((el) => el.getBoundingClientRect().height)
+      // Density is now per tool card inside the group, not per virtualized row.
+      const cards = [...document.querySelectorAll('.tool-card')] as HTMLElement[]
+      const heights = cards.map((el) => el.getBoundingClientRect().height)
       return {
         worstGap,
-        tallestToolRow: Math.max(...toolRowHeights),
-        toolRows: toolRowHeights.length,
-        rows: sorted.length,
+        tallestCard: heights.length ? Math.max(...heights) : 0,
+        cards: heights.length,
       }
     })
 
-    expect(geometry.rows).toBeGreaterThan(5)
-    expect(geometry.toolRows).toBeGreaterThan(3)
-    // Density: one tool row used to occupy 63px for ~20px of text, because the
-    // row's gap was owned in four places at once (pt-4 + pb-0.5 + my-2 + py-1).
-    // With `spacingFor` as the single owner it is ~33px. 44px leaves headroom
-    // for font-metric differences between platforms while still failing on a
-    // regression to the old stacking.
-    expect(geometry.tallestToolRow).toBeLessThan(44)
+    expect(geometry.cards).toBeGreaterThan(3)
+    // One tool line used to occupy 63px for ~20px of text (four owners of the
+    // same gap at once). Inside the group a settled row is ~26px; 40px leaves
+    // headroom for platform font metrics while still failing on a regression.
+    expect(geometry.tallestCard).toBeLessThan(40)
     // Spacing lives *inside* each measured wrapper, so measured rows are flush.
     expect(geometry.worstGap).toBeLessThan(8)
   } finally {

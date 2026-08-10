@@ -67,6 +67,10 @@ export function settledVerb(toolName: string | null): string {
       return 'Found'
     case 'ls':
       return 'Listed'
+    case 'artifact_create':
+      return 'Created'
+    case 'artifact_update':
+      return 'Updated'
     default:
       return 'Used'
   }

@@ -117,6 +117,8 @@ const NOUNS: Record<string, [string, string]> = {
   Searched: ['pattern', 'patterns'],
   Found: ['pattern', 'patterns'],
   Listed: ['directory', 'directories'],
+  Created: ['artifact', 'artifacts'],
+  Updated: ['artifact', 'artifacts'],
 }
 
 /**
