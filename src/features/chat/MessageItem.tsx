@@ -224,11 +224,14 @@ function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element 
 }
 
 /**
- * Failed turn. When the message names a failure pidex knows the shell fix for
- * (expired AWS SSO token, missing pi login), that fix is offered as one
- * runnable command instead of leaving the user to go find the incantation.
+ * Failed turn. When the message names a failure pidex knows the fix for, that
+ * fix is offered inline instead of leaving the user to go find it: a runnable
+ * command for the shell-fixable ones (expired AWS SSO token, missing pi login),
+ * and for configuration failures that no command can fix (Bedrock's
+ * account-level data retention mode) a docs link plus a pointer at the model
+ * menu, which is the actual workaround.
  */
-function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
+export function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
   const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
 
@@ -247,11 +250,32 @@ function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
           <div className="text-text-secondary mt-1.5 text-[12px] leading-relaxed">
             {remedy.hint}
           </div>
-          <RunCommandRow
-            command={remedy.command}
-            label={remedy.label}
-            workspacePath={workspacePath ?? undefined}
-          />
+          {remedy.command !== undefined && (
+            <RunCommandRow
+              command={remedy.command}
+              label={remedy.label}
+              workspacePath={workspacePath ?? undefined}
+            />
+          )}
+          {(remedy.docsUrl || remedy.suggestModelSwitch) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+              {remedy.docsUrl && (
+                <a
+                  href={remedy.docsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  {remedy.label}
+                </a>
+              )}
+              {remedy.suggestModelSwitch && (
+                <span className="text-text-tertiary">
+                  Switch models from the picker in the composer below.
+                </span>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

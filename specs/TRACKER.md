@@ -441,3 +441,52 @@ Two e2e fixes fell out of this pass:
   It now asserts the command is hidden without a session, and that an
   always-available command ("Toggle sidebar") still resolves — so it tests the
   filter rather than an empty palette.
+
+## P14 — Bedrock model availability + actionable provider errors `✅`
+
+**2026-08-10.** Triggered by two real Bedrock failures in a live session, both
+of which rendered as opaque red walls with no path forward:
+
+1. `Invocation of model ID anthropic.claude-fable-5 with on-demand throughput
+isn't supported.` — the bare foundation id was selected from the model menu.
+2. `data retention mode 'default' is not available for this model` — an
+   account-level Bedrock setting that Claude 5 models refuse to run under.
+
+Neither is a pidex or pi bug; pi surfaces exactly what Bedrock returned (the
+docs-URL suffix on #2 is pi's own courtesy hint, added in
+`pi-ai/api/bedrock-converse-stream.ts`). What _was_ a pidex bug: the menu
+offered a model that fails 100% of the time, and the errors taught nothing.
+
+- [x] **A · the bare id is no longer selectable** — new
+      `lib/modelAvailability.ts` infers uninvocability from the catalogue's own
+      shape: a bare Bedrock id is unusable when region-prefixed siblings
+      (`us.`/`eu.`/`global.`/…) of the same foundation model are also offered.
+      Deliberately NOT a hardcoded capability table — that data belongs to pi's
+      model store and would drift the moment AWS changes a model's
+      requirements. Flagged rows render dimmed, unclickable, and skipped by
+      ↑/↓/Enter, with the reason on a second line. They stay _visible_ rather
+      than hidden so searching "fable" still explains where Fable went.
+      `MenuRow` grew a `disabled` prop for this.
+- [x] **B · errors carry the fix, not just the failure** — `errorRemedies.ts`
+      gained the two Bedrock cases. `ErrorRemedy.command` is now optional:
+      the retention failure has no shell fix, so it renders a docs link plus a
+      pointer at the model picker instead of a fabricated command. Both new
+      cases are ordered ahead of the generic OAuth/401 rule, which the
+      retention message would otherwise trip.
+- [x] **C · the browser-only harness actually boots again** — `npx vite dev`
+      is documented in CLAUDE.md but bare `vite` picks up nothing from
+      `electron.vite.config.ts`, so `@/` and `@shared/` went unresolved and the
+      app failed to load (the `web-mock` launch entry was dead). Added a
+      renderer-only `vite.config.ts`; keep its root/aliases in sync with the
+      `renderer` section of the electron config. `mockPidex` now serves
+      Bedrock-shaped models so the harness exercises the disabled-row path.
+
+Coverage: 27 new unit tests (`modelAvailability`, `ModelMenu` DOM incl. keyboard
+traversal over disabled rows, `ErrorBlock` DOM incl. "no command for the
+retention failure"). Verified in the mock harness in both light and dark themes.
+
+**Still outstanding (not pidex's to fix):** the retention mode itself. A Bedrock
+admin has to move the account off `default`; until then every Claude 5 call
+fails regardless of inference profile. Which AWS account serves these calls was
+not confirmed — `~/.aws/config` has three SSO profiles (`dev`, `domains`,
+`prod`) and none was active during triage.
