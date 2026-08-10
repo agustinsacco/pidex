@@ -40,7 +40,10 @@ dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 linux:
-  icon: build/icon.png
+  # A directory of sized PNGs, not the single 1024: electron-builder picks the
+  # closest size per context instead of downscaling 1024 into a 22px tray slot.
+  # build/icon.png stays for install.sh, which downloads that exact path.
+  icon: build/icons
   category: Development
   synopsis: Desktop coding-agent app powered by the pi coding agent
   # install.sh downloads exactly this name — keep the two in sync.

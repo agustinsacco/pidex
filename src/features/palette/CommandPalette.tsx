@@ -77,29 +77,36 @@ export function CommandPalette({
         hint: '⌘B',
         run: () => layout.toggleSidebar(),
       },
-      {
-        id: 'toggle-files',
-        label: 'Toggle files pane',
-        hint: '⌘⇧E',
-        run: () => layout.toggleRightPane('files'),
-      },
-      {
-        id: 'toggle-changes',
-        label: 'Toggle changes pane',
-        hint: '⌘⇧G',
-        run: () => layout.toggleRightPane('changes'),
-      },
-      {
-        id: 'toggle-terminal',
-        label: 'Toggle terminal',
-        hint: '⌘`',
-        run: () => layout.toggleRightPane('terminal'),
-      },
-      {
-        id: 'toggle-artifacts',
-        label: 'Toggle artifacts pane',
-        run: () => layout.toggleRightPane('artifacts'),
-      },
+      // Right-pane commands only exist inside a session — the pane itself is
+      // rendered by MainWithPanes, which requires one. Offering them on the
+      // home screen produced a no-op that also desynced the pane state.
+      ...(sessions.activeSessionId
+        ? ([
+            {
+              id: 'toggle-files',
+              label: 'Toggle files pane',
+              hint: '⌘⇧E',
+              run: () => layout.toggleRightPane('files'),
+            },
+            {
+              id: 'toggle-changes',
+              label: 'Toggle changes pane',
+              hint: '⌘⇧G',
+              run: () => layout.toggleRightPane('changes'),
+            },
+            {
+              id: 'toggle-terminal',
+              label: 'Toggle terminal',
+              hint: '⌘`',
+              run: () => layout.toggleRightPane('terminal'),
+            },
+            {
+              id: 'toggle-artifacts',
+              label: 'Toggle artifacts pane',
+              run: () => layout.toggleRightPane('artifacts'),
+            },
+          ] satisfies PaletteAction[])
+        : []),
       {
         id: 'settings',
         label: 'Open settings',

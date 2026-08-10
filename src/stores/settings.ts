@@ -45,8 +45,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
   })
 
   return {
-    theme: 'system',
-    resolvedTheme: resolve('system'),
+    // Dark is the default (matches DEFAULT_APP_PREFS). A stored preference
+    // replaces this on hydrate, so this only decides the first launch and the
+    // pre-hydrate paint.
+    theme: 'dark',
+    resolvedTheme: resolve('dark'),
     hideThinkingBlock: false,
     fonts: DEFAULT_FONT_PREFS,
 

@@ -31,6 +31,13 @@ export interface ChatSession extends ChatSessionState {
    * list that is wrong for most models.
    */
   thinkingLevels: ThinkingLevel[] | null
+  /**
+   * True between opening a session that has history on disk and that history
+   * arriving. Distinguishes "resuming, messages still replaying" from "brand
+   * new session, nothing to show" — without it the chat rendered its empty
+   * state over a session with ten turns of history.
+   */
+  resuming: boolean
 }
 
 const emptySession = (): ChatSession => ({
@@ -40,16 +47,19 @@ const emptySession = (): ChatSession => ({
   models: [],
   commands: [],
   thinkingLevels: null,
+  resuming: false,
 })
 
 interface ChatStore {
   sessions: Record<string, ChatSession>
-  ensure: (sessionId: string) => void
+  ensure: (sessionId: string, options?: { resuming?: boolean }) => void
   applyEvent: (sessionId: string, event: PiEvent) => void
   addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
   addBashItem: (sessionId: string, item: Omit<BashItem, 'id' | 'kind'>) => string
   updateBashItem: (sessionId: string, id: string, patch: Partial<BashItem>) => void
   hydrate: (sessionId: string, messages: AgentMessage[]) => void
+  /** Clear the resuming flag; safe to call when it is already clear. */
+  doneResuming: (sessionId: string) => void
   setError: (sessionId: string, error: string | null) => void
   setMeta: (sessionId: string, meta: RpcSessionState) => void
   patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
@@ -72,11 +82,16 @@ function patchSession(
 export const useChatStore = create<ChatStore>((set) => ({
   sessions: {},
 
-  ensure: (sessionId) =>
+  ensure: (sessionId, options) =>
     set((state) =>
       state.sessions[sessionId]
         ? state
-        : { sessions: { ...state.sessions, [sessionId]: emptySession() } },
+        : {
+            sessions: {
+              ...state.sessions,
+              [sessionId]: { ...emptySession(), resuming: options?.resuming ?? false },
+            },
+          },
     ),
 
   applyEvent: (sessionId, event) =>
@@ -143,12 +158,27 @@ export const useChatStore = create<ChatStore>((set) => ({
       const session = state.sessions[sessionId] ?? emptySession()
       const hydrated = hydrateFromMessages(messages)
       return {
-        sessions: { ...state.sessions, [sessionId]: { ...session, ...hydrated } },
+        sessions: {
+          ...state.sessions,
+          [sessionId]: { ...session, ...hydrated, resuming: false },
+        },
       }
     }),
 
+  doneResuming: (sessionId) =>
+    set((s) =>
+      s.sessions[sessionId]?.resuming
+        ? { sessions: patchSession(s.sessions, sessionId, { resuming: false }) }
+        : s,
+    ),
+
   setError: (sessionId, error) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { error }) })),
+    set((s) => ({
+      sessions: patchSession(s.sessions, sessionId, {
+        error,
+        ...(error ? { resuming: false } : {}),
+      }),
+    })),
   setMeta: (sessionId, meta) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { meta }) })),
   patchMeta: (sessionId, patch) =>

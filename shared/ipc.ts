@@ -29,6 +29,7 @@ import type {
   DirEntry,
   FileContent,
   FontPrefs,
+  GhPullRequest,
   GitInfo,
   LiveSessionInfo,
   PiHealth,
@@ -114,6 +115,7 @@ export interface IpcInvokeMap {
   'app:about': { args: []; result: AboutInfo }
   'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
   'app:revealPath': { args: [string]; result: void }
+  'app:openExternal': { args: [string]; result: void }
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
@@ -190,6 +192,13 @@ export interface IpcInvokeMap {
   }
   'sessions:jump': { args: [sessionFilePath: string, targetId: string]; result: void }
   'sessions:forkAt': { args: [sessionFilePath: string, targetId: string]; result: string }
+
+  /** PR for a branch via the `gh` CLI; null when gh/auth/remote is absent. */
+  'gh:prForBranch': {
+    args: [repoPath: string, branch: string]
+    result: GhPullRequest | null
+  }
+  'gh:available': { args: []; result: boolean }
 
   'git:info': { args: [workspacePath: string]; result: GitInfo }
   /** Cheap cached summaries (branch/worktree/dirty) for many cwds at once. */
@@ -290,6 +299,12 @@ export interface PidexApi {
   onPtyExit(ptyId: string, listener: (exitCode: number) => void): () => void
   /** Busy map broadcast (ptyId → foreground process running); unsubscribe. */
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
+
+  /**
+   * Absolute path for a dropped File (Electron `webUtils`). Non-image
+   * attachments are handed to pi as paths, so it needs the real location.
+   */
+  pathForFile(file: File): string
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(

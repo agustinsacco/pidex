@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcInvokeChannel, IpcInvokeMap, PidexApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
@@ -55,6 +55,20 @@ const api: PidexApi = {
 
   piCommand(sessionId: string, command: RpcCommand) {
     return ipcRenderer.invoke('pi:command', sessionId, command)
+  },
+
+  /**
+   * Absolute path of a dropped/picked File. The sandboxed renderer cannot read
+   * `File.path` (removed in Electron 32+), and non-image attachments are sent
+   * to pi BY PATH — pi's protocol carries images only, so a PDF has to be
+   * something the agent opens itself. Returns '' for files not backed by disk.
+   */
+  pathForFile(file: File) {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
   },
 }
 

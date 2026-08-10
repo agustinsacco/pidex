@@ -22,12 +22,13 @@ import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
-import { bytesToBase64 } from '@/lib/base64'
-
-interface PendingImage {
-  data: string
-  mimeType: string
-}
+import {
+  composePrompt,
+  formatFileSize,
+  toAttachment,
+  toImageContents,
+  type PendingAttachment,
+} from './attachments'
 
 interface MentionState {
   /** Index of the '@' in the textarea value. */
@@ -47,7 +48,8 @@ export function Composer({
   workspacePath: string
 }): React.JSX.Element {
   const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingImage[]>([])
+  const [images, setImages] = useState<PendingAttachment[]>([])
+  const [dragging, setDragging] = useState(false)
   const [mention, setMention] = useState<MentionState | null>(null)
   const [command, setCommand] = useState<CommandState | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -184,11 +186,10 @@ export function Composer({
         return
       }
 
-      const imagePayload: ImageContent[] = images.map((img) => ({
-        type: 'image',
-        data: img.data,
-        mimeType: img.mimeType,
-      }))
+      const imagePayload: ImageContent[] = toImageContents(images)
+      // Non-image attachments ride along as paths in the prompt: pi's protocol
+      // has no document type, so the agent opens them with its own tools.
+      const messageWithFiles = composePrompt(message, images)
 
       setText('')
       setImages([])
@@ -197,12 +198,16 @@ export function Composer({
 
       // Only non-command prompts render as user bubbles immediately; extension
       // commands echo through the event stream if they produce messages.
-      chat.addUserMessage(sessionId, message, imagePayload.length ? imagePayload : undefined)
+      chat.addUserMessage(
+        sessionId,
+        messageWithFiles,
+        imagePayload.length ? imagePayload : undefined,
+      )
 
       try {
         const response = await window.pidex.piCommand(sessionId, {
           type: 'prompt',
-          message,
+          message: messageWithFiles,
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
@@ -308,25 +313,48 @@ export function Composer({
   }
 
   const handlePaste = (event: React.ClipboardEvent): void => {
-    const items = [...event.clipboardData.items].filter((item) => item.type.startsWith('image/'))
-    if (items.length === 0) return
+    const files = [...event.clipboardData.items]
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    if (files.length === 0) return
     event.preventDefault()
-    for (const item of items) {
-      const file = item.getAsFile()
-      if (file) void addImageFile(file)
-    }
+    for (const file of files) void addFile(file)
+  }
+
+  /**
+   * `dragover` must preventDefault or the element is never a valid drop
+   * target: the drop then either never fires or Electron navigates the window
+   * to the dropped file. This was the whole reason drag-and-drop appeared
+   * broken even though the drop handler existed.
+   */
+  const handleDragOver = (event: React.DragEvent): void => {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    if (!dragging) setDragging(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent): void => {
+    // Only clear when the pointer leaves the drop zone itself, not when it
+    // crosses between children.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDragging(false)
   }
 
   const handleDrop = (event: React.DragEvent): void => {
-    const files = [...event.dataTransfer.files].filter((f) => f.type.startsWith('image/'))
+    const files = [...event.dataTransfer.files]
+    setDragging(false)
     if (files.length === 0) return
     event.preventDefault()
-    for (const file of files) void addImageFile(file)
+    for (const file of files) void addFile(file)
   }
 
-  const addImageFile = async (file: File): Promise<void> => {
-    const data = bytesToBase64(await file.arrayBuffer())
-    setImages((current) => [...current, { data, mimeType: file.type }])
+  /** Images inline; everything else attaches by path (see attachments.ts). */
+  const addFile = async (file: File): Promise<void> => {
+    const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
+    if (!attachment) return
+    setImages((current) => [...current, attachment])
   }
 
   const placeholder = isStreaming
@@ -367,15 +395,46 @@ export function Composer({
           />
         )}
 
-        <div className="border-border bg-surface hover:border-border-focus focus-within:border-border-focus rounded-xl border shadow-sm transition-colors">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={clsx(
+            'bg-surface relative rounded-xl border shadow-sm transition-colors',
+            dragging
+              ? 'border-accent ring-accent/25 ring-2'
+              : 'border-border hover:border-border-focus focus-within:border-border-focus',
+          )}
+        >
+          {dragging && (
+            <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
+              <span className="text-text text-[12.5px] font-medium">
+                Drop to attach — images inline, other files by path
+              </span>
+            </div>
+          )}
           {images.length > 0 && (
             <div className="flex flex-wrap gap-2 px-3 pt-3">
-              {images.map((img, index) => (
+              {images.map((attachment, index) => (
                 <div key={index} className="group/img relative">
-                  <img
-                    src={`data:${img.mimeType};base64,${img.data}`}
-                    className="border-border h-16 w-16 rounded-lg border object-cover"
-                  />
+                  {attachment.kind === 'image' ? (
+                    <img
+                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                      className="border-border h-16 w-16 rounded-lg border object-cover"
+                    />
+                  ) : (
+                    <div
+                      title={attachment.path}
+                      className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
+                    >
+                      <span className="text-text truncate text-[11.5px] font-medium">
+                        {attachment.name}
+                      </span>
+                      <span className="text-text-tertiary font-mono text-[10px]">
+                        {formatFileSize(attachment.size)} · sent as path
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
                     className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-[10px] group-hover/img:flex"
@@ -399,7 +458,6 @@ export function Composer({
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onDrop={handleDrop}
             placeholder={placeholder}
             rows={Math.min(10, Math.max(1, text.split('\n').length))}
             className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] outline-none"
@@ -412,7 +470,7 @@ export function Composer({
             <div className="flex min-w-0 items-center gap-1.5">
               <AttachButton
                 onFiles={(files) => {
-                  for (const file of files) void addImageFile(file)
+                  for (const file of files) void addFile(file)
                 }}
               />
               {isCompacting && (

@@ -1,7 +1,21 @@
+import { useState } from 'react'
 import { useWorkspacesStore } from '@/stores/workspaces'
 
 export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JSX.Element {
   const { recents, pickAndOpen, openWorkspace } = useWorkspacesStore()
+  // The native folder dialog takes a beat to appear; without this the button
+  // gives no feedback and a second click queues a second dialog.
+  const [picking, setPicking] = useState(false)
+
+  const pick = async (): Promise<void> => {
+    if (picking) return
+    setPicking(true)
+    try {
+      await pickAndOpen()
+    } finally {
+      setPicking(false)
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -16,10 +30,12 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
         </div>
 
         <button
-          onClick={() => void pickAndOpen()}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-lg px-5 py-2.5 text-sm font-medium shadow-sm transition-colors"
+          onClick={() => void pick()}
+          disabled={picking}
+          aria-busy={picking}
+          className="bg-accent hover:bg-accent-hover text-accent-text rounded-lg px-5 py-2.5 text-sm font-medium shadow-sm transition-colors disabled:opacity-60"
         >
-          Open Folder…
+          {picking ? 'Opening…' : 'Open Folder…'}
         </button>
 
         {recents.length > 0 && (

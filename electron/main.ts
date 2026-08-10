@@ -15,7 +15,12 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 // menu-bar/switcher *title* is read from Electron.app's Info.plist and is not
 // — only a packaged build shows "pidex" there.
 app.setName('pidex')
-const devIcon = !app.isPackaged ? join(app.getAppPath(), 'build/icon.png') : undefined
+// Inset artwork on macOS (the dock applies no margin of its own, and the
+// full-bleed icon.png rendered larger than every neighbouring icon); linux
+// window/taskbar slots want the full-bleed tile.
+const devIcon = !app.isPackaged
+  ? join(app.getAppPath(), process.platform === 'darwin' ? 'build/icon-dock.png' : 'build/icon.png')
+  : undefined
 
 // E2E runs must never touch the developer's real prefs. Tests that need
 // state to survive a relaunch (e.g. "reopens the last session") pin the
@@ -38,7 +43,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#f7f6f2',
+    backgroundColor: '#1e1c18', // must equal the dark theme's --px-bg
     // Window/taskbar icon for unpackaged linux runs (packaged linux resolves
     // it from the desktop entry; macOS ignores this option).
     ...(devIcon && process.platform === 'linux' ? { icon: devIcon } : {}),

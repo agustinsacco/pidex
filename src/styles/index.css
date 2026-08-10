@@ -8,19 +8,21 @@
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* Light theme (default) — "paper" */
-  --px-bg: #f7f6f2;
-  --px-bg-secondary: #eeece5;
+  /* Light theme — neutral grey/white. Deliberately NOT warm: the warm "paper"
+     tint read as brownish/aged next to the editors this sits beside. The amber
+     accent stays; only the neutrals were desaturated. */
+  --px-bg: #f7f7f8;
+  --px-bg-secondary: #efeff1;
   --px-surface: #ffffff;
   --px-surface-raised: #ffffff;
-  --px-border: #e2dfd6;
-  --px-border-strong: #cec9bc;
+  --px-border: #e4e4e7;
+  --px-border-strong: #c9c9ce;
   /* Composer focus: one small step darker than the resting border, not a
      jump to border-strong. The reference barely moves on focus. */
-  --px-border-focus: #d8d4c8;
-  --px-text: #2c2a25;
-  --px-text-secondary: #6b675d;
-  --px-text-tertiary: #9b968a;
+  --px-border-focus: #d6d6db;
+  --px-text: #26262a;
+  --px-text-secondary: #66666e;
+  --px-text-tertiary: #96969e;
   --px-accent: #b35c0f;
   --px-accent-hover: #9d500b;
   --px-accent-soft: #f6e9d4;
@@ -30,9 +32,9 @@
   --px-danger: #bb4a3c;
   --px-danger-soft: #f8e8e4;
   --px-info: #47708f;
-  --px-user-bubble: #efece2;
-  --px-code-bg: #f2f0e9;
-  --px-scrollbar: #cec9bc;
+  --px-user-bubble: #eeeef1;
+  --px-code-bg: #f2f2f4;
+  --px-scrollbar: #c9c9ce;
   /* Terminal ground: white in light; in dark the terminal sits on --px-bg
      itself (brand: the terminal is the page, not a card). Must stay in sync
      with xtermTheme.ts backgrounds. */
@@ -631,4 +633,13 @@ select:focus:not(:focus-visible) {
   background: var(--px-border);
   border-radius: 6px;
   animation: px-skeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global reduce block clamps iteration-count, which would leave the bar
+     frozen at whatever opacity its single pass ended on. Pin it instead. */
+  .skeleton {
+    animation: none;
+    opacity: 0.6;
+  }
 }
