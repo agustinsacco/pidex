@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type SettingsTab =
-  'appearance' | 'agent' | 'workspaces' | 'advanced' | 'keybindings' | 'about'
+  'appearance' | 'agent' | 'mcp' | 'workspaces' | 'advanced' | 'keybindings' | 'about'
 
 interface SettingsUiState {
   open: boolean

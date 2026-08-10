@@ -62,11 +62,40 @@ export interface SessionMeta {
   assistantMessages: number
   toolCalls: number
   totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
   cost: number
   entryCount: number
   branchCount: number
   mtimeMs: number
   lastActivityAt: string
+}
+
+/** Rollup of usage across sessions (per workspace and grand total). */
+export interface UsageTotals {
+  cost: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalTokens: number
+  messages: number
+  toolCalls: number
+  sessionCount: number
+}
+
+export interface WorkspaceUsage {
+  /** The cwd sessions were recorded against (from each session header). */
+  workspacePath: string
+  sessions: SessionMeta[]
+  totals: UsageTotals
+}
+
+export interface UsageSummary {
+  workspaces: WorkspaceUsage[]
+  totals: UsageTotals
 }
 
 export interface WorkspaceSessionStats {
@@ -85,7 +114,37 @@ export interface GitInfo {
   ahead?: number
   behind?: number
   dirtyCount?: number
+  /** True when the cwd is a linked git worktree (git-dir ≠ common-dir). */
+  isWorktree?: boolean
+  /** The main repository's working directory, when this is a worktree. */
+  mainRepoPath?: string
 }
+
+/** One entry from `git worktree list`, enriched with dirty state. */
+export interface WorktreeInfo {
+  /** Path as git recorded it at `worktree add` time. */
+  path: string
+  /** `realpathSync.native`-resolved path — matches session cwds. */
+  realPath: string
+  branch: string | null
+  head: string
+  isMain: boolean
+  locked: boolean
+  prunable: boolean
+  /** `git status --porcelain` line count; −1 when the dir is missing. */
+  dirtyCount: number
+}
+
+export interface BranchInfo {
+  name: string
+  isCurrent: boolean
+  /** Worktree that has this branch checked out, if any. */
+  worktreePath?: string
+  lastCommitSubject?: string
+  lastCommitAt?: number
+}
+
+export type AddWorktreeBranch = { kind: 'new'; base: string } | { kind: 'existing'; branch: string }
 
 export interface DirEntry {
   name: string
@@ -137,6 +196,11 @@ export interface AppPrefs {
   pinnedSessions: string[]
   /** Sidebar workspace groups the user collapsed, by workspace path. */
   collapsedWorkspaces: string[]
+  /**
+   * Session file path → epoch ms when the user last viewed it. Powers the
+   * sidebar's "unseen activity" pill; pruned to a bounded size in the store.
+   */
+  seenSessions: Record<string, number>
   fonts: FontPrefs
 }
 
@@ -145,11 +209,12 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   recentWorkspaces: [],
   pinnedSessions: [],
   collapsedWorkspaces: [],
+  seenSessions: {},
   fonts: DEFAULT_FONT_PREFS,
 }
 
 /** Minimum pi version pidex is verified against. */
-export const MIN_PI_VERSION = '0.78.0'
+export const MIN_PI_VERSION = '0.84.1'
 
 /**
  * Health of one pi config file. `malformed` distinguishes "present but

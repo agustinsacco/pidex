@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isToolOnlyTurn, spacingFor, STREAM_GAP, STREAM_GAP_TIGHT } from './spacing'
+import { spacingFor, STREAM_GAP, STREAM_GAP_TIGHT } from './spacing'
+import { buildTranscriptRows, type TranscriptRow } from './transcriptRows'
 import type { AssistantItem, ChatItem, UserItem } from '../reducer'
 
 const user = (id = 'u1'): UserItem => ({ id, kind: 'user', text: 'hi' })
@@ -15,7 +16,7 @@ const assistantToolOnly = (id = 'a2'): AssistantItem => ({
   id,
   kind: 'assistant',
   streaming: false,
-  blocks: [{ type: 'tool', index: 0, toolCallId: 't1' }],
+  blocks: [{ type: 'tool', index: 0, toolCallId: `t-${id}` }],
 })
 
 const divider = (id = 'd1'): ChatItem => ({ id, kind: 'divider', variant: 'compaction' })
@@ -30,87 +31,65 @@ const bash = (id = 'b1'): ChatItem => ({
   truncated: false,
 })
 
+/** The row a single item produces, for pairwise boundary assertions. */
+const rowOf = (item: ChatItem): TranscriptRow => {
+  const rows = buildTranscriptRows([item])
+  if (!rows[0]) throw new Error('item produced no row')
+  return rows[0]
+}
+
 describe('spacingFor', () => {
   it('gives the first row no leading gap', () => {
-    expect(spacingFor(user(), undefined)).toBe('')
+    expect(spacingFor(rowOf(user()), undefined)).toBe('')
   })
 
-  it('uses ONE step for every ordinary boundary', () => {
+  it('uses ONE step at every speaker or divider boundary', () => {
     // The invariant that replaced the old boundary-aware 8/16px scheme: one
     // owner, one step. Anything that wants to look grouped does it with ink.
     const boundaries: [ChatItem, ChatItem][] = [
       [assistantText(), user()],
       [user(), assistantText()],
-      [assistantText('a3'), assistantText('a4')],
-      [assistantToolOnly(), assistantText()],
-      [assistantText(), assistantToolOnly()],
       [assistantText(), divider()],
       [divider(), assistantText()],
-      [assistantText(), bash()],
-      [bash(), assistantText()],
+      [user(), bash()],
+      [divider('d2'), user()],
     ]
     for (const [previous, item] of boundaries) {
-      expect(spacingFor(item, previous)).toBe(STREAM_GAP)
+      expect(spacingFor(rowOf(item), rowOf(previous))).toBe(STREAM_GAP)
     }
   })
 
-  it('tightens only between consecutive tool-only turns', () => {
-    // One multi-step action, which pi splits into several assistant messages.
-    expect(spacingFor(assistantToolOnly('x'), assistantToolOnly('y'))).toBe(STREAM_GAP_TIGHT)
+  it('tightens between rows of one assistant turn', () => {
+    // Prose → activity → prose is one turn's own output, so it closes up.
+    const rows = buildTranscriptRows([
+      assistantText('a1'),
+      assistantToolOnly('a2'),
+      assistantText('a3'),
+    ])
+    expect(rows.map((r) => r.kind)).toEqual(['text', 'activity', 'text'])
+    expect(spacingFor(rows[1]!, rows[0])).toBe(STREAM_GAP_TIGHT)
+    expect(spacingFor(rows[2]!, rows[1])).toBe(STREAM_GAP_TIGHT)
+  })
+
+  it('needs no tool-only special case: consecutive tool turns are ONE row', () => {
+    // What `isToolOnlyTurn` used to paper over is now structural — pi's
+    // one-message-per-tool-call runs merge before spacing is consulted.
+    const rows = buildTranscriptRows([
+      assistantToolOnly('a1'),
+      assistantToolOnly('a2'),
+      assistantToolOnly('a3'),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.kind).toBe('activity')
   })
 
   it('never emits trailing padding (it doubled every gap)', () => {
+    const rows = buildTranscriptRows([user(), assistantText(), assistantToolOnly()])
     const classes = [
-      spacingFor(user(), undefined),
-      spacingFor(assistantText(), user()),
-      spacingFor(assistantToolOnly('x'), assistantToolOnly('y')),
+      spacingFor(rows[0]!, undefined),
+      spacingFor(rows[1]!, rows[0]),
+      spacingFor(rows[2]!, rows[1]),
     ]
     for (const value of classes) expect(value).not.toMatch(/\bpb-/)
-  })
-})
-
-describe('isToolOnlyTurn', () => {
-  it('is true for tool calls with no prose', () => {
-    expect(isToolOnlyTurn(assistantToolOnly())).toBe(true)
-  })
-
-  it('is true when only thinking accompanies the tools', () => {
-    expect(
-      isToolOnlyTurn({
-        id: 'a',
-        kind: 'assistant',
-        streaming: false,
-        blocks: [
-          { type: 'thinking', index: 0, text: 'hmm', closed: true },
-          { type: 'tool', index: 1, toolCallId: 't' },
-        ],
-      }),
-    ).toBe(true)
-  })
-
-  it('is false once closed, non-blank text exists', () => {
-    expect(isToolOnlyTurn(assistantText())).toBe(false)
-  })
-
-  it('ignores blank text but counts streaming prose from its first token', () => {
-    // Blank blocks never make a turn "prose"…
-    expect(
-      isToolOnlyTurn({
-        id: 'a',
-        kind: 'assistant',
-        streaming: true,
-        blocks: [{ type: 'text', index: 0, text: '   ', closed: true }],
-      }),
-    ).toBe(true)
-    // …but visible streaming text does, immediately. Classifying on `closed`
-    // reflowed the row by 8px at text_end, mid-read, on every mixed turn.
-    expect(
-      isToolOnlyTurn({
-        id: 'b',
-        kind: 'assistant',
-        streaming: true,
-        blocks: [{ type: 'text', index: 0, text: 'partial', closed: false }],
-      }),
-    ).toBe(false)
   })
 })

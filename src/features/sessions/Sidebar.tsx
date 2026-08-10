@@ -1,21 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { SessionMeta } from '@shared/models'
+import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
-import { relativeTimeShort as relativeTime } from '@/lib/time'
+import { isUnseen } from './unseen'
+import { sessionSubtitle } from './sessionSubtitle'
 
 export { relativeTimeShort as relativeTime } from '@/lib/time'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { ChevronIcon, Spinner } from '@/components/icons'
+import { ChevronIcon } from '@/components/icons'
+import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useUsageUiStore } from '@/features/usage/usageUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { workspaceName } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
+import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
+import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
 interface GroupedSessions {
   workspacePath: string
@@ -31,9 +36,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const live = useSessionsStore((s) => s.live)
   const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
+  const seenSessions = useSessionsStore((s) => s.seenSessions)
+  const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const recents = useWorkspacesStore((s) => s.recents)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
+  const [worktreeModal, setWorktreeModal] = useState<{
+    kind: 'remove' | 'merge'
+    repoPath: string
+    worktree: WorktreeInfo
+  } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
 
@@ -67,6 +79,25 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
     })
   }, [])
+
+  // Git summaries for row subtitles: refresh (debounced) whenever the disk
+  // listing changes, and again on window focus (branch switches happen in
+  // terminals pidex can't observe).
+  useEffect(() => {
+    const cwds = Object.values(disk)
+      .flat()
+      .map((m) => m.cwd)
+      .concat(knownWorkspaces)
+    const timer = setTimeout(() => {
+      void useSessionsStore.getState().refreshGitInfo(cwds)
+    }, 300)
+    const onFocus = (): void => void useSessionsStore.getState().refreshGitInfo(cwds)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [disk, knownWorkspaces])
 
   const liveByDisk = useMemo(() => {
     const map = new Map<string, string>()
@@ -149,14 +180,58 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     store.unwatchWorkspaces(closed)
   }, [groups, collapsed])
 
-  const rowProps = (meta: SessionMeta) => ({
-    meta,
-    workspacePath: meta.cwd || workspacePath,
-    livePidexId: liveByDisk.get(meta.path),
-    active: liveByDisk.get(meta.path) === activeSessionId && activeSessionId !== null,
-    unreadCount: unread[liveByDisk.get(meta.path) ?? ''] ?? 0,
-    onOpenTree: () => setTreeFor(meta),
-  })
+  const groupContextMenu = (event: React.MouseEvent, group: GroupedSessions): void => {
+    const git = gitByCwd[group.workspacePath]
+    const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
+      const repoPath = git?.mainRepoPath
+      if (!repoPath) return
+      const worktrees = await window.pidex.invoke('git:listWorktrees', repoPath)
+      const worktree = worktrees.find(
+        (w) => w.path === group.workspacePath || w.realPath === group.workspacePath,
+      )
+      if (worktree) setWorktreeModal({ kind, repoPath, worktree })
+    }
+    showContextMenu(event, [
+      {
+        label: 'New session here',
+        onClick: () => {
+          useWorkspacesStore.getState().openWorkspace(group.workspacePath)
+          useSessionsStore.getState().activate(null)
+        },
+      },
+      ...(git?.isWorktree && git.mainRepoPath
+        ? [
+            {
+              label: 'Merge into main repo…',
+              separatorAbove: true,
+              onClick: () => void openWorktreeModal('merge'),
+            },
+            {
+              label: 'Remove worktree…',
+              danger: true,
+              onClick: () => void openWorktreeModal('remove'),
+            },
+          ]
+        : []),
+    ])
+  }
+
+  const rowProps = (meta: SessionMeta) => {
+    const livePidexId = liveByDisk.get(meta.path)
+    const active = livePidexId === activeSessionId && activeSessionId !== null
+    return {
+      meta,
+      workspacePath: meta.cwd || workspacePath,
+      livePidexId,
+      active,
+      unseen:
+        !active &&
+        ((unread[livePidexId ?? ''] ?? 0) > 0 ||
+          isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
+      git: gitByCwd[meta.cwd || workspacePath],
+      onOpenTree: () => setTreeFor(meta),
+    }
+  }
 
   return (
     <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
@@ -202,6 +277,23 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
             </svg>
           }
         />
+        <NavRow
+          label="Usage"
+          onClick={() => useUsageUiStore.getState().setOpen(true)}
+          icon={
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M3 20h18M7 20V10M12 20V4M17 20v-8" />
+            </svg>
+          }
+        />
       </nav>
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -220,6 +312,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
             <div key={group.workspacePath}>
               <button
                 onClick={() => toggleGroup(group, isCollapsed)}
+                onContextMenu={(event) => groupContextMenu(event, group)}
                 data-testid="workspace-group"
                 className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold font-mono uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
@@ -265,6 +358,20 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           meta={treeFor}
           workspacePath={treeFor.cwd || workspacePath}
           onClose={() => setTreeFor(null)}
+        />
+      )}
+      {worktreeModal?.kind === 'remove' && (
+        <RemoveWorktreeModal
+          repoPath={worktreeModal.repoPath}
+          worktree={worktreeModal.worktree}
+          onClose={() => setWorktreeModal(null)}
+        />
+      )}
+      {worktreeModal?.kind === 'merge' && (
+        <MergeWorktreeModal
+          repoPath={worktreeModal.repoPath}
+          worktree={worktreeModal.worktree}
+          onClose={() => setWorktreeModal(null)}
         />
       )}
     </aside>
@@ -345,7 +452,8 @@ function SessionRow({
   workspacePath,
   livePidexId,
   active,
-  unreadCount,
+  unseen,
+  git,
   isPinned,
   showWorkspace = false,
   onOpenTree,
@@ -354,7 +462,9 @@ function SessionRow({
   workspacePath: string
   livePidexId?: string
   active: boolean
-  unreadCount: number
+  /** Activity the user hasn't viewed yet (persisted across restarts). */
+  unseen: boolean
+  git?: GitInfo
   isPinned: boolean
   /**
    * Show the workspace badge. Set for groups that mix projects (Pinned),
@@ -412,31 +522,69 @@ function SessionRow({
     ])
   }
 
+  const subtitle = sessionSubtitle(meta, git)
+  const indicatorState = isStreaming
+    ? 'streaming'
+    : unseen
+      ? 'unseen'
+      : livePidexId
+        ? 'live'
+        : 'disk'
+
   return (
     <button
       onClick={open}
       onContextMenu={contextMenu}
       data-testid="session-row"
       data-workspace={rowWorkspaceName}
+      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
       className={clsx(
-        'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+        'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
       )}
     >
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-        {isStreaming ? (
-          <Spinner />
-        ) : livePidexId ? (
-          <span className="bg-success h-2 w-2 rounded-full" title="Live session" />
+      <span
+        data-testid="session-indicator"
+        data-state={indicatorState}
+        className="flex h-4 w-4 shrink-0 items-center justify-center"
+      >
+        {indicatorState === 'streaming' ? (
+          <PiSpark size={13} />
+        ) : indicatorState === 'unseen' ? (
+          <span className="bg-success h-2 w-2 rounded-full" title="New activity" />
+        ) : indicatorState === 'live' ? (
+          <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
         ) : (
           <span className="border-border-strong h-2 w-2 rounded-full border" />
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-[12.5px]">{title}</span>
-        <span className="text-text-tertiary block truncate text-[10.5px]">
-          {relativeTime(meta.mtimeMs)}
-          {meta.branchCount > 0 && ` · ${meta.branchCount + 1} branches`}
+        <span className="text-text block truncate text-[12px] leading-4">{title}</span>
+        <span className="text-text-tertiary flex items-center gap-1 text-[10px] leading-3.5">
+          {subtitle.map((segment, i) => (
+            <span
+              key={segment.key}
+              className={clsx('flex shrink-0 items-center', segment.truncate && 'min-w-0 shrink')}
+            >
+              {i > 0 && <span className="pr-1">·</span>}
+              {segment.key === 'worktree' ? (
+                <span
+                  className="bg-bg-secondary text-text-tertiary rounded px-1 font-medium"
+                  title="Runs in a git worktree"
+                >
+                  wt
+                </span>
+              ) : segment.key === 'branch' ? (
+                <span className="truncate" title={segment.text}>
+                  ⎇ {segment.text}
+                </span>
+              ) : (
+                <span className={clsx(segment.key === 'dirty' && 'text-warning')}>
+                  {segment.text}
+                </span>
+              )}
+            </span>
+          ))}
         </span>
       </span>
       {showWorkspace && rowWorkspaceName && (
@@ -446,11 +594,6 @@ function SessionRow({
           className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-[9.5px] font-medium"
         >
           {rowWorkspaceName}
-        </span>
-      )}
-      {unreadCount > 0 && !active && (
-        <span className="bg-accent text-accent-text flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9.5px] font-bold">
-          {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}
       {isPinned && <PinIcon />}

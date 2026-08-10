@@ -52,4 +52,14 @@ export class SessionRegistry {
     const all = [...this.sessions.keys()]
     await Promise.allSettled(all.map((id) => this.dispose(id)))
   }
+
+  /**
+   * Synchronous SIGTERM to every child, for signal-initiated shutdown
+   * (Ctrl-C in dev) where awaiting exits would lose the race with the
+   * parent process going away.
+   */
+  killAllSync(): void {
+    for (const session of this.sessions.values()) session.client.killNow()
+    this.sessions.clear()
+  }
 }

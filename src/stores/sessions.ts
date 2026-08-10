@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SessionMeta, SessionPush } from '@shared/models'
+import type { GitInfo, SessionMeta, SessionPush } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 
@@ -45,9 +45,17 @@ interface SessionsState {
   /** pidexId → git session baseline ref (null = not a repo). */
   baselines: Record<string, string | null>
   pinned: string[]
+  /** sessionPath → epoch ms last viewed (mirrors the persisted pref). */
+  seenSessions: Record<string, number>
+  /** cwd → cached git summary for sidebar subtitles. */
+  gitByCwd: Record<string, GitInfo>
   creating: boolean
 
   hydratePinned: () => Promise<void>
+  /** Record that the user is looking at this session right now. */
+  markSeen: (sessionPath: string) => void
+  /** Refresh batched git summaries for these cwds. */
+  refreshGitInfo: (cwds: string[]) => Promise<void>
   refreshDisk: (workspacePath: string) => Promise<void>
   /** Scan many workspaces in parallel (capped); powers the grouped sidebar. */
   refreshAllDisk: (workspacePaths: string[], limit?: number) => Promise<void>
@@ -109,6 +117,7 @@ async function bootstrapSession(pidexId: string): Promise<void> {
       // persist it now if this session is the one on screen.
       if (useSessionsStore.getState().activeSessionId === pidexId) {
         void window.pidex.invoke('app:setLastSession', diskPath)
+        useSessionsStore.getState().markSeen(diskPath)
       }
     }
   }
@@ -193,6 +202,13 @@ function attachSessionPushHandler(pidexId: string): void {
             unread: { ...s.unread, [pidexId]: (s.unread[pidexId] ?? 0) + 1 },
           }))
         }
+        // NOTE: deliberately no markSeen() here. Marking the *active* session
+        // seen on every message_end looked harmless but wrote to prefs on every
+        // token-batch, and that write raced `setLastSession` during teardown —
+        // a session closed right after a reply lost its resume path (caught by
+        // the multi-workspace sidebar e2e). It is also redundant: opening a
+        // session marks it seen via `activate` / `bootstrapSession`, and the
+        // unseen pill only ever describes sessions you are NOT looking at.
         if (shouldRefreshStatsOn(push.event.type)) {
           void refreshStats(pidexId)
         }
@@ -226,11 +242,30 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   unread: {},
   baselines: {},
   pinned: [],
+  seenSessions: {},
+  gitByCwd: {},
   creating: false,
 
   hydratePinned: async () => {
     const prefs = await window.pidex.invoke('app:getPrefs')
-    set({ pinned: prefs.pinnedSessions })
+    set({ pinned: prefs.pinnedSessions, seenSessions: prefs.seenSessions ?? {} })
+  },
+
+  markSeen: (sessionPath) => {
+    if (!sessionPath) return
+    set((s) => ({ seenSessions: { ...s.seenSessions, [sessionPath]: Date.now() } }))
+    void window.pidex.invoke('app:markSessionSeen', sessionPath)
+  },
+
+  refreshGitInfo: async (cwds) => {
+    const unique = [...new Set(cwds)].filter(Boolean)
+    if (unique.length === 0) return
+    try {
+      const map = await window.pidex.invoke('git:infoBatch', unique)
+      set((s) => ({ gitByCwd: { ...s.gitByCwd, ...map } }))
+    } catch {
+      // git unavailable — subtitles just omit their git segments
+    }
   },
 
   refreshDisk: async (workspacePath) => {
@@ -348,6 +383,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   openDiskSession: async (workspacePath, meta) => {
+    get().markSeen(meta.path)
     // Already live? Just activate.
     const existing = Object.values(get().live).find((l) => l.diskPath === meta.path)
     if (existing) {
@@ -366,6 +402,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // clears the memory, so we land on the home screen instead.
     const live = sessionId ? get().live[sessionId] : undefined
     void window.pidex.invoke('app:setLastSession', live?.diskPath)
+    if (live?.diskPath) get().markSeen(live.diskPath)
     // Keep the persisted workspace paired with the persisted session —
     // resumeTarget reunites the two on launch, and a stale lastWorkspacePath
     // would resume this session against another project's cwd.
@@ -379,6 +416,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     unsubscribers.delete(sessionId)
     await window.pidex.invoke('pi:disposeSession', sessionId)
     useChatStore.getState().remove(sessionId)
+    // Session-scoped side state: kill its PTYs and drop its artifacts.
+    // Lazy imports keep this store free of load-order cycles.
+    void import('./terminal').then(({ useTerminalStore }) =>
+      useTerminalStore.getState().removeSession(sessionId),
+    )
+    void import('./artifacts').then(({ useArtifactsStore }) =>
+      useArtifactsStore.getState().remove(sessionId),
+    )
     set((s) => {
       const live = { ...s.live }
       delete live[sessionId]

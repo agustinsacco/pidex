@@ -46,6 +46,36 @@ interface ToolSummary {
   hint?: string
 }
 
+/**
+ * Tense-stable verb for grouped summaries, keyed off the tool name rather
+ * than `summarizeTool().label` (which switches to the progressive tense while
+ * running — counting by it would split "Read 3" into "Reading 1, Read 2").
+ */
+export function settledVerb(toolName: string | null): string {
+  switch (toolName) {
+    case 'read':
+      return 'Read'
+    case 'bash':
+      return 'Ran'
+    case 'edit':
+      return 'Edited'
+    case 'write':
+      return 'Wrote'
+    case 'grep':
+      return 'Searched'
+    case 'find':
+      return 'Found'
+    case 'ls':
+      return 'Listed'
+    case 'artifact_create':
+      return 'Created'
+    case 'artifact_update':
+      return 'Updated'
+    default:
+      return 'Used'
+  }
+}
+
 export function summarizeTool(tool: ToolState): ToolSummary {
   const args = tool.args ?? tryParseArgs(tool.argsText)
   const running = tool.status === 'starting' || tool.status === 'running'

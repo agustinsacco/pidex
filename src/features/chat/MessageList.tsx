@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
@@ -10,6 +10,7 @@ import {
   nextPinnedState,
 } from './items/autoscroll'
 import { spacingFor } from './items/spacing'
+import { buildTranscriptRows } from './items/transcriptRows'
 
 export const MessageList = memo(function MessageList({
   sessionId,
@@ -37,6 +38,12 @@ export const MessageList = memo(function MessageList({
   /** Set while our own scroll is in flight, so its scroll event isn't read as intent. */
   const selfScrollRef = useRef(false)
 
+  /**
+   * Activity is grouped ACROSS assistant messages (pi emits one message per
+   * tool call), so the virtualizer measures rows, not raw items.
+   */
+  const rows = useMemo(() => buildTranscriptRows(items), [items])
+
   const setPinnedNow = useCallback((next: boolean): void => {
     pinnedRef.current = next
     setPinned((current) => (current === next ? current : next))
@@ -52,7 +59,7 @@ export const MessageList = memo(function MessageList({
   }, [])
 
   const virtualizer = useVirtualizer({
-    count: items.length,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
     /*
      * Unmeasured-row height. Measured in the e2e harness (see "rows are dense
@@ -64,7 +71,7 @@ export const MessageList = memo(function MessageList({
      */
     estimateSize: () => 40,
     overscan: 8,
-    getItemKey: (index) => items[index]?.id ?? index,
+    getItemKey: (index) => rows[index]?.id ?? index,
   })
 
   // Follow the stream while pinned. Deliberately dep-less (content grows on
@@ -204,9 +211,9 @@ export const MessageList = memo(function MessageList({
           style={{ height: virtualizer.getTotalSize() + 32 }}
         >
           {virtualItems.map((virtualItem) => {
-            const item = items[virtualItem.index]
-            if (!item) return null
-            const previous = items[virtualItem.index - 1]
+            const row = rows[virtualItem.index]
+            if (!row) return null
+            const previous = rows[virtualItem.index - 1]
             return (
               <div
                 key={virtualItem.key}
@@ -219,14 +226,10 @@ export const MessageList = memo(function MessageList({
                  * Spacing must live INSIDE the measured element — the
                  * virtualizer measures this node, so padding applied outside
                  * it would desync the computed offsets.
-                 *
-                 * Boundary-aware: generous between messages, tight between
-                 * an assistant turn and its own tool rows (the reference
-                 * reads as grouped blocks, not an evenly spaced list).
                  */}
-                <div className={spacingFor(item, previous)}>
+                <div className={spacingFor(row, previous)}>
                   <MessageItemView
-                    item={item}
+                    row={row}
                     tools={tools}
                     hideThinking={hideThinking}
                     sessionId={sessionId}

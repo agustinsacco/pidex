@@ -2,8 +2,8 @@ import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
-import { sessionDirForCwd } from './pi-paths'
+import type { SessionMeta, UsageSummary, UsageTotals, WorkspaceSessionStats } from '@shared/models'
+import { piSessionsRoot, sessionDirForCwd } from './pi-paths'
 import { extractText } from './session-content'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
@@ -28,7 +28,10 @@ interface CacheEntry {
 const metaCache = new Map<string, CacheEntry>()
 
 export async function listSessions(workspacePath: string): Promise<SessionMeta[]> {
-  const dir = sessionDirForCwd(workspacePath)
+  return listSessionsInDir(sessionDirForCwd(workspacePath))
+}
+
+async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
   let files: string[]
   try {
     files = (await readdir(dir)).filter((f) => f.endsWith('.jsonl'))
@@ -75,6 +78,10 @@ export async function parseSessionFile(path: string, mtimeMs: number): Promise<S
   let assistantMessages = 0
   let toolCalls = 0
   let totalTokens = 0
+  let inputTokens = 0
+  let outputTokens = 0
+  let cacheReadTokens = 0
+  let cacheWriteTokens = 0
   let cost = 0
   let entryCount = 0
   let lastTimestamp: string | undefined
@@ -144,6 +151,10 @@ export async function parseSessionFile(path: string, mtimeMs: number): Promise<S
                 (usage.output ?? 0) +
                 (usage.cacheRead ?? 0) +
                 (usage.cacheWrite ?? 0)
+            inputTokens += usage.input ?? 0
+            outputTokens += usage.output ?? 0
+            cacheReadTokens += usage.cacheRead ?? 0
+            cacheWriteTokens += usage.cacheWrite ?? 0
             cost += usage.cost?.total ?? 0
           }
         }
@@ -167,12 +178,88 @@ export async function parseSessionFile(path: string, mtimeMs: number): Promise<S
     assistantMessages,
     toolCalls,
     totalTokens,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
     cost,
     entryCount,
     branchCount,
     mtimeMs,
     lastActivityAt: lastTimestamp ?? header.timestamp ?? '',
   }
+}
+
+const emptyTotals = (): UsageTotals => ({
+  cost: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  totalTokens: 0,
+  messages: 0,
+  toolCalls: 0,
+  sessionCount: 0,
+})
+
+function addToTotals(totals: UsageTotals, meta: SessionMeta): void {
+  totals.cost += meta.cost
+  totals.inputTokens += meta.inputTokens
+  totals.outputTokens += meta.outputTokens
+  totals.cacheReadTokens += meta.cacheReadTokens
+  totals.cacheWriteTokens += meta.cacheWriteTokens
+  totals.totalTokens += meta.totalTokens
+  totals.messages += meta.userMessages + meta.assistantMessages
+  totals.toolCalls += meta.toolCalls
+  totals.sessionCount += 1
+}
+
+/**
+ * Usage rollup across EVERY session directory under pi's root, grouped by
+ * each session header's own `cwd` (never un-mangled from directory names).
+ * User-initiated (Usage view open); the mtime+size cache keeps repeat scans
+ * cheap. Directory walks are capped at 8 concurrent.
+ */
+export async function usageSummary(): Promise<UsageSummary> {
+  let dirs: string[]
+  try {
+    dirs = (await readdir(piSessionsRoot(), { withFileTypes: true }))
+      .filter((e) => e.isDirectory())
+      .map((e) => join(piSessionsRoot(), e.name))
+  } catch {
+    return { workspaces: [], totals: emptyTotals() }
+  }
+
+  const queue = [...dirs]
+  const allMetas: SessionMeta[] = []
+  const worker = async (): Promise<void> => {
+    for (let dir = queue.shift(); dir !== undefined; dir = queue.shift()) {
+      allMetas.push(...(await listSessionsInDir(dir)))
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(8, dirs.length) }, worker))
+
+  const byCwd = new Map<string, SessionMeta[]>()
+  for (const meta of allMetas) {
+    const key = meta.cwd || '(unknown)'
+    const list = byCwd.get(key)
+    if (list) list.push(meta)
+    else byCwd.set(key, [meta])
+  }
+
+  const totals = emptyTotals()
+  const workspaces = [...byCwd.entries()].map(([workspacePath, sessions]) => {
+    const wsTotals = emptyTotals()
+    sessions.sort((a, b) => b.mtimeMs - a.mtimeMs)
+    for (const meta of sessions) {
+      addToTotals(wsTotals, meta)
+      addToTotals(totals, meta)
+    }
+    return { workspacePath, sessions, totals: wsTotals }
+  })
+  workspaces.sort((a, b) => b.totals.cost - a.totals.cost)
+
+  return { workspaces, totals }
 }
 
 /** Aggregate stats for the workspace home screen (tiles + heatmap). */

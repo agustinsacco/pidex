@@ -3,6 +3,7 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { useArtifactsStore } from '@/stores/artifacts'
+import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/terminal'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { SessionMenu } from './SessionMenu'
@@ -65,24 +66,7 @@ function Header({
         {workspacePath && <GitChips workspacePath={workspacePath} />}
       </div>
       {/* Reference order: terminal, files, changes, artifacts, kebab. */}
-      <HeaderIconButton
-        title="Terminal pane (⌘`)"
-        active={rightPane === 'terminal'}
-        onClick={() => useLayoutStore.getState().toggleRightPane('terminal')}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m5 8 4 4-4 4M13 16h6" />
-        </svg>
-      </HeaderIconButton>
+      <TerminalHeaderButton sessionId={sessionId} active={rightPane === 'terminal'} />
       <HeaderIconButton
         title="Files pane (⌘⇧E)"
         active={rightPane === 'files'}
@@ -123,6 +107,81 @@ function Header({
   )
 }
 
+/** Numeric badge anchored to a header button's bottom-right corner. */
+function HeaderCountBadge({
+  count,
+  tone = 'neutral',
+  title,
+}: {
+  count: number
+  tone?: 'neutral' | 'success' | 'accent'
+  title?: string
+}): React.JSX.Element | null {
+  if (count === 0) return null
+  return (
+    <span
+      title={title}
+      className={clsx(
+        'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8.5px] font-bold',
+        tone === 'success'
+          ? 'bg-success/15 text-success'
+          : tone === 'accent'
+            ? 'bg-accent-soft text-accent'
+            : 'bg-bg-secondary text-text-secondary',
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  )
+}
+
+function TerminalHeaderButton({
+  sessionId,
+  active,
+}: {
+  sessionId: string
+  active: boolean
+}): React.JSX.Element {
+  const tabCount = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs.length)
+  const running = useTerminalStore((s) => runningCount(s, sessionId))
+
+  return (
+    <div className="relative">
+      <HeaderIconButton
+        title="Terminal pane (⌘`)"
+        active={active}
+        onClick={() => useLayoutStore.getState().toggleRightPane('terminal')}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m5 8 4 4-4 4M13 16h6" />
+        </svg>
+      </HeaderIconButton>
+      <HeaderCountBadge
+        count={tabCount}
+        tone={running > 0 ? 'success' : 'neutral'}
+        title={
+          running > 0 ? `${running} running` : `${tabCount} terminal${tabCount > 1 ? 's' : ''}`
+        }
+      />
+      {running > 0 && (
+        <span
+          className="bg-success absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
+          title={`${running} process${running > 1 ? 'es' : ''} running`}
+        />
+      )}
+    </div>
+  )
+}
+
 function ArtifactsHeaderButton({
   sessionId,
   active,
@@ -153,6 +212,7 @@ function ArtifactsHeaderButton({
           <path d="M3 9h18M9 21h6" />
         </svg>
       </HeaderIconButton>
+      <HeaderCountBadge count={count} tone="accent" title={`${count} artifacts`} />
       {unseen > 0 && !active && (
         <span className="bg-accent absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" />
       )}

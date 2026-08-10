@@ -6,12 +6,14 @@ import { AppearanceTab } from './tabs/AppearanceTab'
 import { AgentTab } from './tabs/AgentTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
+import { McpTab } from './tabs/McpTab'
 import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'agent', label: 'Agent' },
+  { id: 'mcp', label: 'MCP' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
@@ -58,6 +60,7 @@ export function SettingsModal(): React.JSX.Element | null {
           </button>
           {tab === 'appearance' && <AppearanceTab />}
           {tab === 'agent' && <AgentTab />}
+          {tab === 'mcp' && <McpTab />}
           {tab === 'workspaces' && <WorkspacesTab />}
           {tab === 'advanced' && <AdvancedTab />}
           {tab === 'keybindings' && <KeybindingsTab />}

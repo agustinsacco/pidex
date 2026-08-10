@@ -1,4 +1,5 @@
 import Store from 'electron-store'
+import { pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   type AppPrefs,
@@ -31,8 +32,16 @@ export function getPrefs(): AppPrefs {
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
+    seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
   }
+}
+
+/** Record that the user has viewed a session's current state. */
+export function markSessionSeen(sessionPath: string): void {
+  const s = prefs()
+  const seen = { ...(s.get('seenSessions') ?? {}), [sessionPath]: Date.now() }
+  s.set('seenSessions', pruneSeenSessions(seen))
 }
 
 export function setFontPrefs(fonts: AppPrefs['fonts']): void {

@@ -15,11 +15,18 @@ npm run lint       # eslint
 npm run format     # prettier --write
 npm test           # vitest unit tests
 npm run test:e2e   # builds, then Playwright-Electron against the pi stub
+npm run validate   # all of the above, quiet: PASS/FAIL summary + a log file
 ```
 
 CI runs typecheck, lint, `prettier --check .`, unit tests, build, and the e2e
 matrix (ubuntu + macOS). Run typecheck + lint + test before considering a
 change done; run e2e when touching IPC, session lifecycle, or visible UI flow.
+
+`npm run validate` (`scripts/validate.sh`) is the one to reach for when you
+just want a verdict: it prints one line per step and sends everything else to
+`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`), so the e2e run's
+reporter and its Electron windows don't take over the screen. `SKIP_E2E=1`
+stops before the slow part.
 
 ## Architecture in five facts
 

@@ -1,34 +1,44 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { useTerminalStore, workspaceTerminals } from '@/stores/terminal'
+import { useTerminalStore, sessionTerminals } from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
 import { CloseIcon } from '@/components/icons'
 
-/** Terminal pane: tab strip in the shell title, "+" as a pane action. */
+/**
+ * Terminal pane: tab strip in the shell title, "+" as a pane action.
+ *
+ * Terminals are scoped per session (tabs shown belong to `sessionId`), but
+ * every session's TerminalViews stay mounted (hidden) so switching sessions
+ * keeps each shell's scrollback — the same idiom the tab strip already uses
+ * for its own inactive tabs.
+ */
 export const TerminalPane = memo(function TerminalPane({
+  sessionId,
   workspacePath,
 }: {
+  sessionId: string
   workspacePath: string
 }): React.JSX.Element {
-  const tabs = useTerminalStore((s) => workspaceTerminals(s, workspacePath).tabs)
-  const activeId = useTerminalStore((s) => workspaceTerminals(s, workspacePath).activeId)
+  const bySession = useTerminalStore((s) => s.bySession)
+  const tabs = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs)
+  const activeId = useTerminalStore((s) => sessionTerminals(s, sessionId).activeId)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // First open: spawn a shell automatically.
+  // First open per session: spawn a shell automatically.
   //
   // createTab is async, so a plain `tabs.length === 0` guard is not enough:
   // StrictMode double-invokes this effect and both passes observe the empty
   // list before the first spawn resolves, producing two shells. A synchronous
-  // ref latch makes the check race-free.
-  const spawnRequested = useRef(false)
+  // ref latch (per session) makes the check race-free.
+  const spawnRequested = useRef(new Set<string>())
   useEffect(() => {
-    if (spawnRequested.current) return
-    if (workspaceTerminals(useTerminalStore.getState(), workspacePath).tabs.length > 0) return
-    spawnRequested.current = true
-    void useTerminalStore.getState().createTab(workspacePath)
-  }, [workspacePath])
+    if (spawnRequested.current.has(sessionId)) return
+    if (sessionTerminals(useTerminalStore.getState(), sessionId).tabs.length > 0) return
+    spawnRequested.current.add(sessionId)
+    void useTerminalStore.getState().createTab(sessionId, workspacePath)
+  }, [sessionId, workspacePath])
 
   return (
     <PaneShell
@@ -46,12 +56,18 @@ export const TerminalPane = memo(function TerminalPane({
                     : 'text-text-tertiary hover:text-text',
                   tab.exited && 'opacity-60',
                 )}
-                onClick={() => useTerminalStore.getState().setActive(workspacePath, tab.ptyId)}
+                onClick={() => useTerminalStore.getState().setActive(sessionId, tab.ptyId)}
                 onDoubleClick={() => {
                   setRenaming(tab.ptyId)
                   setRenameValue(tab.title)
                 }}
               >
+                {tab.running && !tab.exited && (
+                  <span
+                    className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
+                    title="Process running"
+                  />
+                )}
                 {renaming === tab.ptyId ? (
                   <input
                     autoFocus
@@ -61,7 +77,7 @@ export const TerminalPane = memo(function TerminalPane({
                       if (renameValue.trim())
                         useTerminalStore
                           .getState()
-                          .renameTab(workspacePath, tab.ptyId, renameValue.trim())
+                          .renameTab(sessionId, tab.ptyId, renameValue.trim())
                       setRenaming(null)
                     }}
                     onKeyDown={(e) => {
@@ -76,7 +92,7 @@ export const TerminalPane = memo(function TerminalPane({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    void useTerminalStore.getState().closeTab(workspacePath, tab.ptyId)
+                    void useTerminalStore.getState().closeTab(sessionId, tab.ptyId)
                   }}
                   className="text-text-tertiary hover:text-text hidden group-hover:block"
                 >
@@ -90,7 +106,7 @@ export const TerminalPane = memo(function TerminalPane({
       actions={
         <PaneIconButton
           title="New terminal"
-          onClick={() => void useTerminalStore.getState().createTab(workspacePath)}
+          onClick={() => void useTerminalStore.getState().createTab(sessionId, workspacePath)}
         >
           <svg
             width="13"
@@ -106,14 +122,15 @@ export const TerminalPane = memo(function TerminalPane({
       }
     >
       <div className="terminal-surface min-h-0 flex-1 p-1.5">
-        {tabs.map((tab) => (
-          <TerminalView
-            key={tab.ptyId}
-            ptyId={tab.ptyId}
-            visible={tab.ptyId === activeId}
-            workspacePath={workspacePath}
-          />
-        ))}
+        {Object.entries(bySession).flatMap(([owner, terminals]) =>
+          terminals.tabs.map((tab) => (
+            <TerminalView
+              key={tab.ptyId}
+              ptyId={tab.ptyId}
+              visible={owner === sessionId && tab.ptyId === activeId}
+            />
+          )),
+        )}
         {tabs.length === 0 && (
           <div className="text-text-tertiary flex h-full items-center justify-center text-[12.5px]">
             Starting shell…

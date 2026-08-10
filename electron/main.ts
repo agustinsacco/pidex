@@ -97,3 +97,56 @@ app.on('before-quit', (event) => {
     () => app.quit(),
   )
 })
+
+/**
+ * Teardown for shutdowns Electron does not route through `before-quit`.
+ *
+ * Synchronous only: by the time these fire the parent is already going away,
+ * so an awaited dispose would lose the race. Nothing here writes to disk (pi
+ * owns its session files and gets a SIGTERM to flush), and watchers/timers die
+ * with the process.
+ */
+function hardShutdown(): never {
+  quitting = true
+  try {
+    ptyManager.killAll()
+    registry.killAllSync()
+  } catch {
+    // best effort — we are exiting regardless
+  }
+  process.exit(0)
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(signal, () => {
+    if (quitting) return
+    hardShutdown()
+  })
+}
+
+/**
+ * Dev-only orphan guard: exit when the launcher goes away.
+ *
+ * `electron-vite dev` kills its Electron child only on rebuild — it installs
+ * no exit handler of its own — and the child is not in the terminal's
+ * foreground process group, so Ctrl-C kills the CLI and leaves the app
+ * running. The dev command appears to hang (prompt returns, app still up,
+ * further Ctrl-C does nothing) and the next `npm run dev` fights the orphan
+ * for port 5173.
+ *
+ * Polling `kill(ppid, 0)` is the portable way to notice: no signal is sent,
+ * it just throws once that pid is gone. Cheap at 1s, unref'd so it can never
+ * itself hold the loop open, and dev-only so packaged builds (where the
+ * parent legitimately exits first) are untouched.
+ */
+if (isDev && !app.isPackaged) {
+  const launcherPid = process.ppid
+  const orphanCheck = setInterval(() => {
+    try {
+      process.kill(launcherPid, 0)
+    } catch {
+      if (!quitting) hardShutdown()
+    }
+  }, 1000)
+  orphanCheck.unref()
+}
