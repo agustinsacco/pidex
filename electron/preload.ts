@@ -46,6 +46,13 @@ const api: PidexApi = {
     return () => ipcRenderer.removeListener(channel, wrapped)
   },
 
+  onPtyStatus(listener: (statuses: Record<string, boolean>) => void) {
+    const wrapped = (_event: Electron.IpcRendererEvent, statuses: Record<string, boolean>) =>
+      listener(statuses)
+    ipcRenderer.on('pty:status', wrapped)
+    return () => ipcRenderer.removeListener('pty:status', wrapped)
+  },
+
   piCommand(sessionId: string, command: RpcCommand) {
     return ipcRenderer.invoke('pi:command', sessionId, command)
   },

@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -102,8 +102,13 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     // Streamed assistant text.
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
+    // The settled activity run collapses to a summary; expand it.
+    await page.getByTestId('activity-summary').first().click()
+
     // Edit tool card with its diff.
-    const editRow = page.getByRole('button', { name: /Edited\s+hello\.ts/ })
+    const editRow = page
+      .getByTestId('activity-group')
+      .getByRole('button', { name: /Edited\s+hello\.ts/ })
     await expect(editRow).toBeVisible()
     await editRow.click()
     await expect(page.getByText('return "new"').first()).toBeVisible()
@@ -197,8 +202,14 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
 
     // The in-flight window is short, so watch for it with a MutationObserver
     // rather than polling — a poll can straddle the whole window and miss it.
+    // Also capture whether a LIVE activity group was expanded at the time,
+    // which is the live-vs-settled behavior (open while working).
     await page.evaluate(() => {
-      const w = window as unknown as { __sawRunning?: boolean; __sawWorkingIndicator?: boolean }
+      const w = window as unknown as {
+        __sawRunning?: boolean
+        __sawWorkingIndicator?: boolean
+        __liveOpen?: string
+      }
       const workingIndicator = () =>
         /\d[\d.]*(ms|s)\s*·\s*[\d.]+[kM]?\s*tokens/.test(document.body.innerText) &&
         document.querySelector('.pi-spark') !== null
@@ -207,6 +218,12 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
       new MutationObserver(() => {
         if (document.querySelector('.tool-running-dot')) w.__sawRunning = true
         if (workingIndicator()) w.__sawWorkingIndicator = true
+        const live = document.querySelector('[data-testid="activity-group"][data-live="true"]')
+        if (live && w.__liveOpen === undefined) {
+          w.__liveOpen =
+            live.querySelector('[data-testid="activity-summary"]')?.getAttribute('aria-expanded') ??
+            'missing'
+        }
       }).observe(document.body, { childList: true, subtree: true, attributes: true })
     })
 
@@ -228,9 +245,37 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     ).toBe(true)
     await expect(page.getByText(/tokens$/)).toBeHidden()
 
-    // All three calls from the run are present as rows.
-    await expect(page.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Ran/ })).toBeVisible()
+    // Live vs settled: the group was expanded while work was in flight…
+    expect(
+      await page.evaluate(() => (window as unknown as { __liveOpen?: string }).__liveOpen),
+    ).toBe('true')
+
+    // Settled runs collapse to a verb-counted summary. Counting (rather than
+    // listing every call) is what keeps an 18-deep run to one line.
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toBeVisible()
+    // …and auto-collapsed once it settled.
+    await expect(summary).toHaveAttribute('aria-expanded', 'false')
+    await expect(summary).toContainText(/step/)
+    await expect(summary).toContainText(/edited 1 file/)
+    await expect(summary).toContainText(/ran 1 command/)
+
+    // The whole run is ONE group even though pi sent one message per tool
+    // call — this is the regression that made runs march down the page.
+    await expect(page.getByTestId('activity-group')).toHaveCount(1)
+
+    // Expanding shows the individual calls as rows.
+    await summary.click()
+    const group = page.getByTestId('activity-group')
+    await expect(group.getByRole('button', { name: /Edited\s+hello\.ts/ })).toBeVisible()
+    await expect(group.getByRole('button', { name: /Ran/ })).toBeVisible()
+
+    // Placeholder tool names never surface (pi ≥0.84 omits the name until
+    // toolcall_end).
+    await expect(page.getByText(/unknown/)).toHaveCount(0)
+
+    // Per-message cost is gone from the transcript (usage lives elsewhere).
+    await expect(page.locator('text=/\\$\\d+\\.\\d{4}/')).toHaveCount(0)
 
     // Streaming repair: the transcript briefly contained "**hello.ts" before
     // its closing marker arrived. Raw asterisks must never survive to the DOM.
@@ -246,6 +291,133 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
       })
     })
     expect(Math.max(...gaps)).toBeGreaterThanOrEqual(12)
+
+    // Extension status line arrived styled with ANSI SGR codes; the strip
+    // must show clean (optionally colored) text, never raw escape bytes.
+    const statusText = await page.getByText(/MCP: 2 servers enabled/).innerText()
+    expect(statusText).not.toContain('[38;2')
+    expect(statusText).not.toContain('\u001b')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('usage view aggregates cost and tokens from session files', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    await page.getByRole('button', { name: 'Usage' }).click()
+    await expect(page.getByText('Total cost')).toBeVisible({ timeout: 10_000 })
+
+    // The stub persisted an assistant message with usage → nonzero rollup.
+    await expect(page.getByText('$0.033').first()).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByText('Total cost')).toBeHidden()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('worktree flow: create from the branch chip, session groups under it', async () => {
+  // The workspace must be a git repo BEFORE the app queries git:info.
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-wt-'))
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const run = promisify(execFile)
+  await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
+  await run('git', ['init', '-b', 'main'], { cwd: workspace })
+  await run('git', ['config', 'user.email', 'e2e@pidex.dev'], { cwd: workspace })
+  await run('git', ['config', 'user.name', 'pidex e2e'], { cwd: workspace })
+  await run('git', ['add', '-A'], { cwd: workspace })
+  await run('git', ['commit', '-m', 'initial'], { cwd: workspace })
+
+  const harness = await launch({ workspace })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Create a worktree from the branch chip.
+    await page.getByTestId('branch-chip').click()
+    await page.getByRole('button', { name: 'New worktree…' }).click()
+    await page.getByPlaceholder('worktree / branch name').fill('task-1')
+    await page.getByRole('button', { name: 'Create worktree' }).click()
+
+    // Chip now targets the worktree.
+    await expect(page.getByTestId('branch-chip')).toContainText('task-1', { timeout: 10_000 })
+
+    // Start a session — it runs in the worktree cwd and groups under it.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('workspace-group').filter({ hasText: 'task-1' })).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // The chat header's git chip marks the worktree.
+    await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('MCP settings: chain rows, disable toggle, add project server', async () => {
+  // Seed a global server in the isolated agent dir (pi-global scope).
+  await writeFile(
+    join(agentDir, 'mcp.json'),
+    JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/sse' } } }),
+  )
+  // Dedicated prefs dir: project-scope writes target the ACTIVE workspace, so
+  // a `lastSessionPath` left by an earlier test could restore a different
+  // workspace and send the write there.
+  const harness = await launch({ userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-mcp-')) })
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'MCP', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'MCP servers' })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // The seeded global server resolves into the list.
+    await expect(page.getByText('linear', { exact: true })).toBeVisible()
+    await expect(page.getByText('https://mcp.linear.app/sse').first()).toBeVisible()
+
+    // Disable writes `"disabled": true` into the owning file. Plain click:
+    // the checkbox is controlled and only re-renders after the IPC round
+    // trip, which uncheck()'s immediate post-click assertion would race.
+    await page.getByRole('checkbox').first().click()
+    await expect
+      .poll(async () => {
+        const raw = await readFile(join(agentDir, 'mcp.json'), 'utf8')
+        return (JSON.parse(raw).mcpServers.linear as { disabled?: boolean }).disabled === true
+      })
+      .toBe(true)
+
+    // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
+    await page.getByRole('button', { name: 'Add server…' }).click()
+    await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
+    await page.getByRole('radio', { name: 'Local command' }).check()
+    await page.getByPlaceholder('npx some-mcp-server --flag').fill('npx local-tools-mcp')
+    await page.getByRole('radio', { name: /This project/ }).check()
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(join(workspace, '.pi', 'mcp.json'), 'utf8')
+          return (JSON.parse(raw).mcpServers['local-tools'] as { command?: string }).command
+        } catch {
+          return null
+        }
+      })
+      .toBe('npx')
   } finally {
     await shutdown(harness)
   }
@@ -395,12 +567,13 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
     const [r, g, b] = focused.match(/\d+/g)!.map(Number) as [number, number, number]
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
 
-    // Every chip opens a popover.
-    await page.getByRole('button', { name: 'Local' }).click()
-    await expect(page.getByText(/pi runs as a subprocess/)).toBeVisible()
+    // Every chip opens a popover. (The informational "Local" chip was removed —
+    // pidex only ever runs pi as a local subprocess.)
+    await page.getByTestId('workspace-chip').click()
+    await expect(page.getByText(/Open folder/)).toBeVisible()
     // PopupMenu dismisses on outside mousedown.
     await page.mouse.click(20, 400)
-    await expect(page.getByText(/pi runs as a subprocess/)).toBeHidden()
+    await expect(page.getByText(/Open folder/)).toBeHidden()
 
     // Attachment affordance is present next to the pickers.
     await expect(page.getByRole('button', { name: 'Attach images' })).toBeVisible()
@@ -420,7 +593,14 @@ test('artifact pane scrolls a long document', async () => {
     await page.getByRole('button', { name: /Start session/i }).click()
 
     // The artifact tool card carries the artifact's identity now, not a
-    // generic "Used artifact_create" row.
+    // generic "Used artifact_create" row. Tool rows live inside the turn's
+    // activity group, which collapses once the run settles.
+    // Wait for the run to settle (the group auto-collapses) before expanding —
+    // reading aria-expanded while it is still live races that transition.
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toBeVisible({ timeout: 30_000 })
+    await expect(summary).toHaveAttribute('aria-expanded', 'false', { timeout: 30_000 })
+    await summary.click()
     const card = page.getByRole('button', { name: /Created artifact\s+E2E Long Doc/ })
     await expect(card).toBeVisible({ timeout: 30_000 })
 
@@ -505,17 +685,34 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
   }
 })
 
-test('transcript rows are dense and sit flush', async () => {
+test('a long tool run collapses to one dense group', async () => {
   const harness = await launch()
   const { page } = harness
   try {
     await openWorkspace(page)
     // 40 tool-only turns: the shape a long agent run takes, and the only shape
-    // where virtualization and per-row spacing actually show up.
+    // where grouping and per-row spacing actually show up.
     await page.getByPlaceholder('Describe a task or ask a question').fill('run manyitems now')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText('many items complete')).toBeVisible({ timeout: 60_000 })
 
+    // pi emits one assistant message per tool call, so this run arrives as ~40
+    // messages. They must render as ONE activity row — that regression is what
+    // made long runs march down the page.
+    await expect(page.getByTestId('activity-group')).toHaveCount(1)
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toContainText(/\d+ steps/)
+
+    // Settled ⇒ collapsed: the whole run costs a single line until asked for.
+    await expect(summary).toHaveAttribute('aria-expanded', 'false')
+    const collapsedHeight = await page.evaluate(
+      () =>
+        document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect().height ??
+        0,
+    )
+    expect(collapsedHeight).toBeLessThan(44)
+
+    await summary.click()
     const geometry = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
       const sorted = rows
@@ -528,29 +725,21 @@ test('transcript rows are dense and sit flush', async () => {
         if (current.index !== previous.index + 1) continue
         worstGap = Math.max(worstGap, current.rect.top - previous.rect.bottom)
       }
-      // Measure rows that actually contain a tool card. Filtering by "has no
-      // markdown body" also caught the user bubble (plain pre-wrap text, not
-      // markdown), whose padding + timestamp row is legitimately ~58px — the
-      // assertion failed on a message it was never meant to measure.
-      const toolRowHeights = rows
-        .filter((el) => el.querySelector('.tool-card'))
-        .map((el) => el.getBoundingClientRect().height)
+      // Density is now per tool card inside the group, not per virtualized row.
+      const cards = [...document.querySelectorAll('.tool-card')] as HTMLElement[]
+      const heights = cards.map((el) => el.getBoundingClientRect().height)
       return {
         worstGap,
-        tallestToolRow: Math.max(...toolRowHeights),
-        toolRows: toolRowHeights.length,
-        rows: sorted.length,
+        tallestCard: heights.length ? Math.max(...heights) : 0,
+        cards: heights.length,
       }
     })
 
-    expect(geometry.rows).toBeGreaterThan(5)
-    expect(geometry.toolRows).toBeGreaterThan(3)
-    // Density: one tool row used to occupy 63px for ~20px of text, because the
-    // row's gap was owned in four places at once (pt-4 + pb-0.5 + my-2 + py-1).
-    // With `spacingFor` as the single owner it is ~33px. 44px leaves headroom
-    // for font-metric differences between platforms while still failing on a
-    // regression to the old stacking.
-    expect(geometry.tallestToolRow).toBeLessThan(44)
+    expect(geometry.cards).toBeGreaterThan(3)
+    // One tool line used to occupy 63px for ~20px of text (four owners of the
+    // same gap at once). Inside the group a settled row is ~26px; 40px leaves
+    // headroom for platform font metrics while still failing on a regression.
+    expect(geometry.tallestCard).toBeLessThan(40)
     // Spacing lives *inside* each measured wrapper, so measured rows are flush.
     expect(geometry.worstGap).toBeLessThan(8)
   } finally {

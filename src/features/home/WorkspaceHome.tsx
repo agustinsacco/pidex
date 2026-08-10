@@ -6,10 +6,12 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
-import { formatTokens } from '@/lib/format'
+import { formatCost, formatTokens } from '@/lib/format'
+import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
-import { BranchIcon, CheckIcon } from '@/components/icons'
+import { CheckIcon } from '@/components/icons'
 import { bytesToBase64 } from '@/lib/base64'
+import { BranchWorktreeChip, type StartTarget } from '@/features/worktrees/BranchWorktreeChip'
 
 interface PendingImage {
   data: string
@@ -24,6 +26,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
   const [starting, setStarting] = useState(false)
+  /** Where the next session runs: null = this workspace, else a worktree. */
+  const [startTarget, setStartTarget] = useState<StartTarget | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const workspaceName = workspaceDisplayName(workspacePath)
 
@@ -50,6 +54,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   }
 
   useEffect(() => {
+    setStartTarget(null)
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
     void window.pidex.invoke('git:info', workspacePath).then(setGit)
     void window.pidex
@@ -63,7 +68,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     if (!message || starting) return
     setStarting(true)
     try {
-      await useSessionsStore.getState().createSession(workspacePath, {
+      // Worktree sessions start in the worktree's cwd — pi records sessions
+      // under that folder, so the sidebar groups them under the worktree.
+      await useSessionsStore.getState().createSession(startTarget?.cwd ?? workspacePath, {
         firstPrompt: message,
         firstImages: images.map((img) => ({
           type: 'image',
@@ -99,7 +106,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               <Heatmap activityByDay={stats.activityByDay} />
               {stats.cost > 0 && (
                 <div className="text-text-tertiary mt-2 px-1 text-[11.5px]">
-                  You&apos;ve spent ${stats.cost.toFixed(2)} thinking out loud in {workspaceName}.
+                  You&apos;ve spent {formatCost(stats.cost)} thinking out loud in {workspaceName}.
                 </div>
               )}
             </div>
@@ -115,9 +122,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
         <div className="mt-auto w-full max-w-2xl pb-8 pt-8">
           <div className="mb-2 flex items-center gap-1.5 px-1">
-            <EnvironmentChip />
             <WorkspaceChip workspacePath={workspacePath} name={workspaceName} />
-            {git?.isRepo && git.branch && <BranchChip git={git} workspacePath={workspacePath} />}
+            {git?.isRepo && git.branch && (
+              <BranchWorktreeChip
+                workspacePath={workspacePath}
+                git={git}
+                target={startTarget}
+                onSelect={setStartTarget}
+              />
+            )}
           </div>
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
@@ -180,17 +193,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function StatTile({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div className="bg-surface border-border rounded-lg border px-3 py-2.5">
-      <div className="text-text-tertiary font-mono text-[10px] uppercase tracking-wider">
-        {label}
-      </div>
-      <div className="text-text mt-0.5 text-[17px] font-semibold tabular-nums">{value}</div>
     </div>
   )
 }
@@ -306,22 +308,6 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-function MonitorIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8M12 17v4" />
-    </svg>
-  )
-}
-
 function FolderIcon(): React.JSX.Element {
   return (
     <svg
@@ -334,93 +320,6 @@ function FolderIcon(): React.JSX.Element {
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
-  )
-}
-
-/**
- * Where the agent runs. pidex only ever spawns pi as a local subprocess, so
- * there is nothing to switch to yet; the popover says so plainly rather than
- * offering a disabled "Remote" row that implies a feature that does not
- * exist.
- */
-function EnvironmentChip(): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  return (
-    <span className="relative">
-      <Chip icon={<MonitorIcon />} onClick={() => setOpen((o) => !o)} open={open}>
-        Local
-      </Chip>
-      {open && (
-        <PopupMenu
-          onClose={() => setOpen(false)}
-          className="absolute bottom-full left-0 z-40 mb-1.5 w-64 p-3"
-        >
-          <div className="text-text text-[13px] font-medium">Local</div>
-          <p className="text-text-secondary mt-1 text-[12px] leading-relaxed">
-            pi runs as a subprocess on this machine, with the workspace folder as its working
-            directory. Remote execution isn&apos;t available yet.
-          </p>
-        </PopupMenu>
-      )}
-    </span>
-  )
-}
-
-/**
- * Branch status. Read-only on purpose: switching branches from a chip next to
- * the composer would mutate the working tree behind the user's back, and
- * there is no checkout IPC to do it safely. It reports state and hands off to
- * the terminal.
- */
-function BranchChip({
-  git,
-  workspacePath,
-}: {
-  git: GitInfo
-  workspacePath: string
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const dirty = git.dirtyCount ?? 0
-
-  return (
-    <span className="relative">
-      <Chip
-        icon={<BranchIcon />}
-        onClick={() => setOpen((o) => !o)}
-        open={open}
-        title={`Branch ${git.branch ?? ''}`}
-      >
-        {git.branch}
-        {dirty > 0 ? <span className="text-warning ml-1">·{dirty}</span> : null}
-      </Chip>
-      {open && (
-        <PopupMenu
-          onClose={() => setOpen(false)}
-          className="absolute bottom-full left-0 z-40 mb-1.5 w-64 py-1.5"
-        >
-          <div className="px-3 pb-1.5 pt-1">
-            <div className="text-text truncate text-[13px] font-medium">{git.branch}</div>
-            <div className="text-text-secondary mt-1 text-[12px]">
-              {dirty > 0
-                ? `${dirty} uncommitted change${dirty === 1 ? '' : 's'}`
-                : 'Working tree clean'}
-              {git.ahead ? ` · ${git.ahead} ahead` : ''}
-              {git.behind ? ` · ${git.behind} behind` : ''}
-            </div>
-          </div>
-          <div className="border-border my-1 border-t" />
-          <MenuRow
-            active={false}
-            onClick={() => {
-              setOpen(false)
-              void window.pidex.invoke('app:revealPath', workspacePath)
-            }}
-          >
-            <span className="text-[13px]">Reveal in file manager</span>
-          </MenuRow>
-        </PopupMenu>
-      )}
-    </span>
   )
 }
 

@@ -5,6 +5,7 @@ import { handle } from './handle'
 import { userInfo } from 'node:os'
 import {
   getPrefs,
+  markSessionSeen,
   recordWorkspace,
   setCollapsedWorkspaces,
   setFontPrefs,
@@ -102,7 +103,16 @@ export function registerAppHandlers(): void {
     setRecentWorkspaces(workspaces)
   })
 
-  handle('app:userInfo', () => ({ username: userInfo().username }))
+  handle('app:markSessionSeen', (_event, sessionPath: string) => {
+    markSessionSeen(sessionPath)
+  })
+
+  handle('app:userInfo', () => ({
+    username: userInfo().username,
+    // Only the profile NAME, never credentials — used to build the right
+    // `aws sso login --profile …` suggestion when a token expires.
+    awsProfile: process.env.AWS_PROFILE || undefined,
+  }))
 
   handle('app:about', () => ({
     appVersion: app.getVersion(),

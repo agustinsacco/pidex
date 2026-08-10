@@ -13,9 +13,18 @@ import type {
   ThinkingLevelMap,
 } from './rpc'
 import type {
+  McpCacheEntry,
+  McpConfigsResult,
+  McpScope,
+  McpServerConfig,
+  McpWriteScope,
+} from './mcp'
+import type {
+  AddWorktreeBranch,
   AppPrefs,
   AboutInfo,
   AgentSettingsHealth,
+  BranchInfo,
   CreateSessionOptions,
   DirEntry,
   FileContent,
@@ -28,8 +37,10 @@ import type {
   SessionMeta,
   SessionPush,
   ThemePreference,
+  UsageSummary,
   WorkspaceInfo,
   WorkspaceSessionStats,
+  WorktreeInfo,
 } from './models'
 
 /** Parsed session tree (subset of entries) for the tree view. */
@@ -96,7 +107,10 @@ export interface IpcInvokeMap {
    * session is ever created.
    */
   'app:recordWorkspace': { args: [path: string]; result: void }
-  'app:userInfo': { args: []; result: { username: string } }
+  /** Mark a session file as viewed now (unseen-pill bookkeeping). */
+  'app:markSessionSeen': { args: [sessionPath: string]; result: void }
+  /** `awsProfile` lets error remedies suggest the right `aws sso login`. */
+  'app:userInfo': { args: []; result: { username: string; awsProfile?: string } }
   'app:about': { args: []; result: AboutInfo }
   'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
   'app:revealPath': { args: [string]; result: void }
@@ -130,7 +144,41 @@ export interface IpcInvokeMap {
   'pi:checkAgentSettings': { args: [workspacePath?: string]; result: AgentSettingsHealth }
   'pi:listResources': { args: []; result: PiResources }
 
+  /**
+   * MCP config chain (pi-mcp-adapter). The renderer names scopes; paths are
+   * resolved in main only.
+   */
+  'mcp:readConfigs': { args: [workspacePath?: string]; result: McpConfigsResult }
+  'mcp:upsertServer': {
+    args: [
+      scope: McpWriteScope,
+      workspacePath: string | undefined,
+      name: string,
+      config: McpServerConfig,
+    ]
+    result: void
+  }
+  'mcp:removeServer': {
+    args: [scope: McpScope, workspacePath: string | undefined, name: string]
+    result: void
+  }
+  'mcp:setDisabled': {
+    args: [scope: McpScope, workspacePath: string | undefined, name: string, disabled: boolean]
+    result: void
+  }
+  'mcp:readCache': { args: []; result: McpCacheEntry[] }
+  'mcp:readFile': {
+    args: [scope: McpScope, workspacePath: string | undefined]
+    result: { path: string; content: string }
+  }
+  'mcp:writeFile': {
+    args: [scope: McpScope, workspacePath: string | undefined, content: string]
+    result: void
+  }
+
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
+  /** Usage rollup across all workspaces (Usage view; user-initiated). */
+  'sessions:usage': { args: []; result: UsageSummary }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }
@@ -144,6 +192,8 @@ export interface IpcInvokeMap {
   'sessions:forkAt': { args: [sessionFilePath: string, targetId: string]; result: string }
 
   'git:info': { args: [workspacePath: string]; result: GitInfo }
+  /** Cheap cached summaries (branch/worktree/dirty) for many cwds at once. */
+  'git:infoBatch': { args: [cwds: string[]]; result: Record<string, GitInfo> }
   'git:statusMap': { args: [workspacePath: string]; result: Record<string, string> }
   'git:sessionBaseline': { args: [workspacePath: string]; result: string | null }
   'git:showFileAt': {
@@ -153,6 +203,37 @@ export interface IpcInvokeMap {
   'git:restoreFileTo': {
     args: [workspacePath: string, ref: string, relativePath: string]
     result: { restored: boolean; deleted: boolean }
+  }
+  'git:listWorktrees': { args: [repoPath: string]; result: WorktreeInfo[] }
+  'git:listBranches': {
+    args: [repoPath: string]
+    result: { branches: BranchInfo[]; defaultBranch: string }
+  }
+  /** Create `<repo>/.pidex/worktrees/<name>` on a new or existing branch. */
+  'git:addWorktree': {
+    args: [repoPath: string, name: string, branch: AddWorktreeBranch]
+    result: WorktreeInfo
+  }
+  /** Dirty worktrees are refused unless forced; branch delete is `-d` only. */
+  'git:removeWorktree': {
+    args: [
+      repoPath: string,
+      worktreePath: string,
+      options: { force?: boolean; deleteBranch?: boolean },
+    ]
+    result:
+      | { removed: true; branchDeleted: boolean; branchError?: string }
+      | { removed: false; dirtyCount: number }
+  }
+  'git:pruneWorktrees': { args: [repoPath: string]; result: { pruned: string[] } }
+  'git:commitAll': { args: [worktreePath: string, message: string]; result: { sha: string } }
+  /** Merge into the main tree's current branch; aborts cleanly on conflict. */
+  'git:mergeBranch': {
+    args: [repoPath: string, branch: string]
+    result:
+      | { merged: true; sha: string }
+      | { merged: false; reason: 'dirty'; dirtyCount: number }
+      | { merged: false; reason: 'conflict'; conflicts: string[] }
   }
 
   'fs:readDir': {
@@ -207,6 +288,8 @@ export interface PidexApi {
   onPtyData(ptyId: string, listener: (data: string) => void): () => void
   /** PTY exit notification; returns unsubscribe. */
   onPtyExit(ptyId: string, listener: (exitCode: number) => void): () => void
+  /** Busy map broadcast (ptyId → foreground process running); unsubscribe. */
+  onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(

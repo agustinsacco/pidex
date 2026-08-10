@@ -260,3 +260,108 @@ Plan: [CHAT_UX_PHASE0_PLAN.md](CHAT_UX_PHASE0_PLAN.md)
 - 2026-08-08 — Method note: the A3 "virtualizer estimate causes the gaps" hypothesis was **refuted** by the measurement it was gated behind (0.1px gaps at the old estimate). Restyling margins first would have "fixed" the symptom for the wrong reason. The plan's Phase 0 gate earned its place; keep gating layout hypotheses on a harness measurement.
 - 2026-08-08 — Process note: two agent sessions edited this tree concurrently; one committed `1e55008` and discarded the rest of the working tree, destroying unrelated uncommitted work (a WorkingIndicator component, an extracted `items/spacing.ts`, model-catalogue changes). Untracked files were unrecoverable. Checkpoint-commit before parallel work on the same tree.
 - 2026-08-09 — Adversarial review pass over the whole branch (7 reviewers + per-finding refutation): 40 findings raised, 1 refuted, 4 downgraded. Fixed here, each with a regression test: `artifact_update` cards rendering the sentinel type `update` (wrong glyph) and the slug id as title (store metadata now wins); `partialStringArg` mangling `\uXXXX`/`\r`/`\b`/`\f` escapes ("Café"→"Cafu00e9") — now decodes the full JSON escape set and bails on unknown ones; the placeholder tools-map entry leaking on the ordering real pi actually produces (`message_end` before `tool_execution_*` — the unit suite only covered the inverse, which pi never emits); `toolcall_end` duplicating the re-key mechanics of `applyRevealedIdentity` (now one owner); tool cards remounting on identity adoption (keyed by position, not the mutable id); the thinking chip misreporting after a model switch (pi re-clamps during `set_model`; state is re-read) and offering the previous model's levels (cleared synchronously so the local derivation covers the gap); the thinking menu duplicated between both pickers (extracted `ThinkingMenu`); `sessionTitle` bypassed by the palette and tree modal; astral characters split at the elision boundary; scrollbar-drag and wheel-down-at-bottom not registering as intent; unpin stranding a non-overflowing transcript; sending a message not re-pinning; the jump pill labelling state instead of its action; `isToolOnlyTurn` reflowing the row 8px at `text_end`; the artifacts viewer yanking a reader off a pinned older version. Also restored the two features destroyed by the concurrent-session incident above (WorkingIndicator + the model-catalogue RPC rework), the latter now carrying `thinkingLevelMap` so the home picker derives real per-model levels instead of assuming five. **Two e2e assertions were proven vacuous by reintroducing the bugs they guard**: the "unknown" check passed with `Running unknown` restored (point-in-time count-0 against a window a few ticks wide) — now a MutationObserver over the whole stream, re-verified to fail when the bug returns. Evidence: 423 unit (32 files) + 11 e2e green.
+
+## P12 — UI refinements + platform features (10-item pass) `✅`
+
+Specs: [WORKTREES.md](WORKTREES.md) · [11-mcp.md](11-mcp.md)
+
+- [x] Removed the informational "Local" chip from the home composer
+- [x] ANSI-safe extension UI: `src/lib/ansi.ts` (stripAnsi + ansiToSpans); status strip and composer widgets render SGR colors, toasts/dialogs strip — fixes raw `[38;2;…m` bytes in the bottom bar
+- [x] pi protocol mirror refreshed to **0.84.1** (`MIN_PI_VERSION` bumped): delta-only `message_update` (no cumulative `message`/`partial`), `agent_settled`/`bash_execution_update`/`summarization_retry_*` events, `get_available_thinking_levels`/`get_entries`/`get_tree` commands mirrored, ThinkingLevel `max`; dead partial-read removed from the chat reducer; thinking levels now fetched over RPC
+- [x] Transcript redesign: consecutive thinking+tool blocks group into one activity unit (`items/ActivityGroup.tsx` + reshaped `groupBlocks`) — expanded card while live, collapsed one-line summary when settled; hover meta became a zero-height floating pill (copy + time, **per-message cost removed**); `spacingFor` tightened (~40px → ~14px between messages)
+- [x] Sidebar: PiSpark while streaming, green pill = persisted **unseen activity** (`seenSessions` pref + `app:markSessionSeen`, pure `unseen.ts`), hollow-green = live-but-seen; compact rows; subtitle = time · wt · ⎇ branch · ±dirty · cost via batched cached `git:infoBatch` (GitInfo gained `isWorktree`/`mainRepoPath`)
+- [x] Terminals re-keyed **per session** (spawned in the session cwd); PTYs killed on session dispose (artifacts cleanup gap fixed too); foreground-process busy detection (`IPty.process` polling → `pty:status`); terminal + artifacts header buttons gained count badges and running dots
+- [x] Usage: scanner splits token classes; `sessions:usage` rollup across every session dir grouped by header cwd; Usage modal (sidebar nav) with sortable per-workspace/session table; `formatCost`; ContextMeter popover sectioned, shows "no pricing configured" (models.json rates) instead of a misleading $0.0000
+- [x] Worktrees full lifecycle under `<repo>/.pidex/worktrees/` — see WORKTREES.md
+- [x] MCP first-class: Settings → MCP over the pi-mcp-adapter config chain — see 11-mcp.md
+
+**Done when:** all ten user-reported items addressed; typecheck/lint/prettier/unit/e2e green.
+
+**Log:**
+
+- 2026-08-10 — All ten items landed in one pass. Verification: typecheck, lint, prettier, 415+ unit tests, 12 e2e (3 new: usage view, worktree flow, MCP settings). UX_REFACTOR_PLAN item C6 (worktree chip) is now implemented by `BranchWorktreeChip`. Deviations from the approved plan: terminal scrollback preserved by keeping all sessions' xterm views mounted (existing idiom) instead of a main-process ring buffer + `pty:buffer` IPC; MCP raw file editing uses a plain textarea escape hatch instead of refactoring the Monaco `ConfigFileEditor`.
+
+---
+
+## P13 — Transcript density: turn-level activity grouping `✅`
+
+Design review artifact: four options measured against real session files
+(`~/.pi/agent/sessions`), 356 assistant messages analysed.
+
+**The finding that drove it:** pi emits ONE assistant message per tool call
+(302 of 356 messages carried exactly one). P11's grouping worked only _inside_
+a single message, so it could never collapse a run — every call became its own
+top-level row paying full inter-message spacing. Runs are commonly 3 deep and
+go to 18. That is why "Thought · Ran …" repeated down the page instead of
+stacking, and why framed and bare rows alternated.
+
+- [x] **A · turn-level spine** — new `items/transcriptRows.ts`
+      (`buildTranscriptRows`) groups activity ACROSS message boundaries: a
+      contiguous run of thinking + tool calls is one row regardless of how many
+      messages produced it. Prose, user, bash and dividers stay their own rows,
+      so ordering is preserved. `MessageList` now virtualizes over
+      `TranscriptRow[]` rather than raw items. Measured on a real 22-tool turn:
+      **1135px → 274px (4.1× tighter)**.
+- [x] **B · thinking demoted to the gutter** — thinking never occupies a row.
+      It becomes a `✳` mark in the left gutter of the step it preceded; hover or
+      focus previews, click pins. Zero vertical cost until asked for (median
+      thinking is 337 chars, p90 1.6k — a preview, not a document).
+- [x] **D · live vs settled** — a group with work in flight is open and
+      accent-bordered; once settled it auto-collapses to the summary line. An
+      explicit user toggle always wins, and is reset if the group goes live again.
+- [x] Collapsed head is verb-counted (`summarizeActivity` + new `settledVerb`),
+      not a list: "9 steps · edited 5 files, ran 2 commands · 1 thought". Counting
+      is what keeps an 18-deep run to one line. Failures surface as an
+      "N failed" badge.
+- [x] "Running unknown" is fixed by P11's `toolIdentity.ts` (`toolName: null` +
+      adoption), which landed independently on main and is the better fix; the
+      stopgap from this branch was dropped during the rebase.
+- [x] `items/groupBlocks.ts` deleted (superseded); `AssistantMessage` split into
+      `AssistantText` + `AssistantOutcome` row renderers.
+
+**Done when:** a multi-tool run reads as one collapsible unit; typecheck, lint,
+prettier, unit and e2e green.
+
+**Log:**
+
+- 2026-08-10 — Landed with 16 new unit tests for the grouping layer (including
+  a regression test that a 4-message tool run produces ONE activity row) and
+  e2e assertions for the collapsed summary, single-group invariant, live-open →
+  settled-collapsed transition, and absence of placeholder tool names. Also
+  hardened the MCP e2e test with its own prefs dir: project-scope writes target
+  the active workspace, and a `lastSessionPath` left by an earlier test could
+  restore a different one (observed as a one-off flake).
+
+**Rebase onto P11 (#5), 2026-08-10.** #5 independently diagnosed the same root
+cause (`isToolOnlyTurn` — "pi emits a fresh message per tool round") and treated
+it with tight spacing; this branch treats it structurally, so the two had to be
+reconciled rather than merged mechanically. Decisions:
+
+- Kept #5 wholesale where it is strictly better: `toolIdentity.ts` (nullable
+  `toolName`, placeholder adoption — supersedes this branch's `'unknown'`
+  stopgap AND restores the `partial` read this branch had deleted as dead),
+  `items/autoscroll.ts` intent-based pinning, the awaited-`get_state` fix for
+  the relaunch race, and the richer `shared/rpc.ts` mirror comments.
+- Rewrote `items/spacing.ts` for rows and deleted `isToolOnlyTurn`: consecutive
+  tool-only messages no longer need a spacing special case, because they merge
+  into one activity row before spacing is consulted. Its test file moved to the
+  row API with the same intent.
+- `ActivityGroup` now threads `sessionId` to `ToolCard` (#5 needs it for
+  artifact actions) and tolerates `toolName: null` in the verb summary.
+- Caught by the rebase: `settledVerb` had no `artifact_create`/`artifact_update`
+  case, so an artifact turn summarized as "used 1 tool" instead of "created 1
+  artifact" — #5's artifact-identity work is what made this visible. Fixed with
+  a regression test.
+- Also caught by the rebase, in this branch's own code: marking the _active_
+  session seen on every `message_end` wrote to prefs on every token-batch, and
+  that write raced `setLastSession` during teardown — a session closed right
+  after a reply lost its resume path, so the next launch landed on the
+  workspace home with an empty session list. Removed (it was redundant:
+  `activate` / `bootstrapSession` already mark seen, and the pill only
+  describes sessions you are not looking at). The multi-workspace sidebar e2e
+  is what caught it; bisected by reverting that single line.
+- e2e: kept #5's working-strip assertion and merged both MutationObserver
+  probes into one; rewrote "transcript rows are dense" as "a long tool run
+  collapses to one dense group" — 40 tool-only turns are now ONE row, so the
+  density assertion moved from per-virtualized-row to per-tool-card, plus a new
+  collapsed-height check.

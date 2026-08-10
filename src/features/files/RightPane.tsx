@@ -13,8 +13,10 @@ import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
  */
 export const RightPane = memo(function RightPane({
   workspacePath,
+  sessionId,
 }: {
   workspacePath: string
+  sessionId: string
 }): React.JSX.Element | null {
   const rightPane = useLayoutStore((s) => s.rightPane)
   if (!rightPane) return null
@@ -34,7 +36,9 @@ export const RightPane = memo(function RightPane({
             <FilesChangedPane workspacePath={workspacePath} />
           </PaneShell>
         )}
-        {rightPane === 'terminal' && <TerminalPane workspacePath={workspacePath} />}
+        {rightPane === 'terminal' && (
+          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
+        )}
         {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
       </div>
     </div>

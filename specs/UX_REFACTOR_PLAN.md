@@ -281,7 +281,7 @@ at top-right. pidex has the right-side ones but not the left pair.
 
 Files: `src/features/sessions/Sidebar.tsx`, `ChatView.tsx`.
 
-### C6 · Composer chips: missing `+` affordance and worktree state — **P3**
+### C6 · Composer chips: missing `+` affordance and worktree state — **P3** — **implemented** by `BranchWorktreeChip` (see WORKTREES.md)
 
 Reference chip row is `Local · <folder> · <branch> [✓ worktree] · [+]`.
 pidex renders Local/folder/branch only. The `+` (add folder) and worktree

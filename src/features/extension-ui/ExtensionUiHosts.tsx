@@ -3,6 +3,28 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
 import { CloseIcon } from '@/components/icons'
+import { ansiToSpans, stripAnsi } from '@/lib/ansi'
+
+/**
+ * Extension-authored text styled with ANSI SGR codes, rendered as colored
+ * runs. pi extensions style for pi's own TUI; we honor foreground colors and
+ * drop everything else rather than letting escape bytes reach the DOM.
+ */
+function AnsiText({ text }: { text: string }): React.JSX.Element {
+  return (
+    <>
+      {ansiToSpans(text).map((span, i) =>
+        span.color ? (
+          <span key={i} style={{ color: span.color }}>
+            {span.text}
+          </span>
+        ) : (
+          <span key={i}>{span.text}</span>
+        ),
+      )}
+    </>
+  )
+}
 
 /** Modal host for extension dialogs (select / confirm / input / editor). */
 export function ExtensionDialogHost(): React.JSX.Element | null {
@@ -61,7 +83,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="border-border bg-surface-raised w-[480px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border border-b px-4 py-3">
-          <div className="text-[13.5px] font-semibold">{request.title}</div>
+          <div className="text-[13.5px] font-semibold">{stripAnsi(request.title)}</div>
           <div className="text-text-tertiary mt-0.5 text-[11px]">Requested by a pi extension</div>
         </div>
 
@@ -77,14 +99,15 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
                   index === selectedIndex && 'bg-bg-secondary',
                 )}
               >
-                {option}
+                {/* Display-only strip: the response echoes the raw option. */}
+                {stripAnsi(option)}
               </button>
             ))}
           </div>
         )}
 
         {request.method === 'confirm' && (
-          <div className="px-4 py-3 text-[13px]">{request.message}</div>
+          <div className="px-4 py-3 text-[13px]">{stripAnsi(request.message)}</div>
         )}
 
         {request.method === 'input' && (
@@ -195,7 +218,9 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
               : 'bg-info',
         )}
       />
-      <span className="text-text min-w-0 flex-1 text-[12.5px] leading-snug">{toast.message}</span>
+      <span className="text-text min-w-0 flex-1 text-[12.5px] leading-snug">
+        {stripAnsi(toast.message)}
+      </span>
       <button
         onClick={() => useExtensionUiStore.getState().dismissToast(toast.id)}
         className="text-text-tertiary hover:text-text shrink-0"
@@ -211,14 +236,17 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
   const statuses = useExtensionUiStore((s) => s.statuses[sessionId])
   if (!statuses || Object.keys(statuses).length === 0) return null
   return (
-    <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 overflow-x-auto border-t px-3">
+    <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 border-t px-3">
       {Object.entries(statuses).map(([key, text]) => (
         <span
           key={key}
-          className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-[10.5px]"
+          title={stripAnsi(text)}
+          className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-[10.5px]"
         >
-          <span className="bg-info h-1.5 w-1.5 rounded-full" />
-          {text}
+          <span className="bg-info h-1.5 w-1.5 shrink-0 rounded-full" />
+          <span className="truncate">
+            <AnsiText text={text} />
+          </span>
         </span>
       ))}
     </div>
@@ -245,7 +273,7 @@ export function WidgetSlot({
         >
           {widget.lines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap">
-              {line}
+              <AnsiText text={line} />
             </div>
           ))}
         </div>

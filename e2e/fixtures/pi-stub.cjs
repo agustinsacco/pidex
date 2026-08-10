@@ -183,12 +183,44 @@ function handle(cmd) {
   }
 }
 
+let entrySeq = 1
+/** Persist a message entry to the session file, as real pi does — the
+ * sidebar scanner and Usage view read usage/cost from disk, not RPC. */
+function persist(message) {
+  try {
+    fs.appendFileSync(
+      SESSION_FILE,
+      JSON.stringify({
+        type: 'message',
+        id: `bbbb${String(entrySeq).padStart(4, '0')}`,
+        parentId: entrySeq === 1 ? 'aaaa0001' : `bbbb${String(entrySeq - 1).padStart(4, '0')}`,
+        timestamp: new Date().toISOString(),
+        message,
+      }) + '\n',
+    )
+    entrySeq++
+  } catch {
+    /* best effort */
+  }
+}
+
 function runTurn() {
   const steps = []
   const push = (fn) => steps.push(fn)
 
   push(() => out({ type: 'agent_start' }))
   push(() => out({ type: 'turn_start' }))
+  // Extension status line styled with ANSI SGR (as pi-mcp-adapter does):
+  // the app must render clean text, never raw escape bytes.
+  push(() =>
+    out({
+      type: 'extension_ui_request',
+      id: 'ext-status-1',
+      method: 'setStatus',
+      statusKey: 'stub-mcp',
+      statusText: '[38;2;138;190;183mMCP: 2 servers enabled[39m',
+    }),
+  )
   // Third consecutive call: makes this a 3-tool run (grouping) and stays
   // "running" for several ticks so the in-flight animation is observable.
   push(() =>
@@ -217,7 +249,6 @@ function runTurn() {
     push(() =>
       out({
         type: 'message_update',
-        message: { role: 'assistant', content: [] },
         assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
       }),
     )
@@ -225,7 +256,6 @@ function runTurn() {
   push(() =>
     out({
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: {
         type: 'toolcall_end',
         contentIndex: 1,
@@ -238,37 +268,36 @@ function runTurn() {
       },
     }),
   )
-  push(() =>
-    out({
-      type: 'message_end',
-      message: {
-        role: 'assistant',
-        content: [
-          { type: 'text', text: 'Editing the file now.' },
-          {
-            type: 'toolCall',
-            id: 'call_edit',
-            name: 'edit',
-            arguments: { path: 'hello.ts', edits: [] },
-          },
-          {
-            type: 'toolCall',
-            id: 'call_art',
-            name: 'artifact_create',
-            arguments: { title: 'E2E Card' },
-          },
-          {
-            type: 'toolCall',
-            id: 'call_bash',
-            name: 'bash',
-            arguments: { command: 'npm test' },
-          },
-        ],
-        stopReason: 'toolUse',
-        timestamp: Date.now(),
-      },
-    }),
-  )
+  push(() => {
+    const message = {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'Editing the file now.' },
+        {
+          type: 'toolCall',
+          id: 'call_edit',
+          name: 'edit',
+          arguments: { path: 'hello.ts', edits: [] },
+        },
+        {
+          type: 'toolCall',
+          id: 'call_art',
+          name: 'artifact_create',
+          arguments: { title: 'E2E Card' },
+        },
+        {
+          type: 'toolCall',
+          id: 'call_bash',
+          name: 'bash',
+          arguments: { command: 'npm test' },
+        },
+      ],
+      stopReason: 'toolUse',
+      timestamp: Date.now(),
+    }
+    persist(message)
+    out({ type: 'message_end', message })
+  })
   push(() =>
     out({
       type: 'tool_execution_start',
@@ -320,7 +349,6 @@ function runTurn() {
   push(() =>
     out({
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: {
         type: 'text_delta',
         contentIndex: 0,
@@ -331,7 +359,6 @@ function runTurn() {
   push(() =>
     out({
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: {
         type: 'text_delta',
         contentIndex: 0,
@@ -339,17 +366,24 @@ function runTurn() {
       },
     }),
   )
-  push(() =>
-    out({
-      type: 'message_end',
-      message: {
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Done: **hello.ts** updated.' }],
-        stopReason: 'stop',
-        timestamp: Date.now(),
+  push(() => {
+    const message = {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Done: **hello.ts** updated.' }],
+      stopReason: 'stop',
+      timestamp: Date.now(),
+      usage: {
+        input: 1200,
+        output: 300,
+        cacheRead: 4000,
+        cacheWrite: 150,
+        totalTokens: 5650,
+        cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
       },
-    }),
-  )
+    }
+    persist(message)
+    out({ type: 'message_end', message })
+  })
   push(() => out({ type: 'agent_end', messages: [] }))
 
   // Sequential so a step may await (used to hold a tool "running").

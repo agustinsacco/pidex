@@ -196,6 +196,23 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     })
   }
 
+  /**
+   * Immediate, synchronous kill for signal-initiated shutdown, where there is
+   * no time to await an exit (the parent is already tearing the group down).
+   * SIGTERM lets pi flush its session file; the process is about to die
+   * anyway, so nothing waits for confirmation.
+   */
+  killNow(): void {
+    const child = this.child
+    if (!child || child.exitCode !== null) return
+    this.shuttingDown = true
+    try {
+      child.kill('SIGTERM')
+    } catch {
+      // already gone
+    }
+  }
+
   private handleLine(line: string): void {
     let parsed: unknown
     try {

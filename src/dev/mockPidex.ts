@@ -168,6 +168,10 @@ const MOCK_DISK_SESSIONS = [
     assistantMessages: 18,
     toolCalls: 42,
     totalTokens: 812_000,
+    inputTokens: 96_000,
+    outputTokens: 41_000,
+    cacheReadTokens: 640_000,
+    cacheWriteTokens: 35_000,
     cost: 1.24,
     entryCount: 96,
     branchCount: 2,
@@ -184,6 +188,10 @@ const MOCK_DISK_SESSIONS = [
     assistantMessages: 4,
     toolCalls: 9,
     totalTokens: 120_500,
+    inputTokens: 22_000,
+    outputTokens: 8_500,
+    cacheReadTokens: 88_000,
+    cacheWriteTokens: 2_000,
     cost: 0.31,
     entryCount: 18,
     branchCount: 0,
@@ -367,6 +375,8 @@ export function installMockPidex(): void {
             ],
             pinnedSessions: [],
             collapsedWorkspaces: [],
+            // Session "b" has activity newer than its marker → unseen pill.
+            seenSessions: { '/mock/sessions/b.jsonl': Date.parse('2026-08-01T00:00:00.000Z') },
             fonts: {
               uiScale: 1,
               chatFontSize: 14.5,
@@ -399,6 +409,85 @@ export function installMockPidex(): void {
             defaultProvider: 'anthropic',
             defaultModel: 'claude-opus-5',
             defaultThinkingLevel: 'medium',
+            packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
+          })
+        case 'mcp:readConfigs':
+          return Promise.resolve({
+            servers: [
+              {
+                name: 'linear',
+                config: {
+                  url: 'https://mcp.linear.app/sse',
+                  directTools: ['get_issue', 'save_issue'],
+                },
+                scope: 'pi-global',
+                shadows: [],
+              },
+              {
+                name: 'snowflake',
+                config: { command: 'npx', args: ['snowflake-mcp'], disabled: true },
+                scope: 'pi-project',
+                shadows: ['pi-global'],
+              },
+            ],
+            files: [
+              {
+                scope: 'xdg',
+                path: '/Users/dev/.config/mcp/mcp.json',
+                exists: false,
+                malformed: false,
+                serverNames: [],
+              },
+              {
+                scope: 'agents',
+                path: '/Users/dev/.agents/mcp.json',
+                exists: false,
+                malformed: false,
+                serverNames: [],
+              },
+              {
+                scope: 'agents-dir',
+                path: '/Users/dev/.agents/mcp/mcp.json',
+                exists: false,
+                malformed: false,
+                serverNames: [],
+              },
+              {
+                scope: 'pi-global',
+                path: '/Users/dev/.pi/agent/mcp.json',
+                exists: true,
+                malformed: false,
+                serverNames: ['linear', 'snowflake'],
+              },
+              {
+                scope: 'project',
+                path: '/Users/dev/projects/pidex/.mcp.json',
+                exists: false,
+                malformed: false,
+                serverNames: [],
+              },
+              {
+                scope: 'pi-project',
+                path: '/Users/dev/projects/pidex/.pi/mcp.json',
+                exists: true,
+                malformed: false,
+                serverNames: ['snowflake'],
+              },
+            ],
+          })
+        case 'mcp:readCache':
+          return Promise.resolve([
+            { name: 'linear', tools: ['get_issue', 'save_issue', 'list_issues'] },
+          ])
+        case 'mcp:upsertServer':
+        case 'mcp:removeServer':
+        case 'mcp:setDisabled':
+        case 'mcp:writeFile':
+          return Promise.resolve(undefined)
+        case 'mcp:readFile':
+          return Promise.resolve({
+            path: '/Users/dev/.pi/agent/mcp.json',
+            content: '{\n  "mcpServers": {}\n}\n',
           })
         case 'pi:catalogueModels':
           return Promise.resolve([
@@ -426,7 +515,7 @@ export function installMockPidex(): void {
             },
           ])
         case 'app:userInfo':
-          return Promise.resolve({ username: 'dev' })
+          return Promise.resolve({ username: 'dev', awsProfile: 'dev' })
         case 'app:setLastSession':
           return Promise.resolve(undefined)
         case 'app:resumeTarget':
@@ -434,6 +523,29 @@ export function installMockPidex(): void {
           return Promise.resolve({ kind: 'none' })
         case 'sessions:list':
           return Promise.resolve(MOCK_DISK_SESSIONS)
+        case 'sessions:usage': {
+          const totals = (sessions: typeof MOCK_DISK_SESSIONS) => ({
+            cost: sessions.reduce((sum, s) => sum + s.cost, 0),
+            inputTokens: sessions.reduce((sum, s) => sum + s.inputTokens, 0),
+            outputTokens: sessions.reduce((sum, s) => sum + s.outputTokens, 0),
+            cacheReadTokens: sessions.reduce((sum, s) => sum + s.cacheReadTokens, 0),
+            cacheWriteTokens: sessions.reduce((sum, s) => sum + s.cacheWriteTokens, 0),
+            totalTokens: sessions.reduce((sum, s) => sum + s.totalTokens, 0),
+            messages: sessions.reduce((sum, s) => sum + s.userMessages + s.assistantMessages, 0),
+            toolCalls: sessions.reduce((sum, s) => sum + s.toolCalls, 0),
+            sessionCount: sessions.length,
+          })
+          return Promise.resolve({
+            workspaces: [
+              {
+                workspacePath: '/Users/dev/projects/pidex',
+                sessions: MOCK_DISK_SESSIONS,
+                totals: totals(MOCK_DISK_SESSIONS),
+              },
+            ],
+            totals: totals(MOCK_DISK_SESSIONS),
+          })
+        }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'git:info':
@@ -443,7 +555,79 @@ export function installMockPidex(): void {
             dirtyCount: 3,
             ahead: 1,
             behind: 0,
+            isWorktree: false,
           })
+        case 'git:infoBatch': {
+          const cwds = args[0] as string[]
+          return Promise.resolve(
+            Object.fromEntries(
+              cwds.map((cwd, i) => [
+                cwd,
+                i === 0
+                  ? { isRepo: true, branch: 'fix/phase0-chat-ux', dirtyCount: 2, isWorktree: true }
+                  : { isRepo: true, branch: 'main', dirtyCount: 0, isWorktree: false },
+              ]),
+            ),
+          )
+        }
+        case 'app:markSessionSeen':
+          return Promise.resolve(undefined)
+        case 'git:listWorktrees':
+          return Promise.resolve([
+            {
+              path: '/Users/dev/projects/pidex',
+              realPath: '/Users/dev/projects/pidex',
+              branch: 'main',
+              head: 'abcdef1234567890',
+              isMain: true,
+              locked: false,
+              prunable: false,
+              dirtyCount: 3,
+            },
+            {
+              path: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+              realPath: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+              branch: 'fix-auth',
+              head: '123456abcdef7890',
+              isMain: false,
+              locked: false,
+              prunable: false,
+              dirtyCount: 0,
+            },
+          ])
+        case 'git:listBranches':
+          return Promise.resolve({
+            branches: [
+              { name: 'main', isCurrent: true, lastCommitSubject: 'latest work' },
+              {
+                name: 'fix-auth',
+                isCurrent: false,
+                worktreePath: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+                lastCommitSubject: 'wip',
+              },
+              { name: 'feature/usage-view', isCurrent: false, lastCommitSubject: 'usage modal' },
+            ],
+            defaultBranch: 'main',
+          })
+        case 'git:addWorktree':
+          return Promise.resolve({
+            path: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
+            realPath: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
+            branch: args[1] as string,
+            head: 'abcdef1234567890',
+            isMain: false,
+            locked: false,
+            prunable: false,
+            dirtyCount: 0,
+          })
+        case 'git:removeWorktree':
+          return Promise.resolve({ removed: true, branchDeleted: false })
+        case 'git:pruneWorktrees':
+          return Promise.resolve({ pruned: [] })
+        case 'git:commitAll':
+          return Promise.resolve({ sha: 'abcdef1234567890' })
+        case 'git:mergeBranch':
+          return Promise.resolve({ merged: true, sha: 'abcdef1234567890' })
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
         case 'fs:readDir': {
@@ -525,6 +709,7 @@ export function installMockPidex(): void {
       return () => set.delete(listener)
     },
     onPtyExit: () => () => {},
+    onPtyStatus: () => () => {},
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)(
         'pi:command',

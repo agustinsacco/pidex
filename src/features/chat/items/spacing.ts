@@ -1,4 +1,4 @@
-import type { AssistantItem, ChatItem } from '../reducer'
+import type { TranscriptRow } from './transcriptRows'
 
 /**
  * Leading space for a transcript row — the single owner of vertical rhythm.
@@ -37,16 +37,27 @@ export const STREAM_GAP_TIGHT = 'pt-1'
  * classifying on `closed` made the gap jump 8px at `text_end` — a reflow of
  * the very row the user is reading — for every tools-then-prose turn.
  */
-export function isToolOnlyTurn(item: AssistantItem): boolean {
-  return !item.blocks.some((b) => b.type === 'text' && b.text.trim() !== '')
+/**
+ * Rows that belong to one assistant turn's own output (prose, grouped
+ * activity, outcome) as opposed to a speaker change or a system divider.
+ *
+ * This replaces the previous `isToolOnlyTurn` heuristic: consecutive
+ * tool-only *messages* no longer need a spacing special-case, because
+ * `buildTranscriptRows` merges them into a single activity row before this
+ * function ever sees them.
+ */
+function isAssistantSide(row: TranscriptRow): boolean {
+  if (row.kind !== 'item') return true
+  return row.item.kind !== 'user' && row.item.kind !== 'divider'
 }
 
-export function spacingFor(item: ChatItem, previous: ChatItem | undefined): string {
+function isDivider(row: TranscriptRow): boolean {
+  return row.kind === 'item' && row.item.kind === 'divider'
+}
+
+export function spacingFor(row: TranscriptRow, previous: TranscriptRow | undefined): string {
   if (!previous) return ''
-  const continuesSameAction =
-    previous.kind === 'assistant' &&
-    item.kind === 'assistant' &&
-    isToolOnlyTurn(previous) &&
-    isToolOnlyTurn(item)
-  return continuesSameAction ? STREAM_GAP_TIGHT : STREAM_GAP
+  if (isDivider(row) || isDivider(previous)) return STREAM_GAP
+  const continuesSameTurn = isAssistantSide(row) && isAssistantSide(previous)
+  return continuesSameTurn ? STREAM_GAP_TIGHT : STREAM_GAP
 }
