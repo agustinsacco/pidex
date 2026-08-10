@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GitInfo, WorktreeInfo } from '@shared/models'
 import { BranchIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
+import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
+import { WorktreeMenu } from '@/features/worktrees/WorktreeMenu'
+import { PrRow } from '@/features/worktrees/PrRow'
 import { workspaceName } from '@/lib/path'
 
 /** Branch and dirty-count chips in the chat header, refreshed on fs changes. */
@@ -12,7 +15,9 @@ import { workspaceName } from '@/lib/path'
 export function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
   const [info, setInfo] = useState<GitInfo | null>(null)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [mergeTarget, setMergeTarget] = useState<WorktreeInfo | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<WorktreeInfo | null>(null)
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -34,7 +39,18 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
 
   if (!info?.isRepo || !info.branch) return null
 
+  // In a worktree the repo of record is the main tree; in the main tree it is
+  // this workspace. Either way the menu below operates on the same repo, which
+  // is what makes main -> worktree and worktree -> main both reachable from
+  // inside a session rather than only from the home screen.
   const mainRepo = info.mainRepoPath
+  const repoPath = info.isWorktree && mainRepo ? mainRepo : workspacePath
+
+  const openWorkspaceAt = (cwd: string): void => {
+    setOpen(false)
+    useWorkspacesStore.getState().openWorkspace(cwd)
+    useSessionsStore.getState().activate(null)
+  }
 
   const openMergeModal = async (): Promise<void> => {
     if (!mainRepo) return
@@ -44,16 +60,10 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
     if (here) setMergeTarget(here)
   }
 
-  const openMainRepo = (): void => {
-    if (!mainRepo) return
-    setOpen(false)
-    useWorkspacesStore.getState().openWorkspace(mainRepo)
-    useSessionsStore.getState().activate(null)
-  }
-
   return (
     <span className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={info.isWorktree && mainRepo ? `Worktree of ${mainRepo}` : `Branch ${info.branch}`}
         className="bg-bg-secondary text-text-secondary hover:text-text flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px] transition-colors"
@@ -73,6 +83,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
           className="absolute left-0 top-full z-40 mt-1.5 w-64 py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
@@ -84,16 +95,26 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
               {info.isWorktree && mainRepo && ` · worktree of ${workspaceName(mainRepo)}`}
             </div>
           </div>
+          <PrRow repoPath={repoPath} branch={info.branch} />
           <div className="border-border my-1 border-t" />
+
+          <div className="text-text-tertiary px-3 pb-0.5 pt-1 text-[11px]">Switch workspace to</div>
+          <WorktreeMenu
+            repoPath={repoPath}
+            currentCwd={info.isWorktree ? workspacePath : null}
+            mainBranch={info.isWorktree ? undefined : info.branch}
+            onSelectMain={() => openWorkspaceAt(repoPath)}
+            onSelectWorktree={(wt) => openWorkspaceAt(wt.realPath)}
+            onRemove={(wt) => {
+              setOpen(false)
+              setRemoveTarget(wt)
+            }}
+          />
+
           {info.isWorktree && mainRepo && (
-            <>
-              <MenuRow active={false} onClick={() => void openMergeModal()}>
-                <span className="text-[13px]">Merge into main repo…</span>
-              </MenuRow>
-              <MenuRow active={false} onClick={openMainRepo}>
-                <span className="text-[13px]">Open main repo home</span>
-              </MenuRow>
-            </>
+            <MenuRow active={false} onClick={() => void openMergeModal()}>
+              <span className="text-[13px]">Merge into main repo…</span>
+            </MenuRow>
           )}
           <MenuRow
             active={false}
@@ -105,6 +126,18 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
             <span className="text-[13px]">Reveal in file manager</span>
           </MenuRow>
         </PopupMenu>
+      )}
+
+      {removeTarget && (
+        <RemoveWorktreeModal
+          repoPath={repoPath}
+          worktree={removeTarget}
+          onClose={() => setRemoveTarget(null)}
+          onRemoved={() => {
+            // The session's own worktree just went away; fall back to the repo.
+            if (removeTarget.realPath === workspacePath) openWorkspaceAt(repoPath)
+          }}
+        />
       )}
 
       {mergeTarget && mainRepo && (

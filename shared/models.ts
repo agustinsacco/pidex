@@ -146,6 +146,29 @@ export interface BranchInfo {
 
 export type AddWorktreeBranch = { kind: 'new'; base: string } | { kind: 'existing'; branch: string }
 
+/** Summary of a PR's status checks, from `gh` statusCheckRollup. */
+export interface GhChecks {
+  passed: number
+  failed: number
+  pending: number
+  total: number
+}
+
+/**
+ * A pull request for the current branch, as reported by the `gh` CLI.
+ * Absent (null) whenever gh is missing, unauthenticated, or the repo has no
+ * GitHub remote — all normal states, never surfaced as errors.
+ */
+export interface GhPullRequest {
+  number: number
+  title: string
+  state: 'OPEN' | 'DRAFT' | 'CLOSED' | 'MERGED'
+  url: string
+  mergeable?: string
+  mergeStateStatus?: string
+  checks?: GhChecks
+}
+
 export interface DirEntry {
   name: string
   path: string
@@ -205,7 +228,7 @@ export interface AppPrefs {
 }
 
 export const DEFAULT_APP_PREFS: AppPrefs = {
-  theme: 'system',
+  theme: 'dark',
   recentWorkspaces: [],
   pinnedSessions: [],
   collapsedWorkspaces: [],

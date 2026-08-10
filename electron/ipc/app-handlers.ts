@@ -151,4 +151,18 @@ export function registerAppHandlers(): void {
   handle('app:revealPath', (_event, path: string) => {
     shell.showItemInFolder(path)
   })
+
+  // http(s) only. The URL originates from `gh` output, so it is not attacker
+  // controlled today, but shell.openExternal will happily launch file:// or a
+  // registered custom scheme — a URL string must never be able to do that.
+  handle('app:openExternal', async (_event, url: string) => {
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      return
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return
+    await shell.openExternal(parsed.toString())
+  })
 }

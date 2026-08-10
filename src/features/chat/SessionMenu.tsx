@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import type { QueueMode } from '@shared/rpc'
@@ -14,6 +14,7 @@ const autoRetryLocal = new Map<string, boolean>()
 /** Kebab menu in the session header: compaction, retry, queue modes, export. */
 export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [autoRetry, setAutoRetryState] = useState(autoRetryLocal.get(sessionId) ?? true)
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
 
@@ -65,6 +66,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         title="Session options"
@@ -79,6 +81,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
           className="absolute right-0 top-full mt-1.5 w-72 py-1.5"
         >
           <MenuRow active={false} onClick={() => void command(rename)}>

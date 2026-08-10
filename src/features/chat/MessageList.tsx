@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
+import { TranscriptSkeleton } from './TranscriptSkeleton'
 import {
   isFollowIntent,
   isScrollBackIntent,
@@ -21,6 +22,7 @@ export const MessageList = memo(function MessageList({
   const tools = useChatStore((s) => s.sessions[sessionId]?.tools) ?? {}
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const error = useChatStore((s) => s.sessions[sessionId]?.error ?? null)
+  const resuming = useChatStore((s) => s.sessions[sessionId]?.resuming ?? false)
   const hideThinking = useSettingsStore((s) => s.hideThinkingBlock)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -176,6 +178,11 @@ export const MessageList = memo(function MessageList({
     if (!last || last.id === previousId) return
     if (last.kind === 'user' && last.optimistic) jumpToBottom()
   }, [items, jumpToBottom])
+
+  // Resuming a session with history: skeleton, not the empty state.
+  if (items.length === 0 && !error && resuming) {
+    return <TranscriptSkeleton />
+  }
 
   if (items.length === 0 && !error) {
     return (

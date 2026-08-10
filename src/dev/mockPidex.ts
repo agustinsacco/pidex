@@ -6,6 +6,7 @@
  */
 import type { PidexApi } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
+import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import fixtureRaw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'
 
@@ -358,13 +359,13 @@ export function installMockPidex(): void {
         case 'pi:health':
           return Promise.resolve({
             ok: true,
-            version: '0.78.0',
+            version: MIN_PI_VERSION,
             binaryPath: '/mock/pi',
-            minVersion: '0.78.0',
+            minVersion: MIN_PI_VERSION,
           })
         case 'app:getPrefs':
           return Promise.resolve({
-            theme: 'system',
+            theme: DEFAULT_APP_PREFS.theme,
             recentWorkspaces: [
               { path: '/Users/dev/projects/pidex', name: 'pidex', lastOpenedAt: Date.now() },
               {
@@ -548,6 +549,20 @@ export function installMockPidex(): void {
         }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
+        case 'app:openExternal':
+          return Promise.resolve(undefined)
+        case 'gh:available':
+          return Promise.resolve(true)
+        case 'gh:prForBranch':
+          return Promise.resolve({
+            number: 42,
+            title: 'Composer attachments and worktree controls',
+            state: 'OPEN',
+            url: 'https://github.com/agustinsacco/pidex/pull/42',
+            mergeable: 'MERGEABLE',
+            mergeStateStatus: 'CLEAN',
+            checks: { passed: 3, failed: 0, pending: 1, total: 4 },
+          })
         case 'git:info':
           return Promise.resolve({
             isRepo: true,
@@ -710,6 +725,9 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     onPtyStatus: () => () => {},
+    // The browser harness has no Electron, so there is no real path — files
+    // dropped here are rejected by toAttachment rather than half-attached.
+    pathForFile: () => '',
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)(
         'pi:command',

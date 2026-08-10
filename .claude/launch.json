@@ -4,13 +4,22 @@
     {
       "name": "renderer",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["electron-vite", "dev"],
+      "runtimeArgs": [
+        "electron-vite",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "web-mock",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "dev", "--port", "5199"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:web",
+        "--",
+        "--port",
+        "5199"
+      ],
       "port": 5199
     }
   ]

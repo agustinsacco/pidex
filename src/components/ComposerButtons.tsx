@@ -13,7 +13,7 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }):
   const pick = (): void => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    // Any file: images inline, everything else is attached by path.
     input.multiple = true
     input.onchange = () => {
       onFiles([...(input.files ?? [])])
@@ -24,8 +24,8 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }):
   return (
     <button
       onClick={pick}
-      aria-label="Attach images"
-      title="Attach images"
+      aria-label="Attach files"
+      title="Attach files — images inline, other files by path"
       className={iconButtonClass}
     >
       <svg
