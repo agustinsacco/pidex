@@ -762,3 +762,31 @@ test('a long tool run collapses to one dense group', async () => {
     await shutdown(harness)
   }
 })
+
+test('resource monitor reports real per-session process usage', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // A live session means a real pi (stub) subprocess to attribute usage to.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByTestId('session-row').first()).toBeVisible({ timeout: 60_000 })
+
+    await page.getByRole('button', { name: 'Resources', exact: true }).click()
+
+    // Sampling starts on open, so a row must appear with a real measurement.
+    const row = page.getByTestId('monitor-session-row').first()
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await expect(row).toContainText(/\d+(\.\d+)?\s*(KB|MB|GB)/, { timeout: 30_000 })
+
+    // The terminals toggle must actually change what is charged to a session.
+    const toggle = page.getByTestId('monitor-include-terminals')
+    await expect(toggle).toBeChecked()
+    await toggle.uncheck()
+    await expect(toggle).not.toBeChecked()
+    await expect(row).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})

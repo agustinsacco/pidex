@@ -76,6 +76,13 @@ interface SessionsState {
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
   activate: (sessionId: string | null) => void
   disposeSession: (sessionId: string) => Promise<void>
+  /**
+   * Reclaim a session's ~200MB pi subprocess while keeping its sidebar row.
+   * Reopening resumes from disk (measured ~940ms), so this is cheap to undo.
+   */
+  suspendSession: (sessionId: string) => Promise<void>
+  /** Session paths suspended this run, so the UI can label them. */
+  suspendedPaths: string[]
   deleteDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<void>
   togglePin: (path: string) => void
 }
@@ -242,6 +249,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   unread: {},
   baselines: {},
   pinned: [],
+  suspendedPaths: [],
   seenSessions: {},
   gitByCwd: {},
   creating: false,
@@ -390,6 +398,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   openDiskSession: async (workspacePath, meta) => {
     get().markSeen(meta.path)
+    // Reopening clears the suspended marker; the resume path below re-spawns pi
+    // and the transcript shows its skeleton while history replays.
+    if (get().suspendedPaths.includes(meta.path)) {
+      set((s) => ({ suspendedPaths: s.suspendedPaths.filter((p) => p !== meta.path) }))
+    }
     // Already live? Just activate.
     const existing = Object.values(get().live).find((l) => l.diskPath === meta.path)
     if (existing) {
@@ -422,20 +435,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     unsubscribers.delete(sessionId)
     await window.pidex.invoke('pi:disposeSession', sessionId)
     useChatStore.getState().remove(sessionId)
-    // Session-scoped side state: kill its PTYs and drop its artifacts.
-    // Lazy imports keep this store free of load-order cycles.
-    void import('./terminal').then(({ useTerminalStore }) =>
-      useTerminalStore.getState().removeSession(sessionId),
-    )
-    void import('./artifacts').then(({ useArtifactsStore }) =>
-      useArtifactsStore.getState().remove(sessionId),
-    )
-    // Extension UI state is per-session too. `clearSession` existed but was
-    // never wired up, so statuses and widgets (which hold extension-supplied
-    // line arrays) accumulated for every session until quit.
-    void import('./extensionUi').then(({ useExtensionUiStore }) =>
-      useExtensionUiStore.getState().clearSession(sessionId),
-    )
+    // Session-scoped side state: kill its PTYs, drop its artifacts, and clear
+    // its extension UI. Lazy imports keep this store free of load-order
+    // cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
+    // raced test teardown, and would equally race app shutdown).
+    const [{ useTerminalStore }, { useArtifactsStore }, { useExtensionUiStore }] =
+      await Promise.all([import('./terminal'), import('./artifacts'), import('./extensionUi')])
+    await useTerminalStore.getState().removeSession(sessionId)
+    useArtifactsStore.getState().remove(sessionId)
+    // `clearSession` existed but was never wired up, so statuses and widgets
+    // (which hold extension-supplied line arrays) accumulated until quit.
+    useExtensionUiStore.getState().clearSession(sessionId)
     set((s) => {
       const live = { ...s.live }
       delete live[sessionId]
@@ -451,6 +461,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
       }
     })
+  },
+
+  suspendSession: async (sessionId) => {
+    const entry = get().live[sessionId]
+    const diskPath = entry?.diskPath
+    await get().disposeSession(sessionId)
+    // Remember the path (not the pidexId, which dies with the process) so the
+    // sidebar can mark the row "suspended" until it is reopened.
+    if (diskPath) {
+      set((s) => ({
+        suspendedPaths: s.suspendedPaths.includes(diskPath)
+          ? s.suspendedPaths
+          : [...s.suspendedPaths, diskPath],
+      }))
+    }
   },
 
   deleteDiskSession: async (workspacePath, meta) => {

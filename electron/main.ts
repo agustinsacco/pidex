@@ -5,6 +5,7 @@ import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
+import { stopMonitor } from './resources/monitor'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -78,7 +79,7 @@ app.whenReady().then(() => {
   if (devIcon && process.platform === 'darwin') {
     app.dock?.setIcon(devIcon)
   }
-  registerIpcHandlers()
+  registerIpcHandlers(isDev)
   createWindow()
 
   app.on('activate', () => {
@@ -97,6 +98,7 @@ app.on('before-quit', (event) => {
   quitting = true
   // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
   // filesystem watchers so no chokidar handles or debounce timers outlive us.
+  stopMonitor()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

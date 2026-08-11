@@ -63,7 +63,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   pendingPaste: null,
 
   createTab: async (sessionId, cwd) => {
-    const { ptyId } = await window.pidex.invoke('pty:create', cwd, 80, 24)
+    // Pass the owning session so main can attribute this shell's process
+    // tree (builds, tests, dev servers) to it in the resource monitor.
+    const { ptyId } = await window.pidex.invoke('pty:create', cwd, 80, 24, sessionId)
     set((s) =>
       patchSession(s, sessionId, (t) => ({
         tabs: [

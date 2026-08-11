@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
 import { TranscriptSkeleton } from './TranscriptSkeleton'
+import { useSessionsStore } from '@/stores/sessions'
 import {
   isFollowIntent,
   isScrollBackIntent,
@@ -23,6 +24,11 @@ export const MessageList = memo(function MessageList({
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const error = useChatStore((s) => s.sessions[sessionId]?.error ?? null)
   const resuming = useChatStore((s) => s.sessions[sessionId]?.resuming ?? false)
+  // Explains WHY we are loading when the user reopens a suspended session.
+  const wasSuspended = useSessionsStore((s) => {
+    const diskPath = s.live[sessionId]?.diskPath
+    return diskPath ? s.suspendedPaths.includes(diskPath) : false
+  })
   const hideThinking = useSettingsStore((s) => s.hideThinkingBlock)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -181,7 +187,15 @@ export const MessageList = memo(function MessageList({
 
   // Resuming a session with history: skeleton, not the empty state.
   if (items.length === 0 && !error && resuming) {
-    return <TranscriptSkeleton />
+    return (
+      <TranscriptSkeleton
+        message={
+          wasSuspended
+            ? 'Resuming — the process was released to save memory. Replaying history…'
+            : 'Restoring this session from disk…'
+        }
+      />
+    )
   }
 
   if (items.length === 0 && !error) {

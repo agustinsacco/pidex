@@ -10,7 +10,16 @@
  * The bars approximate a transcript (alternating user/assistant blocks) so the
  * layout does not visibly jump when real content replaces them.
  */
-export function TranscriptSkeleton(): React.JSX.Element {
+export function TranscriptSkeleton({
+  /**
+   * Shown above the bars. A resume the user did not initiate (reopening a
+   * session pidex suspended to reclaim memory) needs to say so — otherwise the
+   * wait looks like the app being slow rather than a deliberate trade.
+   */
+  message = 'Restoring this session from disk…',
+}: {
+  message?: string
+} = {}): React.JSX.Element {
   return (
     <div
       className="flex flex-1 flex-col gap-6 overflow-hidden px-6 py-6"
@@ -18,6 +27,10 @@ export function TranscriptSkeleton(): React.JSX.Element {
       aria-busy="true"
       aria-label="Loading session history"
     >
+      <div className="text-text-tertiary flex items-center gap-2 text-[12px]">
+        <span className="border-text-tertiary/40 border-t-text-tertiary h-3 w-3 animate-spin rounded-full border" />
+        {message}
+      </div>
       {SHAPES.map((shape, index) => (
         <div
           key={index}

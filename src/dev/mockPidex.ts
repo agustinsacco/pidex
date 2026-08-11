@@ -711,6 +711,12 @@ export function installMockPidex(): void {
           return Promise.resolve(null)
         case 'git:showFileAt':
           return Promise.resolve('// baseline content\n')
+        case 'resources:subscribe':
+          return Promise.resolve(null)
+        case 'resources:unsubscribe':
+        case 'resources:openWindow':
+        case 'resources:closeWindow':
+          return Promise.resolve(undefined)
         case 'fs:watchWorkspace':
         case 'sessions:watch':
         case 'sessions:unwatch':
@@ -770,6 +776,57 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     onPtyStatus: () => () => {},
+
+    // Fake monitor ticks so the resource view is developable in the browser.
+    // Numbers are in the shape of real measurements (a pi process is ~200MB).
+    onResourceSample: (listener) => {
+      let tick = 0
+      const send = () => {
+        tick++
+        const wobble = (base: number, amp: number) => base + Math.sin(tick / 3) * amp
+        listener({
+          at: Date.now(),
+          perSessionSupported: true,
+          sessions: [
+            {
+              sessionId: 'mock-session-id',
+              workspacePath: '/Users/dev/projects/pidex',
+              agent: { rssKb: wobble(206_000, 6_000), cpuPercent: wobble(4, 4), processCount: 2 },
+              terminals: {
+                rssKb: wobble(314_000, 90_000),
+                cpuPercent: wobble(60, 55),
+                processCount: 3,
+              },
+              total: {
+                rssKb: wobble(520_000, 95_000),
+                cpuPercent: wobble(64, 58),
+                processCount: 5,
+              },
+              piPid: 4321,
+            },
+            {
+              sessionId: 'mock-session-two',
+              workspacePath: '/Users/dev/projects/other',
+              agent: { rssKb: wobble(199_000, 3_000), cpuPercent: wobble(1, 1), processCount: 1 },
+              terminals: { rssKb: 0, cpuPercent: 0, processCount: 0 },
+              total: { rssKb: wobble(199_000, 3_000), cpuPercent: wobble(1, 1), processCount: 1 },
+              piPid: 4322,
+            },
+          ],
+          app: {
+            rssKb: wobble(360_000, 20_000),
+            cpuPercent: wobble(9, 5),
+            processes: [
+              { pid: 10, type: 'Browser', rssKb: 120_000, cpuPercent: 3 },
+              { pid: 11, type: 'Tab', name: 'Renderer', rssKb: 240_000, cpuPercent: 6 },
+            ],
+          },
+        })
+      }
+      send()
+      const timer = setInterval(send, 2000)
+      return () => clearInterval(timer)
+    },
     // The browser harness has no Electron, so there is no real path — files
     // dropped here are rejected by toAttachment rather than half-attached.
     pathForFile: () => '',
