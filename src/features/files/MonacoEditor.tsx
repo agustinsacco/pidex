@@ -8,6 +8,29 @@ type Editor = MonacoTypes.editor.IStandaloneCodeEditor
 
 const viewStates = new Map<string, MonacoTypes.editor.ICodeEditorViewState | null>()
 
+/**
+ * Release the Monaco model and saved view state for a path.
+ *
+ * Monaco keeps every `createModel` in a GLOBAL registry until it is disposed —
+ * `attachModel` relies on that to preserve undo stacks across tab switches
+ * (`monaco.editor.getModel(uri)` finds the old one). The cost is that closing a
+ * tab freed nothing: each model retains the full text buffer plus tokenization
+ * state, and for TS/JS/JSON/CSS/HTML it is mirrored into a language web worker,
+ * so the bytes were held twice. Browsing N files retained all N forever.
+ *
+ * Called by the files store, which owns the "is this file still open" question.
+ */
+export function releaseFileModel(path: string): void {
+  viewStates.delete(path)
+  // Lazy: if Monaco was never loaded there is nothing to release, and we must
+  // not pull the (large) editor bundle in just to clean up.
+  void import('@/lib/monaco').then(({ peekMonaco }) => {
+    const monaco = peekMonaco()
+    if (!monaco) return
+    monaco.editor.getModel(monaco.Uri.file(path))?.dispose()
+  })
+}
+
 interface MonacoEditorProps {
   path: string
   language: string

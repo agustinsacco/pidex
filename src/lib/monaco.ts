@@ -5,12 +5,26 @@
 import type * as MonacoTypes from 'monaco-editor'
 
 let monacoPromise: Promise<typeof MonacoTypes> | null = null
+let loaded: typeof MonacoTypes | null = null
 
 export function getMonaco(): Promise<typeof MonacoTypes> {
   if (!monacoPromise) {
-    monacoPromise = loadMonaco()
+    monacoPromise = loadMonaco().then((monaco) => {
+      loaded = monaco
+      return monaco
+    })
   }
   return monacoPromise
+}
+
+/**
+ * The Monaco instance if it is ALREADY loaded, else null.
+ *
+ * For cleanup paths (disposing a model when a tab closes) that must not pull
+ * the multi-megabyte editor chunk in just to discover there is nothing to free.
+ */
+export function peekMonaco(): typeof MonacoTypes | null {
+  return loaded
 }
 
 async function loadMonaco(): Promise<typeof MonacoTypes> {
