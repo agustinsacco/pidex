@@ -15,6 +15,7 @@ import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useUsageUiStore } from '@/features/usage/usageUiStore'
+import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { worktreeAwareName } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -315,6 +316,24 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
             </svg>
           }
         />
+        <NavRow
+          label="Resources"
+          onClick={() => useMonitorUiStore.getState().setOpen(true)}
+          icon={
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 12h4l2 6 4-14 2 8h6" />
+            </svg>
+          }
+        />
       </nav>
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -512,6 +531,7 @@ function SessionRow({
   const isStreaming = useChatStore((s) =>
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
+  const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
   const title =
     sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
@@ -532,6 +552,14 @@ function SessionRow({
         label: isPinned ? 'Unpin' : 'Pin',
         onClick: () => store.togglePin(meta.path),
       },
+      ...(livePidexId
+        ? [
+            {
+              label: 'Suspend (free ~200 MB)',
+              onClick: () => void store.suspendSession(livePidexId),
+            },
+          ]
+        : []),
       {
         label: 'Rename…',
         separatorAbove: true,
@@ -597,6 +625,14 @@ function SessionRow({
       <span className="min-w-0 flex-1">
         <span className="text-text block truncate text-[12px] leading-4">{title}</span>
         <span className="text-text-tertiary flex items-center gap-1 text-[10px] leading-3.5">
+          {isSuspended && (
+            <span
+              className="bg-bg-secondary text-text-tertiary mr-0.5 shrink-0 rounded px-1 font-medium"
+              title="Process released to save memory. Opening this session resumes it from disk."
+            >
+              suspended
+            </span>
+          )}
           {subtitle.map((segment, i) => (
             <span
               key={segment.key}

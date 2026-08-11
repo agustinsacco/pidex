@@ -23,6 +23,7 @@ import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/Extensio
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { UsageModal } from '@/features/usage/UsageModal'
+import { MonitorModal } from '@/features/resources/MonitorModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { worktreeAwareName } from '@/lib/path'
 
@@ -140,6 +141,7 @@ export function App(): React.JSX.Element {
       <CommandPalette workspacePath={currentWorkspace} />
       <SettingsModal />
       <UsageModal />
+      <MonitorModal />
     </div>
   )
 }

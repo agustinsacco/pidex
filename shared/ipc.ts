@@ -34,6 +34,7 @@ import type {
   LiveSessionInfo,
   PiHealth,
   PiResources,
+  ResourceSnapshot,
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
@@ -262,12 +263,28 @@ export interface IpcInvokeMap {
   'fs:watchWorkspace': { args: [workspacePath: string]; result: void }
 
   'pty:create': {
-    args: [workspacePath: string, cols: number, rows: number]
+    /**
+     * `sessionId` is the OWNING chat session. Main needs it to attribute a
+     * terminal's process tree (a build, a test run, a dev server) to that
+     * session in the resource monitor; without it that mapping lives only in
+     * the renderer's terminal store and main cannot see it.
+     */
+    args: [workspacePath: string, cols: number, rows: number, sessionId?: string]
     result: { ptyId: string }
   }
   'pty:write': { args: [ptyId: string, data: string]; result: void }
   'pty:resize': { args: [ptyId: string, cols: number, rows: number]; result: void }
   'pty:kill': { args: [ptyId: string]; result: void }
+
+  /**
+   * Resource monitor. Sampling is reference-counted and OFF until something
+   * subscribes — a monitor that polls when nobody is watching would be its own
+   * resource bug. Samples arrive on the `resources:sample` push channel.
+   */
+  'resources:subscribe': { args: []; result: ResourceSnapshot | null }
+  'resources:unsubscribe': { args: []; result: void }
+  'resources:openWindow': { args: []; result: void }
+  'resources:closeWindow': { args: []; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap
@@ -299,6 +316,8 @@ export interface PidexApi {
   onPtyExit(ptyId: string, listener: (exitCode: number) => void): () => void
   /** Busy map broadcast (ptyId → foreground process running); unsubscribe. */
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
+  /** Resource monitor ticks; only fires while something is subscribed. */
+  onResourceSample(listener: (snapshot: ResourceSnapshot) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image
