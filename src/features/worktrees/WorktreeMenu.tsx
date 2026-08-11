@@ -59,11 +59,31 @@ export function WorktreeMenu({
   const linked = repo.worktrees.filter((w) => !w.isMain)
   const mainLabel = mainBranch ?? repo.worktrees.find((w) => w.isMain)?.branch ?? repo.defaultBranch
   const prunable = repo.worktrees.some((w) => w.prunable)
-  const freeBranches = repo.branches.filter((b) => !b.worktreePath && !b.isCurrent)
+  /**
+   * Branches that can become a worktree. The default branch is excluded on
+   * purpose: git only refuses a branch that is checked out *right now*, so
+   * from a feature branch trunk looks free — and moving it into a worktree
+   * permanently stops the main tree from checking it out. Trunk lives in the
+   * main tree; the "Main" row above is how you get back to it.
+   */
+  const freeBranches = repo.branches.filter(
+    (b) => !b.worktreePath && !b.isCurrent && b.name !== repo.defaultBranch,
+  )
 
   const create = async (): Promise<void> => {
     const name = newName.trim()
     if (!name) return
+    // Caught here rather than in git's own words: `worktree add -b` fails with
+    // "a branch named 'x' already exists", which doesn't say what to do next.
+    const clash = repo.branches.find((b) => b.name === name)
+    if (clash) {
+      setError(
+        clash.worktreePath
+          ? `Branch "${name}" already has a worktree. Pick it from the list above.`
+          : `Branch "${name}" already exists. Open it from "Branches" above, or choose a new name.`,
+      )
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -100,9 +120,13 @@ export function WorktreeMenu({
 
   return (
     <>
-      <MenuRow active={false} onClick={onSelectMain}>
+      <MenuRow
+        active={false}
+        onClick={onSelectMain}
+        title={`The main working tree — where ${repo.defaultBranch || 'the default branch'} lives`}
+      >
         <span className="min-w-0 flex-1 truncate text-[13px]">
-          Main — <span className="font-mono text-[12px]">{mainLabel}</span>
+          Main tree — <span className="font-mono text-[12px]">{mainLabel}</span>
         </span>
         {currentCwd === null && <CheckIcon className="text-accent shrink-0" />}
       </MenuRow>
@@ -167,7 +191,7 @@ export function WorktreeMenu({
             onKeyDown={(e) => {
               if (e.key === 'Enter') void create()
             }}
-            placeholder="worktree / branch name"
+            placeholder="new branch name"
             className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2 py-1 font-mono text-[12px] outline-none focus:border-[var(--px-border-strong)]"
           />
           <select
@@ -175,12 +199,19 @@ export function WorktreeMenu({
             onChange={(e) => setBase(e.target.value)}
             className="border-border bg-surface text-text-secondary w-full rounded-md border px-2 py-1 text-[12px] outline-none"
           >
+            {/* Trunk first: branching off the default branch is the common
+                case, and it reads better than the opaque "current HEAD". */}
+            {repo.defaultBranch && (
+              <option value={repo.defaultBranch}>base: {repo.defaultBranch} (default)</option>
+            )}
             <option value="">base: current HEAD</option>
-            {repo.branches.map((b) => (
-              <option key={b.name} value={b.name}>
-                base: {b.name}
-              </option>
-            ))}
+            {repo.branches
+              .filter((b) => b.name !== repo.defaultBranch)
+              .map((b) => (
+                <option key={b.name} value={b.name}>
+                  base: {b.name}
+                </option>
+              ))}
           </select>
           <button
             onClick={() => void create()}
