@@ -16,7 +16,7 @@ import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useUsageUiStore } from '@/features/usage/usageUiStore'
 import { useLayoutStore } from '@/stores/layout'
-import { workspaceName } from '@/lib/path'
+import { worktreeAwareName } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -107,6 +107,27 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return map
   }, [live])
 
+  /**
+   * Live sessions with no session file yet, grouped by workspace.
+   *
+   * A freshly created session is spawned and prompted immediately, but its
+   * `.jsonl` only appears once pi writes the header — and the watcher adds
+   * `awaitWriteFinish` plus a debounce on top of that. Sidebar rows come from
+   * `disk`, so without these placeholders a session you just started shows no
+   * row at all until roughly its first tool call, which reads as a dropped
+   * message. They drop out on their own once `diskPath` is known.
+   */
+  const pendingByWorkspace = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const entry of Object.values(live)) {
+      if (entry.diskPath) continue
+      const list = map.get(entry.workspacePath)
+      if (list) list.push(entry.pidexId)
+      else map.set(entry.workspacePath, [entry.pidexId])
+    }
+    return map
+  }, [live])
+
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
   /** Pinned sessions across every workspace — this group deliberately mixes. */
@@ -128,7 +149,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
           return {
             workspacePath: path,
-            name: workspaceName(path),
+            name: worktreeAwareName(path, gitByCwd[path]),
             metas,
             liveCount,
             scanned: path in disk,
@@ -144,7 +165,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
         })
     )
-  }, [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath])
+  }, [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd])
 
   /**
    * Collapse resolution: an explicit choice wins; otherwise scanned groups
@@ -327,17 +348,28 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 )}
               </button>
               {!isCollapsed &&
+                (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
+                  <PendingSessionRow
+                    key={pidexId}
+                    pidexId={pidexId}
+                    active={pidexId === activeSessionId}
+                  />
+                ))}
+              {!isCollapsed &&
                 group.metas.map((meta) => (
                   <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
                 ))}
               {!isCollapsed && !group.scanned && (
                 <div className="text-text-tertiary px-2 py-2 text-[11.5px]">Loading sessions…</div>
               )}
-              {!isCollapsed && group.scanned && group.metas.length === 0 && (
-                <div className="text-text-tertiary px-2 py-2 text-[11.5px]">
-                  Sessions you start will show up here
-                </div>
-              )}
+              {!isCollapsed &&
+                group.scanned &&
+                group.metas.length === 0 &&
+                !pendingByWorkspace.has(group.workspacePath) && (
+                  <div className="text-text-tertiary px-2 py-2 text-[11.5px]">
+                    Sessions you start will show up here
+                  </div>
+                )}
             </div>
           )
         })}
@@ -381,9 +413,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 function WorkspaceSwitcher(): React.JSX.Element {
   const currentPath = useActiveWorkspace()
   const recents = useWorkspacesStore((s) => s.recents)
+  const git = useSessionsStore((s) => (currentPath ? s.gitByCwd[currentPath] : undefined))
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const name = currentPath ? workspaceName(currentPath) : 'Workspace'
+  const name = currentPath ? worktreeAwareName(currentPath, git) : 'Workspace'
 
   return (
     <div className="relative px-3 pb-2 pt-1">
@@ -484,7 +517,7 @@ function SessionRow({
     'Untitled session'
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
-  const rowWorkspaceName = workspaceName(meta.cwd || workspacePath)
+  const rowWorkspaceName = worktreeAwareName(meta.cwd || workspacePath, git)
 
   const open = (): void => {
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
@@ -600,6 +633,57 @@ function SessionRow({
         </span>
       )}
       {isPinned && <PinIcon />}
+    </button>
+  )
+}
+
+/**
+ * Row for a live session that has no session file yet.
+ *
+ * Deliberately not a `SessionRow`: every action there is keyed on
+ * `meta.path` (rename, fork, clone, export, delete, open-from-disk), and this
+ * session has no path to act on. It only needs to say "this exists and it is
+ * yours", and clicking it activates the already-live session.
+ */
+function PendingSessionRow({
+  pidexId,
+  active,
+}: {
+  pidexId: string
+  active: boolean
+}): React.JSX.Element {
+  const isStreaming = useChatStore((s) => s.sessions[pidexId]?.isStreaming ?? false)
+  const firstUserText = useChatStore(
+    (s) => s.sessions[pidexId]?.items.find((item) => item.kind === 'user')?.text,
+  )
+  const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
+  const title = sessionTitle({ explicitName, firstUserText }) ?? 'New session'
+
+  return (
+    <button
+      onClick={() => useSessionsStore.getState().activate(pidexId)}
+      data-testid="session-row"
+      data-pending="true"
+      className={clsx(
+        'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
+        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
+      )}
+    >
+      <span
+        data-testid="session-indicator"
+        data-state={isStreaming ? 'streaming' : 'live'}
+        className="flex h-4 w-4 shrink-0 items-center justify-center"
+      >
+        {isStreaming ? (
+          <PiSpark size={13} />
+        ) : (
+          <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-text block truncate text-[12px] leading-4">{title}</span>
+        <span className="text-text-tertiary block text-[10px] leading-3.5">starting…</span>
+      </span>
     </button>
   )
 }
