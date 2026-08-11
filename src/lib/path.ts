@@ -29,3 +29,20 @@ export function splitPath(path: string): { dir: string; base: string } {
 export function workspaceName(workspacePath: string): string {
   return workspacePath.split(SEPARATORS).filter(Boolean).pop() ?? workspacePath
 }
+
+/**
+ * Display name that understands linked worktrees: `repoName (branch)` rather
+ * than the worktree folder's own basename. Worktree folders are commonly
+ * named after their branch (`.../worktrees/main`), which made the sidebar and
+ * window title show "main" for what is actually the `pidex` repo.
+ */
+export function worktreeAwareName(
+  workspacePath: string,
+  git?: { isWorktree?: boolean; mainRepoPath?: string; branch?: string },
+): string {
+  if (git?.isWorktree && git.mainRepoPath) {
+    const repo = workspaceName(git.mainRepoPath)
+    return git.branch ? `${repo} (${git.branch})` : repo
+  }
+  return workspaceName(workspacePath)
+}

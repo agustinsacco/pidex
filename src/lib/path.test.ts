@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { basename, dirname, splitPath, workspaceName } from './path'
+import { basename, dirname, splitPath, workspaceName, worktreeAwareName } from './path'
 
 describe('basename', () => {
   it.each([
@@ -64,5 +64,46 @@ describe('workspaceName', () => {
 
   it('falls back to the input when there are no real segments', () => {
     expect(workspaceName('/')).toBe('/')
+  })
+})
+
+describe('worktreeAwareName', () => {
+  it('falls back to the folder basename when there is no git info', () => {
+    expect(worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main')).toBe('main')
+  })
+
+  it('falls back to the folder basename outside a worktree', () => {
+    expect(worktreeAwareName('/Users/u/pidex', { isWorktree: false })).toBe('pidex')
+  })
+
+  it('uses "repo (branch)" for a linked worktree, not the folder name', () => {
+    // The regression this guards: a worktree folder named after its own
+    // branch (".../worktrees/main") must not read as if the app were "main".
+    expect(
+      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
+        isWorktree: true,
+        mainRepoPath: '/Users/u/pidex',
+        branch: 'main',
+      }),
+    ).toBe('pidex (main)')
+  })
+
+  it('falls back to just the repo name when the branch is unknown', () => {
+    expect(
+      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
+        isWorktree: true,
+        mainRepoPath: '/Users/u/pidex',
+      }),
+    ).toBe('pidex')
+  })
+
+  it('ignores mainRepoPath when isWorktree is false', () => {
+    expect(
+      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
+        isWorktree: false,
+        mainRepoPath: '/Users/u/pidex',
+        branch: 'main',
+      }),
+    ).toBe('main')
   })
 })
