@@ -186,10 +186,18 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
 
   clearUnseen: (sessionId) => set((s) => ({ unseen: { ...s.unseen, [sessionId]: 0 } })),
 
+  // All four records are keyed by sessionId; cleaning only `bySession` left
+  // the selection and unseen-count entries behind for every disposed session.
   remove: (sessionId) =>
     set((s) => {
       const bySession = { ...s.bySession }
       delete bySession[sessionId]
-      return { bySession }
+      const selected = { ...s.selected }
+      delete selected[sessionId]
+      const selectedVersion = { ...s.selectedVersion }
+      delete selectedVersion[sessionId]
+      const unseen = { ...s.unseen }
+      delete unseen[sessionId]
+      return { bySession, selected, selectedVersion, unseen }
     }),
 }))

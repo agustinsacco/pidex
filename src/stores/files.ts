@@ -55,6 +55,8 @@ interface FilesState {
 
   openFile: (workspacePath: string, path: string, line?: number) => Promise<void>
   closeFile: (workspacePath: string, path: string) => void
+  /** Drop a workspace's editors/explorer state and release its Monaco models. */
+  releaseWorkspace: (workspacePath: string) => void
   setActive: (workspacePath: string, path: string) => void
   updateBuffer: (workspacePath: string, path: string, content: string) => void
   saveFile: (workspacePath: string, path: string) => Promise<void>
@@ -177,6 +179,40 @@ export const useFilesStore = create<FilesState>((set, get) => ({
         }
       }),
     )
+    // Monaco holds every model in a global registry until disposed, so dropping
+    // the store entry alone freed nothing. Lazy import keeps this store free of
+    // a dependency on the editor chunk.
+    void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) =>
+      releaseFileModel(path),
+    )
+  },
+
+  /**
+   * Drop a workspace's editor state entirely, releasing its Monaco models.
+   *
+   * Without this, browsing several projects retained every explorer listing and
+   * every file buffer (each held twice: `content` + `savedContent`, plus the
+   * Monaco model and its language-worker mirror) for the app's lifetime.
+   */
+  releaseWorkspace: (workspacePath) => {
+    const slice = get().byWorkspace[workspacePath]
+    const paths = slice?.openFiles.map((f) => f.path) ?? []
+    set((s) => {
+      const byWorkspace = { ...s.byWorkspace }
+      delete byWorkspace[workspacePath]
+      // Explorer listings and expansion flags are keyed by absolute dir path,
+      // so they are pruned by prefix rather than by workspace key.
+      const prefix = workspacePath.endsWith('/') ? workspacePath : workspacePath + '/'
+      const keep = (key: string): boolean => key !== workspacePath && !key.startsWith(prefix)
+      const entries = Object.fromEntries(Object.entries(s.entries).filter(([k]) => keep(k)))
+      const expanded = Object.fromEntries(Object.entries(s.expanded).filter(([k]) => keep(k)))
+      return { byWorkspace, entries, expanded }
+    })
+    if (paths.length > 0) {
+      void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) => {
+        for (const path of paths) releaseFileModel(path)
+      })
+    }
   },
 
   setActive: (workspacePath, path) => {

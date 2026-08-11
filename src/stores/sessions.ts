@@ -430,14 +430,24 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     void import('./artifacts').then(({ useArtifactsStore }) =>
       useArtifactsStore.getState().remove(sessionId),
     )
+    // Extension UI state is per-session too. `clearSession` existed but was
+    // never wired up, so statuses and widgets (which hold extension-supplied
+    // line arrays) accumulated for every session until quit.
+    void import('./extensionUi').then(({ useExtensionUiStore }) =>
+      useExtensionUiStore.getState().clearSession(sessionId),
+    )
     set((s) => {
       const live = { ...s.live }
       delete live[sessionId]
       const unread = { ...s.unread }
       delete unread[sessionId]
+      // Was missing: every disposed session left a permanent baselines entry.
+      const baselines = { ...s.baselines }
+      delete baselines[sessionId]
       return {
         live,
         unread,
+        baselines,
         activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
       }
     })

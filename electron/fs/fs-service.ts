@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import type { DirEntry, FileContent } from '@shared/models'
@@ -44,20 +44,41 @@ export async function listDir(
   return result
 }
 
-/** Returns the subset of paths that are gitignored, or null when not a repo. */
+/**
+ * Returns the subset of paths that are gitignored, or null when not a repo.
+ *
+ * Three things here are load-bearing:
+ *
+ * 1. `stdin.on('error')`. Without it this function could CRASH the main
+ *    process: outside a git repo `check-ignore` exits immediately, so a large
+ *    stdin write hits a closed pipe and the unhandled EPIPE became an uncaught
+ *    exception (reproduced with a non-repo dir and 200k paths).
+ * 2. `timeout` + `maxBuffer`, matching every other subprocess in the codebase.
+ *    This runs per explorer directory read, which the workspace watcher can
+ *    drive repeatedly while an agent writes files.
+ * 3. Exit code 1 means "nothing is ignored" — a normal answer, NOT a failure.
+ *    Only a different code means "cannot tell", which disables filtering.
+ *
+ * Note: `execFile`'s `input` option does not exist (that is `execFileSync`);
+ * stdin must be written on the returned child handle or git waits forever and
+ * every call dies on the timeout with filtering silently disabled.
+ */
 function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<string> | null> {
   return new Promise((resolve) => {
-    const child = spawn('git', ['check-ignore', '--stdin'], { cwd: workspacePath })
-    let out = ''
-    child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString()))
-    child.on('error', () => resolve(null))
-    child.on('close', (code) => {
-      // 0 = some ignored, 1 = none ignored; anything else = not a repo/error.
-      if (code === 0 || code === 1) resolve(new Set(out.split('\n').filter(Boolean)))
-      else resolve(null)
+    const child = execFile(
+      'git',
+      ['check-ignore', '--stdin'],
+      { cwd: workspacePath, timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
+      (error, stdout) => {
+        if (!error) return resolve(new Set(stdout.split('\n').filter(Boolean)))
+        if ((error as { code?: number }).code === 1) return resolve(new Set())
+        resolve(null)
+      },
+    )
+    child.stdin?.on('error', () => {
+      // Pipe closed early (git already exited); the callback decides the result.
     })
-    child.stdin.write(paths.join('\n'))
-    child.stdin.end()
+    child.stdin?.end(paths.join('\n'))
   })
 }
 

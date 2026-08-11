@@ -21,6 +21,7 @@ import type {
   AssistantBlock,
   AssistantItem,
   BashItem,
+  ChatItem,
   ChatSessionState,
   CustomItem,
   DividerItem,
@@ -43,6 +44,7 @@ import {
   toolsFromContent,
   userMessageImages,
   userMessageText,
+  toolStateForCall,
 } from './messageContent'
 
 // The chat surface imports its types from here, so keep one public entry point.
@@ -394,6 +396,45 @@ function applyAssistantDelta(
   }
 }
 
+/**
+ * Fold a persisted `toolResult` into the tools record.
+ *
+ * Shared by the live reducer and by hydration so resume and streaming cannot
+ * drift. `result` and `output` intentionally reference the SAME object rather
+ * than two structurally-equal copies: they mean different things (final vs
+ * latest-partial) so both fields stay, but a tool payload is often large — one
+ * real session held 293KB of payloads, which the previous two-object form
+ * retained as 585KB.
+ */
+function toolStateForResult(existing: ToolState | undefined, result: ToolResultMessage): ToolState {
+  const base: ToolState = existing ?? {
+    toolCallId: result.toolCallId,
+    toolName: result.toolName,
+    argsText: '',
+    status: 'running',
+    output: null,
+  }
+  const payload = { content: result.content, details: result.details }
+  return {
+    ...base,
+    result: payload,
+    output: payload,
+    isError: result.isError,
+    status: result.isError ? 'error' : 'done',
+    endedAt: base.endedAt ?? Date.now(),
+  }
+}
+
+function applyToolResult(
+  tools: Record<string, ToolState>,
+  result: ToolResultMessage,
+): Record<string, ToolState> {
+  return {
+    ...tools,
+    [result.toolCallId]: toolStateForResult(tools[result.toolCallId], result),
+  }
+}
+
 function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSessionState {
   if (!('role' in message)) return state
 
@@ -468,31 +509,8 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
       return { ...state, items: [...state.items, item] }
     }
 
-    case 'toolResult': {
-      const result = message as ToolResultMessage
-      const existing = state.tools[result.toolCallId]
-      const base: ToolState = existing ?? {
-        toolCallId: result.toolCallId,
-        toolName: result.toolName,
-        argsText: '',
-        status: 'running',
-        output: null,
-      }
-      return {
-        ...state,
-        tools: {
-          ...state.tools,
-          [result.toolCallId]: {
-            ...base,
-            result: { content: result.content, details: result.details },
-            output: { content: result.content, details: result.details },
-            isError: result.isError,
-            status: result.isError ? 'error' : 'done',
-            endedAt: base.endedAt ?? Date.now(),
-          },
-        },
-      }
-    }
+    case 'toolResult':
+      return { ...state, tools: applyToolResult(state.tools, message as ToolResultMessage) }
 
     case 'custom':
     case 'customMessage': {
@@ -535,7 +553,17 @@ function customItemFrom(message: CustomMessage): CustomItem | null {
 // ---------- hydration from get_messages (resume / attach) ----------
 
 export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState {
-  let state = emptyChatSession()
+  /*
+   * Accumulate into a MUTABLE array, then build the state object once.
+   *
+   * This used to do `state = { ...state, items: [...state.items, item] }` per
+   * message, copying the whole array every iteration — O(n^2) in transcript
+   * length, on the critical path of opening a session. `toolResult` additionally
+   * routed through applyMessageEnd, which spread the entire `tools` record per
+   * result, for a second O(n^2).
+   */
+  const items: ChatItem[] = []
+  const tools: Record<string, ToolState> = {}
   for (const message of messages) {
     if (!('role' in message)) continue
     switch (message.role) {
@@ -547,7 +575,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           images: userMessageImages(message),
           timestamp: message.timestamp,
         }
-        state = { ...state, items: [...state.items, item] }
+        items.push(item)
         break
       }
       case 'assistant': {
@@ -563,16 +591,25 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           model: assistant.model,
           timestamp: assistant.timestamp,
         }
-        state = {
-          ...state,
-          items: [...state.items, item],
-          tools: toolsFromContent(assistant, state.tools),
+        items.push(item)
+        // Write this message's tool calls straight into the mutable record.
+        // Deliberately NOT `toolsFromContent` (returns a fresh record) nor
+        // `Object.assign` of its result (copies every accumulated key back) —
+        // both are quadratic across a long transcript.
+        for (const block of assistant.content) {
+          if (block.type !== 'toolCall') continue
+          if (tools[block.id]?.args) continue
+          tools[block.id] = toolStateForCall(block, tools[block.id])
         }
         break
       }
-      case 'toolResult':
-        state = applyMessageEnd(state, message)
+      case 'toolResult': {
+        // Assign in place: `applyToolResult` copies the whole record, which is
+        // correct for the live reducer (immutable state) but quadratic here.
+        const result = message as ToolResultMessage
+        tools[result.toolCallId] = toolStateForResult(tools[result.toolCallId], result)
         break
+      }
       case 'bashExecution': {
         const bash = message as BashExecutionMessage
         const item: BashItem = {
@@ -586,7 +623,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           fullOutputPath: bash.fullOutputPath,
           excludeFromContext: bash.excludeFromContext,
         }
-        state = { ...state, items: [...state.items, item] }
+        items.push(item)
         break
       }
       case 'compactionSummary': {
@@ -597,7 +634,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           summary: (message as { summary?: string }).summary,
           tokensBefore: (message as { tokensBefore?: number }).tokensBefore,
         }
-        state = { ...state, items: [...state.items, item] }
+        items.push(item)
         break
       }
       case 'branchSummary': {
@@ -607,18 +644,18 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
           variant: 'branchSummary',
           summary: (message as { summary?: string }).summary,
         }
-        state = { ...state, items: [...state.items, item] }
+        items.push(item)
         break
       }
       case 'custom':
       case 'customMessage': {
         const item = customItemFrom(message as CustomMessage)
-        if (item) state = { ...state, items: [...state.items, item] }
+        if (item) items.push(item)
         break
       }
       default:
         break
     }
   }
-  return state
+  return { ...emptyChatSession(), items, tools }
 }
