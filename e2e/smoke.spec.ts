@@ -353,7 +353,7 @@ test('worktree flow: create from the branch chip, session groups under it', asyn
     // Create a worktree from the branch chip.
     await page.getByTestId('branch-chip').click()
     await page.getByRole('button', { name: 'New worktree…' }).click()
-    await page.getByPlaceholder('worktree / branch name').fill('task-1')
+    await page.getByPlaceholder('new branch name').fill('task-1')
     await page.getByRole('button', { name: 'Create worktree' }).click()
 
     // Chip now targets the worktree.

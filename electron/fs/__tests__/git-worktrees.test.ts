@@ -102,6 +102,23 @@ describe('git-worktrees (real git)', () => {
     ).rejects.toThrow(/already checked out/)
   })
 
+  it('refuses the default branch even when it is not currently checked out', async () => {
+    // The regression: git only blocks a branch that is checked out *right now*,
+    // so from a feature branch `main` looks free and git would move it into a
+    // worktree — after which the main tree can never check it out again.
+    await git(repo, ['checkout', '-b', 'feature-y'])
+    await expect(addWorktree(repo, 'trunk', { kind: 'existing', branch: 'main' })).rejects.toThrow(
+      /default branch/,
+    )
+    // And it is not a blanket ban on existing branches from here.
+    await git(repo, ['branch', 'feature-z'])
+    const created = await addWorktree(repo, 'feature-z', {
+      kind: 'existing',
+      branch: 'feature-z',
+    })
+    expect(created.branch).toBe('feature-z')
+  })
+
   it('lists branches with worktree associations and a default', async () => {
     await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
     const { branches, defaultBranch } = await listBranches(repo)

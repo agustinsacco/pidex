@@ -191,11 +191,26 @@ export async function addWorktree(
   }
 
   if (branch.kind === 'existing') {
-    const worktrees = await listWorktrees(repoPath)
+    const [worktrees, { defaultBranch }] = await Promise.all([
+      listWorktrees(repoPath),
+      listBranches(repoPath),
+    ])
     const taken = worktrees.find((w) => w.branch === branch.branch)
     if (taken) {
       throw new Error(
         `Branch "${branch.branch}" is already checked out in ${taken.isMain ? 'the main tree' : taken.path}.`,
+      )
+    }
+    // Trunk belongs to the main working tree. git only refuses this while the
+    // branch is *currently* checked out, so from a feature branch it would
+    // happily move trunk into a worktree — and then the main tree can never
+    // check it out again ("fatal: 'main' is already used by worktree at …").
+    // A worktree is for parallel work beside trunk, never instead of it.
+    if (branch.branch === defaultBranch) {
+      throw new Error(
+        `"${branch.branch}" is this repo's default branch — it belongs in the main working tree. ` +
+          `Putting it in a worktree would stop the main tree from ever checking it out. ` +
+          `Open the main tree to work on ${branch.branch}, or branch off it instead.`,
       )
     }
   }
