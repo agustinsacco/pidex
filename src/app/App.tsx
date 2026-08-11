@@ -24,13 +24,16 @@ import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { UsageModal } from '@/features/usage/UsageModal'
 import { useTerminalStore } from '@/stores/terminal'
-import { workspaceName } from '@/lib/path'
+import { worktreeAwareName } from '@/lib/path'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
   const currentWorkspace = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
+  const currentWorkspaceGit = useSessionsStore((s) =>
+    currentWorkspace ? s.gitByCwd[currentWorkspace] : undefined,
+  )
 
   const [restoring, setRestoring] = useState(true)
 
@@ -81,9 +84,11 @@ export function App(): React.JSX.Element {
 
   // Window title: workspace · session.
   useEffect(() => {
-    const name = currentWorkspace ? workspaceName(currentWorkspace) : undefined
+    const name = currentWorkspace
+      ? worktreeAwareName(currentWorkspace, currentWorkspaceGit)
+      : undefined
     document.title = name ? `${name} — pidex` : 'pidex'
-  }, [currentWorkspace])
+  }, [currentWorkspace, currentWorkspaceGit])
 
   if (health === null) {
     return (

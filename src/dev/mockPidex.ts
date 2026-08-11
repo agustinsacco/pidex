@@ -610,7 +610,16 @@ export function installMockPidex(): void {
               cwds.map((cwd, i) => [
                 cwd,
                 i === 0
-                  ? { isRepo: true, branch: 'fix/phase0-chat-ux', dirtyCount: 2, isWorktree: true }
+                  ? {
+                      isRepo: true,
+                      branch: 'fix/phase0-chat-ux',
+                      dirtyCount: 2,
+                      isWorktree: true,
+                      // Worktree folders are commonly named after their branch
+                      // (".../worktrees/main") — mainRepoPath exercises the
+                      // "repo (branch)" sidebar label instead of that folder name.
+                      mainRepoPath: '/Users/dev/projects/pidex',
+                    }
                   : { isRepo: true, branch: 'main', dirtyCount: 0, isWorktree: false },
               ]),
             ),
