@@ -600,7 +600,15 @@ function SessionRow({
           {subtitle.map((segment, i) => (
             <span
               key={segment.key}
-              className={clsx('flex shrink-0 items-center', segment.truncate && 'min-w-0 shrink')}
+              className={clsx(
+                'flex items-center',
+                // The branch is the only segment allowed to give up space.
+                // Both classes set flex-shrink, so they must be exclusive:
+                // emitting `shrink-0 shrink` let source order decide and
+                // `shrink-0` won, which is what pushed long branch names past
+                // the sidebar edge and produced a horizontal scrollbar.
+                segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
+              )}
             >
               {i > 0 && <span className="pr-1">·</span>}
               {segment.key === 'worktree' ? (

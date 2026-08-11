@@ -54,6 +54,31 @@ export function blocksFromContent(message: AssistantMessage): AssistantBlock[] {
   })
 }
 
+/**
+ * Tool state for one `toolCall` block, preserving anything already streamed.
+ *
+ * Exported so hydration can write states directly into a mutable record;
+ * `toolsFromContent` copies the record, which is right for the immutable live
+ * reducer but quadratic when replaying a whole transcript.
+ */
+export function toolStateForCall(
+  block: Extract<AssistantMessage['content'][number], { type: 'toolCall' }>,
+  existing?: ToolState,
+): ToolState {
+  return {
+    toolCallId: block.id,
+    toolName: block.name,
+    args: block.arguments,
+    argsText: existing?.argsText ?? JSON.stringify(block.arguments ?? {}),
+    status: existing?.status ?? 'starting',
+    output: existing?.output ?? null,
+    result: existing?.result,
+    isError: existing?.isError,
+    startedAt: existing?.startedAt,
+    endedAt: existing?.endedAt,
+  }
+}
+
 /** Merge tool states out of a final assistant message (ids/names/args). */
 export function toolsFromContent(
   message: AssistantMessage,
@@ -65,18 +90,7 @@ export function toolsFromContent(
     const existing = next[block.id]
     if (existing && existing.args) continue
     if (next === tools) next = { ...tools }
-    next[block.id] = {
-      toolCallId: block.id,
-      toolName: block.name,
-      args: block.arguments,
-      argsText: existing?.argsText ?? JSON.stringify(block.arguments ?? {}),
-      status: existing?.status ?? 'starting',
-      output: existing?.output ?? null,
-      result: existing?.result,
-      isError: existing?.isError,
-      startedAt: existing?.startedAt,
-      endedAt: existing?.endedAt,
-    }
+    next[block.id] = toolStateForCall(block, existing)
   }
   return next
 }
