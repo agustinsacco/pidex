@@ -3,8 +3,8 @@ import { ptyManager } from '../pty/pty-manager'
 
 /** Terminal PTY lifecycle. */
 export function registerPtyHandlers(): void {
-  handle('pty:create', (_event, workspacePath, cols, rows) =>
-    ptyManager.create(workspacePath, cols, rows),
+  handle('pty:create', (_event, workspacePath, cols, rows, sessionId) =>
+    ptyManager.create(workspacePath, cols, rows, sessionId),
   )
 
   handle('pty:write', (_event, ptyId, data) => {

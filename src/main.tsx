@@ -20,10 +20,15 @@ async function bootstrap(): Promise<void> {
     })
   }
 
+  // The floating monitor is the same bundle in a second BrowserWindow; the
+  // query flag selects the compact view instead of the whole app.
+  const isMonitorWindow = new URLSearchParams(window.location.search).get('view') === 'monitor'
+  const { MonitorWindowView } = isMonitorWindow
+    ? await import('./features/resources/MonitorModal')
+    : { MonitorWindowView: null }
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
+    <React.StrictMode>{MonitorWindowView ? <MonitorWindowView /> : <App />}</React.StrictMode>,
   )
 }
 

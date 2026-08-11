@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcInvokeChannel, IpcInvokeMap, PidexApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
-import type { SessionPush } from '@shared/models'
+import type { ResourceSnapshot, SessionPush } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 
 const api: PidexApi = {
@@ -44,6 +44,13 @@ const api: PidexApi = {
     const wrapped = (_event: Electron.IpcRendererEvent, exitCode: number) => listener(exitCode)
     ipcRenderer.on(channel, wrapped)
     return () => ipcRenderer.removeListener(channel, wrapped)
+  },
+
+  onResourceSample(listener: (snapshot: ResourceSnapshot) => void) {
+    const wrapped = (_event: Electron.IpcRendererEvent, snapshot: ResourceSnapshot) =>
+      listener(snapshot)
+    ipcRenderer.on('resources:sample', wrapped)
+    return () => ipcRenderer.removeListener('resources:sample', wrapped)
   },
 
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void) {

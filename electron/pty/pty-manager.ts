@@ -10,6 +10,12 @@ interface PtySession {
   workspacePath: string
   shellName: string
   busy: boolean
+  /**
+   * Owning chat session, when the caller knows it. Lets the resource monitor
+   * charge a terminal's process tree (builds, tests, dev servers) to the right
+   * session — that mapping otherwise lives only in the renderer's store.
+   */
+  sessionId?: string
 }
 
 /** Real PTYs (user shell), independent from the agent's bash tool. */
@@ -17,7 +23,7 @@ class PtyManager {
   private readonly sessions = new Map<string, PtySession>()
   private pollTimer: NodeJS.Timeout | null = null
 
-  create(workspacePath: string, cols: number, rows: number): { ptyId: string } {
+  create(workspacePath: string, cols: number, rows: number, sessionId?: string): { ptyId: string } {
     const ptyId = randomUUID()
     const shell = defaultShell()
 
@@ -45,9 +51,24 @@ class PtyManager {
       workspacePath,
       shellName: basename(shell.command),
       busy: false,
+      sessionId,
     })
     this.syncPolling()
     return { ptyId }
+  }
+
+  /** Live shell pids grouped by owning session, for the resource monitor. */
+  pidsBySession(): Map<string, number[]> {
+    const map = new Map<string, number[]>()
+    for (const session of this.sessions.values()) {
+      if (!session.sessionId) continue
+      const pid = session.pty.pid
+      if (pid === undefined) continue
+      const pids = map.get(session.sessionId)
+      if (pids) pids.push(pid)
+      else map.set(session.sessionId, [pid])
+    }
+    return map
   }
 
   write(ptyId: string, data: string): void {
