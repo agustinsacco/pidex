@@ -7,6 +7,7 @@ import { registerFsHandlers } from './ipc/fs-handlers'
 import { registerPtyHandlers } from './ipc/pty-handlers'
 import { registerMcpHandlers } from './ipc/mcp-handlers'
 import { registerResourceHandlers } from './ipc/resources-handlers'
+import { registerUpdateHandlers } from './ipc/updates-handlers'
 import { configureMonitor } from './resources/monitor'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
@@ -39,4 +40,5 @@ export function registerIpcHandlers(isDev: boolean): void {
   registerPtyHandlers()
   registerMcpHandlers()
   registerResourceHandlers(isDev)
+  registerUpdateHandlers()
 }

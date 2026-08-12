@@ -1,0 +1,205 @@
+name: Continuous Release
+
+# Every green CI run on main publishes an installable release.
+#
+# Triggered by `workflow_run` rather than `push` so this can NEVER publish from
+# a red build: the job is only reachable once the CI workflow has already
+# reported success. It also means the test matrix is not duplicated here.
+#
+# NOTE: GitHub only evaluates `workflow_run` triggers from the copy of this
+# file on the DEFAULT branch, so this cannot fire until it is merged to main.
+# `workflow_dispatch` exists to dry-run the whole build-and-publish path from a
+# feature branch before that happens.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # Rapid merges cancel superseded release builds — the newest commit wins and
+  # a skipped intermediate version number is harmless.
+  group: release-main
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Decide whether to release
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+      should_release: ${{ steps.decide.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run events check out the default branch by default; pin to
+          # the exact commit CI validated so the release matches what was tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          # `git rev-list --count` needs real history, not a depth-1 clone.
+          fetch-depth: 0
+
+      - name: Compute version and check for an existing tag
+        id: decide
+        env:
+          # A commit message containing [skip release] merges without shipping.
+          HEAD_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          # 0.1.<commits on this history>: semver-valid and strictly increasing,
+          # with no version-bump commit back to main (which would re-trigger CI).
+          VERSION="0.1.$(git rev-list --count HEAD)"
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          if printf '%s' "${HEAD_MESSAGE:-}" | grep -qF '[skip release]'; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::[skip release] in the commit message — not publishing ${TAG}."
+            exit 0
+          fi
+
+          # Re-runs and workflow_dispatch replays land on an existing tag. Skip
+          # rather than fail: a duplicate is not an error worth a red X.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${TAG} already exists — nothing to publish."
+            exit 0
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Publishing ${TAG}."
+
+  build:
+    name: Build and publish ${{ matrix.name }}
+    needs: guard
+    if: needs.guard.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Do not cancel a finished platform because the other one failed: a
+      # half-published release is still installable on the platform that built.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS
+            # BOTH mac arches in ONE electron-builder invocation. Splitting them
+            # across jobs makes the second upload clobber the first's
+            # latest-mac.yml, which silently breaks auto-update.
+            args: --mac
+          - os: ubuntu-latest
+            name: Linux
+            args: --linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # AppImage/deb tooling and arm64 cross-build support.
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libarchive-tools rpm
+
+      - name: Build renderer and main
+        run: npm run build
+
+      # electron-builder's own GitHub publisher, not a hand-rolled upload: it is
+      # what generates latest-mac.yml / latest-linux.yml (the version + sha512
+      # manifests electron-updater polls) and the .blockmap files that make
+      # updates differential instead of a full ~100MB re-download.
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing/notarization run only when the secrets exist; unsigned
+          # otherwise. `pidexSigned` tells the app which update path it can
+          # offer — see electron/updates/updater.ts.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          SIGNED=false
+          if [ "${RUNNER_OS}" = "macOS" ] && [ -n "${CSC_LINK:-}" ]; then
+            SIGNED=true
+          fi
+          if [ "${RUNNER_OS}" = "Linux" ]; then
+            # AppImage self-updates without any signing requirement.
+            SIGNED=true
+          fi
+          npx electron-builder ${{ matrix.args }} --publish always \
+            --config.extraMetadata.version="${{ needs.guard.outputs.version }}" \
+            --config.extraMetadata.pidexSigned="${SIGNED}" \
+            --config.publish.provider=github \
+            --config.publish.releaseType=release
+
+  finalize:
+    name: Attach installer script and notes
+    needs: [guard, build]
+    if: needs.guard.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      # install.sh downloads assets by exact name, so it ships with the release
+      # it installs. Uploaded after the builds so it cannot race them.
+      - name: Upload install.sh and icon
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ needs.guard.outputs.tag }}" \
+            scripts/install.sh build/icon.png --clobber
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          NOTES=$(printf '%s\n' \
+            "Automatic release from \`main\` @ \`${SHA:0:7}\`." \
+            "" \
+            "## Install" \
+            "" \
+            "macOS / Linux:" \
+            "" \
+            '```sh' \
+            "curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | sh" \
+            '```' \
+            "" \
+            "This replaces an existing install in place." \
+            "" \
+            "Already running pidex? It will offer to update itself." \
+            "" \
+            "pidex requires the pi coding agent on your PATH:" \
+            "" \
+            '```sh' \
+            "npm install -g @earendil-works/pi-coding-agent" \
+            '```')
+          # electron-builder creates the release as a draft; publishing it here
+          # (after every asset is attached) is what makes `releases/latest`
+          # resolve to it — which is exactly what the updater and install.sh use.
+          gh release edit "${{ needs.guard.outputs.tag }}" \
+            --draft=false --latest --notes "${NOTES}"

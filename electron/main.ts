@@ -6,6 +6,7 @@ import { ptyManager } from './pty/pty-manager'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { stopMonitor } from './resources/monitor'
+import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -81,6 +82,8 @@ app.whenReady().then(() => {
   }
   registerIpcHandlers(isDev)
   createWindow()
+  // No-op unless packaged: dev and E2E must never poll GitHub.
+  startUpdateChecks()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -99,6 +102,7 @@ app.on('before-quit', (event) => {
   // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
   // filesystem watchers so no chokidar handles or debounce timers outlive us.
   stopMonitor()
+  stopUpdateChecks()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

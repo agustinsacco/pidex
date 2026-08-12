@@ -711,6 +711,11 @@ export function installMockPidex(): void {
           return Promise.resolve(null)
         case 'git:showFileAt':
           return Promise.resolve('// baseline content\n')
+        case 'updates:state':
+          return Promise.resolve({ phase: 'idle' })
+        case 'updates:check':
+        case 'updates:restartAndInstall':
+          return Promise.resolve(undefined)
         case 'resources:subscribe':
           return Promise.resolve(null)
         case 'resources:unsubscribe':
@@ -776,6 +781,20 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     onPtyStatus: () => () => {},
+
+    // Replay a full update lifecycle so the pill is developable in the
+    // browser harness. Timings are compressed; the real one polls every 30min.
+    onUpdateEvent: (listener) => {
+      const steps: Array<[number, Parameters<typeof listener>[0]]> = [
+        [1500, { phase: 'checking' }],
+        [2500, { phase: 'downloading', version: '0.1.42', progressPercent: 12 }],
+        [3300, { phase: 'downloading', version: '0.1.42', progressPercent: 58 }],
+        [4100, { phase: 'downloading', version: '0.1.42', progressPercent: 91 }],
+        [4800, { phase: 'downloaded', version: '0.1.42' }],
+      ]
+      const timers = steps.map(([delay, state]) => setTimeout(() => listener(state), delay))
+      return () => timers.forEach(clearTimeout)
+    },
 
     // Fake monitor ticks so the resource view is developable in the browser.
     // Numbers are in the shape of real measurements (a pi process is ~200MB).
