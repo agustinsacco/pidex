@@ -790,3 +790,28 @@ test('resource monitor reports real per-session process usage', async () => {
     await shutdown(harness)
   }
 })
+
+test('the updater stays dormant in an unpackaged run', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // The updater is gated on app.isPackaged. E2E and dev runs are unpackaged,
+    // so it must report `unsupported` and never reach the network — otherwise
+    // every test run (and every `npm run dev`) would poll GitHub releases.
+    const state = await page.evaluate(() => window.pidex.invoke('updates:state'))
+    expect(state.phase).toBe('unsupported')
+
+    // An explicit check is likewise a no-op rather than a fetch.
+    await page.evaluate(() => window.pidex.invoke('updates:check'))
+    expect((await page.evaluate(() => window.pidex.invoke('updates:state'))).phase).toBe(
+      'unsupported',
+    )
+
+    // And with nothing to install, the pill never renders.
+    await expect(page.getByTestId('update-pill')).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+  }
+})

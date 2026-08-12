@@ -328,3 +328,26 @@ export interface ResourceSnapshot {
     processes: AppProcessUsage[]
   }
 }
+
+// ---------- updater ----------
+
+/**
+ * Update lifecycle as the renderer sees it. Mirrors
+ * `electron/updates/update-state.ts`, which owns the reducer.
+ */
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'downloaded'
+  /** Detected, but this install must be updated by hand (unsigned mac, deb). */
+  | 'manual-download'
+  /** No update mechanism (dev / unpackaged). */
+  | 'unsupported'
+
+export interface UpdateState {
+  phase: UpdatePhase
+  version?: string
+  progressPercent?: number
+  releaseUrl?: string
+}

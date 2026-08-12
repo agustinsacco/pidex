@@ -38,6 +38,7 @@ import type {
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
+  UpdateState,
   ThemePreference,
   UsageSummary,
   WorkspaceInfo,
@@ -285,6 +286,14 @@ export interface IpcInvokeMap {
   'resources:unsubscribe': { args: []; result: void }
   'resources:openWindow': { args: []; result: void }
   'resources:closeWindow': { args: []; result: void }
+
+  /**
+   * Auto-update. Checks are driven by main on a timer; the renderer only reads
+   * state and asks for the install. Installing is ALWAYS user-initiated.
+   */
+  'updates:state': { args: []; result: UpdateState }
+  'updates:check': { args: []; result: void }
+  'updates:restartAndInstall': { args: []; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap
@@ -318,6 +327,8 @@ export interface PidexApi {
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
   /** Resource monitor ticks; only fires while something is subscribed. */
   onResourceSample(listener: (snapshot: ResourceSnapshot) => void): () => void
+  /** Update lifecycle changes (checking / downloading / ready to install). */
+  onUpdateEvent(listener: (state: UpdateState) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image

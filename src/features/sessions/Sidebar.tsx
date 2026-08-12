@@ -16,6 +16,7 @@ import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useUsageUiStore } from '@/features/usage/usageUiStore'
 import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
+import { UpdatePill } from '@/features/updates/UpdatePill'
 import { useLayoutStore } from '@/stores/layout'
 import { worktreeAwareName } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -395,6 +396,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       </div>
 
       <div className="border-border border-t px-3 py-2.5">
+        <UpdatePill />
         <button
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
           className="text-text-secondary hover:text-text hover:bg-bg-secondary -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] transition-colors"
