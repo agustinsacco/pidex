@@ -14,6 +14,8 @@ export default defineConfig({
       'shared/**/*.test.ts',
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
+      // Release-pipeline shell helpers that CI depends on.
+      'scripts/**/*.test.ts',
     ],
     // Node by default; DOM-dependent suites opt in per file with
     // `// @vitest-environment jsdom` so the fast majority stay in node.
