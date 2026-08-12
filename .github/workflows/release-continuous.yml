@@ -49,7 +49,7 @@ jobs:
       - name: Compute version and check for an existing tag
         id: decide
         env:
-          # A commit message containing [skip release] merges without shipping.
+          # `[skip release]` in the commit SUBJECT merges without shipping.
           HEAD_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           set -euo pipefail
@@ -61,9 +61,13 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-          if printf '%s' "${HEAD_MESSAGE:-}" | grep -qF '[skip release]'; then
+          # Subject-line only, and unit tested — see
+          # scripts/__tests__/should-skip-release.test.ts. Matching the whole
+          # message meant a commit body that merely *documented* this feature
+          # suppressed its own release, which is how v0.1.37 never shipped.
+          if sh scripts/should-skip-release.sh "${HEAD_MESSAGE:-}"; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::[skip release] in the commit message — not publishing ${TAG}."
+            echo "::notice::[skip release] in the commit subject — not publishing ${TAG}."
             exit 0
           fi
 
