@@ -591,8 +591,13 @@ invocation; splitting them across jobs makes the second upload clobber the
 first's `latest-mac.yml` and silently break auto-update. The existing tag-driven
 `release.yml` survives as the deliberate/Windows path.
 
-`[skip release]` in a commit message skips publishing; an existing tag skips
-rather than fails, so re-runs and `workflow_dispatch` replays are safe.
+A `Skip-Release: true` git trailer skips publishing; an existing tag skips
+rather than fails, so re-runs and `workflow_dispatch` replays are safe. The
+trailer replaced a prose marker after two prose-matching attempts each
+suppressed their OWN release by merely mentioning the marker (v0.1.37 lost to a
+whole-message match, v0.1.38 to a subject-only match). A trailer cannot be
+tripped by talking about it — the whole point. Unit tested against both real
+commit messages.
 
 **Updater** (`electron/updates/`). `update-state.ts` is a pure reducer so every
 transition is unit-tested without Electron or a network. `updater.ts` owns the
