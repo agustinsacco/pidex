@@ -5,10 +5,13 @@ import { CheckIcon } from '@/components/icons'
 export function CopyButton({
   text,
   label,
+  size = 'md',
   className,
 }: {
   text: string
   label?: string
+  /** 'sm' matches the compact hover-popover rows (message meta rows). */
+  size?: 'sm' | 'md'
   className?: string
 }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
@@ -20,26 +23,31 @@ export function CopyButton({
     })
   }
 
+  const iconSize = size === 'sm' ? 11 : 13
+
   return (
     <button
       onClick={copy}
       title="Copy"
       className={clsx(
-        'text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors',
+        'text-text-tertiary hover:text-text flex items-center gap-1 transition-colors',
+        size === 'sm'
+          ? 'h-4 text-[11px]'
+          : 'hover:bg-bg-secondary h-6 rounded-md px-1.5 text-[11px]',
         className,
       )}
     >
-      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? <CheckIcon size={iconSize} /> : <CopyIcon size={iconSize} />}
       {label && <span>{copied ? 'Copied' : label}</span>}
     </button>
   )
 }
 
-function CopyIcon(): React.JSX.Element {
+function CopyIcon({ size = 13 }: { size?: number }): React.JSX.Element {
   return (
     <svg
-      width="13"
-      height="13"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

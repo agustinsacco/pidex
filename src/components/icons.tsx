@@ -97,6 +97,16 @@ export function CheckIcon({ size = 13, className }: IconProps): React.JSX.Elemen
   )
 }
 
+/** Counter-clockwise rewind arrow, for "rewind to here" on a message row. */
+export function RewindIcon({ size = 13, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className}>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </svg>
+  )
+}
+
 /**
  * Indeterminate activity spinner. Colour comes from `className` so callers can
  * tint it (accent for tools, warning for retries) or inherit from an ancestor.

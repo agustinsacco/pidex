@@ -5,13 +5,15 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { CopyButton } from '@/components/CopyButton'
 import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
+import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
+import { entryIdForUserMessageOrdinal, rewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import type { TranscriptRow } from './items/transcriptRows'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
 import { useActiveWorkspace } from '@/stores/workspaces'
-import { BranchIcon } from '@/components/icons'
+import { BranchIcon, RewindIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
 import { Divider } from './items/Divider'
 
@@ -122,6 +124,34 @@ function UserMessage({
   item: UserItem
   sessionId: string
 }): React.JSX.Element {
+  const [busy, setBusy] = useState(false)
+
+  const rewind = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      // The ordinal is computed from the currently rendered items rather
+      // than carried on the item itself: `item.id` is a client-side counter
+      // (see `newItemId`), not pi's own entry id, so it can't be sent to pi
+      // directly. Non-optimistic user items map 1:1, in order, onto
+      // `get_fork_messages`'s list — both come from the same on-disk entries.
+      const items = useChatStore.getState().sessions[sessionId]?.items ?? []
+      let ordinal = -1
+      for (const it of items) {
+        if (it.kind !== 'user' || it.optimistic) continue
+        ordinal++
+        if (it.id === item.id) break
+      }
+      const entryId = ordinal >= 0 ? await entryIdForUserMessageOrdinal(sessionId, ordinal) : null
+      if (!entryId) {
+        useChatStore.getState().setError(sessionId, 'Could not locate this message to rewind.')
+        return
+      }
+      await rewindToEntry(sessionId, entryId)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="group flex flex-col items-end gap-1">
       {item.images && item.images.length > 0 && (
@@ -136,28 +166,45 @@ function UserMessage({
         </div>
       )}
       {item.text && (
-        <div className="bg-user-bubble relative max-w-[85%] rounded-xl px-4 py-2.5 text-[14px] whitespace-pre-wrap">
+        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-[14px] whitespace-pre-wrap">
           {item.text}
-          <div className="absolute -left-14 top-1.5 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
-              title="Fork from here (edit & resend)"
-              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center rounded-md px-1.5 transition-colors"
-            >
-              <BranchIcon size={12} />
-            </button>
-            <CopyButton text={item.text} />
-          </div>
         </div>
       )}
-      {item.timestamp != null && (
-        <span
-          className="text-text-tertiary h-3.5 pr-1 text-[11px] leading-none opacity-0 transition-opacity group-hover:opacity-100"
-          title={absoluteTime(item.timestamp)}
+
+      {/*
+       * Bottom-right meta row, revealed on hover: copy, rewind (in-place,
+       * via pi's own `fork` command), fork-from-here (the multi-message
+       * picker), then the relative timestamp — zero layout height at rest,
+       * so hover can never nudge the transcript.
+       */}
+      <div className="flex h-4 items-center gap-2 pr-1 opacity-0 transition-opacity group-hover:opacity-100">
+        {item.text && !item.optimistic && (
+          <button
+            onClick={() => void rewind()}
+            disabled={busy}
+            title="Rewind to here"
+            className="text-text-tertiary hover:text-text flex items-center transition-colors disabled:opacity-50"
+          >
+            <RewindIcon size={12} />
+          </button>
+        )}
+        <button
+          onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
+          title="Fork from an earlier message…"
+          className="text-text-tertiary hover:text-text flex items-center transition-colors"
         >
-          {relativeTime(item.timestamp)}
-        </span>
-      )}
+          <BranchIcon size={12} />
+        </button>
+        {item.text && <CopyButton text={item.text} size="sm" />}
+        {item.timestamp != null && (
+          <span
+            className="text-text-tertiary text-[11px] leading-none"
+            title={absoluteTime(item.timestamp)}
+          >
+            {relativeTime(item.timestamp)}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
