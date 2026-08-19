@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { spacingFor, STREAM_GAP, STREAM_GAP_TIGHT } from './spacing'
+import { spacingFor, STREAM_GAP } from './spacing'
 import { buildTranscriptRows, type TranscriptRow } from './transcriptRows'
 import type { AssistantItem, ChatItem, UserItem } from '../reducer'
 
@@ -59,22 +59,46 @@ describe('spacingFor', () => {
     }
   })
 
-  it('tightens between rows of one assistant turn', () => {
-    // Prose → activity → prose is one turn's own output, so it closes up.
+  it('keeps the space around a tool group symmetric', () => {
+    // Mid-turn: prose → activity → prose. The old scheme tightened the first
+    // boundary and gave the answer a wider "final beat", so the card sat 4px
+    // from the text above and 12px from the text below. Both sides must match.
     const rows = buildTranscriptRows([
       assistantText('a1'),
       assistantToolOnly('a2'),
       assistantText('a3'),
     ])
     expect(rows.map((r) => r.kind)).toEqual(['text', 'activity', 'text'])
-    expect(spacingFor(rows[1]!, rows[0])).toBe(STREAM_GAP_TIGHT)
-    expect(spacingFor(rows[2]!, rows[1])).toBe(STREAM_GAP)
+    const aboveGroup = spacingFor(rows[1]!, rows[0]!)
+    const belowGroup = spacingFor(rows[2]!, rows[1]!)
+    expect(aboveGroup).toBe(STREAM_GAP)
+    expect(aboveGroup).toBe(belowGroup)
   })
 
-  it('uses a full gap between an activity group and its final response', () => {
-    const rows = buildTranscriptRows([assistantToolOnly('a1'), assistantText('a2')])
-    expect(rows.map((r) => r.kind)).toEqual(['activity', 'text'])
-    expect(spacingFor(rows[1]!, rows[0])).toBe(STREAM_GAP)
+  it('gives every interior row an equal gap above and below', () => {
+    // The property the transcript was missing: for any row, the leading space
+    // it owns equals the leading space its successor owns.
+    const rows = buildTranscriptRows([
+      user('u1'),
+      assistantToolOnly('a1'),
+      assistantText('a2'),
+      assistantToolOnly('a3'),
+      assistantText('a4'),
+      user('u5'),
+    ])
+    expect(rows.map((r) => r.kind)).toEqual([
+      'item',
+      'activity',
+      'text',
+      'activity',
+      'text',
+      'item',
+    ])
+    for (let i = 1; i < rows.length - 1; i++) {
+      const above = spacingFor(rows[i]!, rows[i - 1]!)
+      const below = spacingFor(rows[i + 1]!, rows[i]!)
+      expect(below).toBe(above)
+    }
   })
 
   it('needs no tool-only special case: consecutive tool turns are ONE row', () => {
@@ -93,8 +117,8 @@ describe('spacingFor', () => {
     const rows = buildTranscriptRows([user(), assistantText(), assistantToolOnly()])
     const classes = [
       spacingFor(rows[0]!, undefined),
-      spacingFor(rows[1]!, rows[0]),
-      spacingFor(rows[2]!, rows[1]),
+      spacingFor(rows[1]!, rows[0]!),
+      spacingFor(rows[2]!, rows[1]!),
     ]
     for (const value of classes) expect(value).not.toMatch(/\bpb-/)
   })
