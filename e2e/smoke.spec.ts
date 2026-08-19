@@ -332,7 +332,7 @@ test('usage view aggregates cost and tokens from session files', async () => {
   }
 })
 
-test('worktree flow: create from the branch chip, session groups under it', async () => {
+test('worktree flow: create from the branch chip, session stays under the project group', async () => {
   // The workspace must be a git repo BEFORE the app queries git:info.
   const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-wt-'))
   const { execFile } = await import('node:child_process')
@@ -359,13 +359,14 @@ test('worktree flow: create from the branch chip, session groups under it', asyn
     // Chip now targets the worktree.
     await expect(page.getByTestId('branch-chip')).toContainText('task-1', { timeout: 10_000 })
 
-    // Start a session — it runs in the worktree cwd and groups under it.
+    // Start a session — it runs in the worktree cwd, but the sidebar still
+    // shows one group for the project (not a second header split off by
+    // branch); the worktree is surfaced on the session row itself instead.
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByTestId('workspace-group').filter({ hasText: 'task-1' })).toBeVisible({
-      timeout: 15_000,
-    })
+    await expect(page.getByTestId('workspace-group')).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.getByTitle('Runs in a git worktree')).toBeVisible({ timeout: 15_000 })
 
     // The chat header's git chip marks the worktree.
     await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })

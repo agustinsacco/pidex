@@ -19,19 +19,11 @@ import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { useLayoutStore } from '@/stores/layout'
 import { worktreeAwareName } from '@/lib/path'
+import { groupSessionsByProject, type GroupedSessions } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
-
-interface GroupedSessions {
-  workspacePath: string
-  name: string
-  metas: SessionMeta[]
-  liveCount: number
-  /** False until this workspace's session dir has been scanned. */
-  scanned: boolean
-}
 
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const disk = useSessionsStore((s) => s.disk)
@@ -142,43 +134,42 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     [disk, pinnedSet],
   )
 
-  /** Remaining sessions grouped by workspace, live projects first. */
-  const groups = useMemo<GroupedSessions[]>(() => {
-    return (
-      knownWorkspaces
-        .map((path) => {
-          const metas = (disk[path] ?? []).filter((m) => !pinnedSet.has(m.path))
-          const liveCount = metas.filter((m) => liveByDisk.has(m.path)).length
-          return {
-            workspacePath: path,
-            name: worktreeAwareName(path, gitByCwd[path]),
-            metas,
-            liveCount,
-            scanned: path in disk,
-          }
-        })
-        // Unscanned workspaces (beyond the boot-scan cap) still get a header —
-        // hiding them would make their sessions unreachable until restart.
-        .filter((g) => g.metas.length > 0 || !g.scanned || g.workspacePath === workspacePath)
-        .sort((a, b) => {
-          if (a.liveCount !== b.liveCount) return b.liveCount - a.liveCount
-          if (a.workspacePath === workspacePath) return -1
-          if (b.workspacePath === workspacePath) return 1
-          return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
-        })
-    )
-  }, [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd])
+  /**
+   * Remaining sessions grouped by *project*, live projects first.
+   *
+   * A linked worktree is a different folder from its main repo, so without
+   * this merge step every worktree got its own header ("pidex", "pidex
+   * (test)", ...) even though they're all the same project — the sidebar
+   * read as more projects than actually existed. Instead, a worktree's
+   * sessions fold into its main repo's group (keyed by `mainRepoPath`, from
+   * `git:info`); the worktree/branch a session actually runs on is shown per
+   * row via the "wt" subtitle chip, not by splitting the group.
+   */
+  const groups = useMemo<GroupedSessions[]>(
+    () =>
+      groupSessionsByProject(
+        knownWorkspaces,
+        disk,
+        gitByCwd,
+        (m) => pinnedSet.has(m.path),
+        (m) => liveByDisk.has(m.path),
+        workspacePath,
+      ),
+    [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd],
+  )
 
   /**
    * Collapse resolution: an explicit choice wins; otherwise scanned groups
    * are open and unscanned ones start closed. That default IS the lazy-load
    * path — workspaces beyond the boot-scan cap sit collapsed until expanded,
-   * which is when their first scan happens. The active workspace is always
-   * open by default, even before its scan lands.
+   * which is when their first scan happens. The active workspace's project
+   * is always open by default, even before its scan lands — checked via
+   * `paths`, since the active folder may be a worktree merged into a group
+   * whose primary `workspacePath` is the main repo.
    */
   const isGroupCollapsed = (group: GroupedSessions): boolean =>
     collapsed?.[group.workspacePath] ??
-    (group.scanned ? false : group.workspacePath !== workspacePath)
+    (group.scanned ? false : !group.paths.includes(workspacePath))
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
     const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
@@ -187,8 +178,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       'app:setCollapsedWorkspaces',
       Object.keys(next).filter((p) => next[p]),
     )
-    // Expanding catches up on anything missed while the group was unwatched.
-    if (wasCollapsed) void useSessionsStore.getState().refreshDisk(group.workspacePath)
+    // Expanding catches up on anything missed while the group was unwatched,
+    // across every folder merged into this project (main repo + worktrees).
+    if (wasCollapsed) {
+      const store = useSessionsStore.getState()
+      for (const path of group.paths) void store.refreshDisk(path)
+    }
   }
 
   // Watch exactly the visible groups: expanded ⇒ watching, collapsed ⇒ not.
@@ -197,8 +192,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   useEffect(() => {
     if (collapsed === null) return
     const store = useSessionsStore.getState()
-    const expanded = groups.filter((g) => !isGroupCollapsed(g)).map((g) => g.workspacePath)
-    const closed = groups.filter((g) => isGroupCollapsed(g)).map((g) => g.workspacePath)
+    const expanded = groups.filter((g) => !isGroupCollapsed(g)).flatMap((g) => g.paths)
+    const closed = groups.filter((g) => isGroupCollapsed(g)).flatMap((g) => g.paths)
     store.watchWorkspaces(expanded)
     store.unwatchWorkspaces(closed)
   }, [groups, collapsed])
@@ -222,6 +217,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           useSessionsStore.getState().activate(null)
         },
       },
+      // Only offered when the group's own representative folder is itself a
+      // worktree — i.e. its main repo isn't a known workspace to fold into.
+      // Once both are known and merged, this lives on the session's own
+      // branch chip (GitChips) instead of the ambiguous, multi-folder group.
       ...(git?.isWorktree && git.mainRepoPath
         ? [
             {
