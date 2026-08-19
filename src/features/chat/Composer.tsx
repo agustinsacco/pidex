@@ -366,13 +366,7 @@ export function Composer({
       <WorkingIndicator sessionId={sessionId} />
       <RetryStrip sessionId={sessionId} />
       <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
-      <QueueChips
-        sessionId={sessionId}
-        onRecall={(queued) => {
-          setText((current) => (current ? current + '\n' + queued : queued))
-          textareaRef.current?.focus()
-        }}
-      />
+      <QueueChips sessionId={sessionId} />
 
       <div className="relative mx-auto max-w-3xl">
         {command && commandMatches.length > 0 && (

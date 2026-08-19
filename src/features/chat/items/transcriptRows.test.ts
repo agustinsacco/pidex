@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activeActivityId,
   buildTranscriptRows,
   isActivityLive,
   summarizeActivity,
@@ -48,6 +49,31 @@ const toolState = (id: string, name: string, status: ToolState['status'] = 'done
   argsText: '',
   status,
   output: null,
+})
+
+describe('activeActivityId', () => {
+  it('keeps the latest activity active between settled tools while the agent runs', () => {
+    const rows = buildTranscriptRows([
+      assistant([thinking(0), tool(1, 'c1')]),
+      assistant([], { streaming: true }),
+    ])
+    const activity = rows.find((row) => row.kind === 'activity')
+    expect(activity?.kind).toBe('activity')
+    expect(activeActivityId(rows, true)).toBe(activity?.id)
+  })
+
+  it('ends the active group when final response prose starts', () => {
+    const rows = buildTranscriptRows([
+      assistant([tool(0, 'c1')]),
+      assistant([text(0, 'Final answer')], { streaming: true }),
+    ])
+    expect(activeActivityId(rows, true)).toBeNull()
+  })
+
+  it('has no active group after the agent ends', () => {
+    const rows = buildTranscriptRows([assistant([tool(0, 'c1')])])
+    expect(activeActivityId(rows, false)).toBeNull()
+  })
 })
 
 describe('buildTranscriptRows', () => {

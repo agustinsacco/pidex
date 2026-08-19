@@ -385,6 +385,7 @@ function runTurn() {
     out({ type: 'message_end', message })
   })
   push(() => out({ type: 'agent_end', messages: [] }))
+  push(() => out({ type: 'agent_settled' }))
 
   // Sequential so a step may await (used to hold a tool "running").
   void (async () => {
@@ -467,6 +468,7 @@ function runLongArtifactTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
   ])
 }
 
@@ -558,6 +560,7 @@ function runLongStreamTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
+  steps.push(() => out({ type: 'agent_settled' }))
 
   play(steps)
 }
@@ -624,5 +627,6 @@ function runManyItemsTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
+  steps.push(() => out({ type: 'agent_settled' }))
   play(steps, 4)
 }

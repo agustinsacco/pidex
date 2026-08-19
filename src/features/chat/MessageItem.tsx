@@ -20,6 +20,7 @@ interface MessageItemProps {
   tools: Record<string, ToolState>
   hideThinking: boolean
   sessionId: string
+  activityActive?: boolean
 }
 
 /**
@@ -32,6 +33,7 @@ export const MessageItemView = memo(function MessageItemView({
   tools,
   hideThinking,
   sessionId,
+  activityActive = false,
 }: MessageItemProps): React.JSX.Element | null {
   switch (row.kind) {
     case 'activity':
@@ -41,6 +43,7 @@ export const MessageItemView = memo(function MessageItemView({
           tools={tools}
           hideThinking={hideThinking}
           sessionId={sessionId}
+          active={activityActive}
         />
       )
     case 'text':
