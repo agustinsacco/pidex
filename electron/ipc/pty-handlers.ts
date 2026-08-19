@@ -7,6 +7,8 @@ export function registerPtyHandlers(): void {
     ptyManager.create(workspacePath, cols, rows, sessionId),
   )
 
+  handle('pty:attach', (_event, ptyId) => ptyManager.attach(ptyId))
+
   handle('pty:write', (_event, ptyId, data) => {
     ptyManager.write(ptyId, data)
   })

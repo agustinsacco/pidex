@@ -439,10 +439,22 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // its extension UI. Lazy imports keep this store free of load-order
     // cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
     // raced test teardown, and would equally race app shutdown).
-    const [{ useTerminalStore }, { useArtifactsStore }, { useExtensionUiStore }] =
-      await Promise.all([import('./terminal'), import('./artifacts'), import('./extensionUi')])
+    const [
+      { useTerminalStore },
+      { useArtifactsStore },
+      { useExtensionUiStore },
+      { useLayoutStore },
+    ] = await Promise.all([
+      import('./terminal'),
+      import('./artifacts'),
+      import('./extensionUi'),
+      import('./layout'),
+    ])
     await useTerminalStore.getState().removeSession(sessionId)
     useArtifactsStore.getState().remove(sessionId)
+    // The right pane is per session too, so its slice needs dropping here or
+    // it outlives the session that owned it.
+    useLayoutStore.getState().removeSession(sessionId)
     // `clearSession` existed but was never wired up, so statuses and widgets
     // (which hold extension-supplied line arrays) accumulated until quit.
     useExtensionUiStore.getState().clearSession(sessionId)

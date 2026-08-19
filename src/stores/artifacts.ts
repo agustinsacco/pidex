@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
-import { useLayoutStore } from './layout'
+import { useLayoutStore, sessionPanes } from './layout'
 
 export type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
 
@@ -128,11 +128,14 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
       }
 
       const layout = useLayoutStore.getState()
-      const paneOpen = layout.rightPane === 'artifacts'
+      // Scope the check to the artifact's OWN session: a background session
+      // producing artifacts must not read the foreground session's pane state
+      // (that is what "is the pane open" used to mean when it was global).
+      const paneOpen = sessionPanes(layout, sessionId).pane === 'artifacts'
       // First artifact in a session auto-opens the pane.
       const isFirst = Object.keys(state.bySession[sessionId] ?? {}).length === 0
       if (isFirst && opts.autoOpen !== false && !paneOpen) {
-        layout.setRightPane('artifacts')
+        layout.setRightPane('artifacts', sessionId)
       }
 
       // Don't yank the open viewer off an artifact the user is reading: an

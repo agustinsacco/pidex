@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { useLayoutStore } from '@/stores/layout'
+import { useLayoutStore, useRightExpanded } from '@/stores/layout'
 import { CloseIcon } from '@/components/icons'
 
 /**
@@ -22,11 +22,16 @@ export const PaneShell = memo(function PaneShell({
   actions?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
-  const expanded = useLayoutStore((s) => s.rightExpanded)
+  const expanded = useRightExpanded()
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2.5">
+      {/*
+       * No bottom border: the pane is already a bordered rounded card, so a
+       * rule under the title just draws a second horizontal line a few pixels
+       * inside the first. Spacing separates the header instead.
+       */}
+      <div className="flex h-11 shrink-0 items-center gap-1.5 px-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">{title}</div>
         {actions}
         <PaneIconButton

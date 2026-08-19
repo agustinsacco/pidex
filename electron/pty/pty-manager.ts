@@ -3,6 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { BrowserWindow } from 'electron'
 import { isBusy } from './busy'
+import { ensureSpawnHelperExecutable } from './spawn-helper'
+
+/**
+ * Replayed to a reattaching xterm so closing and reopening the pane doesn't
+ * show a blank rectangle in front of a live shell. Capped per PTY: a `npm
+ * run build` can emit megabytes, and this is scrollback, not a transcript.
+ */
+const SCROLLBACK_LIMIT = 256 * 1024
 
 interface PtySession {
   ptyId: string
@@ -10,6 +18,8 @@ interface PtySession {
   workspacePath: string
   shellName: string
   busy: boolean
+  /** Recent output, replayed on reattach (see SCROLLBACK_LIMIT). */
+  scrollback: string
   /**
    * Owning chat session, when the caller knows it. Lets the resource monitor
    * charge a terminal's process tree (builds, tests, dev servers) to the right
@@ -22,20 +32,42 @@ interface PtySession {
 class PtyManager {
   private readonly sessions = new Map<string, PtySession>()
   private pollTimer: NodeJS.Timeout | null = null
+  private helperChecked = false
 
   create(workspacePath: string, cols: number, rows: number, sessionId?: string): { ptyId: string } {
     const ptyId = randomUUID()
     const shell = defaultShell()
 
-    const pty = spawn(shell.command, shell.args, {
-      name: 'xterm-256color',
-      cwd: workspacePath,
-      cols,
-      rows,
-      env: { ...process.env, TERM_PROGRAM: 'pidex' } as Record<string, string>,
-    })
+    // Lazy + once: a few stats, and they only matter on the first spawn.
+    if (!this.helperChecked) {
+      this.helperChecked = true
+      ensureSpawnHelperExecutable()
+    }
+
+    let pty: IPty
+    try {
+      pty = spawn(shell.command, shell.args, {
+        name: 'xterm-256color',
+        cwd: workspacePath,
+        cols,
+        rows,
+        env: { ...process.env, TERM_PROGRAM: 'pidex' } as Record<string, string>,
+      })
+    } catch (error) {
+      // node-pty throws bare strings like "posix_spawnp failed." with no hint
+      // of which of the half-dozen causes applied. Re-throw with context so
+      // the renderer can show something actionable instead of hanging on
+      // "Starting shell…" forever.
+      throw new Error(describeSpawnFailure(error, shell.command, workspacePath), { cause: error })
+    }
 
     pty.onData((data) => {
+      const session = this.sessions.get(ptyId)
+      if (session) {
+        const next = session.scrollback + data
+        session.scrollback =
+          next.length > SCROLLBACK_LIMIT ? next.slice(next.length - SCROLLBACK_LIMIT) : next
+      }
       broadcast(`pty:data:${ptyId}`, data)
     })
 
@@ -51,10 +83,25 @@ class PtyManager {
       workspacePath,
       shellName: basename(shell.command),
       busy: false,
+      scrollback: '',
       sessionId,
     })
     this.syncPolling()
     return { ptyId }
+  }
+
+  /**
+   * Scrollback for a reattaching view. Unknown ptyId yields '' so a stale
+   * renderer reattaching to a dead shell is a no-op, not a throw.
+   *
+   * The ordering in `onData` is load-bearing: it appends to `scrollback`
+   * *before* broadcasting, so this snapshot is a superset of everything the
+   * caller already received on `pty:data:<id>`. A reattaching view can
+   * therefore discard what it buffered while this call was in flight rather
+   * than trying to de-duplicate a byte stream.
+   */
+  attach(ptyId: string): { scrollback: string } {
+    return { scrollback: this.sessions.get(ptyId)?.scrollback ?? '' }
   }
 
   /** Live shell pids grouped by owning session, for the resource monitor. */
@@ -142,6 +189,20 @@ function broadcast(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(channel, payload)
   }
+}
+
+/** Turn node-pty's opaque spawn errors into something a user can act on. */
+function describeSpawnFailure(error: unknown, shell: string, cwd: string): string {
+  const detail = error instanceof Error ? error.message : String(error)
+  if (/posix_spawnp? failed/i.test(detail)) {
+    return (
+      `Could not start a shell (${shell}): ${detail} ` +
+      "This usually means node-pty's spawn-helper lost its executable bit or " +
+      'was built for the wrong architecture. Reinstalling dependencies ' +
+      '(npm ci) rebuilds it.'
+    )
+  }
+  return `Could not start a shell (${shell}) in ${cwd}: ${detail}`
 }
 
 function defaultShell(): { command: string; args: string[] } {
