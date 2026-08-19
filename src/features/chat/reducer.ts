@@ -65,6 +65,13 @@ export { userMessageText } from './messageContent'
 
 // ---------- the reducer ----------
 
+/** Remove one delivered queue entry without disturbing duplicate messages. */
+function removeFirst(items: string[], value: string): string[] {
+  const index = items.indexOf(value)
+  if (index === -1) return items
+  return [...items.slice(0, index), ...items.slice(index + 1)]
+}
+
 export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSessionState {
   switch (event.type) {
     case 'agent_start':
@@ -73,11 +80,32 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
       return { ...state, isStreaming: true, error: null, agentStartedAt: Date.now() }
 
     case 'agent_end': {
+      // A low-level run ended. pi may continue immediately with retry, a
+      // queued steer/follow-up message, or compaction recovery; the
+      // authoritative "fully done" signal is agent_settled. But an older pi
+      // build (or protocol drift) is not guaranteed to emit that event, so
+      // only stay visibly active here when this run reports a concrete
+      // reason it will continue: `willRetry`, or an undelivered queue entry.
+      // Otherwise finalize now, matching the pre-agent_settled behavior.
       const items = state.items.map((item) =>
         item.kind === 'assistant' && item.streaming ? { ...item, streaming: false } : item,
       )
+      const willContinue =
+        event.willRetry === true ||
+        state.queues.steering.length > 0 ||
+        state.queues.followUp.length > 0
+      if (willContinue) return { ...state, retry: null, items }
       return { ...state, isStreaming: false, retry: null, items, agentStartedAt: null }
     }
+
+    case 'agent_settled':
+      return {
+        ...state,
+        isStreaming: false,
+        retry: null,
+        agentStartedAt: null,
+        queues: { steering: [], followUp: [] },
+      }
 
     case 'turn_start':
     case 'turn_end':
@@ -93,6 +121,21 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
           streaming: true,
         }
         return { ...state, items: [...state.items, item] }
+      }
+      if ('role' in message && message.role === 'user') {
+        // pi emits queue_update before this, but reconcile from the delivered
+        // user message too. It makes the chip robust to a missed/coalesced
+        // queue event and gives the click-like steer affordance a deterministic
+        // end state as soon as the instruction is consumed.
+        const text = userMessageText(message)
+        const steering = removeFirst(state.queues.steering, text)
+        const followUp =
+          steering === state.queues.steering
+            ? removeFirst(state.queues.followUp, text)
+            : state.queues.followUp
+        if (steering !== state.queues.steering || followUp !== state.queues.followUp) {
+          return { ...state, queues: { steering, followUp } }
+        }
       }
       return state
     }

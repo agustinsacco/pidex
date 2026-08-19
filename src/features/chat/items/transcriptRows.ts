@@ -89,6 +89,25 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
   return rows
 }
 
+/**
+ * The activity row currently receiving the agent's work.
+ *
+ * A tool can settle before pi starts the next assistant message, so individual
+ * tool status is not a reliable lifetime for the expanded group. Keep the
+ * newest activity row active across those gaps, but stop as soon as prose is
+ * emitted after it so the group can collapse ahead of the answer.
+ */
+export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): string | null {
+  if (!isStreaming) return null
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]
+    if (row?.kind === 'text' || row?.kind === 'outcome') return null
+    if (row?.kind === 'item' && row.item.kind !== 'assistant') return null
+    if (row?.kind === 'activity') return row.id
+  }
+  return null
+}
+
 /** True while any step in the group is still producing output. */
 export function isActivityLive(steps: ActivityStep[], tools: Record<string, ToolState>): boolean {
   return steps.some((s) => {

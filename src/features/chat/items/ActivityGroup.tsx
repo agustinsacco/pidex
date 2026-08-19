@@ -29,28 +29,34 @@ export const ActivityGroup = memo(function ActivityGroup({
   tools,
   hideThinking,
   sessionId,
+  active,
 }: {
   steps: ActivityStep[]
   tools: Record<string, ToolState>
   hideThinking: boolean
   sessionId: string
+  /** The agent is still in this activity run, including gaps between tools. */
+  active: boolean
 }): React.JSX.Element | null {
   /** null = follow the live/settled default; true/false = explicit user choice. */
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const live = isActivityLive(steps, tools)
+  const activeRun = active || live
 
-  // Reset the override when a group goes live again (a settled group the user
-  // collapsed should still open itself if new work lands in it).
-  const wasLive = useRef(live)
+  // Reset the override when a group becomes active again (a settled group the
+  // user collapsed should still open itself if new work lands in it). Unlike
+  // individual tool liveness, `active` spans the quiet hand-off between one
+  // completed tool and the next assistant message.
+  const wasActive = useRef(activeRun)
   useEffect(() => {
-    if (live && !wasLive.current) setUserOpen(null)
-    wasLive.current = live
-  }, [live])
+    if (activeRun && !wasActive.current) setUserOpen(null)
+    wasActive.current = activeRun
+  }, [activeRun])
 
   const visible = hideThinking ? steps.filter((s) => s.block.type !== 'thinking') : steps
   if (visible.length === 0) return null
 
-  const open = userOpen ?? live
+  const open = activeRun || (userOpen ?? false)
   const summary = summarizeActivity(visible, tools, (t) => settledVerb(t.toolName ?? ''))
 
   // Pair each thinking block onto the step that follows it (gutter mark);
@@ -70,19 +76,21 @@ export const ActivityGroup = memo(function ActivityGroup({
   return (
     <div
       data-testid="activity-group"
-      data-live={live || undefined}
+      data-live={activeRun || undefined}
       className={clsx(
-        'overflow-hidden rounded-lg border transition-colors',
-        live ? 'border-accent/45 bg-surface' : 'border-border bg-surface',
+        'overflow-hidden rounded-lg border transition-colors duration-200',
+        activeRun ? 'border-accent/45 bg-surface' : 'border-border bg-surface',
       )}
     >
       <button
         data-testid="activity-summary"
-        onClick={() => setUserOpen(!open)}
+        onClick={() => {
+          if (!activeRun) setUserOpen(!open)
+        }}
         aria-expanded={open}
         className="hover:bg-bg-secondary flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors"
       >
-        {live ? (
+        {activeRun ? (
           <span
             aria-hidden
             className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full"
@@ -107,20 +115,25 @@ export const ActivityGroup = memo(function ActivityGroup({
         )}
       </button>
 
-      {open && (
-        <div className="border-border divide-border/50 divide-y border-t">
-          {rows.map(({ step, thought }) => (
-            <ActivityRow
-              key={step.block.type === 'tool' ? step.block.toolCallId : `th-${step.block.index}`}
-              step={step}
-              thought={thought}
-              tools={tools}
-              sessionId={sessionId}
-            />
-          ))}
-          {trailingThought && <ThoughtOnlyRow text={trailingThought} />}
+      <div
+        aria-hidden={!open}
+        inert={!open}
+        className={clsx('activity-group-body', open && 'activity-group-body-open')}
+      >
+        <div className="min-h-0">
+          <div className="border-border divide-border/50 divide-y border-t">
+            {rows.map(({ step, thought }) => (
+              <div
+                className="activity-step-enter"
+                key={step.block.type === 'tool' ? step.block.toolCallId : `th-${step.block.index}`}
+              >
+                <ActivityRow step={step} thought={thought} tools={tools} sessionId={sessionId} />
+              </div>
+            ))}
+            {trailingThought && <ThoughtOnlyRow text={trailingThought} />}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 })

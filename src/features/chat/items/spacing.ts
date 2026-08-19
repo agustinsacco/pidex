@@ -58,6 +58,9 @@ function isDivider(row: TranscriptRow): boolean {
 export function spacingFor(row: TranscriptRow, previous: TranscriptRow | undefined): string {
   if (!previous) return ''
   if (isDivider(row) || isDivider(previous)) return STREAM_GAP
+  // Final prose deserves a full beat after the activity card. Keeping this at
+  // the tight in-turn gap made the streamed answer look attached to the card.
+  if (row.kind === 'text' && previous.kind === 'activity') return STREAM_GAP
   const continuesSameTurn = isAssistantSide(row) && isAssistantSide(previous)
   return continuesSameTurn ? STREAM_GAP_TIGHT : STREAM_GAP
 }
