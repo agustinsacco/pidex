@@ -13,8 +13,10 @@ const execFileAsync = promisify(execFile)
  * Layout decision: worktrees live INSIDE the repo at
  * `<repo>/.pidex/worktrees/<name>` (mirroring the `.claude/worktrees`
  * convention), ignored via `.git/info/exclude` so `git status` stays clean
- * without touching tracked files. In-repo keeps them discoverable and gives
- * sidebar groups a meaningful name (groups are keyed by cwd basename).
+ * without touching tracked files. In-repo keeps them discoverable from a
+ * plain file listing, and its `git:info` (`isWorktree` / `mainRepoPath`) is
+ * what lets the sidebar fold a worktree's sessions back into its main repo's
+ * group instead of giving each worktree its own top-level entry.
  *
  * Two standing rules:
  * - The main tree's checkout is NEVER changed on the user's behalf.
