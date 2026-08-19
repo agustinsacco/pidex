@@ -68,7 +68,13 @@ describe('spacingFor', () => {
     ])
     expect(rows.map((r) => r.kind)).toEqual(['text', 'activity', 'text'])
     expect(spacingFor(rows[1]!, rows[0])).toBe(STREAM_GAP_TIGHT)
-    expect(spacingFor(rows[2]!, rows[1])).toBe(STREAM_GAP_TIGHT)
+    expect(spacingFor(rows[2]!, rows[1])).toBe(STREAM_GAP)
+  })
+
+  it('uses a full gap between an activity group and its final response', () => {
+    const rows = buildTranscriptRows([assistantToolOnly('a1'), assistantText('a2')])
+    expect(rows.map((r) => r.kind)).toEqual(['activity', 'text'])
+    expect(spacingFor(rows[1]!, rows[0])).toBe(STREAM_GAP)
   })
 
   it('needs no tool-only special case: consecutive tool turns are ONE row', () => {

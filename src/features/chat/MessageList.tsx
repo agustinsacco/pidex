@@ -12,7 +12,7 @@ import {
   nextPinnedState,
 } from './items/autoscroll'
 import { spacingFor } from './items/spacing'
-import { buildTranscriptRows } from './items/transcriptRows'
+import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
 
 export const MessageList = memo(function MessageList({
   sessionId,
@@ -51,6 +51,7 @@ export const MessageList = memo(function MessageList({
    * tool call), so the virtualizer measures rows, not raw items.
    */
   const rows = useMemo(() => buildTranscriptRows(items), [items])
+  const activeActivity = activeActivityId(rows, isStreaming)
 
   const setPinnedNow = useCallback((next: boolean): void => {
     pinnedRef.current = next
@@ -248,12 +249,19 @@ export const MessageList = memo(function MessageList({
                  * virtualizer measures this node, so padding applied outside
                  * it would desync the computed offsets.
                  */}
-                <div className={spacingFor(row, previous)}>
+                <div
+                  className={`${spacingFor(row, previous)} ${
+                    row.kind === 'text' && previous?.kind === 'activity'
+                      ? 'activity-response-enter'
+                      : ''
+                  }`}
+                >
                   <MessageItemView
                     row={row}
                     tools={tools}
                     hideThinking={hideThinking}
                     sessionId={sessionId}
+                    activityActive={row.kind === 'activity' && row.id === activeActivity}
                   />
                 </div>
               </div>

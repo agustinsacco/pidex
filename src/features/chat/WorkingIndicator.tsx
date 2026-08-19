@@ -5,9 +5,9 @@ import { formatDuration, formatTokens } from '@/lib/format'
 
 /**
  * Persistent "pi is working" strip: elapsed time and running token count for
- * the whole agent run (not per turn — `agentStartedAt` is set once on
- * `agent_start` and only cleared on `agent_end`, so a multi-step tool run
- * keeps one continuous timer instead of resetting between rounds).
+ * whole agent operation (not per turn — `agentStartedAt` is set once on
+ * `agent_start` and only cleared on `agent_settled`, so tool runs, retries,
+ * and queued continuations keep one continuous timer).
  *
  * Tokens read `stats.tokens.total`, refreshed live on every `message_end` /
  * `tool_execution_end` (see shouldRefreshStatsOn in stores/sessions.ts) — it

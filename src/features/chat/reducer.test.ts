@@ -210,6 +210,48 @@ describe('chat reducer — tool calls', () => {
 })
 
 describe('chat reducer — queues, compaction, retry', () => {
+  it('finalizes at agent_end when nothing signals a continuation (protocol without agent_settled)', () => {
+    // Some pi builds/fixtures predate agent_settled. Without willRetry or a
+    // pending queue entry, agent_end alone must still terminate the run —
+    // otherwise a client that never receives agent_settled gets stuck
+    // "streaming" forever.
+    let state = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })
+    state = reduceChatEvent(state, { type: 'agent_end', messages: [] })
+    expect(state.isStreaming).toBe(false)
+    expect(state.agentStartedAt).toBeNull()
+  })
+
+  it('keeps the session active at agent_end and clears it only when fully settled', () => {
+    let state = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })
+    state = {
+      ...state,
+      queues: { steering: ['queued steer'], followUp: [] },
+    }
+
+    state = reduceChatEvent(state, { type: 'agent_end', messages: [] })
+    expect(state.isStreaming).toBe(true)
+    expect(state.agentStartedAt).toEqual(expect.any(Number))
+    expect(state.queues.steering).toEqual(['queued steer'])
+
+    state = reduceChatEvent(state, { type: 'agent_settled' })
+    expect(state.isStreaming).toBe(false)
+    expect(state.agentStartedAt).toBeNull()
+    expect(state.queues).toEqual({ steering: [], followUp: [] })
+  })
+
+  it('removes a steering chip when pi starts delivering that queued message', () => {
+    const initial: ChatSessionState = {
+      ...emptyChatSession(),
+      isStreaming: true,
+      queues: { steering: ['do X', 'do X'], followUp: ['then Y'] },
+    }
+    const state = reduceChatEvent(initial, {
+      type: 'message_start',
+      message: { role: 'user', content: 'do X' },
+    })
+    expect(state.queues).toEqual({ steering: ['do X'], followUp: ['then Y'] })
+  })
+
   it('tracks queue_update', () => {
     const state = run([{ type: 'queue_update', steering: ['do X'], followUp: ['then Y'] }])
     expect(state.queues).toEqual({ steering: ['do X'], followUp: ['then Y'] })
@@ -261,7 +303,7 @@ describe('chat reducer — agentStartedAt (working indicator)', () => {
     expect(emptyChatSession().agentStartedAt).toBeNull()
   })
 
-  it('sets a timestamp on agent_start and clears it on agent_end', () => {
+  it('sets a timestamp on agent_start and clears it once nothing continues', () => {
     let state = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })
     expect(state.agentStartedAt).toEqual(expect.any(Number))
     expect(state.agentStartedAt).toBeGreaterThan(0)
@@ -270,9 +312,19 @@ describe('chat reducer — agentStartedAt (working indicator)', () => {
     expect(state.agentStartedAt).toBeNull()
   })
 
+  it('keeps the timer running across agent_end when a retry is coming', () => {
+    let state = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })
+    state = reduceChatEvent(state, { type: 'agent_end', messages: [], willRetry: true })
+    expect(state.agentStartedAt).toEqual(expect.any(Number))
+    expect(state.isStreaming).toBe(true)
+
+    state = reduceChatEvent(state, { type: 'agent_settled' })
+    expect(state.agentStartedAt).toBeNull()
+  })
+
   it('keeps one continuous timer across a multi-step tool run', () => {
     // A run with several think-then-call rounds must NOT reset the timer
-    // between message_start/message_end pairs — only agent_start/agent_end
+    // between message_start/message_end pairs — only agent_start/agent_settled
     // bracket it. This is what keeps the elapsed time counting through a
     // whole tool-heavy turn instead of restarting on every sub-step.
     const state = run([
