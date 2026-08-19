@@ -725,6 +725,15 @@ and still sees the marker after close/reopen; a new test asserts a terminal
 opened in one session is absent in another and returns on switching back
 (verified failing against emulated global-pane behavior).
 
+**Flaky assertion fixed (macOS CI).** `a long tool run collapses to one dense
+group` sampled the activity group's height **once**, immediately after
+`aria-expanded` flipped to `"false"` — but that instant is when the 220ms
+`grid-template-rows: 1fr → 0fr` collapse _starts_. macOS CI measured 61px of a
+group that settles at ~33px. It now polls until settled (a group that genuinely
+stays tall still fails on timeout; verified by forcing the track to `1fr`, which
+reports 1230px and fails). The post-click measurement got the same treatment,
+where the race could only have produced false _passes_.
+
 **Styling:** removed `border-b` from the `PaneShell` header (Files, Changes,
 Terminal, Artifacts). The pane is already a bordered rounded card, so the rule
 under the title drew a second horizontal line a few pixels inside the first.

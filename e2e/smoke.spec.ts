@@ -809,14 +809,43 @@ test('a long tool run collapses to one dense group', async () => {
 
     // Settled ⇒ collapsed: the whole run costs a single line until asked for.
     await expect(summary).toHaveAttribute('aria-expanded', 'false')
-    const collapsedHeight = await page.evaluate(
-      () =>
-        document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect().height ??
-        0,
-    )
-    expect(collapsedHeight).toBeLessThan(44)
+
+    /*
+     * Poll, don't sample once.
+     *
+     * The body collapses via a 220ms `grid-template-rows: 1fr → 0fr`
+     * transition, and the instant `aria-expanded` flips to "false" is the
+     * instant that transition STARTS. A single `evaluate` right after it
+     * therefore measures the group mid-collapse — CI read 61px of a group that
+     * settles at ~33px (one ActivityRow still in the track). Polling keeps the
+     * assertion meaningful (a group that genuinely stays tall still fails on
+     * timeout) without racing the animation.
+     */
+    const groupHeight = async (): Promise<number> =>
+      await page.evaluate(
+        () =>
+          document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect()
+            .height ?? 0,
+      )
+    await expect.poll(groupHeight, { timeout: 5_000 }).toBeLessThan(44)
 
     await summary.click()
+    // Same transition, opening: measuring mid-expand compresses the rows and
+    // would make the density assertions below pass vacuously. Wait for the
+    // height to stop changing first.
+    let previous = -1
+    await expect
+      .poll(
+        async () => {
+          const current = await groupHeight()
+          const stable = current > 100 && current === previous
+          previous = current
+          return stable
+        },
+        { timeout: 5_000, intervals: [120] },
+      )
+      .toBe(true)
+
     const geometry = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
       const sorted = rows
