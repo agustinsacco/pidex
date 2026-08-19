@@ -28,7 +28,7 @@ function update(id: string, version: number, content = '# hello again'): void {
 
 beforeEach(() => {
   useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {}, unseen: {} })
-  useLayoutStore.setState({ rightPane: null })
+  useLayoutStore.setState({ bySession: {} })
 })
 
 describe('normalizeArtifactType', () => {
@@ -59,7 +59,7 @@ describe('artifacts store — update payloads', () => {
 
 describe('artifacts store — selection', () => {
   it('does not yank the viewer off the artifact the user is reading', () => {
-    useLayoutStore.setState({ rightPane: 'artifacts' })
+    useLayoutStore.setState({ bySession: { [SESSION]: { pane: 'artifacts', expanded: false } } })
     create('doc-a')
     create('doc-b')
     useArtifactsStore.getState().select(SESSION, 'doc-a')
@@ -78,7 +78,7 @@ describe('artifacts store — selection', () => {
     useArtifactsStore.getState().select(SESSION, 'doc-a')
     // The first artifact auto-opens the pane; close it again so this covers
     // the genuinely-closed case (selection only decides what opens later).
-    useLayoutStore.setState({ rightPane: null })
+    useLayoutStore.setState({ bySession: {} })
     create('doc-b')
     expect(useArtifactsStore.getState().selected[SESSION]).toBe('doc-b')
   })

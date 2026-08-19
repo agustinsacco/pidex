@@ -9,7 +9,7 @@ import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
-import { useLayoutStore } from '@/stores/layout'
+import { useLayoutStore, useRightExpanded, useRightPane } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
 import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
@@ -153,8 +153,8 @@ function MainWithPanes({
   workspacePath: string
   activeSessionId: string
 }): React.JSX.Element {
-  const rightPane = useLayoutStore((s) => s.rightPane)
-  const rightExpanded = useLayoutStore((s) => s.rightExpanded)
+  const rightPane = useRightPane()
+  const rightExpanded = useRightExpanded()
   const rightPanelRef = useRef<ImperativePanelHandle>(null)
 
   // Expand (↗) toggles the right panel between its saved size and ~85%.

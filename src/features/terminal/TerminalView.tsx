@@ -61,8 +61,37 @@ export const TerminalView = memo(function TerminalView({
     const dataDisposable = term.onData((data) => {
       void window.pidex.invoke('pty:write', ptyId, data)
     })
-    // PTY → renderer
-    const unsubscribeData = window.pidex.onPtyData(ptyId, (data) => term.write(data))
+
+    /*
+     * PTY → renderer, with a replay for reattach.
+     *
+     * Closing the terminal pane unmounts every view and disposes its xterm,
+     * but the PTY keeps running (that is the point — your build survives).
+     * A fresh xterm therefore starts blank in front of a live shell, which
+     * reads as "the terminal is broken": no prompt, no history, and the shell
+     * has no reason to redraw until you press a key.
+     *
+     * So: buffer live chunks, ask main for its scrollback, then write the
+     * scrollback and DISCARD the buffer. Main appends to its scrollback before
+     * broadcasting, so anything buffered here during the round trip is already
+     * contained in the snapshot; dropping it is what makes this exact rather
+     * than "replay and hope". Chunks that arrive after the snapshot are sent
+     * after main replied, and IPC delivery is ordered, so they land in
+     * `live` mode and stream straight through.
+     */
+    let replayed = false
+    let buffered: string[] = []
+    const unsubscribeData = window.pidex.onPtyData(ptyId, (data) => {
+      if (replayed) term.write(data)
+      else buffered.push(data)
+    })
+    void window.pidex.invoke('pty:attach', ptyId).then(({ scrollback }) => {
+      if (termRef.current !== term) return // disposed mid-flight
+      if (scrollback) term.write(scrollback)
+      replayed = true
+      buffered = []
+    })
+
     const unsubscribeExit = window.pidex.onPtyExit(ptyId, (exitCode) => {
       term.write(`\r\n\x1b[2m[process exited with code ${exitCode}]\x1b[0m\r\n`)
       useTerminalStore.getState().markExited(ptyId)

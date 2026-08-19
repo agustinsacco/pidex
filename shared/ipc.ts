@@ -273,6 +273,13 @@ export interface IpcInvokeMap {
     args: [workspacePath: string, cols: number, rows: number, sessionId?: string]
     result: { ptyId: string }
   }
+  /**
+   * Recent output for a view that is (re)binding to an already-live PTY —
+   * closing the terminal pane disposes the xterm but keeps the shell, so
+   * without a replay reopening shows a blank pane in front of a running
+   * shell. See `PtyManager.attach` for why this needs no de-duplication.
+   */
+  'pty:attach': { args: [ptyId: string]; result: { scrollback: string } }
   'pty:write': { args: [ptyId: string, data: string]; result: void }
   'pty:resize': { args: [ptyId: string, cols: number, rows: number]; result: void }
   'pty:kill': { args: [ptyId: string]; result: void }

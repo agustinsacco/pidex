@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
-import { useLayoutStore } from '@/stores/layout'
+import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/terminal'
 import { MessageList } from './MessageList'
@@ -51,7 +51,7 @@ function Header({
     return first?.kind === 'user' ? first.text : undefined
   })
   const title = sessionTitle({ explicitName: sessionName, firstUserText })
-  const rightPane = useLayoutStore((s) => s.rightPane)
+  const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
 
   return (
@@ -70,7 +70,7 @@ function Header({
       <HeaderIconButton
         title="Files pane (⌘⇧E)"
         active={rightPane === 'files'}
-        onClick={() => useLayoutStore.getState().toggleRightPane('files')}
+        onClick={() => useLayoutStore.getState().toggleRightPane('files', sessionId)}
       >
         <svg
           width="14"
@@ -87,7 +87,7 @@ function Header({
       <HeaderIconButton
         title="Changes pane (⌘⇧G)"
         active={rightPane === 'changes'}
-        onClick={() => useLayoutStore.getState().toggleRightPane('changes')}
+        onClick={() => useLayoutStore.getState().toggleRightPane('changes', sessionId)}
       >
         <svg
           width="14"
@@ -150,7 +150,7 @@ function TerminalHeaderButton({
       <HeaderIconButton
         title="Terminal pane (⌘`)"
         active={active}
-        onClick={() => useLayoutStore.getState().toggleRightPane('terminal')}
+        onClick={() => useLayoutStore.getState().toggleRightPane('terminal', sessionId)}
       >
         <svg
           width="14"
@@ -198,7 +198,7 @@ function ArtifactsHeaderButton({
       <HeaderIconButton
         title="Artifacts pane"
         active={active}
-        onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
+        onClick={() => useLayoutStore.getState().toggleRightPane('artifacts', sessionId)}
       >
         <svg
           width="14"

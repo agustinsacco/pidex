@@ -69,3 +69,58 @@ describe('terminal store (per-session)', () => {
     expect(sessionTerminals(useTerminalStore.getState(), 'session-a').activeId).toBe(first!.ptyId)
   })
 })
+
+describe('terminal store — spawn failures', () => {
+  it('surfaces the spawn error instead of rejecting, so the pane can react', async () => {
+    // The bug: `void createTab(...)` on first open meant a rejected pty:create
+    // produced an unhandled rejection, no tab, and no error — the pane sat on
+    // "Starting shell…" forever with no way to retry.
+    invoke.mockImplementation((channel: string) =>
+      channel === 'pty:create'
+        ? Promise.reject(
+            new Error("Error invoking remote method 'pty:create': Error: posix_spawnp failed."),
+          )
+        : Promise.resolve(undefined),
+    )
+
+    const ptyId = await useTerminalStore.getState().createTab('session-a', '/repo')
+
+    expect(ptyId).toBeNull()
+    const state = sessionTerminals(useTerminalStore.getState(), 'session-a')
+    expect(state.tabs).toHaveLength(0)
+    // Electron's "Error invoking remote method" wrapper is noise to a user.
+    expect(state.error).toBe('posix_spawnp failed.')
+  })
+
+  it('clearError lets the pane arm a retry', async () => {
+    invoke.mockImplementation((channel: string) =>
+      channel === 'pty:create' ? Promise.reject(new Error('boom')) : Promise.resolve(undefined),
+    )
+    await useTerminalStore.getState().createTab('session-a', '/repo')
+    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
+
+    useTerminalStore.getState().clearError('session-a')
+    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
+  })
+
+  it('a successful spawn clears a previous error', async () => {
+    invoke.mockImplementationOnce(() => Promise.reject(new Error('boom')))
+    await useTerminalStore.getState().createTab('session-a', '/repo')
+    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBe('boom')
+
+    invoke.mockImplementation((channel: string) =>
+      channel === 'pty:create' ? Promise.resolve({ ptyId: 'pty-ok' }) : Promise.resolve(undefined),
+    )
+    await useTerminalStore.getState().createTab('session-a', '/repo')
+    const state = sessionTerminals(useTerminalStore.getState(), 'session-a')
+    expect(state.error).toBeNull()
+    expect(state.activeId).toBe('pty-ok')
+  })
+
+  it('closeTab keeps the error field (patches must not drop slice state)', async () => {
+    await useTerminalStore.getState().createTab('session-a', '/repo')
+    const ptyId = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
+    await useTerminalStore.getState().closeTab('session-a', ptyId)
+    expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
+  })
+})
