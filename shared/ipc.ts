@@ -29,6 +29,8 @@ import type {
   DirEntry,
   FileContent,
   FontPrefs,
+  PackageJobAction,
+  PiPackageEntry,
   GhPullRequest,
   GitInfo,
   LiveSessionInfo,
@@ -120,7 +122,13 @@ export interface IpcInvokeMap {
   'app:openExternal': { args: [string]; result: void }
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
+  /** Effective settings: global merged with the workspace override (pi semantics). */
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }
+  /** Each scope's settings as written on disk — for editors, never merged. */
+  'pi:agentSettingsScoped': {
+    args: [workspacePath?: string]
+    result: { global: Record<string, unknown>; project: Record<string, unknown> | null }
+  }
   /** Models from pi's models.json, for pickers with no live session yet. */
   'pi:catalogueModels': {
     args: []
@@ -147,6 +155,26 @@ export interface IpcInvokeMap {
   }
   'pi:checkAgentSettings': { args: [workspacePath?: string]; result: AgentSettingsHealth }
   'pi:listResources': { args: []; result: PiResources }
+
+  /**
+   * pi packages (settings.json `packages` arrays + install dirs). Mutations
+   * shell out to pi's own package-manager CLI; output streams on
+   * `packages:output:<jobId>` with the exit code on `packages:exit:<jobId>`.
+   */
+  'packages:list': { args: [workspacePath?: string]; result: PiPackageEntry[] }
+  'packages:run': {
+    args: [
+      action: PackageJobAction,
+      spec: string | undefined,
+      scope: 'global' | 'project',
+      workspacePath?: string,
+    ]
+    result: { jobId: string }
+  }
+  /** One-click `npm install -g @earendil-works/pi-coding-agent` (login-shell env). */
+  'packages:installPi': { args: []; result: { jobId: string } }
+  /** Binary detection for catalogue recommendations (login-shell PATH). */
+  'packages:detect': { args: []; result: { claude: boolean } }
 
   /**
    * MCP config chain (pi-mcp-adapter). The renderer names scopes; paths are
@@ -335,6 +363,11 @@ export interface PidexApi {
 
   /** Workspace file-change notifications; returns unsubscribe. */
   onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void
+
+  /** Package job output stream (pi install/remove/update, pi self-install). */
+  onPackagesJobOutput(jobId: string, listener: (data: string) => void): () => void
+  /** Package job completion; exit code 0 means success. */
+  onPackagesJobExit(jobId: string, listener: (exitCode: number) => void): () => void
 
   /** PTY output stream; returns unsubscribe. */
   onPtyData(ptyId: string, listener: (data: string) => void): () => void

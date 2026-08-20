@@ -6,6 +6,7 @@ import { registerGitHandlers } from './ipc/git-handlers'
 import { registerFsHandlers } from './ipc/fs-handlers'
 import { registerPtyHandlers } from './ipc/pty-handlers'
 import { registerMcpHandlers } from './ipc/mcp-handlers'
+import { registerPackagesHandlers } from './ipc/packages-handlers'
 import { registerResourceHandlers } from './ipc/resources-handlers'
 import { registerUpdateHandlers } from './ipc/updates-handlers'
 import { configureMonitor } from './resources/monitor'
@@ -39,6 +40,7 @@ export function registerIpcHandlers(isDev: boolean): void {
   registerFsHandlers()
   registerPtyHandlers()
   registerMcpHandlers()
+  registerPackagesHandlers()
   registerResourceHandlers(isDev)
   registerUpdateHandlers()
 }
