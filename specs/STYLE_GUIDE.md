@@ -1,7 +1,7 @@
 # pidex visual identity — "Phosphor"
 
 > **Status: implemented 2026-08-07.** Icon/brand assets and the full in-app
-> migration ([RESTYLE_PLAN.md](RESTYLE_PLAN.md) phases 1–4) are live —
+> migration ([RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md) phases 1–4) are live —
 > `src/styles/index.css` carries these values. Outstanding: refreshing
 > `specs/screenshots/` (still shows the v1 terracotta theme).
 
@@ -41,7 +41,7 @@ glyph and tile in graphite `#1f1c18`, tile radius 228/1024.
 Tokens are the `--px-*` custom properties in `src/styles/index.css`, mapped to
 Tailwind via `@theme inline`. Components never hardcode hex values — the five
 satellite surfaces (xterm, Monaco, Mermaid, Chart.js, window background) each
-carry a themed copy of these values and are enumerated in RESTYLE_PLAN.md.
+carry a themed copy of these values and are enumerated in archive/RESTYLE_PLAN.md.
 
 ### Light — "paper"
 
@@ -146,4 +146,4 @@ scatter it as decoration.
 - Don't put white text on amber (dark mode) or amber text on paper below
   14px bold (light mode) — use the token pairs.
 - Don't mix the v1 and Phosphor palettes in one surface; migrate per-surface
-  atomically (see RESTYLE_PLAN.md order).
+  atomically (see archive/RESTYLE_PLAN.md order).
