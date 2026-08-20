@@ -76,7 +76,7 @@ export const CodeBlock = memo(function CodeBlock({
   return (
     <div className="code-block border-border bg-code-bg group/code relative my-3 overflow-hidden rounded-lg border">
       <div className="border-border text-text-tertiary flex h-8 items-center justify-between border-b px-3">
-        <span className="font-mono text-[11px] font-mono uppercase tracking-wide">
+        <span className="font-mono text-sm font-mono uppercase tracking-wide">
           {language || 'text'}
         </span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
@@ -84,7 +84,7 @@ export const CodeBlock = memo(function CodeBlock({
           <button
             title="Open as artifact"
             onClick={() => void promoteToArtifact(code, language)}
-            className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
+            className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
           >
             <svg
               width="12"
@@ -105,7 +105,7 @@ export const CodeBlock = memo(function CodeBlock({
                 const workspacePath = getActiveWorkspace()
                 if (workspacePath) void runInTerminal(workspacePath, code)
               }}
-              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors"
+              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
             >
               <svg
                 width="12"
@@ -125,11 +125,11 @@ export const CodeBlock = memo(function CodeBlock({
       <div className="overflow-x-auto">
         {html && !streaming ? (
           <div
-            className="shiki-container px-4 py-3 font-mono text-[12.5px] leading-relaxed"
+            className="shiki-container px-4 py-3 font-mono text-base leading-relaxed"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : (
-          <pre className="m-0 px-4 py-3 font-mono text-[12.5px] leading-relaxed whitespace-pre">
+          <pre className="m-0 px-4 py-3 font-mono text-base leading-relaxed whitespace-pre">
             {code}
           </pre>
         )}

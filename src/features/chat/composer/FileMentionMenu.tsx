@@ -32,7 +32,7 @@ export function FileMentionMenu({
             onClick={() => onPick(file)}
           >
             <FileIcon />
-            <span className="min-w-0 flex-1 truncate font-mono text-[12px]">
+            <span className="min-w-0 flex-1 truncate font-mono text-base">
               {dir && <span className="text-text-tertiary">{dir}</span>}
               <span className="text-text">{base}</span>
             </span>

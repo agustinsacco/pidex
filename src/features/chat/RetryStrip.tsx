@@ -25,7 +25,7 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
 
   return (
     <div className="mx-auto w-full max-w-3xl px-1 pb-2">
-      <div className="bg-warning/10 border-warning/30 flex items-center gap-2.5 rounded-lg border px-3 py-2 text-[12.5px]">
+      <div className="bg-warning/10 border-warning/30 flex items-center gap-2.5 rounded-lg border px-3 py-2 text-base">
         <Spinner className="text-warning" />
         <span className="text-text">
           Retrying ({retry.attempt}/{retry.maxAttempts})
@@ -36,7 +36,7 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
         </span>
         <button
           onClick={() => void cancel()}
-          className="text-text-secondary hover:text-danger shrink-0 text-[12px] font-medium transition-colors"
+          className="text-text-secondary hover:text-danger shrink-0 text-base font-medium transition-colors"
         >
           Cancel
         </button>

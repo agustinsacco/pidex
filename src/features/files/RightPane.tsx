@@ -74,7 +74,7 @@ function PaneSwitcher({
           aria-pressed={active === id}
           onClick={() => useLayoutStore.getState().setRightPane(id)}
           className={clsx(
-            'px-2.5 py-1 text-[12px] font-medium transition-colors',
+            'px-2.5 py-1 text-base font-medium transition-colors',
             active === id ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
           )}
         >

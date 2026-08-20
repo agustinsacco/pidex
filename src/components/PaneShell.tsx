@@ -104,8 +104,8 @@ export function PaneTitle({
 }): React.JSX.Element {
   return (
     <>
-      <span className="shrink-0 text-[13px] font-semibold">{label}</span>
-      {meta && <span className="text-text-tertiary min-w-0 truncate text-[11.5px]">{meta}</span>}
+      <span className="shrink-0 text-lg font-semibold">{label}</span>
+      {meta && <span className="text-text-tertiary min-w-0 truncate text-sm">{meta}</span>}
     </>
   )
 }

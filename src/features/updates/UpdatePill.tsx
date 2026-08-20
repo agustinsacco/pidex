@@ -45,7 +45,7 @@ export function UpdatePill(): React.JSX.Element | null {
           : undefined
       }
       className={clsx(
-        '-mx-1 mb-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] transition-colors',
+        '-mx-1 mb-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-left text-base transition-colors',
         ready
           ? 'bg-accent-soft text-accent hover:bg-accent hover:text-bg font-medium'
           : 'text-text-secondary hover:text-text hover:bg-bg-secondary',
@@ -61,7 +61,7 @@ export function UpdatePill(): React.JSX.Element | null {
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {update.phase === 'downloading' && update.progressPercent !== undefined && (
-        <span className="text-text-tertiary shrink-0 text-[10.5px] tabular-nums">
+        <span className="text-text-tertiary shrink-0 text-xs tabular-nums">
           {update.progressPercent}%
         </span>
       )}

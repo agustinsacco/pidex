@@ -33,7 +33,7 @@ export function ThinkingMenu({
       onClose={onClose}
       className={className ?? 'absolute bottom-full right-0 mb-2 w-44 py-1.5'}
     >
-      <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-[11px] font-medium">Thinking</div>
+      <div className="text-text-tertiary px-3 pb-1 pt-1.5 text-sm font-medium">Thinking</div>
       {levels.map((level) => (
         <MenuRow key={level} active={false} onClick={() => onPick(level)}>
           <span className="flex-1">{thinkingLabel(level)}</span>

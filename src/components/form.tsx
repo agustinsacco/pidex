@@ -14,7 +14,7 @@ export function SectionTitle({
   small?: boolean
 }): React.JSX.Element {
   return (
-    <h2 className={clsx('font-semibold', small ? 'mb-2 mt-6 text-[13px]' : 'mb-4 text-[16px]')}>
+    <h2 className={clsx('font-semibold', small ? 'mb-2 mt-6 text-lg' : 'mb-4 text-xl')}>
       {children}
     </h2>
   )
@@ -32,9 +32,9 @@ export function Row({
   return (
     <div className="border-border flex items-center justify-between gap-6 border-b py-3 last:border-b-0">
       <div className="min-w-0">
-        <div className="text-[13px] font-medium">{title}</div>
+        <div className="text-lg font-medium">{title}</div>
         {description && (
-          <div className="text-text-tertiary mt-0.5 text-[11.5px] leading-snug">{description}</div>
+          <div className="text-text-tertiary mt-0.5 text-sm leading-snug">{description}</div>
         )}
       </div>
       <div className="shrink-0">{children}</div>
@@ -96,9 +96,9 @@ export function NumberField({
           const v = Number(e.target.value)
           if (!Number.isNaN(v)) onChange(Math.min(max, Math.max(min, v)))
         }}
-        className="border-border bg-surface text-text w-24 rounded-lg border px-2.5 py-1.5 text-right text-[12.5px] outline-none"
+        className="border-border bg-surface text-text w-24 rounded-lg border px-2.5 py-1.5 text-right text-base outline-none"
       />
-      {suffix && <span className="text-text-tertiary text-[11.5px]">{suffix}</span>}
+      {suffix && <span className="text-text-tertiary text-sm">{suffix}</span>}
     </span>
   )
 }
@@ -125,7 +125,7 @@ export function TextField({
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
       }}
-      className="border-border bg-surface text-text placeholder:text-text-tertiary w-56 rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+      className="border-border bg-surface text-text placeholder:text-text-tertiary w-56 rounded-lg border px-2.5 py-1.5 text-base outline-none"
     />
   )
 }

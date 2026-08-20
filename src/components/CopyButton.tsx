@@ -31,9 +31,7 @@ export function CopyButton({
       title="Copy"
       className={clsx(
         'text-text-tertiary hover:text-text flex items-center gap-1 transition-colors',
-        size === 'sm'
-          ? 'h-4 text-[11px]'
-          : 'hover:bg-bg-secondary h-6 rounded-md px-1.5 text-[11px]',
+        size === 'sm' ? 'h-4 text-sm' : 'hover:bg-bg-secondary h-6 rounded-md px-1.5 text-sm',
         className,
       )}
     >

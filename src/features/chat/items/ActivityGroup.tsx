@@ -98,7 +98,7 @@ export const ActivityGroup = memo(function ActivityGroup({
         ) : (
           <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
         )}
-        <span className="text-text-secondary min-w-0 flex-1 truncate text-[12.5px]">
+        <span className="text-text-secondary min-w-0 flex-1 truncate text-base">
           <span className="text-text font-medium">{summary.stepLabel}</span>
           {summary.detail && ` · ${summary.detail}`}
           {summary.thinkingCount > 0 && (
@@ -109,7 +109,7 @@ export const ActivityGroup = memo(function ActivityGroup({
           )}
         </span>
         {summary.failedCount > 0 && (
-          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium">
+          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
             {summary.failedCount} failed
           </span>
         )}
@@ -174,7 +174,7 @@ function ActivityRow({
               aria-expanded={pinned}
               data-testid="thought-mark"
               className={clsx(
-                'flex h-4 w-4 items-center justify-center rounded text-[9px] transition-colors',
+                'flex h-4 w-4 items-center justify-center rounded text-2xs transition-colors',
                 pinned
                   ? 'bg-accent-soft text-accent'
                   : 'text-text-tertiary hover:bg-accent-soft hover:text-accent',
@@ -191,7 +191,7 @@ function ActivityRow({
       {showThought && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-[12.5px] italic opacity-90 [&_.md-content]:text-[12.5px]"
+          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={thought} />
         </div>
@@ -209,15 +209,15 @@ function ThoughtOnlyRow({ text }: { text: string }): React.JSX.Element {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         data-testid="thought-mark"
-        className="text-text-tertiary hover:text-text-secondary flex w-full items-center gap-1.5 px-2.5 py-1 text-left text-[12px] italic transition-colors"
+        className="text-text-tertiary hover:text-text-secondary flex w-full items-center gap-1.5 px-2.5 py-1 text-left text-base italic transition-colors"
       >
-        <span className="text-[9px]">✳</span>
+        <span className="text-2xs">✳</span>
         <span>Reasoning</span>
       </button>
       {open && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-[12.5px] italic opacity-90 [&_.md-content]:text-[12.5px]"
+          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={text} />
         </div>

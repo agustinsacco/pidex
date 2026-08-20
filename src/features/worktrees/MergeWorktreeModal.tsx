@@ -89,7 +89,7 @@ export function MergeWorktreeModal({
   if (!branch) {
     return (
       <Shell onClose={onClose} title="Merge worktree">
-        <div className="text-text-secondary px-4 py-3 text-[13px]">
+        <div className="text-text-secondary px-4 py-3 text-lg">
           This worktree has a detached HEAD — check out a branch in it before merging.
         </div>
       </Shell>
@@ -98,10 +98,10 @@ export function MergeWorktreeModal({
 
   return (
     <Shell onClose={onClose} title={`Merge ${branch}`}>
-      <div className="space-y-3 px-4 py-3 text-[13px]">
+      <div className="space-y-3 px-4 py-3 text-lg">
         {phase.step === 'commit' && (
           <>
-            <div className="text-text-secondary text-[12.5px]">
+            <div className="text-text-secondary text-base">
               The worktree has {phase.dirtyCount} uncommitted change
               {phase.dirtyCount === 1 ? '' : 's'}. Commit them to{' '}
               <span className="font-mono">{branch}</span> first:
@@ -114,13 +114,13 @@ export function MergeWorktreeModal({
                 if (e.key === 'Enter' && message.trim()) void commit()
               }}
               placeholder="Commit message"
-              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-[13px] outline-none focus:border-[var(--px-border-strong)]"
+              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-lg outline-none focus:border-[var(--px-border-strong)]"
             />
           </>
         )}
 
         {phase.step === 'ready' && (
-          <div className="text-text-secondary text-[12.5px]">
+          <div className="text-text-secondary text-base">
             Merge <span className="font-mono">{branch}</span> into the main tree&apos;s current
             branch with <span className="font-mono">--no-ff</span>. The main tree must be clean;
             pidex never checks out or stashes for you.
@@ -128,19 +128,19 @@ export function MergeWorktreeModal({
         )}
 
         {phase.step === 'main-dirty' && (
-          <div className="bg-warning/10 border-warning/30 rounded-lg border px-3 py-2.5 text-[12.5px]">
+          <div className="bg-warning/10 border-warning/30 rounded-lg border px-3 py-2.5 text-base">
             The main tree has {phase.dirtyCount} uncommitted change
             {phase.dirtyCount === 1 ? '' : 's'}. Commit or stash them there, then retry.
           </div>
         )}
 
         {phase.step === 'conflict' && (
-          <div className="bg-danger-soft border-danger/25 rounded-lg border px-3 py-2.5 text-[12.5px]">
+          <div className="bg-danger-soft border-danger/25 rounded-lg border px-3 py-2.5 text-base">
             <div className="text-danger font-medium">
               Merge conflicts — aborted cleanly, nothing changed.
             </div>
             {phase.conflicts.length > 0 && (
-              <ul className="text-text-secondary mt-1 max-h-32 list-inside list-disc overflow-y-auto font-mono text-[11.5px]">
+              <ul className="text-text-secondary mt-1 max-h-32 list-inside list-disc overflow-y-auto font-mono text-sm">
                 {phase.conflicts.map((file) => (
                   <li key={file}>{file}</li>
                 ))}
@@ -153,7 +153,7 @@ export function MergeWorktreeModal({
         )}
 
         {phase.step === 'merged' && (
-          <div className="text-[12.5px]">
+          <div className="text-base">
             <span className="text-success font-medium">Merged ✓</span>
             <span className="text-text-secondary font-mono"> {phase.sha.slice(0, 8)}</span>
             <div className="text-text-secondary mt-1">
@@ -162,13 +162,13 @@ export function MergeWorktreeModal({
           </div>
         )}
 
-        {error && <div className="text-danger text-[12px]">{error}</div>}
+        {error && <div className="text-danger text-base">{error}</div>}
       </div>
 
       <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
         <button
           onClick={onClose}
-          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors"
+          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
         >
           {phase.step === 'merged' || phase.step === 'conflict' ? 'Done' : 'Cancel'}
         </button>
@@ -176,7 +176,7 @@ export function MergeWorktreeModal({
           <button
             onClick={() => void commit()}
             disabled={busy || !message.trim()}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
           >
             {busy ? 'Committing…' : 'Commit'}
           </button>
@@ -185,7 +185,7 @@ export function MergeWorktreeModal({
           <button
             onClick={() => void merge()}
             disabled={busy}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
           >
             {busy ? 'Merging…' : phase.step === 'main-dirty' ? 'Retry merge' : 'Merge'}
           </button>
@@ -193,7 +193,7 @@ export function MergeWorktreeModal({
         {phase.step === 'merged' && (
           <button
             onClick={() => setRemoving(true)}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3.5 py-1.5 text-[12px] font-medium transition-colors"
+            className="border-border hover:bg-bg-secondary rounded-md border px-3.5 py-1.5 text-base font-medium transition-colors"
           >
             Remove worktree…
           </button>
@@ -216,7 +216,7 @@ function Shell({
     <ModalOverlay onClose={onClose}>
       <div className="border-border bg-surface-raised w-[460px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border border-b px-4 py-3">
-          <div className="text-[13.5px] font-semibold">{title}</div>
+          <div className="text-lg font-semibold">{title}</div>
         </div>
         {children}
       </div>

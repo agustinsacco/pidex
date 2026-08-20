@@ -33,7 +33,7 @@ export const ToolCard = memo(function ToolCard({
       <button
         onClick={() => setExpanded((e) => !e)}
         className={clsx(
-          'group flex w-full items-center gap-1.5 py-1 text-left text-[13.5px] transition-colors',
+          'group flex w-full items-center gap-1.5 py-1 text-left text-lg transition-colors',
           failed ? 'text-danger' : 'text-text-secondary hover:text-text',
         )}
       >
@@ -49,25 +49,23 @@ export const ToolCard = memo(function ToolCard({
             className={clsx(
               'truncate font-medium',
               failed ? 'text-danger' : 'text-text',
-              summary.mono && 'font-mono text-[12.5px]',
+              summary.mono && 'font-mono text-base',
             )}
           >
             {summary.object}
           </span>
         )}
         {summary.stats && (
-          <span className="shrink-0 font-mono text-[12px]">
+          <span className="shrink-0 font-mono text-base">
             <span className="text-success">+{summary.stats.additions}</span>{' '}
             <span className="text-danger">−{summary.stats.deletions}</span>
           </span>
         )}
         {summary.hint && (
-          <span className="text-text-tertiary shrink-0 font-mono text-[11.5px]">
-            {summary.hint}
-          </span>
+          <span className="text-text-tertiary shrink-0 font-mono text-sm">{summary.hint}</span>
         )}
         {failed && (
-          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium">
+          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
             failed
           </span>
         )}

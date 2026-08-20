@@ -104,7 +104,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       <div className="titlebar-drag h-11 shrink-0" />
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
         <div className="w-full max-w-2xl pt-10">
-          <h1 className="text-center text-[28px] font-semibold tracking-tight">
+          <h1 className="text-center text-4xl font-semibold tracking-tight">
             <span className="text-accent mr-2">✳</span>
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
@@ -119,7 +119,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               </div>
               <Heatmap activityByDay={stats.activityByDay} />
               {stats.cost > 0 && (
-                <div className="text-text-tertiary mt-2 px-1 text-[11.5px]">
+                <div className="text-text-tertiary mt-2 px-1 text-sm">
                   You&apos;ve spent {formatCost(stats.cost)} thinking out loud in {workspaceName}.
                 </div>
               )}
@@ -127,7 +127,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           )}
 
           {stats && stats.sessionCount === 0 && (
-            <p className="text-text-secondary mt-4 text-center text-[13.5px]">
+            <p className="text-text-secondary mt-4 text-center text-lg">
               Start your first session in <span className="font-medium">{workspaceName}</span> —
               describe a task below.
             </p>
@@ -161,7 +161,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           >
             {dragging && (
               <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-                <span className="text-text text-[12.5px] font-medium">
+                <span className="text-text text-base font-medium">
                   Drop to attach — images inline, other files by path
                 </span>
               </div>
@@ -180,10 +180,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                         title={attachment.path}
                         className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
                       >
-                        <span className="text-text truncate text-[11.5px] font-medium">
+                        <span className="text-text truncate text-sm font-medium">
                           {attachment.name}
                         </span>
-                        <span className="text-text-tertiary font-mono text-[10px]">
+                        <span className="text-text-tertiary font-mono text-xs">
                           {formatFileSize(attachment.size)} · sent as path
                         </span>
                       </div>
@@ -191,7 +191,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                     <button
                       onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
                       aria-label="Remove attachment"
-                      className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-full text-[10px] group-hover/img:flex"
+                      className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-full text-xs group-hover/img:flex"
                     >
                       ✕
                     </button>
@@ -212,7 +212,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onPaste={handlePaste}
               placeholder="Describe a task or ask a question"
               rows={Math.min(8, Math.max(2, text.split('\n').length))}
-              className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[14px] outline-none"
+              className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
             />
 
             {/* Footer mirrors the chat composer: attachments on the left,
@@ -317,7 +317,7 @@ function Chip({
       data-testid={testId}
       aria-expanded={open}
       className={clsx(
-        'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors',
+        'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-base font-medium transition-colors',
         open
           ? 'bg-bg-secondary text-text border-border-strong'
           : 'bg-surface text-text-secondary hover:text-text hover:border-border-strong',
@@ -415,12 +415,12 @@ function WorkspaceChip({
           triggerRef={triggerRef}
           className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-xs font-medium font-mono uppercase tracking-wide">
             Recent
           </div>
           {recents.map((ws) => (
             <MenuRow key={ws.path} active={false} onClick={() => choose(ws.path)}>
-              <span className="min-w-0 flex-1 truncate text-[13px]">{ws.name}</span>
+              <span className="min-w-0 flex-1 truncate text-lg">{ws.name}</span>
               {ws.path === workspacePath && <CheckIcon className="text-accent shrink-0" />}
             </MenuRow>
           ))}
@@ -437,7 +437,7 @@ function WorkspaceChip({
                 })
             }}
           >
-            <span className="text-[13px]">Open folder…</span>
+            <span className="text-lg">Open folder…</span>
           </MenuRow>
         </PopupMenu>
       )}

@@ -25,26 +25,24 @@ export function WorkspacesTab(): React.JSX.Element {
     <div>
       <SectionTitle>Workspaces</SectionTitle>
       {recents.length === 0 && (
-        <p className="text-text-tertiary text-[12.5px]">No recent workspaces.</p>
+        <p className="text-text-tertiary text-base">No recent workspaces.</p>
       )}
       <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
         {recents.map((workspace) => (
           <div key={workspace.path} className="bg-surface flex items-center gap-3 px-4 py-2.5">
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium">{workspace.name}</span>
-              <span className="text-text-tertiary block truncate text-[11px]">
-                {workspace.path}
-              </span>
+              <span className="block truncate text-lg font-medium">{workspace.name}</span>
+              <span className="text-text-tertiary block truncate text-sm">{workspace.path}</span>
             </span>
             <button
               onClick={() => resetLayout(workspace)}
-              className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
+              className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-1 text-sm font-medium transition-colors"
             >
               Reset layout
             </button>
             <button
               onClick={() => void remove(workspace)}
-              className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-[11px] transition-colors"
+              className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
             >
               Remove
             </button>

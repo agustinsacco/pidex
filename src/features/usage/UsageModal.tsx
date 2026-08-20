@@ -53,14 +53,14 @@ function UsageModalBody({ onClose }: { onClose: () => void }): React.JSX.Element
       <div className="border-border bg-surface flex h-[80vh] w-[960px] max-w-[94vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-3.5">
           <div>
-            <div className="text-[14px] font-semibold">Usage</div>
-            <div className="text-text-tertiary text-[11.5px]">
+            <div className="text-lg font-semibold">Usage</div>
+            <div className="text-text-tertiary text-sm">
               Every session on disk, priced by pi from each model&apos;s configured rates
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-text-tertiary hover:text-text rounded-md px-2 py-1 text-[12px] transition-colors"
+            className="text-text-tertiary hover:text-text rounded-md px-2 py-1 text-base transition-colors"
           >
             Close
           </button>
@@ -69,7 +69,7 @@ function UsageModalBody({ onClose }: { onClose: () => void }): React.JSX.Element
         {summary === null ? (
           <div className="flex flex-1 items-center justify-center gap-2">
             <Spinner />
-            <span className="text-text-tertiary text-[12.5px]">Scanning session files…</span>
+            <span className="text-text-tertiary text-base">Scanning session files…</span>
           </div>
         ) : (
           <>
@@ -95,7 +95,7 @@ function UsageModalBody({ onClose }: { onClose: () => void }): React.JSX.Element
                       className="bg-bg-secondary/60 hover:bg-bg-secondary flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
                     >
                       <ChevronIcon size={9} strokeWidth={3} expanded={!isCollapsed} />
-                      <span className="text-text min-w-0 flex-1 truncate text-[12px] font-medium">
+                      <span className="text-text min-w-0 flex-1 truncate text-base font-medium">
                         {workspaceName(ws.workspacePath)}
                       </span>
                       <TotalsCells totals={ws.totals} />
@@ -108,7 +108,7 @@ function UsageModalBody({ onClose }: { onClose: () => void }): React.JSX.Element
                           className="hover:bg-bg-secondary/60 flex w-full items-center gap-1.5 rounded-md py-1 pl-6 pr-2 text-left transition-colors"
                           title={meta.path}
                         >
-                          <span className="text-text-secondary min-w-0 flex-1 truncate text-[12px]">
+                          <span className="text-text-secondary min-w-0 flex-1 truncate text-base">
                             {meta.name || meta.firstUserText || 'Untitled session'}
                           </span>
                           <SessionCells meta={meta} />
@@ -118,7 +118,7 @@ function UsageModalBody({ onClose }: { onClose: () => void }): React.JSX.Element
                 )
               })}
               {workspaces.length === 0 && (
-                <div className="text-text-tertiary py-10 text-center text-[12.5px]">
+                <div className="text-text-tertiary py-10 text-center text-base">
                   No sessions found on disk.
                 </div>
               )}
@@ -149,7 +149,7 @@ function HeaderRow({
   onSort: (key: UsageSortKey) => void
 }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary flex items-center gap-1.5 px-2 pb-1 font-mono text-[9.5px] uppercase tracking-wider">
+    <div className="text-text-tertiary flex items-center gap-1.5 px-2 pb-1 font-mono text-2xs uppercase tracking-wider">
       <span className="min-w-0 flex-1">Session</span>
       {COLUMNS.map((col, i) => (
         <button
@@ -173,7 +173,7 @@ function Cell({ children, width }: { children: string; width: string }): React.J
   return (
     <span
       className={clsx(
-        'text-text-secondary shrink-0 text-right font-mono text-[11px] tabular-nums',
+        'text-text-secondary shrink-0 text-right font-mono text-sm tabular-nums',
         width,
       )}
     >

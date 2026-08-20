@@ -60,7 +60,7 @@ export const MermaidBlock = memo(function MermaidBlock({
     return (
       <div>
         <CodeBlock code={code} language="mermaid" />
-        <div className="text-danger -mt-2 mb-3 px-1 text-xs">Mermaid parse error: {error}</div>
+        <div className="text-danger -mt-2 mb-3 px-1 text-base">Mermaid parse error: {error}</div>
       </div>
     )
   }
@@ -68,7 +68,7 @@ export const MermaidBlock = memo(function MermaidBlock({
   if (!svg) {
     return (
       <div className="border-border bg-surface my-3 flex h-32 animate-pulse items-center justify-center rounded-lg border">
-        <span className="text-text-tertiary text-xs">Rendering diagram…</span>
+        <span className="text-text-tertiary text-base">Rendering diagram…</span>
       </div>
     )
   }

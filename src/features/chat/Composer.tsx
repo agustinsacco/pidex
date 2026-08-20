@@ -403,7 +403,7 @@ export function Composer({
         >
           {dragging && (
             <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-              <span className="text-text text-[12.5px] font-medium">
+              <span className="text-text text-base font-medium">
                 Drop to attach — images inline, other files by path
               </span>
             </div>
@@ -422,17 +422,17 @@ export function Composer({
                       title={attachment.path}
                       className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
                     >
-                      <span className="text-text truncate text-[11.5px] font-medium">
+                      <span className="text-text truncate text-sm font-medium">
                         {attachment.name}
                       </span>
-                      <span className="text-text-tertiary font-mono text-[10px]">
+                      <span className="text-text-tertiary font-mono text-xs">
                         {formatFileSize(attachment.size)} · sent as path
                       </span>
                     </div>
                   )}
                   <button
                     onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
-                    className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-[10px] group-hover/img:flex"
+                    className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
                   >
                     ✕
                   </button>
@@ -455,7 +455,7 @@ export function Composer({
             onPaste={handlePaste}
             placeholder={placeholder}
             rows={Math.min(10, Math.max(1, text.split('\n').length))}
-            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[14px] outline-none"
+            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-lg outline-none"
           />
 
           {/* Footer mirrors the reference: attach on the left, model +
@@ -469,7 +469,7 @@ export function Composer({
                 }}
               />
               {isCompacting && (
-                <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-[11.5px]">
+                <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-sm">
                   <Spinner /> compacting…
                 </span>
               )}
@@ -496,7 +496,7 @@ export function Composer({
 
         <div
           className={clsx(
-            'text-text-tertiary px-2 pt-1.5 text-[10.5px]',
+            'text-text-tertiary px-2 pt-1.5 text-xs',
             !text.startsWith('!') && 'opacity-0',
           )}
         >

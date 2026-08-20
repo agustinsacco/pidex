@@ -80,7 +80,7 @@ export function ContextMenuHost(): React.JSX.Element | null {
               item.onClick()
             }}
             className={clsx(
-              'flex w-full items-center px-3 py-1.5 text-left text-[13px] transition-colors disabled:opacity-40',
+              'flex w-full items-center px-3 py-1.5 text-left text-lg transition-colors disabled:opacity-40',
               item.danger ? 'text-danger hover:bg-danger-soft' : 'hover:bg-bg-secondary',
             )}
           >

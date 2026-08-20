@@ -90,6 +90,19 @@ export function matchErrorRemedy(
     }
   }
 
+  // Anthropic subscription usage consumed by a third-party app. Not an auth
+  // failure and not retryable: the account has to top up, or the session has
+  // to run on a provider that is not billed against the plan.
+  if (text.includes('extra usage') && text.includes('plan limits')) {
+    return {
+      label: 'Open usage settings',
+      hint: 'Your Claude plan limit is used up for third-party apps like pidex. Add usage credit on claude.ai, or switch to a model on another provider (or a local one) to keep working now.',
+      docsUrl: 'https://claude.ai/settings/usage',
+      retryAfter: false,
+      suggestModelSwitch: true,
+    }
+  }
+
   // AWS SSO token expiry (Bedrock). The message names the fix explicitly.
   if (
     (text.includes('token is expired') || text.includes('token has expired')) &&

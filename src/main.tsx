@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app/App'
+import { hostPlatform } from './lib/shortcuts'
 import './styles/index.css'
 
 async function bootstrap(): Promise<void> {
@@ -19,6 +20,12 @@ async function bootstrap(): Promise<void> {
       ;(window as unknown as Record<string, unknown>).__extUiStore = m.useExtensionUiStore
     })
   }
+
+  // Platform class on <html>, set before the first paint so the CSS that
+  // reserves space for window controls (.titlebar-inset-start) never flashes
+  // the wrong layout. Read after the mock install above, or browser-only dev
+  // has no bridge to ask.
+  document.documentElement.classList.add(`platform-${hostPlatform()}`)
 
   // The floating monitor is the same bundle in a second BrowserWindow; the
   // query flag selects the compact view instead of the whole app.

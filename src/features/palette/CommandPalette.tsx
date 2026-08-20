@@ -207,7 +207,7 @@ export function CommandPalette({
             }
           }}
           placeholder="Type a command…"
-          className="text-text placeholder:text-text-tertiary border-border block w-full border-b bg-transparent px-4 py-3 text-[14px] outline-none"
+          className="text-text placeholder:text-text-tertiary border-border block w-full border-b bg-transparent px-4 py-3 text-lg outline-none"
         />
         <div className="max-h-80 overflow-y-auto py-1">
           {matches.map((action, index) => (
@@ -217,16 +217,14 @@ export function CommandPalette({
               onHover={() => setActiveIndex(index)}
               onClick={() => run(action)}
             >
-              <span className="min-w-0 flex-1 truncate text-[13px]">{action.label}</span>
+              <span className="min-w-0 flex-1 truncate text-lg">{action.label}</span>
               {action.hint && (
-                <span className="text-text-tertiary shrink-0 font-mono text-[10.5px]">
-                  {action.hint}
-                </span>
+                <span className="text-text-tertiary shrink-0 font-mono text-xs">{action.hint}</span>
               )}
             </MenuRow>
           ))}
           {matches.length === 0 && (
-            <div className="text-text-tertiary px-4 py-4 text-center text-[12.5px]">
+            <div className="text-text-tertiary px-4 py-4 text-center text-base">
               No matching commands
             </div>
           )}

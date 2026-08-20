@@ -14,15 +14,18 @@ landed at the same spot in one shared file, so two PRs open at once conflicted
 there even when their code never overlapped; a new file per change has nothing
 to collide with.
 
-| Date       | Entry                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| 2026-08-10 | [QoL pass: popovers, attachments, GitHub, theme, icons, skeletons](2026-08-10-qol-pass.md)              |
-| 2026-08-10 | [Sidebar identity: worktree names and pending session rows](2026-08-10-sidebar-identity.md)             |
-| 2026-08-10 | [Worktrees never take the default branch](2026-08-10-worktrees-default-branch.md)                       |
-| 2026-08-11 | [Continuous releases and in-app auto-update](2026-08-11-continuous-releases.md)                         |
-| 2026-08-19 | [Sidebar groups sessions by project, not by worktree folder](2026-08-19-sidebar-groups-by-project.md)   |
-| 2026-08-19 | [Terminal: the shell that never started, and panes that followed you](2026-08-19-terminal-shell-fix.md) |
-| 2026-08-19 | [Symmetric transcript spacing: one step at every boundary](2026-08-19-symmetric-transcript-spacing.md)  |
-| 2026-08-20 | [Sidebar: the pending-row gap reopened](2026-08-20-sidebar-pending-row-reopened.md)                     |
-| 2026-08-20 | [Releases that actually ship, and a window that fits Linux](2026-08-20-releases-and-linux-window.md)    |
-| 2026-08-20 | [The installer 404'd, and self-update had never once run](2026-08-20-installer-arch-and-updater-esm.md) |
+| Date       | Entry                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| 2026-08-10 | [QoL pass: popovers, attachments, GitHub, theme, icons, skeletons](2026-08-10-qol-pass.md)                    |
+| 2026-08-10 | [Sidebar identity: worktree names and pending session rows](2026-08-10-sidebar-identity.md)                   |
+| 2026-08-10 | [Worktrees never take the default branch](2026-08-10-worktrees-default-branch.md)                             |
+| 2026-08-11 | [Continuous releases and in-app auto-update](2026-08-11-continuous-releases.md)                               |
+| 2026-08-19 | [Sidebar groups sessions by project, not by worktree folder](2026-08-19-sidebar-groups-by-project.md)         |
+| 2026-08-19 | [Terminal: the shell that never started, and panes that followed you](2026-08-19-terminal-shell-fix.md)       |
+| 2026-08-19 | [Symmetric transcript spacing: one step at every boundary](2026-08-19-symmetric-transcript-spacing.md)        |
+| 2026-08-20 | [Sidebar: the pending-row gap reopened](2026-08-20-sidebar-pending-row-reopened.md)                           |
+| 2026-08-20 | [Releases that actually ship, and a window that fits Linux](2026-08-20-releases-and-linux-window.md)          |
+| 2026-08-20 | [The installer 404'd, and self-update had never once run](2026-08-20-installer-arch-and-updater-esm.md)       |
+| 2026-08-20 | ["UI scale" that never scaled, and a dead strip above the sidebar](2026-08-20-ui-scale-and-linux-titlebar.md) |
+| 2026-08-20 | [Provider errors show the sentence, not the JSON](2026-08-20-provider-error-envelopes.md)                     |
+| 2026-08-20 | [A type scale, replacing 424 hand-picked pixel sizes](2026-08-20-type-scale.md)                               |

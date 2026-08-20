@@ -31,11 +31,11 @@ export function CrashBanner({
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
       <div className="bg-danger-soft border-danger/25 flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
-        <span className="text-danger text-[13px] font-medium">pi crashed</span>
-        <span className="text-text-secondary flex-1 truncate text-[12.5px]">{error}</span>
+        <span className="text-danger text-lg font-medium">pi crashed</span>
+        <span className="text-text-secondary flex-1 truncate text-base">{error}</span>
         <button
           onClick={() => void resume()}
-          className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+          className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors"
         >
           Resume session
         </button>
@@ -54,7 +54,7 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
-      <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-[13px]">
+      <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-lg">
         <div className="flex items-center justify-between gap-3">
           <div className="text-text font-medium">No models configured</div>
           {workspacePath && (
@@ -64,20 +64,20 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
                   runInTerminal(workspacePath, 'pi'),
                 )
               }}
-              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors"
             >
               Open terminal with `pi`
             </button>
           )}
         </div>
         <div className="text-text-secondary mt-1 leading-relaxed">
-          Run <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code> in the
+          Run <code className="bg-code-bg rounded px-1 font-mono text-base">pi</code> in the
           terminal and use{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code> for OAuth
+          <code className="bg-code-bg rounded px-1 font-mono text-base">/login</code> for OAuth
           providers, set an API key env var (e.g.{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">ANTHROPIC_API_KEY</code>),
+          <code className="bg-code-bg rounded px-1 font-mono text-base">ANTHROPIC_API_KEY</code>),
           or add a custom endpoint in{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">
+          <code className="bg-code-bg rounded px-1 font-mono text-base">
             ~/.pi/agent/models.json
           </code>
           .

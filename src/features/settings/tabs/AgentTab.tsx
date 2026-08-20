@@ -53,13 +53,13 @@ export function AgentTab(): React.JSX.Element {
   return (
     <div>
       <SectionTitle>Agent defaults</SectionTitle>
-      <p className="text-text-tertiary -mt-2 mb-4 text-[12px]">
+      <p className="text-text-tertiary -mt-2 mb-4 text-base">
         Writes pi&apos;s <code className="font-mono">settings.json</code>. Changes apply to{' '}
         <b>new</b> sessions (pi reads config at spawn).{saving ? ' Saving…' : ''}
       </p>
 
       {blocked && (
-        <div className="bg-danger-soft border-danger/30 mb-4 rounded-lg border px-3.5 py-3 text-[12.5px]">
+        <div className="bg-danger-soft border-danger/30 mb-4 rounded-lg border px-3.5 py-3 text-base">
           <div className="text-danger font-medium">
             This {scope === 'global' ? 'global' : 'workspace'} settings.json is not valid JSON.
           </div>
@@ -70,7 +70,7 @@ export function AgentTab(): React.JSX.Element {
           </div>
           <button
             onClick={() => useSettingsUiStore.getState().setTab('advanced')}
-            className="border-danger/40 text-danger hover:bg-danger/10 mt-2 rounded-md border px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+            className="border-danger/40 text-danger hover:bg-danger/10 mt-2 rounded-md border px-2.5 py-1 text-sm font-medium transition-colors"
           >
             Fix it in Advanced →
           </button>
@@ -100,7 +100,7 @@ export function AgentTab(): React.JSX.Element {
               disabled={value === 'project' && !currentWorkspace}
               onClick={() => setScope(value)}
               className={clsx(
-                'px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40',
+                'px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-40',
                 scope === value
                   ? 'bg-accent text-accent-text'
                   : 'text-text-secondary hover:text-text',
@@ -140,7 +140,7 @@ export function AgentTab(): React.JSX.Element {
           <select
             value={(settings?.defaultThinkingLevel as string) ?? ''}
             onChange={(e) => void patch({ defaultThinkingLevel: e.target.value || undefined })}
-            className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+            className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
           >
             <option value="">(pi default)</option>
             {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
@@ -248,7 +248,7 @@ function ModeSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+      className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
     >
       <option value="">(pi default)</option>
       <option value="one-at-a-time">one-at-a-time</option>

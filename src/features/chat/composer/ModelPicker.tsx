@@ -71,7 +71,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       <button
         onClick={() => setOpen(open === 'model' ? null : 'model')}
         className={clsx(
-          'rounded-md px-2 py-1 text-[12px] font-medium transition-colors',
+          'rounded-md px-2 py-1 text-base font-medium transition-colors',
           open === 'model'
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
@@ -88,7 +88,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           className={clsx(
-            'rounded-md px-2 py-1 text-[12px] transition-colors',
+            'rounded-md px-2 py-1 text-base transition-colors',
             open === 'thinking'
               ? 'bg-bg-secondary text-text'
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',

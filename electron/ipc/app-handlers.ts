@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename } from 'node:path'
 import { access } from 'node:fs/promises'
 import { handle } from './handle'
-import { applyTitleBarOverlay } from '../window-chrome'
+import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { userInfo } from 'node:os'
 import {
   getPrefs,
@@ -100,6 +100,9 @@ export function registerAppHandlers(): void {
 
   handle('app:setFontPrefs', (_event, fonts) => {
     setFontPrefs(fonts)
+    // UI scale is page zoom (see window-chrome.applyZoom); it has to be stored
+    // before this call, which reads the prefs back to resize the OS overlay.
+    applyZoom(fonts.uiScale)
   })
 
   handle('app:setRecentWorkspaces', (_event, workspaces) => {

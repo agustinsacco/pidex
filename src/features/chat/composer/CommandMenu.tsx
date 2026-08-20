@@ -71,12 +71,12 @@ export function CommandMenu({
           onHover={() => onHover(index)}
           onClick={() => onPick(entry)}
         >
-          <span className="font-mono text-[12.5px] font-medium">/{entry.name}</span>
-          <span className="text-text-tertiary flex-1 truncate text-[12px]">
+          <span className="font-mono text-base font-medium">/{entry.name}</span>
+          <span className="text-text-tertiary flex-1 truncate text-base">
             {entry.description ?? ''}
           </span>
           <span
-            className={`shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold font-mono uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}
+            className={`shrink-0 rounded px-1.5 py-px text-2xs font-semibold font-mono uppercase tracking-wide ${BADGE_STYLES[entry.badge]}`}
           >
             {entry.badge}
           </span>

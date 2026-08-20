@@ -35,7 +35,7 @@ export function RunCommandRow({
 
   return (
     <div className="border-border bg-code-bg mt-2 flex items-center gap-2 rounded-lg border px-2 py-1.5">
-      <code className="text-text min-w-0 flex-1 truncate font-mono text-[12px]" title={command}>
+      <code className="text-text min-w-0 flex-1 truncate font-mono text-base" title={command}>
         {command}
       </code>
       <CopyButton text={command} />
@@ -43,7 +43,7 @@ export function RunCommandRow({
         <button
           onClick={run}
           title={`Run in the session terminal: ${command}`}
-          className="bg-accent hover:bg-accent-hover text-accent-text flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors"
+          className="bg-accent hover:bg-accent-hover text-accent-text flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium transition-colors"
         >
           <PlayIcon />
           {ran ? 'Ran' : label}

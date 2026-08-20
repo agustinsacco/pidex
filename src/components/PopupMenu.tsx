@@ -49,6 +49,10 @@ export function PopupMenu({
   return (
     <div
       ref={ref}
+      // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
+      // a menu opened from inside a window-drag region must stay clickable,
+      // including its non-button rows (labels, separators).
+      data-popup-menu
       className={`border-border bg-surface-raised z-30 overflow-hidden rounded-xl border shadow-lg ${className ?? ''}`}
     >
       {children}
@@ -88,7 +92,7 @@ export function MenuRow({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       title={title}
-      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
+      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-lg transition-colors ${
         disabled
           ? 'cursor-not-allowed opacity-45'
           : `cursor-pointer ${active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'}`

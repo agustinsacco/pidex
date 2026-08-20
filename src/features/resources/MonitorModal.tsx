@@ -24,8 +24,8 @@ function MonitorModalBody(): React.JSX.Element {
       <div className="border-border bg-surface flex h-[70vh] w-[560px] max-w-[94vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-3.5">
           <div>
-            <div className="text-[14px] font-semibold">Resources</div>
-            <div className="text-text-tertiary text-[11.5px]">
+            <div className="text-lg font-semibold">Resources</div>
+            <div className="text-text-tertiary text-sm">
               Live CPU and memory per session, sampled every 2s
             </div>
           </div>
@@ -33,14 +33,14 @@ function MonitorModalBody(): React.JSX.Element {
             <button
               onClick={() => useMonitorUiStore.getState().toggleFloating()}
               data-testid="monitor-float-toggle"
-              className="text-text-secondary hover:text-text hover:bg-bg-secondary rounded-md px-2 py-1 text-[12px] transition-colors"
+              className="text-text-secondary hover:text-text hover:bg-bg-secondary rounded-md px-2 py-1 text-base transition-colors"
               title="Keep a small always-on-top window visible while you work"
             >
               {floating ? 'Close float' : 'Float'}
             </button>
             <button
               onClick={onClose}
-              className="text-text-tertiary hover:text-text rounded-md px-2 py-1 text-[12px] transition-colors"
+              className="text-text-tertiary hover:text-text rounded-md px-2 py-1 text-base transition-colors"
             >
               Close
             </button>
@@ -59,7 +59,7 @@ export function MonitorWindowView(): React.JSX.Element {
   return (
     <div className="bg-bg text-text flex h-screen flex-col overflow-hidden">
       <div className="titlebar-drag border-border flex h-9 shrink-0 items-center justify-center border-b">
-        <span className="text-text-tertiary font-mono text-[10px] uppercase tracking-wider">
+        <span className="text-text-tertiary font-mono text-xs uppercase tracking-wider">
           Resources
         </span>
       </div>

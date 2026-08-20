@@ -58,10 +58,8 @@ function Header({
   return (
     <header className="titlebar-drag titlebar-inset-end flex h-11 shrink-0 items-center gap-2 pl-4">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="text-text truncate text-[13px] font-semibold">
-          {title ?? 'New session'}
-        </span>
-        <span className="bg-bg-secondary text-text-secondary shrink-0 rounded-md px-2 py-0.5 text-[11.5px]">
+        <span className="text-text truncate text-lg font-semibold">{title ?? 'New session'}</span>
+        <span className="bg-bg-secondary text-text-secondary shrink-0 rounded-md px-2 py-0.5 text-sm">
           {workspaceName}
         </span>
         {workspacePath && <GitChips workspacePath={workspacePath} />}
@@ -123,7 +121,7 @@ function HeaderCountBadge({
     <span
       title={title}
       className={clsx(
-        'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8.5px] font-bold',
+        'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-2xs font-bold',
         tone === 'success'
           ? 'bg-success/15 text-success'
           : tone === 'accent'

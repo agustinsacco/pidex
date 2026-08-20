@@ -45,8 +45,8 @@ export const FilesChangedPane = memo(function FilesChangedPane({
     return (
       <div className="flex h-full items-center justify-center px-6">
         <div className="text-center">
-          <div className="text-text-tertiary text-[13px]">No changes yet</div>
-          <div className="text-text-tertiary mt-1 text-[11.5px]">
+          <div className="text-text-tertiary text-lg">No changes yet</div>
+          <div className="text-text-tertiary mt-1 text-sm">
             Files the agent edits or creates in this session will appear here as reviewable diffs.
           </div>
         </div>
@@ -69,10 +69,10 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-text-tertiary text-[10.5px] font-semibold font-mono uppercase tracking-wider">
+        <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
           Files changed
         </span>
-        <span className="text-[11.5px] font-medium">
+        <span className="text-sm font-medium">
           {files.length} file{files.length === 1 ? '' : 's'}{' '}
           <span className="text-success">+{totals.additions}</span>{' '}
           <span className="text-danger">−{totals.deletions}</span>
@@ -131,17 +131,17 @@ function FileRow({
     >
       <span
         className={clsx(
-          'shrink-0 rounded px-1 py-px text-[9px] font-bold uppercase',
+          'shrink-0 rounded px-1 py-px text-2xs font-bold uppercase',
           file.created ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning',
         )}
       >
         {file.created ? 'A' : 'M'}
       </span>
-      <span className="min-w-0 flex-1 truncate text-[12.5px]">
+      <span className="min-w-0 flex-1 truncate text-base">
         {dir && <span className="text-text-tertiary">{dir}</span>}
         <span className="text-text">{name}</span>
       </span>
-      <span className="shrink-0 font-mono text-[11px]">
+      <span className="shrink-0 font-mono text-sm">
         <span className="text-success">+{file.additions}</span>{' '}
         <span className="text-danger">−{file.deletions}</span>
       </span>
@@ -235,26 +235,26 @@ function FileDiffView({
             <path d="m15 18-6-6 6-6" />
           </svg>
         </button>
-        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px]">{file.relativePath}</span>
-        <span className="shrink-0 font-mono text-[11px]">
+        <span className="min-w-0 flex-1 truncate font-mono text-sm">{file.relativePath}</span>
+        <span className="shrink-0 font-mono text-sm">
           <span className="text-success">+{file.additions}</span>{' '}
           <span className="text-danger">−{file.deletions}</span>
         </span>
         <button
           onClick={() => setSideBySide((v) => !v)}
-          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-[10.5px] font-medium transition-colors"
+          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors"
         >
           {sideBySide ? 'Inline' : 'Split'}
         </button>
         <button
           onClick={() => void openFileInWorkspace(workspacePath, file.relativePath)}
-          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-[10.5px] font-medium transition-colors"
+          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors"
         >
           Open file
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        {error && <div className="text-danger p-4 text-[12px]">{error}</div>}
+        {error && <div className="text-danger p-4 text-base">{error}</div>}
         {original !== null && modified !== null && !error && (
           <MonacoDiff
             originalText={original}
@@ -264,7 +264,7 @@ function FileDiffView({
           />
         )}
         {(original === null || modified === null) && !error && (
-          <div className="text-text-tertiary animate-pulse p-4 text-[12px]">Computing diff…</div>
+          <div className="text-text-tertiary animate-pulse p-4 text-base">Computing diff…</div>
         )}
       </div>
     </div>
