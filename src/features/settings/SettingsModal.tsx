@@ -4,6 +4,7 @@ import { CloseIcon } from '@/components/icons'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { AgentTab } from './tabs/AgentTab'
+import { ExtensionsTab } from './tabs/ExtensionsTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
 import { McpTab } from './tabs/McpTab'
@@ -13,6 +14,7 @@ import { AboutTab } from './tabs/AboutTab'
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'agent', label: 'Agent' },
+  { id: 'extensions', label: 'Extensions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'advanced', label: 'Advanced' },
@@ -60,6 +62,7 @@ export function SettingsModal(): React.JSX.Element | null {
           </button>
           {tab === 'appearance' && <AppearanceTab />}
           {tab === 'agent' && <AgentTab />}
+          {tab === 'extensions' && <ExtensionsTab />}
           {tab === 'mcp' && <McpTab />}
           {tab === 'workspaces' && <WorkspacesTab />}
           {tab === 'advanced' && <AdvancedTab />}

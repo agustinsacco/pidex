@@ -352,6 +352,44 @@ function mockTree(): Record<string, unknown> {
   }
 }
 
+/** Fake package-job streams: invoke returns a jobId, output arrives shortly after. */
+const mockJobListeners = new Map<
+  string,
+  { output: Array<(data: string) => void>; exit: Array<(code: number) => void> }
+>()
+
+function mockJobChannel(jobId: string): {
+  output: Array<(data: string) => void>
+  exit: Array<(code: number) => void>
+} {
+  let entry = mockJobListeners.get(jobId)
+  if (!entry) {
+    entry = { output: [], exit: [] }
+    mockJobListeners.set(jobId, entry)
+  }
+  return entry
+}
+
+function runMockJob(lines: string[], exitCode = 0): { jobId: string } {
+  const jobId = `mock-job-${Math.random().toString(36).slice(2, 8)}`
+  lines.forEach((line, i) => {
+    setTimeout(
+      () => {
+        mockJobChannel(jobId).output.forEach((fn) => fn(`${line}\n`))
+      },
+      150 * (i + 1),
+    )
+  })
+  setTimeout(
+    () => {
+      mockJobChannel(jobId).exit.forEach((fn) => fn(exitCode))
+      mockJobListeners.delete(jobId)
+    },
+    150 * (lines.length + 1),
+  )
+  return { jobId }
+}
+
 export function installMockPidex(): void {
   const api: PidexApi = {
     // The browser harness has no Electron; report the real host so key hints
@@ -420,6 +458,46 @@ export function installMockPidex(): void {
             defaultThinkingLevel: 'medium',
             packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
           })
+        case 'packages:list':
+          return Promise.resolve([
+            {
+              spec: 'npm:pi-web-access',
+              scope: 'global',
+              kind: 'npm',
+              filtered: false,
+              name: 'pi-web-access',
+              version: '0.9.2',
+              description: 'Web search, URL fetching and PDF extraction for pi',
+              installed: true,
+              installPath: '/mock/.pi/agent/npm/node_modules/pi-web-access',
+              resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+            },
+            {
+              spec: 'npm:pi-mcp-adapter',
+              scope: 'global',
+              kind: 'npm',
+              filtered: false,
+              name: 'pi-mcp-adapter',
+              version: '1.1.0',
+              description: 'MCP adapter extension for the pi coding agent',
+              installed: false,
+              resources: { extensions: [], skills: [], prompts: [], themes: [] },
+            },
+          ])
+        case 'packages:run':
+          return Promise.resolve(
+            runMockJob([
+              `$ pi ${String(args[0])} ${String(args[1] ?? '')}`.trim(),
+              'Installing…',
+              'Installed.',
+            ]),
+          )
+        case 'packages:installPi':
+          return Promise.resolve(
+            runMockJob(['$ npm install -g @earendil-works/pi-coding-agent', 'added 120 packages']),
+          )
+        case 'packages:detect':
+          return Promise.resolve({ claude: true })
         case 'mcp:readConfigs':
           return Promise.resolve({
             servers: [
@@ -762,6 +840,17 @@ export function installMockPidex(): void {
             skills: ['brave-search', 'web-fetch'],
             extensions: ['session.ts', 'rpc-demo.ts'],
             prompts: ['fix-tests.md'],
+            themes: ['gruvbox.json'],
+          })
+        case 'pi:agentSettingsScoped':
+          return Promise.resolve({
+            global: {
+              defaultProvider: 'anthropic',
+              defaultModel: 'claude-opus-5',
+              defaultThinkingLevel: 'medium',
+              packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
+            },
+            project: args[0] ? { defaultThinkingLevel: 'high' } : null,
           })
         case 'pi:patchAgentSettings':
         case 'pi:writeConfigFile':
@@ -783,6 +872,20 @@ export function installMockPidex(): void {
 
     onSessionsChanged: () => () => {},
     onFsChanged: () => () => {},
+    onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {
+      const entry = mockJobChannel(jobId)
+      entry.output.push(listener)
+      return () => {
+        entry.output = entry.output.filter((fn) => fn !== listener)
+      }
+    },
+    onPackagesJobExit: (jobId: string, listener: (exitCode: number) => void) => {
+      const entry = mockJobChannel(jobId)
+      entry.exit.push(listener)
+      return () => {
+        entry.exit = entry.exit.filter((fn) => fn !== listener)
+      }
+    },
     onPtyData: (ptyId: string, listener: (data: string) => void) => {
       const set = ptyListeners.get(ptyId) ?? new Set()
       set.add(listener)

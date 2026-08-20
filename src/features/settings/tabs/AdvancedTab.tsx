@@ -62,9 +62,11 @@ export function AdvancedTab(): React.JSX.Element {
         </button>
       </Row>
 
-      <SectionTitle small>Discovered pi resources</SectionTitle>
-      <div className="grid grid-cols-3 gap-3">
-        {(['skills', 'extensions', 'prompts'] as const).map((kind) => (
+      <SectionTitle small>
+        Local pi resources (loose files — packages are in the Extensions tab)
+      </SectionTitle>
+      <div className="grid grid-cols-4 gap-3">
+        {(['skills', 'extensions', 'prompts', 'themes'] as const).map((kind) => (
           <div key={kind} className="border-border bg-surface rounded-xl border p-3">
             <div className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
               {kind}

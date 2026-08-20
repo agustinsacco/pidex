@@ -36,6 +36,20 @@ const api: PidexApi = {
     return () => ipcRenderer.removeListener('fs:changed', wrapped)
   },
 
+  onPackagesJobOutput(jobId: string, listener: (data: string) => void) {
+    const channel = `packages:output:${jobId}`
+    const wrapped = (_event: Electron.IpcRendererEvent, data: string) => listener(data)
+    ipcRenderer.on(channel, wrapped)
+    return () => ipcRenderer.removeListener(channel, wrapped)
+  },
+
+  onPackagesJobExit(jobId: string, listener: (exitCode: number) => void) {
+    const channel = `packages:exit:${jobId}`
+    const wrapped = (_event: Electron.IpcRendererEvent, exitCode: number) => listener(exitCode)
+    ipcRenderer.on(channel, wrapped)
+    return () => ipcRenderer.removeListener(channel, wrapped)
+  },
+
   onPtyData(ptyId: string, listener: (data: string) => void) {
     const channel = `pty:data:${ptyId}`
     const wrapped = (_event: Electron.IpcRendererEvent, data: string) => listener(data)

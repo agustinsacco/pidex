@@ -11,14 +11,22 @@ import { useSettingsUiStore } from '../settingsUiStore'
 export function AgentTab(): React.JSX.Element {
   const currentWorkspace = useActiveWorkspace()
   const [scope, setScope] = useState<'global' | 'project'>('global')
-  const [settings, setSettings] = useState<Record<string, unknown> | null>(null)
+  const [scoped, setScoped] = useState<{
+    global: Record<string, unknown>
+    project: Record<string, unknown> | null
+  } | null>(null)
   const [health, setHealth] = useState<ConfigFileHealth | null>(null)
   const [saving, setSaving] = useState(false)
 
   const workspaceArg = scope === 'project' ? (currentWorkspace ?? undefined) : undefined
 
   const reload = useCallback((): void => {
-    void window.pidex.invoke('pi:agentSettings', workspaceArg).then(setSettings)
+    // Unmerged per-scope reads: the editor must show what each file actually
+    // contains, or a project override would silently absorb inherited global
+    // values on the next edit.
+    void window.pidex
+      .invoke('pi:agentSettingsScoped', currentWorkspace ?? undefined)
+      .then(setScoped)
     void window.pidex.invoke('pi:checkAgentSettings', workspaceArg).then((result) => {
       setHealth(
         scope === 'global'
@@ -26,7 +34,7 @@ export function AgentTab(): React.JSX.Element {
           : (result.project ?? { exists: false, malformed: false }),
       )
     })
-  }, [workspaceArg, scope])
+  }, [currentWorkspace, workspaceArg, scope])
 
   useEffect(() => reload(), [reload])
 
@@ -34,7 +42,13 @@ export function AgentTab(): React.JSX.Element {
     setSaving(true)
     try {
       await window.pidex.invoke('pi:patchAgentSettings', scope, workspaceArg, partial)
-      setSettings((s) => ({ ...(s ?? {}), ...partial }))
+      setScoped((s) =>
+        s === null
+          ? s
+          : scope === 'global'
+            ? { ...s, global: { ...s.global, ...partial } }
+            : { ...s, project: { ...(s.project ?? {}), ...partial } },
+      )
       useExtensionUiStore.getState().pushToast('Saved — applies to newly started sessions', 'info')
     } catch (error) {
       // Malformed existing config: main refuses to write rather than clobber it.
@@ -47,8 +61,20 @@ export function AgentTab(): React.JSX.Element {
 
   const blocked = health?.malformed === true
 
+  /** The active scope's own file contents (never merged). */
+  const settings = scoped === null ? null : scope === 'global' ? scoped.global : scoped.project
+  /** What the other scope would contribute — placeholder/fallback material. */
+  const inherited = scope === 'project' ? (scoped?.global ?? {}) : {}
+
   const compaction = (settings?.compaction ?? {}) as Record<string, unknown>
   const retry = (settings?.retry ?? {}) as Record<string, unknown>
+  const inheritedCompaction = (inherited.compaction ?? {}) as Record<string, unknown>
+  const inheritedRetry = (inherited.retry ?? {}) as Record<string, unknown>
+  /** Label for "no explicit value here": inherited value in project scope. */
+  const fallbackLabel = (key: string): string => {
+    const value = inherited[key]
+    return typeof value === 'string' && value ? `inherits "${value}"` : '(pi default)'
+  }
 
   return (
     <div>
@@ -119,7 +145,7 @@ export function AgentTab(): React.JSX.Element {
         <Row title="Default model" description='e.g. "claude-sonnet-4-5" or a models.json id.'>
           <TextField
             defaultValue={(settings?.defaultModel as string) ?? ''}
-            placeholder="(pi default)"
+            placeholder={fallbackLabel('defaultModel')}
             onCommit={(v) => void patch({ defaultModel: v || undefined })}
           />
         </Row>
@@ -129,21 +155,21 @@ export function AgentTab(): React.JSX.Element {
         >
           <TextField
             defaultValue={(settings?.defaultProvider as string) ?? ''}
-            placeholder="(pi default)"
+            placeholder={fallbackLabel('defaultProvider')}
             onCommit={(v) => void patch({ defaultProvider: v || undefined })}
           />
         </Row>
         <Row
           title="Default thinking level"
-          description="off · minimal · low · medium · high · xhigh"
+          description="off · minimal · low · medium · high · xhigh · max"
         >
           <select
             value={(settings?.defaultThinkingLevel as string) ?? ''}
             onChange={(e) => void patch({ defaultThinkingLevel: e.target.value || undefined })}
             className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
           >
-            <option value="">(pi default)</option>
-            {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
+            <option value="">{fallbackLabel('defaultThinkingLevel')}</option>
+            {['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map((level) => (
               <option key={level} value={level}>
                 {level}
               </option>
@@ -155,19 +181,21 @@ export function AgentTab(): React.JSX.Element {
           description="Collapse model reasoning out of the transcript."
         >
           <Toggle
-            on={settings?.hideThinkingBlock === true}
+            on={(settings?.hideThinkingBlock ?? inherited.hideThinkingBlock) === true}
             onChange={(on) => void patch({ hideThinkingBlock: on })}
           />
         </Row>
         <Row title="Steering delivery" description="How queued steering messages are injected.">
           <ModeSelect
             value={(settings?.steeringMode as string) ?? ''}
+            fallback={fallbackLabel('steeringMode')}
             onChange={(v) => void patch({ steeringMode: v || undefined })}
           />
         </Row>
         <Row title="Follow-up delivery" description="How queued follow-ups are injected.">
           <ModeSelect
             value={(settings?.followUpMode as string) ?? ''}
+            fallback={fallbackLabel('followUpMode')}
             onChange={(v) => void patch({ followUpMode: v || undefined })}
           />
         </Row>
@@ -178,17 +206,17 @@ export function AgentTab(): React.JSX.Element {
           description="Compact context automatically near the window limit."
         >
           <Toggle
-            on={compaction.enabled !== false}
-            onChange={(on) => void patch({ compaction: { ...compaction, enabled: on } })}
+            on={(compaction.enabled ?? inheritedCompaction.enabled) !== false}
+            onChange={(on) => void patch({ compaction: { enabled: on } })}
           />
         </Row>
         <Row title="Reserve tokens" description="Headroom kept free for the model's response.">
           <NumberField
-            value={Number(compaction.reserveTokens ?? 16384)}
+            value={Number(compaction.reserveTokens ?? inheritedCompaction.reserveTokens ?? 16384)}
             min={1024}
             max={131072}
             step={1024}
-            onChange={(v) => void patch({ compaction: { ...compaction, reserveTokens: v } })}
+            onChange={(v) => void patch({ compaction: { reserveTokens: v } })}
           />
         </Row>
         <Row
@@ -196,11 +224,13 @@ export function AgentTab(): React.JSX.Element {
           description="Recent conversation preserved verbatim during compaction."
         >
           <NumberField
-            value={Number(compaction.keepRecentTokens ?? 20000)}
+            value={Number(
+              compaction.keepRecentTokens ?? inheritedCompaction.keepRecentTokens ?? 20000,
+            )}
             min={1024}
             max={131072}
             step={1024}
-            onChange={(v) => void patch({ compaction: { ...compaction, keepRecentTokens: v } })}
+            onChange={(v) => void patch({ compaction: { keepRecentTokens: v } })}
           />
         </Row>
 
@@ -210,26 +240,26 @@ export function AgentTab(): React.JSX.Element {
           description="Overloaded / rate-limit / 5xx responses."
         >
           <Toggle
-            on={retry.enabled !== false}
-            onChange={(on) => void patch({ retry: { ...retry, enabled: on } })}
+            on={(retry.enabled ?? inheritedRetry.enabled) !== false}
+            onChange={(on) => void patch({ retry: { enabled: on } })}
           />
         </Row>
         <Row title="Max retries" description="Attempts before giving up.">
           <NumberField
-            value={Number(retry.maxRetries ?? 3)}
+            value={Number(retry.maxRetries ?? inheritedRetry.maxRetries ?? 3)}
             min={1}
             max={10}
             step={1}
-            onChange={(v) => void patch({ retry: { ...retry, maxRetries: v } })}
+            onChange={(v) => void patch({ retry: { maxRetries: v } })}
           />
         </Row>
         <Row title="Base delay (ms)" description="First retry delay; grows exponentially.">
           <NumberField
-            value={Number(retry.baseDelayMs ?? 2000)}
+            value={Number(retry.baseDelayMs ?? inheritedRetry.baseDelayMs ?? 2000)}
             min={250}
             max={60000}
             step={250}
-            onChange={(v) => void patch({ retry: { ...retry, baseDelayMs: v } })}
+            onChange={(v) => void patch({ retry: { baseDelayMs: v } })}
           />
         </Row>
       </fieldset>
@@ -239,9 +269,12 @@ export function AgentTab(): React.JSX.Element {
 
 function ModeSelect({
   value,
+  fallback,
   onChange,
 }: {
   value: string
+  /** Label for the empty option: "(pi default)" or the inherited value. */
+  fallback: string
   onChange: (v: string) => void
 }): React.JSX.Element {
   return (
@@ -250,7 +283,7 @@ function ModeSelect({
       onChange={(e) => onChange(e.target.value)}
       className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
     >
-      <option value="">(pi default)</option>
+      <option value="">{fallback}</option>
       <option value="one-at-a-time">one-at-a-time</option>
       <option value="all">all</option>
     </select>
