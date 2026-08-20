@@ -1,0 +1,6 @@
+# Every substantial change appends a dated entry to the end of each phase's
+# Log section (see CLAUDE.md), so two PRs branched around the same time
+# reliably conflict on the same append point even though neither touched the
+# other's content. Union-merge these files: git keeps both sides' added
+# lines instead of stopping for a manual resolution.
+specs/TRACKER.md merge=union
