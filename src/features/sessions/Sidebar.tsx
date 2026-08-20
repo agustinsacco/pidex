@@ -19,7 +19,11 @@ import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { useLayoutStore } from '@/stores/layout'
 import { worktreeAwareName } from '@/lib/path'
-import { groupSessionsByProject, type GroupedSessions } from './groupSessions'
+import {
+  groupSessionsByProject,
+  pendingSessionsByGroup,
+  type GroupedSessions,
+} from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -101,27 +105,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return map
   }, [live])
 
-  /**
-   * Live sessions with no session file yet, grouped by workspace.
-   *
-   * A freshly created session is spawned and prompted immediately, but its
-   * `.jsonl` only appears once pi writes the header — and the watcher adds
-   * `awaitWriteFinish` plus a debounce on top of that. Sidebar rows come from
-   * `disk`, so without these placeholders a session you just started shows no
-   * row at all until roughly its first tool call, which reads as a dropped
-   * message. They drop out on their own once `diskPath` is known.
-   */
-  const pendingByWorkspace = useMemo(() => {
-    const map = new Map<string, string[]>()
-    for (const entry of Object.values(live)) {
-      if (entry.diskPath) continue
-      const list = map.get(entry.workspacePath)
-      if (list) list.push(entry.pidexId)
-      else map.set(entry.workspacePath, [entry.pidexId])
-    }
-    return map
-  }, [live])
-
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
   /** Pinned sessions across every workspace — this group deliberately mixes. */
@@ -156,6 +139,29 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         workspacePath,
       ),
     [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd],
+  )
+
+  /** Every session path currently visible in `disk`, across all workspaces. */
+  const diskPaths = useMemo(() => {
+    const set = new Set<string>()
+    for (const metas of Object.values(disk)) {
+      for (const meta of metas) set.add(meta.path)
+    }
+    return set
+  }, [disk])
+
+  /**
+   * Live sessions with no row in `disk` yet, grouped by project.
+   *
+   * A freshly created session is spawned and prompted immediately, but its
+   * `.jsonl` only appears once pi writes it — and the watcher adds
+   * `awaitWriteFinish` plus a debounce on top of that. Without these
+   * placeholders a session you just started shows no row at all until the
+   * scan catches up, which reads as a dropped message.
+   */
+  const pendingByWorkspace = useMemo(
+    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups),
+    [live, diskPaths, groups],
   )
 
   /**
