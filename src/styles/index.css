@@ -225,13 +225,24 @@ body {
   background: var(--px-accent);
 }
 
-/* macOS traffic-light drag region */
+/* Window drag region: macOS traffic lights, Windows/Linux controls overlay */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
 .titlebar-drag button,
 .titlebar-drag input {
   -webkit-app-region: no-drag;
+}
+
+/*
+ * On Windows/Linux the Window Controls Overlay paints close/minimize over the
+ * top-right of the page, so anything in that strip must inset past them.
+ * `titlebar-area-width` is the width NOT covered by the controls; the fallback
+ * of 100vw collapses this to the plain 0.75rem gutter on macOS, where the env
+ * vars do not exist and the traffic lights sit top-left over the sidebar.
+ */
+.titlebar-inset-end {
+  padding-right: calc(100vw - env(titlebar-area-width, 100vw) + 0.75rem);
 }
 
 /* ---------------------------------------------------------------------------

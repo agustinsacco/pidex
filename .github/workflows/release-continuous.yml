@@ -150,6 +150,14 @@ jobs:
             # AppImage self-updates without any signing requirement.
             SIGNED=true
           fi
+          # An EMPTY CSC_LINK is worse than an absent one: electron-builder reads
+          # it as a certificate PATH, resolves it to the project dir, and dies
+          # with "<projectDir> not a file". Missing secrets arrive as empty
+          # strings, so unset them rather than pass them through.
+          if [ -z "${CSC_LINK:-}" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
           npx electron-builder ${{ matrix.args }} --publish always \
             --config.extraMetadata.version="${{ needs.guard.outputs.version }}" \
             --config.extraMetadata.pidexSigned="${SIGNED}" \
@@ -159,12 +167,41 @@ jobs:
   finalize:
     name: Attach installer script and notes
     needs: [guard, build]
-    if: needs.guard.outputs.should_release == 'true'
+    # `!cancelled()` rather than plain success: `build` sets fail-fast: false so
+    # that one platform failing still leaves the other's artifacts installable,
+    # but that only holds if THIS job still runs to attach install.sh and flip
+    # the release out of draft. Gating on build success meant a single red
+    # platform stranded every release (v0.1.39-v0.1.43 shipped one bare
+    # AppImage each, with no manifest, so nothing could self-update).
+    if: ${{ !cancelled() && needs.guard.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      # install.sh verifies its download against this file. Without it every
+      # install prints "checksums.txt not published — continuing without
+      # verification", which is a poor first impression for a curl | sh flow.
+      - name: Publish checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.guard.outputs.tag }}"
+          mkdir -p checksums
+          cd checksums
+          # Patterns that match nothing are not an error here: which targets
+          # exist depends on which platforms built.
+          gh release download "$TAG" \
+            --pattern '*.AppImage' --pattern '*.deb' \
+            --pattern '*.dmg' --pattern '*.zip' --pattern '*.exe' || true
+          if [ -n "$(ls -A .)" ]; then
+            sha256sum * > checksums.txt
+            gh release upload "$TAG" checksums.txt --clobber
+          else
+            echo "::warning::no installable assets found for ${TAG} — skipping checksums."
+          fi
 
       # install.sh downloads assets by exact name, so it ships with the release
       # it installs. Uploaded after the builds so it cannot race them.

@@ -354,6 +354,14 @@ function mockTree(): Record<string, unknown> {
 
 export function installMockPidex(): void {
   const api: PidexApi = {
+    // The browser harness has no Electron; report the real host so key hints
+    // in `npm run dev:web` match the machine the developer is sitting at.
+    platform: navigator.userAgent.includes('Mac')
+      ? 'darwin'
+      : navigator.userAgent.includes('Windows')
+        ? 'win32'
+        : 'linux',
+
     invoke: (channel: string, ...args: unknown[]) => {
       switch (channel) {
         case 'pi:health':

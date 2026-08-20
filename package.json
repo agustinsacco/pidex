@@ -24,8 +24,16 @@
     "dist:win": "npm run build && electron-builder --win",
     "postinstall": "electron-builder install-app-deps && node scripts/fix-node-pty.mjs"
   },
-  "author": "pidex",
+  "author": {
+    "name": "pidex",
+    "email": "saccoagustin@hotmail.com"
+  },
   "license": "MIT",
+  "homepage": "https://github.com/agustinsacco/pidex",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agustinsacco/pidex.git"
+  },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
     "@eslint/js": "^10.0.1",

@@ -4,6 +4,7 @@ import { useFilesStore, workspaceFiles, type OpenFile } from '@/stores/files'
 import { MonacoEditor } from './MonacoEditor'
 import { basename } from '@/lib/path'
 import { CloseIcon } from '@/components/icons'
+import { formatShortcut } from '@/lib/shortcuts'
 
 export const EditorPane = memo(function EditorPane({
   workspacePath,
@@ -20,7 +21,7 @@ export const EditorPane = memo(function EditorPane({
         <div className="text-center">
           <div className="text-text-tertiary text-[13px]">No file open</div>
           <div className="text-text-tertiary mt-1 text-[11.5px]">
-            Pick a file from the explorer or press ⌘P
+            Pick a file from the explorer or press {formatShortcut('mod', 'P')}
           </div>
         </div>
       </div>

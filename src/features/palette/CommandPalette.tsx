@@ -10,6 +10,7 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { formatShortcut } from '@/lib/shortcuts'
 
 interface PaletteState {
   open: boolean
@@ -64,17 +65,22 @@ export function CommandPalette({
     const recents = useWorkspacesStore.getState().recents
 
     const base: PaletteAction[] = [
-      { id: 'new-session', label: 'New session', hint: '⌘N', run: () => sessions.activate(null) },
+      {
+        id: 'new-session',
+        label: 'New session',
+        hint: formatShortcut('mod', 'N'),
+        run: () => sessions.activate(null),
+      },
       {
         id: 'go-to-file',
         label: 'Go to file…',
-        hint: '⌘P',
+        hint: formatShortcut('mod', 'P'),
         run: () => useFinderStore.getState().setOpen(true),
       },
       {
         id: 'toggle-sidebar',
         label: 'Toggle sidebar',
-        hint: '⌘B',
+        hint: formatShortcut('mod', 'B'),
         run: () => layout.toggleSidebar(),
       },
       // Right-pane commands only exist inside a session — the pane itself is
@@ -85,19 +91,19 @@ export function CommandPalette({
             {
               id: 'toggle-files',
               label: 'Toggle files pane',
-              hint: '⌘⇧E',
+              hint: formatShortcut('mod', 'shift', 'E'),
               run: () => layout.toggleRightPane('files'),
             },
             {
               id: 'toggle-changes',
               label: 'Toggle changes pane',
-              hint: '⌘⇧G',
+              hint: formatShortcut('mod', 'shift', 'G'),
               run: () => layout.toggleRightPane('changes'),
             },
             {
               id: 'toggle-terminal',
               label: 'Toggle terminal',
-              hint: '⌘`',
+              hint: formatShortcut('mod', '`'),
               run: () => layout.toggleRightPane('terminal'),
             },
             {
@@ -110,7 +116,7 @@ export function CommandPalette({
       {
         id: 'settings',
         label: 'Open settings',
-        hint: '⌘,',
+        hint: formatShortcut('mod', ','),
         run: () => useSettingsUiStore.getState().setOpen(true),
       },
       {

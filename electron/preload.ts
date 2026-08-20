@@ -5,6 +5,10 @@ import type { ResourceSnapshot, SessionPush, UpdateState } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 
 const api: PidexApi = {
+  // A sandboxed preload still gets `process.platform` from Electron's polyfill.
+  platform:
+    process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
+
   invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeMap[C]['args']) {
     return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeMap[C]['result']>
   },

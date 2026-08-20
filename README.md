@@ -13,11 +13,15 @@ and a versioned artifacts panel.
 macOS and Linux:
 
 ```bash
-curl -fsSL https://github.com/pidex-app/pidex/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
 ```
 
-Windows: download the `.exe` installer from the
-[latest release](https://github.com/pidex-app/pidex/releases/latest).
+The script installs the AppImage on Linux and the `.app` bundle on macOS,
+verifying the download against the release's `checksums.txt`.
+
+Windows builds are produced by the tagged `Release` workflow rather than the
+per-merge one, so a `.exe` is only present on releases that were cut from a
+`v*` tag.
 
 pidex needs `pi` on your PATH:
 
@@ -28,6 +32,18 @@ npm install -g @earendil-works/pi-coding-agent
 The app shows a setup screen until pi is available. Sign in to a provider by
 running `pi` in pidex's built-in terminal and using `/login`, or configure API
 keys / a local endpoint in `~/.pi/agent/`.
+
+### Updates
+
+Every merge to `main` that passes CI publishes a new release, versioned
+`0.1.<commit count>`. An installed app checks for one at launch and every 30
+minutes after; when it finds one, an update button appears in the sidebar
+footer, just above Settings.
+
+Linux AppImage and signed macOS installs download in the background and offer
+"Restart to update". Unsigned macOS and `.deb` installs cannot replace their
+own files, so they link to the release page instead. Update checks are
+disabled entirely in development builds — they only run when packaged.
 
 ## What it does
 

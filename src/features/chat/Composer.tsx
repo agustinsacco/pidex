@@ -22,6 +22,7 @@ import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
+import { formatShortcut } from '@/lib/shortcuts'
 import {
   composePrompt,
   formatFileSize,
@@ -358,7 +359,7 @@ export function Composer({
   }
 
   const placeholder = isStreaming
-    ? 'Steer with Enter · queue follow-up with ⌥Enter · Esc to stop'
+    ? `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
     : 'Describe a task…  ( / commands · @ files · ! shell )'
 
   return (
