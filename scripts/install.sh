@@ -29,9 +29,12 @@ need uname
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
+# electron-builder expands `${arch}` per TARGET, not per machine: the same x64
+# build ships as -x64.dmg, -x86_64.AppImage and -amd64.deb. One normalized name
+# here therefore cannot address every artifact — asking for -x64.AppImage 404s.
 case "$ARCH" in
-  x86_64|amd64) ARCH="x64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
+  x86_64|amd64) ARCH="x64";   APPIMAGE_ARCH="x86_64" ;;
+  arm64|aarch64) ARCH="arm64"; APPIMAGE_ARCH="arm64" ;;
   *) die "unsupported architecture: $ARCH" ;;
 esac
 
@@ -60,7 +63,7 @@ BASE="https://github.com/$REPO/releases/download/$TAG"
 if [ "$PLATFORM" = "mac" ]; then
   ASSET="pidex-${VERSION}-${ARCH}.dmg"
 else
-  ASSET="pidex-${VERSION}-${ARCH}.AppImage"
+  ASSET="pidex-${VERSION}-${APPIMAGE_ARCH}.AppImage"
 fi
 
 TMP="$(mktemp -d)"

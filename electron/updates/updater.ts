@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { BrowserWindow, app, shell } from 'electron'
+// Type-only: erased at compile time, so the runtime import below stays lazy.
+import type * as ElectronUpdater from 'electron-updater'
 import {
   IDLE,
   isNewerVersion,
@@ -83,6 +85,22 @@ function readPackagedFlag(): boolean | null {
   }
 }
 
+/**
+ * `electron-updater` is CommonJS and the packaged main bundle is ESM
+ * (`"type": "module"`), so its exports arrive under `.default`. Destructuring
+ * `autoUpdater` off the namespace yields **undefined** — Node's lexer lists the
+ * name but the value is a lazy getter that only exists on the CJS exports
+ * object. The result was `TypeError: Cannot set properties of undefined
+ * (setting 'autoDownload')` on the very first check in a packaged build, i.e.
+ * self-updating never worked outside dev, where this file is short-circuited.
+ */
+async function importUpdater(): Promise<typeof ElectronUpdater> {
+  const mod = (await import('electron-updater')) as unknown as {
+    default?: typeof ElectronUpdater
+  } & typeof ElectronUpdater
+  return mod.default ?? mod
+}
+
 /** Poll the release manifest directly, for installs that cannot self-update. */
 async function checkManually(): Promise<void> {
   apply({ type: 'check-started' })
@@ -125,7 +143,7 @@ async function checkManually(): Promise<void> {
 async function checkWithUpdater(): Promise<void> {
   apply({ type: 'check-started' })
   try {
-    const { autoUpdater } = await import('electron-updater')
+    const { autoUpdater } = await importUpdater()
     await autoUpdater.checkForUpdates()
   } catch (error) {
     console.warn('[pidex] update check failed:', error)
@@ -134,7 +152,7 @@ async function checkWithUpdater(): Promise<void> {
 }
 
 async function wireUpdaterEvents(): Promise<void> {
-  const { autoUpdater } = await import('electron-updater')
+  const { autoUpdater } = await importUpdater()
 
   // Downloading is automatic; INSTALLING never is. Nothing in this module
   // calls quitAndInstall on a timer — only an explicit user click does.
@@ -177,10 +195,16 @@ export function startUpdateChecks(): void {
   }
   started = true
 
+  // Catch, don't just `void`: an unguarded rejection here surfaced as a raw
+  // UnhandledPromiseRejectionWarning in the packaged app instead of the silent
+  // degrade this module promises everywhere else.
   void (async () => {
     if (canSelfInstall()) await wireUpdaterEvents()
     await checkForUpdates()
-  })()
+  })().catch((error: unknown) => {
+    console.warn('[pidex] update init failed:', error)
+    apply({ type: 'error' })
+  })
 
   timer = setInterval(() => void checkForUpdates(), CHECK_INTERVAL_MS)
   // Update polling must never be the reason the process stays alive.
@@ -203,7 +227,7 @@ export async function restartAndInstall(): Promise<void> {
     return
   }
   if (state.phase !== 'downloaded') return
-  const { autoUpdater } = await import('electron-updater')
+  const { autoUpdater } = await importUpdater()
   // isSilent=false so the installer UI shows if the platform has one;
   // isForceRunAfter=true so the user lands back in pidex, not on the desktop.
   autoUpdater.quitAndInstall(false, true)

@@ -25,3 +25,4 @@ to collide with.
 | 2026-08-19 | [Symmetric transcript spacing: one step at every boundary](2026-08-19-symmetric-transcript-spacing.md)  |
 | 2026-08-20 | [Sidebar: the pending-row gap reopened](2026-08-20-sidebar-pending-row-reopened.md)                     |
 | 2026-08-20 | [Releases that actually ship, and a window that fits Linux](2026-08-20-releases-and-linux-window.md)    |
+| 2026-08-20 | [The installer 404'd, and self-update had never once run](2026-08-20-installer-arch-and-updater-esm.md) |
