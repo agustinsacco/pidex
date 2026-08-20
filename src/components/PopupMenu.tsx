@@ -92,7 +92,7 @@ export function MenuRow({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       title={title}
-      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
+      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-lg transition-colors ${
         disabled
           ? 'cursor-not-allowed opacity-45'
           : `cursor-pointer ${active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'}`

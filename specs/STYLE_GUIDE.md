@@ -114,6 +114,30 @@ match). Light terminal stays on `#ffffff` with the ember cursor.
 ## Typography
 
 - **UI:** `Inter` / system sans, unchanged. Body 14px/1.55.
+- **Scale:** nine steps, defined in `@theme` in `src/styles/index.css`. Use the
+  named utility, never `text-[Npx]` — the arbitrary values are what produced 18
+  ad-hoc sizes between 8.5 and 30px, half of them half-pixel neighbours used
+  for the same job.
+
+  | Utility     | Size   | For                                            |
+  | ----------- | ------ | ---------------------------------------------- |
+  | `text-2xs`  | 9px    | dense badges, in-context pills                 |
+  | `text-xs`   | 10.5px | uppercase mono eyebrows, group headers, chips  |
+  | `text-sm`   | 11.5px | tertiary metadata: timestamps, paths, counts   |
+  | `text-base` | 12.5px | the workhorse — controls, list rows, secondary |
+  | `text-lg`   | 13.5px | primary UI copy, header and menu titles        |
+  | `text-xl`   | 16px   | stat values, settings section headings         |
+  | `text-2xl`  | 20px   | empty-state headline                           |
+  | `text-3xl`  | 24px   | setup screen headline                          |
+  | `text-4xl`  | 28px   | home / picker hero headline                    |
+
+  Every step inherits its line-height rather than carrying Tailwind's default
+  — set leading explicitly with `leading-*` where a block needs its own. Chat,
+  editor and terminal body text are **not** on this scale: they are
+  user-configurable (`--px-chat-font-size` and friends, Settings → Appearance).
+  Overall size is page zoom, not a font-size multiplier — see
+  `electron/window-chrome.ts`.
+
 - **Mono:** JetBrains Mono (user-configurable). Promoted from "code only" to
   the **structural voice**: section labels, workspace group headers, badges,
   stat-tile labels, and eyebrows set in mono, 10–11px, uppercase,

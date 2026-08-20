@@ -41,7 +41,7 @@ export function PrRow({
 
   if (loading) {
     return (
-      <div className="text-text-tertiary px-3 py-1 text-[11.5px]">
+      <div className="text-text-tertiary px-3 py-1 text-sm">
         <span className="skeleton inline-block h-3 w-28 rounded" />
       </div>
     )
@@ -52,14 +52,12 @@ export function PrRow({
   return (
     <MenuRow active={false} onClick={() => void window.pidex.invoke('app:openExternal', pr.url)}>
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
-        <span className={`${stateColor(pr.state)} shrink-0 text-[11px] font-medium`}>
-          #{pr.number}
-        </span>
-        <span className="text-text min-w-0 flex-1 truncate text-[13px]" title={pr.title}>
+        <span className={`${stateColor(pr.state)} shrink-0 text-sm font-medium`}>#{pr.number}</span>
+        <span className="text-text min-w-0 flex-1 truncate text-lg" title={pr.title}>
           {pr.title}
         </span>
       </span>
-      <span className="shrink-0 text-[11px]">
+      <span className="shrink-0 text-sm">
         <span className={stateColor(pr.state)}>{pr.state.toLowerCase()}</span>
         {checks && checks.total > 0 && (
           <>

@@ -15,7 +15,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
     <div>
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="text-text-tertiary hover:text-text-secondary flex items-center gap-1.5 py-0.5 text-[12.5px] italic transition-colors"
+        className="text-text-tertiary hover:text-text-secondary flex items-center gap-1.5 py-0.5 text-base italic transition-colors"
       >
         <svg
           width="11"
@@ -35,7 +35,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         )}
       </button>
       {expanded && (
-        <div className="border-border text-text-secondary mt-1 mb-0.5 border-l-2 pl-3 text-[13px] italic opacity-90 [&_.md-content]:text-[13px]">
+        <div className="border-border text-text-secondary mt-1 mb-0.5 border-l-2 pl-3 text-lg italic opacity-90 [&_.md-content]:text-lg">
           <Markdown text={text} streaming={streaming} />
         </div>
       )}

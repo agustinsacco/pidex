@@ -29,8 +29,8 @@ export function KeybindingsTab(): React.JSX.Element {
           const keys = formatShortcut(...parts)
           return (
             <div key={action} className="bg-surface flex items-center justify-between px-4 py-2">
-              <span className="text-[12.5px]">{action}</span>
-              <kbd className="bg-bg-secondary border-border rounded-md border px-2 py-0.5 font-mono text-[11px]">
+              <span className="text-base">{action}</span>
+              <kbd className="bg-bg-secondary border-border rounded-md border px-2 py-0.5 font-mono text-sm">
                 {keys}
               </kbd>
             </div>

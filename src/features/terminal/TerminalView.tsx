@@ -199,17 +199,17 @@ export const TerminalView = memo(function TerminalView({
               }
             }}
             placeholder="Search…"
-            className="text-text placeholder:text-text-tertiary w-40 bg-transparent px-2 py-0.5 text-[12px] outline-none"
+            className="text-text placeholder:text-text-tertiary w-40 bg-transparent px-2 py-0.5 text-base outline-none"
           />
           <button
             onClick={() => runSearch('previous')}
-            className="text-text-tertiary hover:text-text px-1 text-[11px]"
+            className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ↑
           </button>
           <button
             onClick={() => runSearch('next')}
-            className="text-text-tertiary hover:text-text px-1 text-[11px]"
+            className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ↓
           </button>
@@ -218,7 +218,7 @@ export const TerminalView = memo(function TerminalView({
               setSearchOpen(false)
               termRef.current?.focus()
             }}
-            className="text-text-tertiary hover:text-text px-1 text-[11px]"
+            className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ✕
           </button>

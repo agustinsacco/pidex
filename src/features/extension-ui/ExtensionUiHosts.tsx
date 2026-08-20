@@ -83,8 +83,8 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="border-border bg-surface-raised w-[480px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border border-b px-4 py-3">
-          <div className="text-[13.5px] font-semibold">{stripAnsi(request.title)}</div>
-          <div className="text-text-tertiary mt-0.5 text-[11px]">Requested by a pi extension</div>
+          <div className="text-lg font-semibold">{stripAnsi(request.title)}</div>
+          <div className="text-text-tertiary mt-0.5 text-sm">Requested by a pi extension</div>
         </div>
 
         {request.method === 'select' && (
@@ -95,7 +95,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
                 onMouseMove={() => setSelectedIndex(index)}
                 onClick={() => resolve({ value: option })}
                 className={clsx(
-                  'flex w-full items-center px-4 py-2 text-left text-[13px] transition-colors',
+                  'flex w-full items-center px-4 py-2 text-left text-lg transition-colors',
                   index === selectedIndex && 'bg-bg-secondary',
                 )}
               >
@@ -107,7 +107,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
         )}
 
         {request.method === 'confirm' && (
-          <div className="px-4 py-3 text-[13px]">{stripAnsi(request.message)}</div>
+          <div className="px-4 py-3 text-lg">{stripAnsi(request.message)}</div>
         )}
 
         {request.method === 'input' && (
@@ -120,7 +120,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
                 if (e.key === 'Enter') resolve({ value })
               }}
               placeholder={request.placeholder}
-              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-[13px] outline-none focus:border-[var(--px-border-strong)]"
+              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-lg outline-none focus:border-[var(--px-border-strong)]"
             />
           </div>
         )}
@@ -132,7 +132,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               rows={10}
-              className="border-border bg-code-bg text-text w-full resize-y rounded-lg border px-3 py-2 font-mono text-[12.5px] outline-none focus:border-[var(--px-border-strong)]"
+              className="border-border bg-code-bg text-text w-full resize-y rounded-lg border px-3 py-2 font-mono text-base outline-none focus:border-[var(--px-border-strong)]"
             />
           </div>
         )}
@@ -140,7 +140,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
         <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
           <button
             onClick={() => resolve({ cancelled: true })}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors"
+            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
           >
             Cancel
           </button>
@@ -148,13 +148,13 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
             <>
               <button
                 onClick={() => resolve({ confirmed: false })}
-                className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors"
+                className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
               >
                 No
               </button>
               <button
                 onClick={() => resolve({ confirmed: true })}
-                className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors"
+                className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
               >
                 Yes
               </button>
@@ -163,7 +163,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
           {(request.method === 'input' || request.method === 'editor') && (
             <button
               onClick={() => resolve({ value })}
-              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors"
+              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
             >
               Submit
             </button>
@@ -171,7 +171,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
           {request.method === 'select' && (
             <button
               onClick={() => resolve({ value: request.options[selectedIndex] })}
-              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-[12px] font-medium transition-colors"
+              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
             >
               Choose
             </button>
@@ -218,7 +218,7 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
               : 'bg-info',
         )}
       />
-      <span className="text-text min-w-0 flex-1 text-[12.5px] leading-snug">
+      <span className="text-text min-w-0 flex-1 text-base leading-snug">
         {stripAnsi(toast.message)}
       </span>
       <button
@@ -241,7 +241,7 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
         <span
           key={key}
           title={stripAnsi(text)}
-          className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-[10.5px]"
+          className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-xs"
         >
           <span className="bg-info h-1.5 w-1.5 shrink-0 rounded-full" />
           <span className="truncate">
@@ -269,7 +269,7 @@ export function WidgetSlot({
       {entries.map(([key, widget]) => (
         <div
           key={key}
-          className="border-border bg-bg-secondary/70 rounded-lg border px-3 py-1.5 font-mono text-[11px] leading-relaxed"
+          className="border-border bg-bg-secondary/70 rounded-lg border px-3 py-1.5 font-mono text-sm leading-relaxed"
         >
           {widget.lines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap">

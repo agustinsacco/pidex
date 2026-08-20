@@ -51,7 +51,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         </svg>
         <span
           className={clsx(
-            'text-[11.5px] tabular-nums',
+            'text-sm tabular-nums',
             critical ? 'text-danger' : warn ? 'text-warning' : 'text-text-tertiary',
           )}
         >
@@ -65,8 +65,8 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
           triggerRef={triggerRef}
           className="absolute bottom-full right-0 mb-2 w-64 p-3"
         >
-          <div className="text-text text-[12.5px] font-medium">Session usage</div>
-          <div className="mt-2 space-y-1 text-[12px]">
+          <div className="text-text text-base font-medium">Session usage</div>
+          <div className="mt-2 space-y-1 text-base">
             <SectionLabel>Context</SectionLabel>
             <StatRow
               label="Window"
@@ -108,7 +108,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
 
 function SectionLabel({ children }: { children: string }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary pb-0.5 pt-1.5 font-mono text-[9.5px] uppercase tracking-wider first:pt-0">
+    <div className="text-text-tertiary pb-0.5 pt-1.5 font-mono text-2xs uppercase tracking-wider first:pt-0">
       {children}
     </div>
   )
@@ -118,7 +118,7 @@ function StatRow({ label, value }: { label: string; value: string }): React.JSX.
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-text-tertiary">{label}</span>
-      <span className="text-text-secondary font-mono text-[11.5px] tabular-nums">{value}</span>
+      <span className="text-text-secondary font-mono text-sm tabular-nums">{value}</span>
     </div>
   )
 }

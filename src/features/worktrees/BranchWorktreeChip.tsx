@@ -49,7 +49,7 @@ export function BranchWorktreeChip({
         data-testid="branch-chip"
         aria-expanded={open}
         className={clsx(
-          'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium transition-colors',
+          'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-base font-medium transition-colors',
           open
             ? 'bg-bg-secondary text-text border-border-strong'
             : 'bg-surface text-text-secondary hover:text-text hover:border-border-strong',
@@ -58,7 +58,7 @@ export function BranchWorktreeChip({
         <BranchIcon />
         {target ? (
           <>
-            <span className="bg-accent-soft text-accent rounded px-1 text-[10px]">wt</span>
+            <span className="bg-accent-soft text-accent rounded px-1 text-xs">wt</span>
             {target.label}
           </>
         ) : (
@@ -77,7 +77,7 @@ export function BranchWorktreeChip({
           className="absolute bottom-full left-0 z-40 mb-1.5 max-h-96 w-80 overflow-y-auto py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
-            <div className="text-text-tertiary text-[11px]">Next session starts in</div>
+            <div className="text-text-tertiary text-sm">Next session starts in</div>
           </div>
 
           <WorktreeMenu

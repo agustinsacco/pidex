@@ -107,14 +107,14 @@ function SessionRow({
       className="border-border/60 border-b px-3 py-2 last:border-b-0"
     >
       <div className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate text-[12px]">
+        <span className="min-w-0 flex-1 truncate text-base">
           {isActive && <span className="bg-success mr-1.5 inline-block h-1.5 w-1.5 rounded-full" />}
           {label}
         </span>
-        <span className="text-text shrink-0 text-[12px] font-semibold tabular-nums">
+        <span className="text-text shrink-0 text-base font-semibold tabular-nums">
           {formatRss(shown.rssKb)}
         </span>
-        <span className="text-text-secondary w-11 shrink-0 text-right text-[12px] tabular-nums">
+        <span className="text-text-secondary w-11 shrink-0 text-right text-base tabular-nums">
           {formatCpu(shown.cpuPercent)}
         </span>
       </div>
@@ -124,7 +124,7 @@ function SessionRow({
           <div className="bg-accent h-full rounded-full" style={{ width: `${share}%` }} />
         </div>
         {!compact && (
-          <span className="text-text-tertiary shrink-0 text-[10px] tabular-nums">
+          <span className="text-text-tertiary shrink-0 text-xs tabular-nums">
             {shown.processCount} proc
             {includeTerminals && usage.terminals.processCount > 0 && (
               <span title="Processes running in this session's terminals">
@@ -155,7 +155,7 @@ export function MonitorPanel({ compact = false }: { compact?: boolean }): React.
 
   if (!latest) {
     return (
-      <div className="text-text-tertiary flex flex-1 items-center justify-center p-6 text-[12px]">
+      <div className="text-text-tertiary flex flex-1 items-center justify-center p-6 text-base">
         Sampling…
       </div>
     )
@@ -165,7 +165,7 @@ export function MonitorPanel({ compact = false }: { compact?: boolean }): React.
     <div className="flex min-h-0 flex-1 flex-col">
       <Totals snapshot={latest} cpuHistory={cpuHistory} compact={compact} />
 
-      <label className="border-border text-text-secondary flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[11.5px]">
+      <label className="border-border text-text-secondary flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-sm">
         <input
           type="checkbox"
           checked={includeTerminals}
@@ -183,13 +183,13 @@ export function MonitorPanel({ compact = false }: { compact?: boolean }): React.
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!latest.perSessionSupported && (
-          <div className="text-text-tertiary px-3 py-3 text-[11.5px]">
+          <div className="text-text-tertiary px-3 py-3 text-sm">
             Per-session process metrics aren&apos;t available on this platform. The totals above
             cover pidex&apos;s own processes only.
           </div>
         )}
         {latest.sessions.length === 0 ? (
-          <div className="text-text-tertiary px-3 py-3 text-[11.5px]">No live sessions.</div>
+          <div className="text-text-tertiary px-3 py-3 text-sm">No live sessions.</div>
         ) : (
           [...latest.sessions]
             .sort((a, b) => {
@@ -251,7 +251,7 @@ function Totals({
         per-process numbers overstates real usage. Say so rather than present a
         falsely precise total.
       */}
-      <div className="text-text-tertiary mt-1 text-[10px]">
+      <div className="text-text-tertiary mt-1 text-xs">
         Resident memory; shared pages counted per process
       </div>
     </div>
@@ -269,12 +269,10 @@ function Metric({
 }): React.JSX.Element {
   return (
     <div className="min-w-0">
-      <div className="text-text-tertiary font-mono text-[9.5px] uppercase tracking-wider">
-        {label}
-      </div>
-      <div className="text-text text-[15px] font-semibold tabular-nums">
+      <div className="text-text-tertiary font-mono text-2xs uppercase tracking-wider">{label}</div>
+      <div className="text-text text-xl font-semibold tabular-nums">
         {value}
-        {sub && <span className="text-text-tertiary ml-1 text-[11px] font-normal">{sub}</span>}
+        {sub && <span className="text-text-tertiary ml-1 text-sm font-normal">{sub}</span>}
       </div>
     </div>
   )

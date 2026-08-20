@@ -33,7 +33,7 @@ export function AppearanceTab(): React.JSX.Element {
               aria-pressed={theme === value}
               onClick={() => useSettingsStore.getState().setTheme(value)}
               className={clsx(
-                'px-3 py-1.5 text-[12px] font-medium transition-colors',
+                'px-3 py-1.5 text-base font-medium transition-colors',
                 theme === value
                   ? 'bg-accent text-accent-text'
                   : 'text-text-secondary hover:text-text',
@@ -95,7 +95,7 @@ export function AppearanceTab(): React.JSX.Element {
         <select
           value={fonts.monoFont}
           onChange={(e) => setFonts({ monoFont: e.target.value })}
-          className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+          className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
         >
           {['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace'].map(
             (font) => (

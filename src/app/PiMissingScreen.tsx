@@ -12,19 +12,17 @@ export function PiMissingScreen({
   return (
     <div className="titlebar-drag flex h-full flex-col items-center justify-center gap-6 px-8">
       <div className="bg-surface border-border w-full max-w-lg rounded-lg border p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="text-text-secondary mt-3 text-sm leading-relaxed">
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-text-secondary mt-3 text-lg leading-relaxed">
           pidex is powered by the pi coding agent. {health.message}
         </p>
 
         <div className="bg-code-bg border-border mt-5 rounded-md border px-4 py-3">
-          <code className="font-mono text-[13px]">
-            npm install -g @earendil-works/pi-coding-agent
-          </code>
+          <code className="font-mono text-lg">npm install -g @earendil-works/pi-coding-agent</code>
         </div>
 
         {health.version && (
-          <p className="text-text-tertiary mt-3 text-xs">
+          <p className="text-text-tertiary mt-3 text-base">
             Found version {health.version} at {health.binaryPath} — minimum supported is{' '}
             {health.minVersion}.
           </p>
@@ -32,7 +30,7 @@ export function PiMissingScreen({
 
         <button
           onClick={onRetry}
-          className="bg-accent hover:bg-accent-hover text-accent-text mt-6 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+          className="bg-accent hover:bg-accent-hover text-accent-text mt-6 rounded-md px-4 py-2 text-lg font-medium transition-colors"
         >
           Check again
         </button>

@@ -100,7 +100,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
         onClick={() => setOpen(open === 'model' ? null : 'model')}
         data-testid="home-model-picker"
         className={clsx(
-          'cursor-pointer rounded-md px-2 py-1 text-[12px] font-medium transition-colors',
+          'cursor-pointer rounded-md px-2 py-1 text-base font-medium transition-colors',
           open === 'model'
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
@@ -114,7 +114,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           data-testid="home-thinking-picker"
           className={clsx(
-            'cursor-pointer rounded-md px-2 py-1 text-[12px] transition-colors',
+            'cursor-pointer rounded-md px-2 py-1 text-base transition-colors',
             open === 'thinking'
               ? 'bg-bg-secondary text-text'
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',

@@ -19,8 +19,8 @@ export const EditorPane = memo(function EditorPane({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <div className="text-text-tertiary text-[13px]">No file open</div>
-          <div className="text-text-tertiary mt-1 text-[11.5px]">
+          <div className="text-text-tertiary text-lg">No file open</div>
+          <div className="text-text-tertiary mt-1 text-sm">
             Pick a file from the explorer or press {formatShortcut('mod', 'P')}
           </div>
         </div>
@@ -85,7 +85,7 @@ function Tab({
   return (
     <div
       className={clsx(
-        'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-[12px] transition-colors',
+        'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-base transition-colors',
         active
           ? 'border-border bg-surface text-text'
           : 'border-transparent text-text-tertiary hover:text-text',
@@ -119,7 +119,7 @@ function ConflictBar({
   workspacePath: string
 }): React.JSX.Element {
   return (
-    <div className="bg-warning/10 border-warning/30 flex items-center gap-2 border-b px-3 py-1.5 text-[12px]">
+    <div className="bg-warning/10 border-warning/30 flex items-center gap-2 border-b px-3 py-1.5 text-base">
       <span className="text-text flex-1">File changed on disk while you had unsaved edits.</span>
       <button
         onClick={() => void useFilesStore.getState().reloadFromDisk(workspacePath, file.path)}
@@ -140,7 +140,7 @@ function ConflictBar({
 function CenterNote({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="text-text-tertiary text-[12.5px]">{children}</div>
+      <div className="text-text-tertiary text-base">{children}</div>
     </div>
   )
 }

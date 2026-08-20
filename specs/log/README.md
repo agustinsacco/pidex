@@ -27,3 +27,5 @@ to collide with.
 | 2026-08-20 | [Releases that actually ship, and a window that fits Linux](2026-08-20-releases-and-linux-window.md)          |
 | 2026-08-20 | [The installer 404'd, and self-update had never once run](2026-08-20-installer-arch-and-updater-esm.md)       |
 | 2026-08-20 | ["UI scale" that never scaled, and a dead strip above the sidebar](2026-08-20-ui-scale-and-linux-titlebar.md) |
+| 2026-08-20 | [Provider errors show the sentence, not the JSON](2026-08-20-provider-error-envelopes.md)                     |
+| 2026-08-20 | [A type scale, replacing 424 hand-picked pixel sizes](2026-08-20-type-scale.md)                               |

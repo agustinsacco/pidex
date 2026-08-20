@@ -79,19 +79,19 @@ function MarkdownTable(props: React.TableHTMLAttributes<HTMLTableElement>): Reac
       <div className="absolute -top-3 right-1 z-10 hidden gap-1 group-hover/table:flex">
         <button
           onClick={(e) => copy(e, 'markdown')}
-          className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-[10px] shadow-sm"
+          className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-xs shadow-sm"
         >
           {copied === 'markdown' ? 'Copied' : 'Copy MD'}
         </button>
         <button
           onClick={(e) => copy(e, 'csv')}
-          className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-[10px] shadow-sm"
+          className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-xs shadow-sm"
         >
           {copied === 'csv' ? 'Copied' : 'Copy CSV'}
         </button>
       </div>
       <div className="border-border overflow-x-auto rounded-lg border">
-        <table {...props} className="md-table w-full border-collapse text-[13px]" />
+        <table {...props} className="md-table w-full border-collapse text-lg" />
       </div>
     </div>
   )
@@ -169,7 +169,7 @@ export const Markdown = memo(function Markdown({
         {closed}
       </ReactMarkdown>
       {openFence !== null && (
-        <pre className="border-border bg-code-bg my-3 overflow-x-auto rounded-lg border px-4 py-3 font-mono text-[12.5px] leading-relaxed opacity-80">
+        <pre className="border-border bg-code-bg my-3 overflow-x-auto rounded-lg border px-4 py-3 font-mono text-base leading-relaxed opacity-80">
           {openFence.split('\n').slice(1).join('\n')}
         </pre>
       )}

@@ -37,11 +37,11 @@ function QueueChip({
       title={text || (steer ? 'Steering message queued' : 'Follow-up message queued')}
       className={
         steer
-          ? 'bg-accent-soft text-accent border-accent/25 flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] transition-opacity hover:opacity-80'
-          : 'bg-info/10 text-info border-info/25 flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] transition-opacity hover:opacity-80'
+          ? 'bg-accent-soft text-accent border-accent/25 flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-base transition-opacity hover:opacity-80'
+          : 'bg-info/10 text-info border-info/25 flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-base transition-opacity hover:opacity-80'
       }
     >
-      <span className="shrink-0 text-[10px] font-semibold font-mono uppercase tracking-wide">
+      <span className="shrink-0 text-xs font-semibold font-mono uppercase tracking-wide">
         {steer ? 'Steer queued' : 'Follow-up queued'}
       </span>
       {text && <span className="truncate">{text}</span>}

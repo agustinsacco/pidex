@@ -38,11 +38,11 @@ export function ArtifactDetail({
   // only honest progress indicator we have.
   if (running || !details?.id) {
     return (
-      <div className="text-text-secondary flex items-center gap-2 px-3 py-2.5 text-[12.5px]">
+      <div className="text-text-secondary flex items-center gap-2 px-3 py-2.5 text-base">
         <span className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full" />
         <span className="tool-running-label">Writing artifact content</span>
         {tool.argsText && (
-          <span className="text-text-tertiary font-mono text-[11.5px]">
+          <span className="text-text-tertiary font-mono text-sm">
             {formatBytes(tool.argsText.length)}
           </span>
         )}
@@ -71,16 +71,16 @@ export function ArtifactDetail({
       onClick={open}
       className="hover:bg-bg-secondary/60 flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
     >
-      <span className="text-[16px] leading-none">{artifactGlyph(type)}</span>
+      <span className="text-xl leading-none">{artifactGlyph(type)}</span>
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-[13px] font-medium">{title}</span>
-        <span className="text-text-tertiary block text-[11.5px]">
+        <span className="text-text block truncate text-lg font-medium">{title}</span>
+        <span className="text-text-tertiary block text-sm">
           {type}
           {version != null && ` · v${version}`}
           {size && ` · ${size}`}
         </span>
       </span>
-      <span className="border-border text-text-secondary shrink-0 rounded-md border px-2 py-1 text-[11.5px] font-medium">
+      <span className="border-border text-text-secondary shrink-0 rounded-md border px-2 py-1 text-sm font-medium">
         Open in panel
       </span>
     </button>

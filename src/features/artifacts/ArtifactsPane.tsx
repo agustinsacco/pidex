@@ -45,8 +45,8 @@ export const ArtifactsPane = memo(function ArtifactsPane({
       <PaneShell title={<PaneTitle label="Artifacts" />}>
         <div className="flex h-full items-center justify-center px-6">
           <div className="text-center">
-            <div className="text-text-tertiary text-[13px]">No artifacts yet</div>
-            <div className="text-text-tertiary mt-1 text-[11.5px]">
+            <div className="text-text-tertiary text-lg">No artifacts yet</div>
+            <div className="text-text-tertiary mt-1 text-sm">
               Ask for a dashboard mockup, diagram or report — substantial deliverables land here
               with version history.
             </div>
@@ -74,13 +74,13 @@ export const ArtifactsPane = memo(function ArtifactsPane({
                 activeSessionId && useArtifactsStore.getState().select(activeSessionId, artifact.id)
               }
               className={clsx(
-                'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-medium transition-colors',
                 selected?.id === artifact.id
                   ? 'border-accent/40 bg-accent-soft text-accent'
                   : 'border-border text-text-secondary hover:text-text',
               )}
             >
-              <span className="text-[13px] leading-none">{artifactGlyph(artifact.type)}</span>
+              <span className="text-lg leading-none">{artifactGlyph(artifact.type)}</span>
               <span className="max-w-36 truncate">{artifact.title}</span>
               <span className="text-text-tertiary">v{artifact.versions.length}</span>
             </button>
@@ -157,11 +157,11 @@ function ArtifactViewer({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
-        <span className="text-[13px] leading-none">{artifactGlyph(artifact.type)}</span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+        <span className="text-lg leading-none">{artifactGlyph(artifact.type)}</span>
+        <span className="min-w-0 flex-1 truncate text-lg font-semibold">
           {shown.title || artifact.title}
         </span>
-        <span className="text-text-tertiary text-[10.5px]">{relativeTime(artifact.updatedAt)}</span>
+        <span className="text-text-tertiary text-xs">{relativeTime(artifact.updatedAt)}</span>
       </div>
 
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
@@ -184,7 +184,7 @@ function ArtifactViewer({
               const index = artifact.versions.findIndex((v) => v.version === Number(e.target.value))
               if (index !== -1) setVersionIndex(index)
             }}
-            className="border-border bg-surface text-text rounded-md border px-1.5 py-0.5 text-[11px] outline-none"
+            className="border-border bg-surface text-text rounded-md border px-1.5 py-0.5 text-sm outline-none"
           >
             {artifact.versions.map((v) => (
               <option key={v.version} value={v.version}>
@@ -313,7 +313,7 @@ function Tab({
     <button
       onClick={onClick}
       className={clsx(
-        'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+        'rounded-md px-2.5 py-1 text-base font-medium transition-colors',
         active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
       )}
     >
