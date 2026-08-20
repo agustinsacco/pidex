@@ -250,7 +250,7 @@ export const MessageList = memo(function MessageList({
                  * it would desync the computed offsets.
                  */}
                 <div
-                  className={`${spacingFor(row, previous)} ${
+                  className={`${spacingFor(previous)} ${
                     row.kind === 'text' && previous?.kind === 'activity'
                       ? 'activity-response-enter'
                       : ''
