@@ -49,6 +49,10 @@ export function PopupMenu({
   return (
     <div
       ref={ref}
+      // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
+      // a menu opened from inside a window-drag region must stay clickable,
+      // including its non-button rows (labels, separators).
+      data-popup-menu
       className={`border-border bg-surface-raised z-30 overflow-hidden rounded-xl border shadow-lg ${className ?? ''}`}
     >
       {children}

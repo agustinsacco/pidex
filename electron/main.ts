@@ -7,7 +7,7 @@ import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { stopMonitor } from './resources/monitor'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
-import { overlayFor } from './window-chrome'
+import { applyZoom, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -70,6 +70,11 @@ function createWindow(): BrowserWindow {
   })
 
   window.on('ready-to-show', () => window.show())
+
+  // Chromium resets the zoom factor on every navigation, so the stored UI
+  // scale has to be re-applied per load — not once at creation, or an HMR
+  // reload (or the packaged app's first paint) silently snaps back to 100%.
+  window.webContents.on('did-finish-load', () => applyZoom(getPrefs().fonts.uiScale))
 
   // External links open in the default browser, never inside the app.
   window.webContents.setWindowOpenHandler(({ url }) => {

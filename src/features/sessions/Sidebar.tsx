@@ -264,7 +264,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   return (
     <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
-      <div className="titlebar-drag h-11 shrink-0" />
+      <div className="titlebar-drag titlebar-inset-start shrink-0" />
       <WorkspaceSwitcher />
 
       {/* Flat nav rows, matching the reference: icon + label, no border or
@@ -446,7 +446,10 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const name = currentPath ? worktreeAwareName(currentPath, git) : 'Workspace'
 
   return (
-    <div className="relative px-3 pb-2 pt-1">
+    // Draggable: on Windows/Linux this row sits flush against the top of the
+    // window (there is no traffic-light strip above it), so it is the only
+    // grab handle the sidebar has. The trigger and the menu opt back out.
+    <div className="titlebar-drag relative px-3 pb-2 pt-1">
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}

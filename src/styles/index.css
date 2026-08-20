@@ -230,7 +230,8 @@ body {
   -webkit-app-region: drag;
 }
 .titlebar-drag button,
-.titlebar-drag input {
+.titlebar-drag input,
+.titlebar-drag [data-popup-menu] {
   -webkit-app-region: no-drag;
 }
 
@@ -243,6 +244,21 @@ body {
  */
 .titlebar-inset-end {
   padding-right: calc(100vw - env(titlebar-area-width, 100vw) + 0.75rem);
+}
+
+/*
+ * The mirror image, for the top-LEFT corner: only macOS parks window controls
+ * there (the traffic lights), so only macOS needs the sidebar to start 44px
+ * down. On Windows/Linux the controls are top-right — handled by
+ * .titlebar-inset-end — and this strip was a band of dead space above the
+ * workspace switcher. The element keeps zero height rather than being dropped
+ * so the drag region it provides on macOS stays a single call site.
+ */
+.titlebar-inset-start {
+  height: 0;
+}
+.platform-darwin .titlebar-inset-start {
+  height: 2.75rem; /* h-11, matches TITLEBAR_HEIGHT in electron/window-chrome.ts */
 }
 
 /* ---------------------------------------------------------------------------

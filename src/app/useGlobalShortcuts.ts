@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
+import { clampUiScale } from '@shared/models'
 import { useLayoutStore } from '@/stores/layout'
+import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
@@ -18,6 +20,32 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (el.isContentEditable) return true
   // Monaco renders into a contenteditable host with this class.
   return el.closest?.('.monaco-editor, [role="textbox"]') !== null
+}
+
+/**
+ * Physical keys that change the UI scale, mapped to their step in percentage
+ * points; 0 means "back to 100%". `Equal` is the unshifted ⌘+ key, and the
+ * numpad forms are separate codes.
+ */
+const ZOOM_KEYS = new Map<string, number>([
+  ['Equal', 10],
+  ['NumpadAdd', 10],
+  ['Minus', -10],
+  ['NumpadSubtract', -10],
+  ['Digit0', 0],
+  ['Numpad0', 0],
+])
+
+function nudgeUiScale(stepPercent: number): void {
+  const { fonts, setFonts } = useSettingsStore.getState()
+  if (stepPercent === 0) {
+    if (fonts.uiScale !== 1) setFonts({ uiScale: 1 })
+    return
+  }
+  // Round through percent so a run of nudges lands on whole steps rather than
+  // accumulating float drift (1.1 * … never quite equals 1.3).
+  const next = clampUiScale((Math.round(fonts.uiScale * 100) + stepPercent) / 100)
+  if (next !== fonts.uiScale) setFonts({ uiScale: next })
 }
 
 /**
@@ -56,6 +84,17 @@ export function useGlobalShortcuts(): void {
       if (event.code === 'Comma') {
         event.preventDefault()
         useSettingsUiStore.getState().setOpen(true)
+        return
+      }
+
+      // Zoom, in the places every other app puts it. Above the editable-target
+      // guard on purpose: ⌘+ has to work while you are typing in the composer,
+      // which is exactly when you notice the text is too small. Chromium's own
+      // zoom accelerators are not wired up (the app is frameless with no menu
+      // role for them), so these are the only bindings.
+      if (ZOOM_KEYS.has(event.code)) {
+        event.preventDefault()
+        nudgeUiScale(ZOOM_KEYS.get(event.code)!)
         return
       }
 
