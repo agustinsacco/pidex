@@ -4,8 +4,10 @@ import {
   listCatalogueModels,
   listPiResources,
   patchAgentSettings,
+  patchWebSearchConfig,
   readAgentSettings,
   readAgentSettingsScoped,
+  readWebSearchConfig,
   readConfigFile,
   writeConfigFile,
 } from '../pi/agent-settings'
@@ -49,4 +51,8 @@ export function registerPiConfigHandlers(): void {
   })
 
   handle('pi:listResources', () => listPiResources())
+
+  handle('pi:webSearchConfig', () => readWebSearchConfig())
+
+  handle('pi:patchWebSearchConfig', (_event, patch) => patchWebSearchConfig(patch))
 }

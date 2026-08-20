@@ -6,8 +6,10 @@ import {
   checkAgentSettings,
   listCatalogueModels,
   patchAgentSettings,
+  patchWebSearchConfig,
   readAgentSettings,
   readAgentSettingsScoped,
+  readWebSearchConfig,
 } from '../agent-settings'
 
 /**
@@ -136,6 +138,31 @@ describe('pi agent settings', () => {
     } finally {
       await rm(workspace, { recursive: true, force: true })
     }
+  })
+
+  it('web-search config lives under PI_CODING_AGENT_DIR when set, and patches merge', async () => {
+    // The suite's beforeEach points PI_CODING_AGENT_DIR at the temp dir, which
+    // is also pi-web-access's highest-precedence config location.
+    const expectedPath = join(dir, 'web-search.json')
+
+    const empty = await readWebSearchConfig()
+    expect(empty).toMatchObject({ path: expectedPath, exists: false, malformed: false, config: {} })
+
+    await patchWebSearchConfig({ braveApiKey: 'BSA_x', tavilyApiKey: 'tvly_y' })
+    await patchWebSearchConfig({ tavilyApiKey: undefined, exaApiKey: '$EXA_API_KEY' })
+
+    const read = await readWebSearchConfig()
+    expect(read.exists).toBe(true)
+    // undefined clears a key; other keys survive the merge.
+    expect(read.config).toEqual({ braveApiKey: 'BSA_x', exaApiKey: '$EXA_API_KEY' })
+  })
+
+  it('web-search patch refuses to clobber a malformed file', async () => {
+    const path = join(dir, 'web-search.json')
+    await writeFile(path, '{ not json')
+    await expect(patchWebSearchConfig({ braveApiKey: 'x' })).rejects.toThrow(/not valid JSON/)
+    expect(await readFile(path, 'utf8')).toBe('{ not json')
+    expect((await readWebSearchConfig()).malformed).toBe(true)
   })
 
   it('scoped read returns each file as written, never merged', async () => {

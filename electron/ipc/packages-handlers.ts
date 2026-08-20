@@ -1,5 +1,12 @@
 import { handle } from './handle'
-import { detectBinaries, listPackages, runPackageAction, runPiInstall } from '../pi/packages'
+import {
+  claudeStatus,
+  detectBinaries,
+  listPackages,
+  runClaudeProviderTest,
+  runPackageAction,
+  runPiInstall,
+} from '../pi/packages'
 
 /** pi package listing + mutations via pi's own CLI (streamed jobs). */
 export function registerPackagesHandlers(): void {
@@ -12,4 +19,8 @@ export function registerPackagesHandlers(): void {
   handle('packages:installPi', (event) => runPiInstall(event.sender))
 
   handle('packages:detect', () => detectBinaries())
+
+  handle('packages:claudeStatus', () => claudeStatus())
+
+  handle('packages:testClaudeProvider', (event) => runClaudeProviderTest(event.sender))
 }

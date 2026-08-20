@@ -25,6 +25,7 @@ import type {
   AboutInfo,
   AgentSettingsHealth,
   BranchInfo,
+  ClaudeStatus,
   CreateSessionOptions,
   DirEntry,
   FileContent,
@@ -141,10 +142,25 @@ export interface IpcInvokeMap {
     }[]
   }
   'pi:readConfigFile': {
-    args: [name: 'settings' | 'models']
+    args: [name: 'settings' | 'models' | 'web-search']
     result: { path: string; content: string }
   }
-  'pi:writeConfigFile': { args: [name: 'settings' | 'models', content: string]; result: void }
+  'pi:writeConfigFile': {
+    args: [name: 'settings' | 'models' | 'web-search', content: string]
+    result: void
+  }
+  /** pi-web-access config (web-search.json), with file health for the tab. */
+  'pi:webSearchConfig': {
+    args: []
+    result: {
+      path: string
+      exists: boolean
+      malformed: boolean
+      error?: string
+      config: Record<string, unknown>
+    }
+  }
+  'pi:patchWebSearchConfig': { args: [patch: Record<string, unknown>]; result: void }
   'pi:patchAgentSettings': {
     args: [
       scope: 'global' | 'project',
@@ -175,6 +191,10 @@ export interface IpcInvokeMap {
   'packages:installPi': { args: []; result: { jobId: string } }
   /** Binary detection for catalogue recommendations (login-shell PATH). */
   'packages:detect': { args: []; result: { claude: boolean } }
+  /** Claude Code CLI health for the provider tab (binary + local auth state). */
+  'packages:claudeStatus': { args: []; result: ClaudeStatus }
+  /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
+  'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
   /**
    * MCP config chain (pi-mcp-adapter). The renderer names scopes; paths are
