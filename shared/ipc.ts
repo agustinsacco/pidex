@@ -308,7 +308,17 @@ export type IpcInvokeChannel = keyof IpcInvokeMap
 export const sessionEventChannel = (sessionId: string): string => `pi:event:${sessionId}`
 
 /** The API surface exposed on window.pidex by the preload script. */
+/** Host platform, normalized. Anything exotic (bsd, sunos) reads as 'linux'. */
+export type PidexPlatform = 'darwin' | 'win32' | 'linux'
+
 export interface PidexApi {
+  /**
+   * The host platform, synchronously. Key-hint labels are rendered during the
+   * first paint, so this cannot be an async `invoke` without every shortcut
+   * flashing the wrong modifier first.
+   */
+  platform: PidexPlatform
+
   invoke<C extends IpcInvokeChannel>(
     channel: C,
     ...args: IpcInvokeMap[C]['args']

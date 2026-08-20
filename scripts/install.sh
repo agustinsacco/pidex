@@ -2,16 +2,16 @@
 # pidex installer — detects OS/arch, downloads the matching artifact from the
 # latest GitHub Release, verifies its checksum, and installs it.
 #
-#   curl -fsSL https://github.com/pidex-app/pidex/releases/latest/download/install.sh | sh
+#   curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
 #
 # Env overrides:
-#   PIDEX_REPO     owner/repo               (default pidex-app/pidex)
+#   PIDEX_REPO     owner/repo               (default agustinsacco/pidex)
 #   PIDEX_VERSION  vX.Y.Z                   (default: latest release)
 #   PIDEX_PREFIX   install prefix on Linux  (default $HOME/.local)
 
 set -eu
 
-REPO="${PIDEX_REPO:-pidex-app/pidex}"
+REPO="${PIDEX_REPO:-agustinsacco/pidex}"
 PREFIX="${PIDEX_PREFIX:-$HOME/.local}"
 MIN_PI_VERSION="0.78.0"
 

@@ -13,6 +13,7 @@ import { workspaceName as workspaceDisplayName } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { GitChips } from './GitChips'
 import { CrashBanner, NoModelsBanner } from './banners'
+import { formatShortcut } from '@/lib/shortcuts'
 
 export function ChatView({
   sessionId,
@@ -55,7 +56,7 @@ function Header({
   const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
 
   return (
-    <header className="titlebar-drag flex h-11 shrink-0 items-center gap-2 pl-4 pr-3">
+    <header className="titlebar-drag titlebar-inset-end flex h-11 shrink-0 items-center gap-2 pl-4">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="text-text truncate text-[13px] font-semibold">
           {title ?? 'New session'}
@@ -68,7 +69,7 @@ function Header({
       {/* Reference order: terminal, files, changes, artifacts, kebab. */}
       <TerminalHeaderButton sessionId={sessionId} active={rightPane === 'terminal'} />
       <HeaderIconButton
-        title="Files pane (⌘⇧E)"
+        title={`Files pane (${formatShortcut('mod', 'shift', 'E')})`}
         active={rightPane === 'files'}
         onClick={() => useLayoutStore.getState().toggleRightPane('files', sessionId)}
       >
@@ -85,7 +86,7 @@ function Header({
         </svg>
       </HeaderIconButton>
       <HeaderIconButton
-        title="Changes pane (⌘⇧G)"
+        title={`Changes pane (${formatShortcut('mod', 'shift', 'G')})`}
         active={rightPane === 'changes'}
         onClick={() => useLayoutStore.getState().toggleRightPane('changes', sessionId)}
       >
@@ -148,7 +149,7 @@ function TerminalHeaderButton({
   return (
     <div className="relative">
       <HeaderIconButton
-        title="Terminal pane (⌘`)"
+        title={`Terminal pane (${formatShortcut('mod', '`')})`}
         active={active}
         onClick={() => useLayoutStore.getState().toggleRightPane('terminal', sessionId)}
       >
