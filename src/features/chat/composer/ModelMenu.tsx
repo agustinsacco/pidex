@@ -132,9 +132,7 @@ export function ModelMenu({
               the user nothing, and this row is the only place the reason
               appears. */}
           {blocked && (
-            <span className="text-text-tertiary block text-[11px] leading-snug">
-              {blocked.detail}
-            </span>
+            <span className="text-text-tertiary block text-sm leading-snug">{blocked.detail}</span>
           )}
         </span>
         {isCurrent(model) && !blocked && <CheckIcon className="text-text" />}
@@ -156,7 +154,7 @@ export function ModelMenu({
           placeholder="Search models…"
           // composer-field: opt out of the global accent focus outline — the
           // popup frame already signals where focus lives.
-          className="composer-field text-text placeholder:text-text-tertiary w-full bg-transparent px-3 py-2 text-[13px] outline-none"
+          className="composer-field text-text placeholder:text-text-tertiary w-full bg-transparent px-3 py-2 text-lg outline-none"
         />
       </div>
 
@@ -165,7 +163,7 @@ export function ModelMenu({
           ? grouped.map(([provider, providerModels]) => (
               <div key={provider}>
                 {grouped.length > 1 && (
-                  <div className="text-text-tertiary px-3 pb-0.5 pt-2 text-[10.5px] font-mono uppercase tracking-wide">
+                  <div className="text-text-tertiary px-3 pb-0.5 pt-2 text-xs font-mono uppercase tracking-wide">
                     {provider}
                   </div>
                 )}
@@ -175,10 +173,10 @@ export function ModelMenu({
           : matches.map(row)}
 
         {models.length === 0 && (
-          <div className="text-text-tertiary px-3 py-2 text-[12px]">{emptyText}</div>
+          <div className="text-text-tertiary px-3 py-2 text-base">{emptyText}</div>
         )}
         {models.length > 0 && matches.length === 0 && (
-          <div className="text-text-tertiary px-3 py-2 text-[12px]">No models match “{query}”.</div>
+          <div className="text-text-tertiary px-3 py-2 text-base">No models match “{query}”.</div>
         )}
       </div>
     </PopupMenu>

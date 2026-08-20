@@ -264,7 +264,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   return (
     <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
-      <div className="titlebar-drag h-11 shrink-0" />
+      <div className="titlebar-drag titlebar-inset-start shrink-0" />
       <WorkspaceSwitcher />
 
       {/* Flat nav rows, matching the reference: icon + label, no border or
@@ -361,7 +361,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 onClick={() => toggleGroup(group, isCollapsed)}
                 onContextMenu={(event) => groupContextMenu(event, group)}
                 data-testid="workspace-group"
-                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-[10.5px] font-semibold font-mono uppercase tracking-wider transition-colors"
+                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
                 title={group.workspacePath}
               >
                 <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
@@ -386,13 +386,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
                 ))}
               {!isCollapsed && !group.scanned && (
-                <div className="text-text-tertiary px-2 py-2 text-[11.5px]">Loading sessions…</div>
+                <div className="text-text-tertiary px-2 py-2 text-sm">Loading sessions…</div>
               )}
               {!isCollapsed &&
                 group.scanned &&
                 group.metas.length === 0 &&
                 !pendingByWorkspace.has(group.workspacePath) && (
-                  <div className="text-text-tertiary px-2 py-2 text-[11.5px]">
+                  <div className="text-text-tertiary px-2 py-2 text-sm">
                     Sessions you start will show up here
                   </div>
                 )}
@@ -405,7 +405,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         <UpdatePill />
         <button
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
-          className="text-text-secondary hover:text-text hover:bg-bg-secondary -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] transition-colors"
+          className="text-text-secondary hover:text-text hover:bg-bg-secondary -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"
           title={`Settings (${formatShortcut('mod', ',')})`}
         >
           <GearIcon /> Settings
@@ -446,17 +446,20 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const name = currentPath ? worktreeAwareName(currentPath, git) : 'Workspace'
 
   return (
-    <div className="relative px-3 pb-2 pt-1">
+    // Draggable: on Windows/Linux this row sits flush against the top of the
+    // window (there is no traffic-light strip above it), so it is the only
+    // grab handle the sidebar has. The trigger and the menu opt back out.
+    <div className="titlebar-drag relative px-3 pb-2 pt-1">
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
         className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
       >
-        <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[12px] font-bold uppercase">
+        <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-base font-bold uppercase">
           {name.slice(0, 1)}
         </span>
-        <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold">{name}</span>
+        <span className="min-w-0 flex-1 truncate text-left text-lg font-semibold">{name}</span>
         <ChevronDown />
       </button>
 
@@ -466,7 +469,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
           triggerRef={triggerRef}
           className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-[10.5px] font-medium font-mono uppercase tracking-wide">
+          <div className="text-text-tertiary px-3 pb-1 pt-1 text-xs font-medium font-mono uppercase tracking-wide">
             Workspaces
           </div>
           {recents.map((ws) => (
@@ -480,8 +483,8 @@ function WorkspaceSwitcher(): React.JSX.Element {
               }}
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium">{ws.name}</span>
-                <span className="text-text-tertiary block truncate text-[11px]">{ws.path}</span>
+                <span className="block truncate text-lg font-medium">{ws.name}</span>
+                <span className="text-text-tertiary block truncate text-sm">{ws.path}</span>
               </span>
               {ws.path === currentPath && <span className="bg-accent h-1.5 w-1.5 rounded-full" />}
             </MenuRow>
@@ -502,7 +505,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
                 })
             }}
           >
-            <span className="text-[13px]">Open Folder…</span>
+            <span className="text-lg">Open Folder…</span>
           </MenuRow>
         </PopupMenu>
       )}
@@ -631,8 +634,8 @@ function SessionRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-[12px] leading-4">{title}</span>
-        <span className="text-text-tertiary flex items-center gap-1 text-[10px] leading-3.5">
+        <span className="text-text block truncate text-base leading-4">{title}</span>
+        <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
               className="bg-bg-secondary text-text-tertiary mr-0.5 shrink-0 rounded px-1 font-medium"
@@ -679,7 +682,7 @@ function SessionRow({
         <span
           data-testid="session-workspace-badge"
           title={meta.cwd || workspacePath}
-          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-[9.5px] font-medium"
+          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
         >
           {rowWorkspaceName}
         </span>
@@ -733,8 +736,8 @@ function PendingSessionRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-[12px] leading-4">{title}</span>
-        <span className="text-text-tertiary block text-[10px] leading-3.5">starting…</span>
+        <span className="text-text block truncate text-base leading-4">{title}</span>
+        <span className="text-text-tertiary block text-xs leading-3.5">starting…</span>
       </span>
     </button>
   )
@@ -743,7 +746,7 @@ function PendingSessionRow({
 /** Rename a disk or live session, then refresh the sidebar listing. */
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary px-2 pb-1 pt-3 text-[10.5px] font-semibold font-mono uppercase tracking-wider">
+    <div className="text-text-tertiary px-2 pb-1 pt-3 text-xs font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
   )
@@ -815,7 +818,7 @@ function NavRow({
   return (
     <button
       onClick={onClick}
-      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[14px] transition-colors"
+      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-lg transition-colors"
     >
       <span
         className={clsx(

@@ -108,6 +108,43 @@
   --color-user-bubble: var(--px-user-bubble);
   --color-code-bg: var(--px-code-bg);
 
+  /* ---------------------------------------------------------------------
+   * Type scale.
+   *
+   * Before this existed the UI carried 18 distinct hard-coded sizes between
+   * 8.5px and 30px (404 `text-[Npx]` utilities across 70 files), most of them
+   * half-pixel neighbours picked ad hoc — `text-[11px]` and `text-[11.5px]`
+   * were both used for tertiary metadata in the same components. Nine steps
+   * replace all of it. Sizes stay in px on purpose: `rem` here would ride the
+   * root font-size, and UI scale is page zoom (electron/window-chrome.ts),
+   * which scales px and rem alike.
+   *
+   * Every step pins its line-height to `inherit`. Overriding only `--text-sm`
+   * leaves Tailwind's own `--text-sm--line-height` (1.43) in place, so the
+   * utility would quietly re-lead every converted site; the arbitrary values
+   * these replace set font-size alone and inherited their container's leading
+   * (`body` 1.55, `.md-content` 1.65). `leading-*` still wins — it sets
+   * `--tw-leading`, which the utility reads first.
+   * ------------------------------------------------------------------- */
+  --text-2xs: 9px; /* dense badges, superscript-ish labels */
+  --text-2xs--line-height: inherit;
+  --text-xs: 10.5px; /* uppercase section eyebrows, chips */
+  --text-xs--line-height: inherit;
+  --text-sm: 11.5px; /* tertiary metadata, timestamps, paths */
+  --text-sm--line-height: inherit;
+  --text-base: 12.5px; /* the workhorse: controls, rows, secondary copy */
+  --text-base--line-height: inherit;
+  --text-lg: 13.5px; /* primary UI copy, titles in headers and menus */
+  --text-lg--line-height: inherit;
+  --text-xl: 16px; /* stat values, settings section headings */
+  --text-xl--line-height: inherit;
+  --text-2xl: 20px; /* empty-state headline */
+  --text-2xl--line-height: inherit;
+  --text-3xl: 24px; /* setup screen headline */
+  --text-3xl--line-height: inherit;
+  --text-4xl: 28px; /* home / picker hero headline */
+  --text-4xl--line-height: inherit;
+
   --font-sans: var(--px-font-sans);
   --font-serif: var(--px-font-serif);
   --font-mono: var(--px-font-mono);
@@ -230,7 +267,8 @@ body {
   -webkit-app-region: drag;
 }
 .titlebar-drag button,
-.titlebar-drag input {
+.titlebar-drag input,
+.titlebar-drag [data-popup-menu] {
   -webkit-app-region: no-drag;
 }
 
@@ -243,6 +281,21 @@ body {
  */
 .titlebar-inset-end {
   padding-right: calc(100vw - env(titlebar-area-width, 100vw) + 0.75rem);
+}
+
+/*
+ * The mirror image, for the top-LEFT corner: only macOS parks window controls
+ * there (the traffic lights), so only macOS needs the sidebar to start 44px
+ * down. On Windows/Linux the controls are top-right — handled by
+ * .titlebar-inset-end — and this strip was a band of dead space above the
+ * workspace switcher. The element keeps zero height rather than being dropped
+ * so the drag region it provides on macOS stays a single call site.
+ */
+.titlebar-inset-start {
+  height: 0;
+}
+.platform-darwin .titlebar-inset-start {
+  height: 2.75rem; /* h-11, matches TITLEBAR_HEIGHT in electron/window-chrome.ts */
 }
 
 /* ---------------------------------------------------------------------------

@@ -23,33 +23,33 @@ export function AboutTab(): React.JSX.Element {
   return (
     <div>
       <SectionTitle>About pidex</SectionTitle>
-      <p className="text-text-secondary -mt-2 mb-4 text-[12.5px] leading-relaxed">
+      <p className="text-text-secondary -mt-2 mb-4 text-base leading-relaxed">
         A desktop coding-agent app powered by the{' '}
         <span className="font-medium">pi coding agent</span>. Sessions run as real{' '}
         <code className="font-mono">pi --mode rpc</code> subprocesses in your workspace.
       </p>
 
       <Row title="pidex version">
-        <span className="font-mono text-[12.5px]">{about?.appVersion ?? '…'}</span>
+        <span className="font-mono text-base">{about?.appVersion ?? '…'}</span>
       </Row>
       <Row title="pi version" description={health?.binaryPath}>
-        <span className="font-mono text-[12.5px]">
+        <span className="font-mono text-base">
           {health?.version ?? (health ? 'not found' : '…')}
         </span>
       </Row>
       <Row title="Platform">
-        <span className="font-mono text-[12.5px]">
+        <span className="font-mono text-base">
           {about ? `${about.platform}-${about.arch}` : '…'}
         </span>
       </Row>
       <Row title="Runtime">
-        <span className="font-mono text-[12.5px]">
+        <span className="font-mono text-base">
           {about ? `Electron ${about.electron} · Node ${about.node}` : '…'}
         </span>
       </Row>
 
       {drift && (
-        <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-[12.5px]">
+        <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-base">
           <span className="font-medium">pi {health?.version} is newer than tested.</span>{' '}
           <span className="text-text-secondary">
             pidex is verified against pi 0.{VERIFIED_PI_MINOR}.x. Newer minors usually work, but

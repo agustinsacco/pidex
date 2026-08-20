@@ -203,10 +203,10 @@ export const MessageList = memo(function MessageList({
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="text-text-secondary text-[20px] font-medium tracking-tight">
+          <div className="text-text-secondary text-2xl font-medium tracking-tight">
             Describe a task to begin
           </div>
-          <div className="text-text-tertiary mt-1.5 text-[13px]">
+          <div className="text-text-tertiary mt-1.5 text-lg">
             pi runs with full permissions in this workspace — markdown, diffs, diagrams and previews
             render right here.
           </div>
@@ -271,8 +271,8 @@ export const MessageList = memo(function MessageList({
         {error && (
           <div className="mx-auto max-w-3xl px-6 pb-4">
             <div className="bg-danger-soft border-danger/25 rounded-lg border px-4 py-3">
-              <div className="text-danger text-[13px] font-medium">Session error</div>
-              <div className="text-text-secondary mt-0.5 text-[13px]">{error}</div>
+              <div className="text-danger text-lg font-medium">Session error</div>
+              <div className="text-text-secondary mt-0.5 text-lg">{error}</div>
             </div>
           </div>
         )}
@@ -282,7 +282,7 @@ export const MessageList = memo(function MessageList({
       {!pinned && (
         <button
           onClick={jumpToBottom}
-          className="border-border bg-surface text-text-secondary hover:text-text absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium shadow-md transition-colors"
+          className="border-border bg-surface text-text-secondary hover:text-text absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-base font-medium shadow-md transition-colors"
         >
           <svg
             width="12"

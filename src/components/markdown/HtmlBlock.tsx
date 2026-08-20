@@ -49,7 +49,7 @@ function ToggleTab({
     <button
       onClick={onClick}
       className={clsx(
-        'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+        'rounded-md px-2.5 py-1 text-base font-medium transition-colors',
         active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
       )}
     >

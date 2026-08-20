@@ -15,7 +15,11 @@ interface SettingsState {
 
 function applyFontsToDom(fonts: FontPrefs): void {
   const root = document.documentElement
-  root.style.fontSize = `${fonts.uiScale * 100}%`
+  // `uiScale` is deliberately absent here: it is applied as Chromium page zoom
+  // by the main process (electron/window-chrome.ts). A root `font-size` only
+  // moves `rem` lengths, and this UI pins nearly every glyph and icon in px,
+  // so that version grew the padding and left the text alone. Setting both
+  // would compound on the spacing.
   root.style.setProperty(
     '--px-font-mono',
     `'${fonts.monoFont}', ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace`,

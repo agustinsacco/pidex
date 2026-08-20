@@ -61,7 +61,7 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
     return (
       <div>
         <CodeBlock code={code} language="chart" />
-        <div className="text-danger -mt-2 mb-3 px-1 text-xs">Chart error: {error}</div>
+        <div className="text-danger -mt-2 mb-3 px-1 text-base">Chart error: {error}</div>
       </div>
     )
   }

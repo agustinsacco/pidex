@@ -26,7 +26,7 @@ export const FileExplorer = memo(function FileExplorer({
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-text-tertiary text-[10.5px] font-semibold font-mono uppercase tracking-wider">
+        <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
           Explorer
         </span>
         <div className="flex items-center gap-0.5">
@@ -50,13 +50,13 @@ export const FileExplorer = memo(function FileExplorer({
       </div>
       <div className="flex-1 overflow-y-auto py-1">
         {rootEntries === undefined && (
-          <div className="text-text-tertiary animate-pulse px-3 py-2 text-[12px]">Loading…</div>
+          <div className="text-text-tertiary animate-pulse px-3 py-2 text-base">Loading…</div>
         )}
         {rootEntries?.map((entry) => (
           <ExplorerRow key={entry.path} entry={entry} workspacePath={workspacePath} depth={0} />
         ))}
         {rootEntries?.length === 0 && (
-          <div className="text-text-tertiary px-3 py-2 text-[12px]">Empty folder</div>
+          <div className="text-text-tertiary px-3 py-2 text-base">Empty folder</div>
         )}
       </div>
     </div>
@@ -143,7 +143,7 @@ function ExplorerRow({
         onClick={onClick}
         onContextMenu={onContextMenu}
         className={clsx(
-          'group flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-[12.5px] transition-colors',
+          'group flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-base transition-colors',
           isActive
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
@@ -171,7 +171,7 @@ function ExplorerRow({
         <>
           {children === undefined && (
             <div
-              className="text-text-tertiary animate-pulse py-1 text-[11px]"
+              className="text-text-tertiary animate-pulse py-1 text-sm"
               style={{ paddingLeft: 24 + depth * 14 }}
             >
               …

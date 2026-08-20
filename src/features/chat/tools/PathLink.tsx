@@ -11,7 +11,7 @@ export function PathLink({ path, line }: { path: string; line?: number }): React
     <button
       onClick={open}
       title={line !== undefined ? `Open at line ${line}` : 'Open in Files pane'}
-      className="text-text hover:text-accent truncate text-left font-mono text-[12px] underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
+      className="text-text hover:text-accent truncate text-left font-mono text-base underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
     >
       {path}
     </button>

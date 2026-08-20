@@ -32,7 +32,7 @@ export function SettingsModal(): React.JSX.Element | null {
     <ModalOverlay onClose={close} z={40}>
       <div className="border-border bg-bg flex h-[78vh] w-[880px] max-w-[94vw] overflow-hidden rounded-2xl border shadow-2xl">
         <aside className="border-border bg-bg-secondary/50 w-52 shrink-0 border-r px-3 py-4">
-          <div className="text-text-tertiary px-2 pb-2 text-[11px] font-semibold font-mono uppercase tracking-wider">
+          <div className="text-text-tertiary px-2 pb-2 text-sm font-semibold font-mono uppercase tracking-wider">
             Settings
           </div>
           {TABS.map((t) => (
@@ -40,7 +40,7 @@ export function SettingsModal(): React.JSX.Element | null {
               key={t.id}
               onClick={() => useSettingsUiStore.getState().setTab(t.id)}
               className={clsx(
-                'mb-0.5 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
+                'mb-0.5 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-lg transition-colors',
                 tab === t.id
                   ? 'bg-bg-secondary text-text font-medium'
                   : 'text-text-secondary hover:text-text',

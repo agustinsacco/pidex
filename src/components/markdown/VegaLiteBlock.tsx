@@ -52,7 +52,7 @@ export const VegaLiteBlock = memo(function VegaLiteBlock({
     return (
       <div>
         <CodeBlock code={code} language="vega-lite" />
-        <div className="text-danger -mt-2 mb-3 px-1 text-xs">Vega-Lite error: {error}</div>
+        <div className="text-danger -mt-2 mb-3 px-1 text-base">Vega-Lite error: {error}</div>
       </div>
     )
   }

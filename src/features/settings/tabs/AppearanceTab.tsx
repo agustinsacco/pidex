@@ -1,5 +1,7 @@
 import clsx from 'clsx'
+import { clampUiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
+import { formatShortcut } from '@/lib/shortcuts'
 import { Row, SectionTitle, NumberField } from '@/components/form'
 
 /** Theme, UI scale and font preferences (pidex-local, not pi settings). */
@@ -31,7 +33,7 @@ export function AppearanceTab(): React.JSX.Element {
               aria-pressed={theme === value}
               onClick={() => useSettingsStore.getState().setTheme(value)}
               className={clsx(
-                'px-3 py-1.5 text-[12px] font-medium transition-colors',
+                'px-3 py-1.5 text-base font-medium transition-colors',
                 theme === value
                   ? 'bg-accent text-accent-text'
                   : 'text-text-secondary hover:text-text',
@@ -43,14 +45,17 @@ export function AppearanceTab(): React.JSX.Element {
         </div>
       </Row>
 
-      <Row title="UI scale" description="Overall interface size.">
+      <Row
+        title="UI scale"
+        description={`Zooms the whole interface — text, icons and spacing. ${formatShortcut('mod', '+')} / ${formatShortcut('mod', '-')} to nudge, ${formatShortcut('mod', '0')} to reset.`}
+      >
         <NumberField
           value={Math.round(fonts.uiScale * 100)}
           suffix="%"
-          min={80}
-          max={140}
+          min={UI_SCALE_MIN * 100}
+          max={UI_SCALE_MAX * 100}
           step={5}
-          onChange={(v) => setFonts({ uiScale: v / 100 })}
+          onChange={(v) => setFonts({ uiScale: clampUiScale(v / 100) })}
         />
       </Row>
       <Row title="Chat font size" description="Message text size in the conversation.">
@@ -90,7 +95,7 @@ export function AppearanceTab(): React.JSX.Element {
         <select
           value={fonts.monoFont}
           onChange={(e) => setFonts({ monoFont: e.target.value })}
-          className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-[12.5px] outline-none"
+          className="border-border bg-surface text-text rounded-lg border px-2.5 py-1.5 text-base outline-none"
         >
           {['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace'].map(
             (font) => (

@@ -141,16 +141,16 @@ export function TreeViewModal({
       <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
         <TreeIcon />
         <div className="min-w-0 flex-1">
-          <span className="text-[13.5px] font-semibold">
+          <span className="text-lg font-semibold">
             {sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
               'Session tree'}
           </span>
-          <span className="text-text-tertiary ml-2 text-[11.5px]">
+          <span className="text-text-tertiary ml-2 text-sm">
             {layout ? `${layout.nodes.length - 1} nodes` : 'loading…'}
             {busy ? ` · ${busy}` : ''}
           </span>
         </div>
-        <div className="text-text-tertiary text-[11px]">scroll to zoom · drag to pan</div>
+        <div className="text-text-tertiary text-sm">scroll to zoom · drag to pan</div>
         <button
           onClick={onClose}
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
@@ -267,7 +267,7 @@ export function TreeViewModal({
                         <div className="flex items-center gap-1">
                           <span
                             className={clsx(
-                              'text-[8.5px] font-bold font-mono uppercase tracking-wider',
+                              'text-2xs font-bold font-mono uppercase tracking-wider',
                               node.kind === 'user' && 'text-info',
                               node.kind === 'summary' && 'text-accent',
                               node.kind === 'compaction' && 'text-warning',
@@ -283,12 +283,12 @@ export function TreeViewModal({
                                   : 'point'}
                           </span>
                           {node.isLeaf && (
-                            <span className="text-accent text-[8.5px] font-bold font-mono uppercase tracking-wider">
+                            <span className="text-accent text-2xs font-bold font-mono uppercase tracking-wider">
                               · current
                             </span>
                           )}
                         </div>
-                        <div className="text-text line-clamp-2 text-[10.5px] leading-snug">
+                        <div className="text-text line-clamp-2 text-xs leading-snug">
                           {node.preview ?? node.toolSummary ?? '—'}
                         </div>
                       </div>
@@ -350,7 +350,7 @@ export function TreeViewModal({
         {selected && (
           <div className="border-border bg-surface-raised absolute bottom-4 right-4 w-96 rounded-xl border p-4 shadow-xl">
             <div className="flex items-start justify-between gap-2">
-              <div className="text-[11px] font-semibold font-mono uppercase tracking-wide">
+              <div className="text-sm font-semibold font-mono uppercase tracking-wide">
                 {selected.kind === 'user' ? 'User message' : selected.kind}
                 {selected.isLeaf && <span className="text-accent"> · current position</span>}
               </div>
@@ -361,12 +361,10 @@ export function TreeViewModal({
                 ✕
               </button>
             </div>
-            <div className="text-text-secondary mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-[12.5px]">
+            <div className="text-text-secondary mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-base">
               {selected.preview ?? '(no text preview)'}
             </div>
-            {selected.label && (
-              <div className="text-warning mt-2 text-[11.5px]">⚑ {selected.label}</div>
-            )}
+            {selected.label && <div className="text-warning mt-2 text-sm">⚑ {selected.label}</div>}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <ActionButton
                 disabled={!!busy || selected.isLeaf}
@@ -402,7 +400,7 @@ function ActionButton({
     <button
       disabled={disabled}
       onClick={onClick}
-      className="border-border hover:border-border-strong hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-[11.5px] font-medium transition-colors disabled:opacity-40"
+      className="border-border hover:border-border-strong hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-sm font-medium transition-colors disabled:opacity-40"
     >
       {children}
     </button>

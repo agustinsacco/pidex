@@ -125,8 +125,8 @@ export function WorktreeMenu({
         onClick={onSelectMain}
         title={`The main working tree — where ${repo.defaultBranch || 'the default branch'} lives`}
       >
-        <span className="min-w-0 flex-1 truncate text-[13px]">
-          Main tree — <span className="font-mono text-[12px]">{mainLabel}</span>
+        <span className="min-w-0 flex-1 truncate text-lg">
+          Main tree — <span className="font-mono text-base">{mainLabel}</span>
         </span>
         {currentCwd === null && <CheckIcon className="text-accent shrink-0" />}
       </MenuRow>
@@ -136,9 +136,9 @@ export function WorktreeMenu({
           <SectionHeading>Worktrees</SectionHeading>
           {linked.map((wt) => (
             <MenuRow key={wt.path} active={false} onClick={() => onSelectWorktree(wt)}>
-              <span className="min-w-0 flex-1 truncate text-[13px]" title={wt.path}>
+              <span className="min-w-0 flex-1 truncate text-lg" title={wt.path}>
                 {workspaceName(wt.path)}
-                <span className="text-text-tertiary font-mono text-[11.5px]">
+                <span className="text-text-tertiary font-mono text-sm">
                   {' '}
                   {wt.branch ?? wt.head.slice(0, 8)}
                 </span>
@@ -170,7 +170,7 @@ export function WorktreeMenu({
           {freeBranches.slice(0, 8).map((branch) => (
             <MenuRow key={branch.name} active={false} onClick={() => void worktreeFor(branch)}>
               <span
-                className="min-w-0 flex-1 truncate font-mono text-[12px]"
+                className="min-w-0 flex-1 truncate font-mono text-base"
                 title={branch.lastCommitSubject}
               >
                 {branch.name}
@@ -192,12 +192,12 @@ export function WorktreeMenu({
               if (e.key === 'Enter') void create()
             }}
             placeholder="new branch name"
-            className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2 py-1 font-mono text-[12px] outline-none focus:border-[var(--px-border-strong)]"
+            className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2 py-1 font-mono text-base outline-none focus:border-[var(--px-border-strong)]"
           />
           <select
             value={base}
             onChange={(e) => setBase(e.target.value)}
-            className="border-border bg-surface text-text-secondary w-full rounded-md border px-2 py-1 text-[12px] outline-none"
+            className="border-border bg-surface text-text-secondary w-full rounded-md border px-2 py-1 text-base outline-none"
           >
             {/* Trunk first: branching off the default branch is the common
                 case, and it reads better than the opaque "current HEAD". */}
@@ -216,31 +216,31 @@ export function WorktreeMenu({
           <button
             onClick={() => void create()}
             disabled={busy || !newName.trim()}
-            className="bg-accent hover:bg-accent-hover text-accent-text w-full rounded-md px-2 py-1 text-[12px] font-medium transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover text-accent-text w-full rounded-md px-2 py-1 text-base font-medium transition-colors disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create worktree'}
           </button>
         </div>
       ) : (
         <MenuRow active={false} onClick={() => setCreating(true)}>
-          <span className="text-[13px]">New worktree…</span>
+          <span className="text-lg">New worktree…</span>
         </MenuRow>
       )}
 
       {prunable && (
         <MenuRow active={false} onClick={() => void useWorktreesStore.getState().prune(repoPath)}>
-          <span className="text-text-secondary text-[13px]">Prune stale worktrees</span>
+          <span className="text-text-secondary text-lg">Prune stale worktrees</span>
         </MenuRow>
       )}
 
-      {error && <div className="text-danger px-3 py-1 text-[11.5px]">{error}</div>}
+      {error && <div className="text-danger px-3 py-1 text-sm">{error}</div>}
     </>
   )
 }
 
 function SectionHeading({ children }: { children: string }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 font-mono text-[10px] uppercase tracking-wide">
+    <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 font-mono text-xs uppercase tracking-wide">
       {children}
     </div>
   )

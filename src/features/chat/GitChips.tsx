@@ -66,12 +66,10 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={info.isWorktree && mainRepo ? `Worktree of ${mainRepo}` : `Branch ${info.branch}`}
-        className="bg-bg-secondary text-text-secondary hover:text-text flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px] transition-colors"
+        className="bg-bg-secondary text-text-secondary hover:text-text flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-sm transition-colors"
       >
         {info.isWorktree && (
-          <span className="bg-accent-soft text-accent rounded px-1 text-[9.5px] font-medium">
-            wt
-          </span>
+          <span className="bg-accent-soft text-accent rounded px-1 text-2xs font-medium">wt</span>
         )}
         <BranchIcon size={10} />
         <span className="max-w-36 truncate">{info.branch}</span>
@@ -87,8 +85,8 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
           className="absolute left-0 top-full z-40 mt-1.5 w-64 py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
-            <div className="text-text truncate text-[13px] font-medium">{info.branch}</div>
-            <div className="text-text-secondary mt-0.5 text-[12px]">
+            <div className="text-text truncate text-lg font-medium">{info.branch}</div>
+            <div className="text-text-secondary mt-0.5 text-base">
               {(info.dirtyCount ?? 0) > 0
                 ? `${info.dirtyCount} uncommitted change${info.dirtyCount === 1 ? '' : 's'}`
                 : 'Working tree clean'}
@@ -98,7 +96,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
           <PrRow repoPath={repoPath} branch={info.branch} />
           <div className="border-border my-1 border-t" />
 
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1 text-[11px]">Switch workspace to</div>
+          <div className="text-text-tertiary px-3 pb-0.5 pt-1 text-sm">Switch workspace to</div>
           <WorktreeMenu
             repoPath={repoPath}
             currentCwd={info.isWorktree ? workspacePath : null}
@@ -113,7 +111,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
 
           {info.isWorktree && mainRepo && (
             <MenuRow active={false} onClick={() => void openMergeModal()}>
-              <span className="text-[13px]">Merge into main repo…</span>
+              <span className="text-lg">Merge into main repo…</span>
             </MenuRow>
           )}
           <MenuRow
@@ -123,7 +121,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
               void window.pidex.invoke('app:revealPath', workspacePath)
             }}
           >
-            <span className="text-[13px]">Reveal in file manager</span>
+            <span className="text-lg">Reveal in file manager</span>
           </MenuRow>
         </PopupMenu>
       )}

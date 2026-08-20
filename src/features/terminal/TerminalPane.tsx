@@ -70,7 +70,7 @@ export const TerminalPane = memo(function TerminalPane({
               <div
                 key={tab.ptyId}
                 className={clsx(
-                  'group flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[11.5px] transition-colors',
+                  'group flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-sm transition-colors',
                   tab.ptyId === activeId
                     ? 'bg-bg-secondary text-text'
                     : 'text-text-tertiary hover:text-text',
@@ -104,7 +104,7 @@ export const TerminalPane = memo(function TerminalPane({
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
                       if (e.key === 'Escape') setRenaming(null)
                     }}
-                    className="border-border w-24 rounded border bg-transparent px-1 text-[11.5px] outline-none"
+                    className="border-border w-24 rounded border bg-transparent px-1 text-sm outline-none"
                   />
                 ) : (
                   <span>{tab.title}</span>
@@ -152,7 +152,7 @@ export const TerminalPane = memo(function TerminalPane({
           )),
         )}
         {tabs.length === 0 && error === null && (
-          <div className="text-text-tertiary flex h-full items-center justify-center text-[12.5px]">
+          <div className="text-text-tertiary flex h-full items-center justify-center text-base">
             Starting shell…
           </div>
         )}
@@ -185,11 +185,11 @@ function SpawnError({
       )}
     >
       <div className={inline ? 'min-w-0 flex-1' : 'max-w-sm text-center'}>
-        <div className="text-danger text-[12.5px] font-medium">Could not start a shell</div>
-        <div className="text-text-tertiary mt-1 whitespace-pre-wrap text-[11.5px]">{message}</div>
+        <div className="text-danger text-base font-medium">Could not start a shell</div>
+        <div className="text-text-tertiary mt-1 whitespace-pre-wrap text-sm">{message}</div>
         <button
           onClick={onRetry}
-          className="border-border text-text-secondary hover:text-text mt-2.5 rounded-md border px-2.5 py-1 text-[12px] transition-colors"
+          className="border-border text-text-secondary hover:text-text mt-2.5 rounded-md border px-2.5 py-1 text-base transition-colors"
         >
           Try again
         </button>

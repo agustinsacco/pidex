@@ -27,7 +27,7 @@ export function TranscriptSkeleton({
       aria-busy="true"
       aria-label="Loading session history"
     >
-      <div className="text-text-tertiary flex items-center gap-2 text-[12px]">
+      <div className="text-text-tertiary flex items-center gap-2 text-base">
         <span className="border-text-tertiary/40 border-t-text-tertiary h-3 w-3 animate-spin rounded-full border" />
         {message}
       </div>

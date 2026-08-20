@@ -31,17 +31,17 @@ export function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   return (
     <div>
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-        <code className="text-text flex-1 truncate font-mono text-[12px]">$ {command}</code>
+        <code className="text-text flex-1 truncate font-mono text-base">$ {command}</code>
         <div className="flex shrink-0 items-center gap-2">
           {durationMs !== null && (
-            <span className="text-text-tertiary text-[11px]">{formatDuration(durationMs)}</span>
+            <span className="text-text-tertiary text-sm">{formatDuration(durationMs)}</span>
           )}
           {running ? (
-            <span className="text-text-tertiary text-[11px]">running…</span>
+            <span className="text-text-tertiary text-sm">running…</span>
           ) : (
             <span
               className={clsx(
-                'rounded px-1.5 py-px font-mono text-[10.5px] font-medium',
+                'rounded px-1.5 py-px font-mono text-xs font-medium',
                 tool.isError ? 'bg-danger-soft text-danger' : 'bg-success/15 text-success',
               )}
             >
@@ -51,11 +51,11 @@ export function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
           <CopyButton text={output} />
         </div>
       </div>
-      <pre className="terminal-output max-h-80 overflow-auto px-3 py-2.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+      <pre className="terminal-output max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
         {output || (running ? '…' : '(no output)')}
       </pre>
       {details?.fullOutputPath && (
-        <div className="border-border text-text-tertiary border-t px-3 py-1.5 text-[11px]">
+        <div className="border-border text-text-tertiary border-t px-3 py-1.5 text-sm">
           Output truncated — full log at <code className="font-mono">{details.fullOutputPath}</code>
         </div>
       )}
@@ -73,7 +73,7 @@ export function EditDetail({ tool }: { tool: ToolState }): React.JSX.Element {
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
         <PathLink path={path} line={details?.firstChangedLine} />
         {stats && (
-          <span className="shrink-0 font-mono text-[11.5px]">
+          <span className="shrink-0 font-mono text-sm">
             <span className="text-success">+{stats.additions}</span>{' '}
             <span className="text-danger">−{stats.deletions}</span>
           </span>
@@ -84,7 +84,7 @@ export function EditDetail({ tool }: { tool: ToolState }): React.JSX.Element {
       ) : tool.isError ? (
         <ErrorText text={toolText(tool)} />
       ) : (
-        <div className="text-text-tertiary px-3 py-2 text-[12px]">Waiting for diff…</div>
+        <div className="text-text-tertiary px-3 py-2 text-base">Waiting for diff…</div>
       )}
     </div>
   )
@@ -123,7 +123,7 @@ export function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
         <span className="flex min-w-0 items-baseline gap-0.5">
           <PathLink path={path} line={offset} />
           {offset != null && (
-            <span className="text-text-tertiary font-mono text-[12px]">
+            <span className="text-text-tertiary font-mono text-base">
               :{offset}
               {limit != null ? `–${offset + limit}` : ''}
             </span>
@@ -141,7 +141,7 @@ export function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
         </div>
       )}
       {text && (
-        <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+        <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
           {text}
         </pre>
       )}
@@ -162,11 +162,11 @@ export function ListDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   if (tool.isError) return <ErrorText text={text} />
   return (
     <div>
-      <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+      <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
         {text || '(no results)'}
       </pre>
       {limit != null && (
-        <div className="border-border text-text-tertiary border-t px-3 py-1.5 text-[11px]">
+        <div className="border-border text-text-tertiary border-t px-3 py-1.5 text-sm">
           Result limit reached ({limit}) — output truncated
         </div>
       )}
@@ -190,7 +190,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
       <div className="border-border border-b px-3 py-2">
         <button
           onClick={() => setArgsExpanded((e) => !e)}
-          className="text-text-tertiary hover:text-text flex items-center gap-1 text-[11.5px] transition-colors"
+          className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
         >
           <ChevronIcon expanded={argsExpanded} className="text-text-tertiary" />
           {tool.toolName && <span className="font-mono">{tool.toolName}</span>}
@@ -200,7 +200,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
           )}
         </button>
         {argsExpanded && (
-          <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
+          <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap">
             {argsJson || '(none)'}
           </pre>
         )}
@@ -218,7 +218,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
               )}
             </div>
           )}
-          <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+          <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
             {text || (running ? 'Running…' : '(no output)')}
           </pre>
         </>
@@ -231,7 +231,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
 
 export function ErrorText({ text }: { text: string }): React.JSX.Element {
   return (
-    <pre className="text-danger max-h-80 overflow-auto px-3 py-2.5 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+    <pre className="text-danger max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
       {text || 'Tool failed'}
     </pre>
   )

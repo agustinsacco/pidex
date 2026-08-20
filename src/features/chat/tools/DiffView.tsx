@@ -13,7 +13,7 @@ export const DiffView = memo(function DiffView({ diff }: { diff: string }): Reac
   const hidden = lines.length - visible.length
 
   return (
-    <div className="overflow-x-auto font-mono text-[12px] leading-[1.5]">
+    <div className="overflow-x-auto font-mono text-base leading-[1.5]">
       <table className="w-full border-collapse">
         <tbody>
           {visible.map((line, i) => (
@@ -24,7 +24,7 @@ export const DiffView = memo(function DiffView({ diff }: { diff: string }): Reac
       {hidden > 0 && (
         <button
           onClick={() => setExpanded(true)}
-          className="text-text-tertiary hover:text-text block w-full py-1.5 text-center text-[11px] transition-colors"
+          className="text-text-tertiary hover:text-text block w-full py-1.5 text-center text-sm transition-colors"
         >
           Show {hidden} more lines
         </button>
@@ -43,7 +43,7 @@ function DiffRow({ line }: { line: DiffLine }): React.JSX.Element {
     >
       <td
         className={clsx(
-          'w-10 select-none pr-2 text-right align-top text-[11px] tabular-nums',
+          'w-10 select-none pr-2 text-right align-top text-sm tabular-nums',
           line.kind === 'add' && 'text-success',
           line.kind === 'del' && 'text-danger',
           line.kind === 'context' && 'text-text-tertiary',

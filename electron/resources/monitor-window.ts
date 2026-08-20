@@ -1,5 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { clampUiScale } from '@shared/models'
+import { getPrefs } from '../store'
 
 /**
  * The floating monitor: a small always-on-top window so resource usage stays
@@ -19,11 +21,15 @@ export function openMonitorWindow(isDev: boolean): void {
     return
   }
 
+  // Same origin as the main window, so Chromium's per-origin zoom applies here
+  // too; size the frame to match or the content outgrows it at >100% UI scale.
+  const zoom = clampUiScale(getPrefs().fonts.uiScale)
+
   const window = new BrowserWindow({
-    width: 340,
-    height: 460,
-    minWidth: 260,
-    minHeight: 200,
+    width: Math.round(340 * zoom),
+    height: Math.round(460 * zoom),
+    minWidth: Math.round(260 * zoom),
+    minHeight: Math.round(200 * zoom),
     show: false,
     alwaysOnTop: true,
     // Small utility window: no menu bar, and it should not steal the dock/taskbar

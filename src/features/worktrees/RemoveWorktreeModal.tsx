@@ -71,28 +71,28 @@ export function RemoveWorktreeModal({
     <ModalOverlay onClose={onClose}>
       <div className="border-border bg-surface-raised w-[440px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border border-b px-4 py-3">
-          <div className="text-[13.5px] font-semibold">Remove worktree</div>
-          <div className="text-text-tertiary mt-0.5 truncate text-[11px]" title={worktree.path}>
+          <div className="text-lg font-semibold">Remove worktree</div>
+          <div className="text-text-tertiary mt-0.5 truncate text-sm" title={worktree.path}>
             {workspaceName(worktree.path)}
             {worktree.branch ? ` — ${worktree.branch}` : ''}
           </div>
         </div>
 
-        <div className="space-y-3 px-4 py-3 text-[13px]">
+        <div className="space-y-3 px-4 py-3 text-lg">
           {liveHere && (
-            <div className="bg-warning/10 border-warning/30 text-text rounded-lg border px-3 py-2 text-[12.5px]">
+            <div className="bg-warning/10 border-warning/30 text-text rounded-lg border px-3 py-2 text-base">
               A live session is running in this worktree. Close it from the sidebar first.
             </div>
           )}
 
           {branchNote ? (
-            <div className="text-text-secondary text-[12.5px]">{branchNote}</div>
+            <div className="text-text-secondary text-base">{branchNote}</div>
           ) : dirtyCount > 0 ? (
             <div className="bg-danger-soft border-danger/25 rounded-lg border px-3 py-2.5">
-              <div className="text-danger text-[12.5px] font-medium">
+              <div className="text-danger text-base font-medium">
                 {dirtyCount} uncommitted change{dirtyCount === 1 ? '' : 's'} will be lost
               </div>
-              <label className="mt-1.5 flex items-center gap-2 text-[12.5px]">
+              <label className="mt-1.5 flex items-center gap-2 text-base">
                 <input
                   type="checkbox"
                   checked={discard}
@@ -102,13 +102,13 @@ export function RemoveWorktreeModal({
               </label>
             </div>
           ) : (
-            <div className="text-text-secondary text-[12.5px]">
+            <div className="text-text-secondary text-base">
               The worktree is clean — the folder is removed; commits stay on the branch.
             </div>
           )}
 
           {worktree.branch && !branchNote && (
-            <label className="flex items-center gap-2 text-[12.5px]">
+            <label className="flex items-center gap-2 text-base">
               <input
                 type="checkbox"
                 checked={deleteBranch}
@@ -119,13 +119,13 @@ export function RemoveWorktreeModal({
             </label>
           )}
 
-          {error && <div className="text-danger text-[12px]">{error}</div>}
+          {error && <div className="text-danger text-base">{error}</div>}
         </div>
 
         <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
           <button
             onClick={onClose}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors"
+            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
           >
             {branchNote ? 'Done' : 'Cancel'}
           </button>
@@ -133,7 +133,7 @@ export function RemoveWorktreeModal({
             <button
               onClick={() => void remove()}
               disabled={busy || liveHere || (dirtyCount > 0 && !discard)}
-              className="bg-danger hover:bg-danger/90 rounded-md px-3.5 py-1.5 text-[12px] font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-danger hover:bg-danger/90 rounded-md px-3.5 py-1.5 text-base font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? 'Removing…' : 'Remove worktree'}
             </button>

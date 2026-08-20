@@ -12,6 +12,7 @@ import { ActivityGroup } from './items/ActivityGroup'
 import type { TranscriptRow } from './items/transcriptRows'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
+import { parseErrorMessage, type ParsedError } from './errorMessage'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { BranchIcon, RewindIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
@@ -89,12 +90,12 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
         >
           <path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
-        <span className="text-info text-[10.5px] font-semibold font-mono uppercase tracking-wide">
+        <span className="text-info text-xs font-semibold font-mono uppercase tracking-wide">
           {item.customType ? `Extension · ${item.customType}` : 'Extension message'}
         </span>
         {item.inContext && (
           <span
-            className="bg-info/15 text-info rounded px-1.5 py-px text-[9.5px] font-medium"
+            className="bg-info/15 text-info rounded px-1.5 py-px text-2xs font-medium"
             title="This message is included in the model's context"
           >
             in context
@@ -166,7 +167,7 @@ function UserMessage({
         </div>
       )}
       {item.text && (
-        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-[14px] whitespace-pre-wrap">
+        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg whitespace-pre-wrap">
           {item.text}
         </div>
       )}
@@ -198,7 +199,7 @@ function UserMessage({
         {item.text && <CopyButton text={item.text} size="sm" />}
         {item.timestamp != null && (
           <span
-            className="text-text-tertiary text-[11px] leading-none"
+            className="text-text-tertiary text-sm leading-none"
             title={absoluteTime(item.timestamp)}
           >
             {relativeTime(item.timestamp)}
@@ -247,7 +248,7 @@ function AssistantText({
           <div className="border-border bg-surface-raised flex items-center gap-1 rounded-md border px-1.5 py-0.5 shadow-sm">
             <CopyButton text={fullText} label="Copy" />
             {item.timestamp != null && (
-              <span className="text-text-tertiary text-[11px]" title={absoluteTime(item.timestamp)}>
+              <span className="text-text-tertiary text-sm" title={absoluteTime(item.timestamp)}>
                 {relativeTime(item.timestamp)}
               </span>
             )}
@@ -263,7 +264,7 @@ function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element 
   if (item.stopReason === 'error') return <ErrorBlock message={item.errorMessage} />
   if (item.stopReason === 'aborted') {
     return (
-      <div className="text-text-tertiary my-1 flex items-center gap-2.5 text-[11.5px]">
+      <div className="text-text-tertiary my-1 flex items-center gap-2.5 text-sm">
         <span className="bg-border h-px flex-1" />
         stopped
         <span className="bg-border h-px flex-1" />
@@ -289,17 +290,19 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
     void window.pidex.invoke('app:userInfo').then((info) => setAwsProfile(info.awsProfile))
   }, [])
 
+  // Match remedies against the raw text: some patterns ('data retention mode')
+  // appear in fields the human sentence does not carry.
   const remedy = matchErrorRemedy(message, { awsProfile })
+  const parsed = parseErrorMessage(message)
 
   return (
-    <div className="bg-danger-soft border-danger/25 mt-2 rounded-lg border px-3.5 py-2.5 text-[13px]">
+    <div className="bg-danger-soft border-danger/25 mt-2 rounded-lg border px-3.5 py-2.5 text-lg">
       <span className="text-danger font-medium">Error</span>
-      <span className="text-text-secondary"> — {message ?? 'The model request failed.'}</span>
+      <span className="text-text-secondary"> — {parsed.text}</span>
+      {parsed.unwrapped && <RawErrorDetails raw={message!} parsed={parsed} />}
       {remedy && (
         <>
-          <div className="text-text-secondary mt-1.5 text-[12px] leading-relaxed">
-            {remedy.hint}
-          </div>
+          <div className="text-text-secondary mt-1.5 text-base leading-relaxed">{remedy.hint}</div>
           {remedy.command !== undefined && (
             <RunCommandRow
               command={remedy.command}
@@ -308,7 +311,7 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
             />
           )}
           {(remedy.docsUrl || remedy.suggestModelSwitch) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
               {remedy.docsUrl && (
                 <a
                   href={remedy.docsUrl}
@@ -327,6 +330,48 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
             </div>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The provider payload we unwrapped, kept one click away.
+ *
+ * Hiding it entirely would be the easy version and the wrong one: the type and
+ * request id are exactly what a provider asks for when you report a failure,
+ * and they appear nowhere else in the app.
+ */
+function RawErrorDetails({ raw, parsed }: { raw: string; parsed: ParsedError }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const facts = [
+    parsed.status !== undefined ? `HTTP ${parsed.status}` : undefined,
+    parsed.type,
+    parsed.requestId,
+  ].filter((fact): fact is string => fact !== undefined)
+
+  return (
+    <div className="mt-1.5">
+      <button
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        aria-expanded={open}
+        className="text-text-tertiary hover:text-text-secondary text-sm transition-colors"
+      >
+        {open ? 'Hide' : 'Show'} provider response
+        {!open && facts.length > 0 && (
+          <span className="text-text-tertiary/70"> · {facts.join(' · ')}</span>
+        )}
+      </button>
+      {open && (
+        <div className="border-danger/20 mt-1.5 rounded-md border">
+          <div className="border-danger/20 flex items-center justify-between border-b px-2 py-1">
+            <span className="text-text-tertiary text-sm">{facts.join(' · ') || 'Response'}</span>
+            <CopyButton text={raw} size="sm" />
+          </div>
+          <pre className="text-text-secondary max-h-48 overflow-auto whitespace-pre-wrap break-all px-2 py-1.5 font-mono text-sm leading-relaxed">
+            {raw}
+          </pre>
+        </div>
       )}
     </div>
   )

@@ -94,7 +94,7 @@ export function App(): React.JSX.Element {
   if (health === null) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-text-tertiary animate-pulse text-sm">Checking pi installation…</div>
+        <div className="text-text-tertiary animate-pulse text-lg">Checking pi installation…</div>
       </div>
     )
   }
@@ -117,7 +117,7 @@ export function App(): React.JSX.Element {
     if (restoring) {
       return (
         <div className="flex h-full items-center justify-center">
-          <div className="text-text-tertiary animate-pulse text-sm">Restoring your session…</div>
+          <div className="text-text-tertiary animate-pulse text-lg">Restoring your session…</div>
         </div>
       )
     }

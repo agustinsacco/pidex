@@ -30,7 +30,7 @@ export function WorkingIndicator({ sessionId }: { sessionId: string }): React.JS
 
   return (
     <div className="mx-auto w-full max-w-3xl px-1 pb-2">
-      <div className="text-text-secondary flex items-center gap-2 px-2 text-[12.5px]">
+      <div className="text-text-secondary flex items-center gap-2 px-2 text-base">
         <PiSpark size={14} />
         <span className="tabular-nums">{formatDuration(elapsedMs)}</span>
         {totalTokens != null && (

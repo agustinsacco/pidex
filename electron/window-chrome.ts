@@ -1,8 +1,10 @@
 import { BrowserWindow, nativeTheme } from 'electron'
-import type { ThemePreference } from '@shared/models'
+import { clampUiScale, type ThemePreference } from '@shared/models'
+import { getPrefs } from './store'
 
 /**
- * Window Controls Overlay colors (Windows/Linux; macOS draws traffic lights).
+ * Window Controls Overlay colors (Windows/Linux; macOS draws traffic lights),
+ * and the page zoom that backs the "UI scale" preference.
  *
  * The overlay strip is painted by the OS rather than the renderer, so it does
  * not inherit the page theme. Without re-applying it on every theme change,
@@ -24,7 +26,12 @@ export function overlayFor(theme: ThemePreference): {
   height: number
 } {
   const resolved = theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
-  return { ...CHROME[resolved], height: TITLEBAR_HEIGHT }
+  // The overlay height is device-independent pixels, which page zoom does not
+  // touch — but the renderer's 44px drag strip is CSS pixels, which it does.
+  // Without scaling here, the OS buttons stop lining up with the header the
+  // moment UI scale leaves 100%.
+  const height = Math.round(TITLEBAR_HEIGHT * clampUiScale(getPrefs().fonts.uiScale))
+  return { ...CHROME[resolved], height }
 }
 
 /** No-op on macOS, which has no overlay to restyle. */
@@ -33,4 +40,21 @@ export function applyTitleBarOverlay(theme: ThemePreference): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.setTitleBarOverlay(overlayFor(theme))
   }
+}
+
+/**
+ * "UI scale" is Chromium page zoom, not a root font-size multiplier.
+ *
+ * A `html { font-size: N% }` only moves `rem`-based lengths, and this UI is
+ * written almost entirely in pinned pixels (`text-[12px]`, `width="14"` on
+ * every icon) — so the old approach grew the padding and left every glyph and
+ * icon the size it was. Page zoom scales the rendered page wholesale, which is
+ * what the setting has always claimed to do.
+ */
+export function applyZoom(uiScale: number): void {
+  const factor = clampUiScale(uiScale)
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.setZoomFactor(factor)
+  }
+  applyTitleBarOverlay(getPrefs().theme)
 }

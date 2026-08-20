@@ -46,17 +46,17 @@ export function ConfigFileEditor({
     <ModalOverlay onClose={onClose} backdrop="strong" z={50}>
       <div className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
         <div className="border-border flex items-center gap-2 border-b px-4 py-2.5">
-          <span className="flex-1 truncate font-mono text-[12px]">{path}</span>
-          {error && <span className="text-danger text-[11.5px]">{error}</span>}
+          <span className="flex-1 truncate font-mono text-base">{path}</span>
+          {error && <span className="text-danger text-sm">{error}</span>}
           <button
             onClick={onClose}
-            className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors"
+            className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-base font-medium transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={() => void save()}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-[12px] font-medium transition-colors"
+            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-base font-medium transition-colors"
           >
             Save
           </button>

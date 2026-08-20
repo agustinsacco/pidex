@@ -61,8 +61,8 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
       <div className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <div>
-            <div className="text-[13.5px] font-semibold">Fork from an earlier message</div>
-            <div className="text-text-tertiary text-[11.5px]">
+            <div className="text-lg font-semibold">Fork from an earlier message</div>
+            <div className="text-text-tertiary text-sm">
               The conversation rewinds to just before the chosen message; its text is placed in the
               composer so you can edit and resend.
             </div>
@@ -73,12 +73,12 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
         </div>
         <div className="max-h-[52vh] overflow-y-auto p-2">
           {candidates === null && (
-            <div className="text-text-tertiary animate-pulse px-3 py-6 text-center text-[12.5px]">
+            <div className="text-text-tertiary animate-pulse px-3 py-6 text-center text-base">
               Loading…
             </div>
           )}
           {candidates?.length === 0 && (
-            <div className="text-text-tertiary px-3 py-6 text-center text-[12.5px]">
+            <div className="text-text-tertiary px-3 py-6 text-center text-base">
               No forkable user messages yet.
             </div>
           )}
@@ -89,10 +89,10 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
               onClick={() => void fork(candidate)}
               className="hover:bg-bg-secondary flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-50"
             >
-              <span className="bg-bg-secondary text-text-tertiary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10.5px] font-semibold">
+              <span className="bg-bg-secondary text-text-tertiary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                 {index + 1}
               </span>
-              <span className="text-text line-clamp-2 text-[13px]">{candidate.text}</span>
+              <span className="text-text line-clamp-2 text-lg">{candidate.text}</span>
             </button>
           ))}
         </div>
