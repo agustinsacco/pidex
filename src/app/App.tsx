@@ -11,6 +11,7 @@ import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore, useRightExpanded, useRightPane } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
+import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
@@ -37,6 +38,7 @@ export function App(): React.JSX.Element {
   )
 
   const [restoring, setRestoring] = useState(true)
+  const [showGettingStarted, setShowGettingStarted] = useState(false)
 
   useEffect(() => {
     void useSettingsStore.getState().hydrate()
@@ -107,8 +109,14 @@ export function App(): React.JSX.Element {
           setHealth(null)
           void window.pidex.invoke('pi:health').then(setHealth)
         }}
+        onInstalled={() => setShowGettingStarted(true)}
       />
     )
+  }
+
+  // One-time recommendations after pidex itself installed pi.
+  if (showGettingStarted) {
+    return <GettingStartedScreen onDone={() => setShowGettingStarted(false)} />
   }
 
   // Hold the picker back until the restore attempt settles, otherwise it

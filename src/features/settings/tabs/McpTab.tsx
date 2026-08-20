@@ -13,6 +13,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { stripAnsi } from '@/lib/ansi'
 import { ChevronIcon } from '@/components/icons'
+import { usePackageJob } from '../usePackageJob'
+import { JobOutput } from './ExtensionsTab'
 
 const SCOPE_LABELS: Record<McpScope, string> = {
   xdg: '~/.config/mcp',
@@ -42,15 +44,17 @@ export function McpTab(): React.JSX.Element {
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const [nextConfigs, nextCache, settings] = await Promise.all([
+      const [nextConfigs, nextCache, packageEntries] = await Promise.all([
         window.pidex.invoke('mcp:readConfigs', workspacePath ?? undefined),
         window.pidex.invoke('mcp:readCache'),
-        window.pidex.invoke('pi:agentSettings', workspacePath ?? undefined),
+        // Per-scope package entries — pi loads BOTH scopes' packages, so the
+        // merged settings view (where a project array shadows global) would
+        // misreport the adapter as missing.
+        window.pidex.invoke('packages:list', workspacePath ?? undefined),
       ])
       setConfigs(nextConfigs)
       setCache(nextCache)
-      const pkgs = (settings as { packages?: unknown }).packages
-      setPackages(Array.isArray(pkgs) ? (pkgs as string[]) : [])
+      setPackages(packageEntries.map((entry) => entry.spec))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -60,19 +64,16 @@ export function McpTab(): React.JSX.Element {
     void refresh()
   }, [refresh])
 
+  const installJob = usePackageJob(() => void refresh())
   const adapterInstalled = packages?.some((p) => p.includes('pi-mcp-adapter')) ?? false
 
-  const installAdapter = async (): Promise<void> => {
+  const installAdapter = (): void => {
     setError(null)
-    try {
-      // patchAgentSettings merges shallowly — send the FULL appended array.
-      await window.pidex.invoke('pi:patchAgentSettings', 'global', undefined, {
-        packages: [...(packages ?? []), ADAPTER_PACKAGE],
-      })
-      await refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
+    // pi's own package manager does the install — same flow as the
+    // Extensions tab, with streamed output below the card.
+    void installJob.start(() =>
+      window.pidex.invoke('packages:run', 'install', ADAPTER_PACKAGE, 'global', undefined),
+    )
   }
 
   const act = async (fn: () => Promise<unknown>): Promise<void> => {
@@ -110,18 +111,25 @@ export function McpTab(): React.JSX.Element {
               The adapter package is not installed — servers below will not load.
             </span>
             <button
-              onClick={() => void installAdapter()}
-              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors"
+              onClick={installAdapter}
+              disabled={installJob.running}
+              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
             >
-              Add to pi packages
+              {installJob.running ? 'Installing…' : 'Install'}
             </button>
           </div>
         )}
         {adapterInstalled === false && packages !== null && (
           <div className="text-text-tertiary mt-1 text-sm">
-            Adding it edits pi&apos;s settings.json; restart sessions to apply.
+            Installs via pi&apos;s package manager; restart sessions to apply. Manage all packages
+            in the Extensions tab.
           </div>
         )}
+        <JobOutput
+          running={installJob.running}
+          output={installJob.output}
+          exitCode={installJob.exitCode}
+        />
       </div>
 
       {/* Servers */}

@@ -29,13 +29,47 @@ interface ReadResult {
  * Read pi's settings.json (global, merged with the workspace override).
  * Unparseable files degrade to empty for display, but `malformed` is
  * reported so callers can refuse to write over them.
+ *
+ * Mirrors pi's own override semantics: nested objects merge one level deep
+ * (a project `{compaction: {reserveTokens}}` keeps the global
+ * `compaction.enabled`), everything else replaces.
  */
 export async function readAgentSettings(workspacePath?: string): Promise<PiAgentSettings> {
   const global = await readJson(join(piAgentDir(), 'settings.json'))
   const project = workspacePath
     ? await readJson(join(workspacePath, '.pi', 'settings.json'))
     : { settings: {}, exists: false, malformed: false }
-  return { ...global.settings, ...project.settings }
+
+  const merged: PiAgentSettings = { ...global.settings, ...project.settings }
+  for (const [key, projectValue] of Object.entries(project.settings)) {
+    const globalValue = global.settings[key]
+    if (
+      projectValue &&
+      globalValue &&
+      typeof projectValue === 'object' &&
+      typeof globalValue === 'object' &&
+      !Array.isArray(projectValue) &&
+      !Array.isArray(globalValue)
+    ) {
+      merged[key] = { ...globalValue, ...projectValue }
+    }
+  }
+  return merged
+}
+
+/**
+ * Both scopes' settings, unmerged — for editors that must show what a file
+ * actually contains rather than the effective merged view (a project
+ * override displaying inherited global values would silently copy them into
+ * `.pi/settings.json` on the next edit).
+ */
+export async function readAgentSettingsScoped(workspacePath?: string): Promise<{
+  global: PiAgentSettings
+  project: PiAgentSettings | null
+}> {
+  const global = await readJson(join(piAgentDir(), 'settings.json'))
+  const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : null
+  return { global: global.settings, project: project ? project.settings : null }
 }
 
 /** Read + report whether either scope's file is currently unparseable. */
@@ -177,11 +211,16 @@ export async function listCatalogueModels(): Promise<CatalogueModel[]> {
   return models
 }
 
-/** Discovered pi resources for the read-only Advanced viewer. */
+/**
+ * Local (non-package) pi resources for the read-only Advanced viewer:
+ * loose files under `~/.pi/agent/{skills,extensions,prompts,themes}`.
+ * Package-provided resources are shown per-package in the Extensions tab.
+ */
 export async function listPiResources(): Promise<{
   skills: string[]
   extensions: string[]
   prompts: string[]
+  themes: string[]
 }> {
   const base = piAgentDir()
   const list = async (sub: string): Promise<string[]> => {
@@ -195,5 +234,6 @@ export async function listPiResources(): Promise<{
     skills: await list('skills'),
     extensions: await list('extensions'),
     prompts: await list('prompts'),
+    themes: await list('themes'),
   }
 }
