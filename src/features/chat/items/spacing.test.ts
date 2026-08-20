@@ -40,22 +40,15 @@ const rowOf = (item: ChatItem): TranscriptRow => {
 
 describe('spacingFor', () => {
   it('gives the first row no leading gap', () => {
-    expect(spacingFor(rowOf(user()), undefined)).toBe('')
+    expect(spacingFor(undefined)).toBe('')
   })
 
-  it('uses ONE step at every speaker or divider boundary', () => {
+  it('uses ONE step after any previous row, regardless of kind', () => {
     // The invariant that replaced the old boundary-aware 8/16px scheme: one
     // owner, one step. Anything that wants to look grouped does it with ink.
-    const boundaries: [ChatItem, ChatItem][] = [
-      [assistantText(), user()],
-      [user(), assistantText()],
-      [assistantText(), divider()],
-      [divider(), assistantText()],
-      [user(), bash()],
-      [divider('d2'), user()],
-    ]
-    for (const [previous, item] of boundaries) {
-      expect(spacingFor(rowOf(item), rowOf(previous))).toBe(STREAM_GAP)
+    const previousItems: ChatItem[] = [assistantText(), user(), divider(), bash()]
+    for (const item of previousItems) {
+      expect(spacingFor(rowOf(item))).toBe(STREAM_GAP)
     }
   })
 
@@ -69,8 +62,8 @@ describe('spacingFor', () => {
       assistantText('a3'),
     ])
     expect(rows.map((r) => r.kind)).toEqual(['text', 'activity', 'text'])
-    const aboveGroup = spacingFor(rows[1]!, rows[0]!)
-    const belowGroup = spacingFor(rows[2]!, rows[1]!)
+    const aboveGroup = spacingFor(rows[0]!)
+    const belowGroup = spacingFor(rows[1]!)
     expect(aboveGroup).toBe(STREAM_GAP)
     expect(aboveGroup).toBe(belowGroup)
   })
@@ -95,8 +88,8 @@ describe('spacingFor', () => {
       'item',
     ])
     for (let i = 1; i < rows.length - 1; i++) {
-      const above = spacingFor(rows[i]!, rows[i - 1]!)
-      const below = spacingFor(rows[i + 1]!, rows[i]!)
+      const above = spacingFor(rows[i - 1]!)
+      const below = spacingFor(rows[i]!)
       expect(below).toBe(above)
     }
   })
@@ -115,11 +108,7 @@ describe('spacingFor', () => {
 
   it('never emits trailing padding (it doubled every gap)', () => {
     const rows = buildTranscriptRows([user(), assistantText(), assistantToolOnly()])
-    const classes = [
-      spacingFor(rows[0]!, undefined),
-      spacingFor(rows[1]!, rows[0]!),
-      spacingFor(rows[2]!, rows[1]!),
-    ]
+    const classes = [spacingFor(undefined), spacingFor(rows[0]!), spacingFor(rows[1]!)]
     for (const value of classes) expect(value).not.toMatch(/\bpb-/)
   })
 })

@@ -30,10 +30,10 @@ import type { TranscriptRow } from './transcriptRows'
 export const STREAM_GAP = 'pt-3'
 
 /**
- * Leading class for a row. One step at every boundary after the first —
- * identical above and below every message and tool group.
+ * Leading class for a boundary: no gap before the first row, one step
+ * otherwise — identical above and below every message and tool group. The
+ * row's own kind no longer matters, only whether a previous row exists.
  */
-export function spacingFor(row: TranscriptRow, previous: TranscriptRow | undefined): string {
-  if (!previous) return ''
-  return STREAM_GAP
+export function spacingFor(previous: TranscriptRow | undefined): string {
+  return previous ? STREAM_GAP : ''
 }
