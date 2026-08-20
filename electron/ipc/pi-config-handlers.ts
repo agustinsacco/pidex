@@ -5,6 +5,7 @@ import {
   listPiResources,
   patchAgentSettings,
   readAgentSettings,
+  readAgentSettingsScoped,
   readConfigFile,
   writeConfigFile,
 } from '../pi/agent-settings'
@@ -15,6 +16,10 @@ import { type ConfigFileHealth } from '@shared/models'
 /** Reading and patching pi's own agent settings files. */
 export function registerPiConfigHandlers(): void {
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
+
+  handle('pi:agentSettingsScoped', (_event, workspacePath?: string) =>
+    readAgentSettingsScoped(workspacePath),
+  )
 
   // Ask a throwaway pi RPC process for its full catalogue (built-ins +
   // models.json, with real display names and thinkingLevelMap — see

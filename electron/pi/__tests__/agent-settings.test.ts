@@ -7,6 +7,7 @@ import {
   listCatalogueModels,
   patchAgentSettings,
   readAgentSettings,
+  readAgentSettingsScoped,
 } from '../agent-settings'
 
 /**
@@ -109,6 +110,56 @@ describe('pi agent settings', () => {
   it('still degrades to empty settings for display when malformed', async () => {
     await writeFile(settingsPath(), '{ broken')
     await expect(readAgentSettings()).resolves.toEqual({})
+  })
+
+  it('merges project overrides one level deep, matching pi semantics', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'pidex-ws-'))
+    try {
+      await writeFile(
+        settingsPath(),
+        JSON.stringify({
+          theme: 'dark',
+          compaction: { enabled: true, reserveTokens: 16384 },
+        }),
+      )
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(workspace, '.pi'), { recursive: true })
+      await writeFile(
+        join(workspace, '.pi', 'settings.json'),
+        JSON.stringify({ compaction: { reserveTokens: 8192 } }),
+      )
+      // pi's documented example: the project override keeps compaction.enabled.
+      await expect(readAgentSettings(workspace)).resolves.toEqual({
+        theme: 'dark',
+        compaction: { enabled: true, reserveTokens: 8192 },
+      })
+    } finally {
+      await rm(workspace, { recursive: true, force: true })
+    }
+  })
+
+  it('scoped read returns each file as written, never merged', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'pidex-ws-'))
+    try {
+      await writeFile(settingsPath(), JSON.stringify({ defaultModel: 'claude-opus-5' }))
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(workspace, '.pi'), { recursive: true })
+      await writeFile(
+        join(workspace, '.pi', 'settings.json'),
+        JSON.stringify({ defaultThinkingLevel: 'high' }),
+      )
+      await expect(readAgentSettingsScoped(workspace)).resolves.toEqual({
+        global: { defaultModel: 'claude-opus-5' },
+        project: { defaultThinkingLevel: 'high' },
+      })
+      // No workspace → project side is null, not {}.
+      await expect(readAgentSettingsScoped()).resolves.toEqual({
+        global: { defaultModel: 'claude-opus-5' },
+        project: null,
+      })
+    } finally {
+      await rm(workspace, { recursive: true, force: true })
+    }
   })
 
   it('project scope writes <workspace>/.pi/settings.json', async () => {
