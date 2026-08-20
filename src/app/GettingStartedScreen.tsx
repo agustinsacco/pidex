@@ -34,21 +34,21 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
   return (
     <div className="titlebar-drag flex h-full flex-col items-center justify-center px-8">
       <div className="bg-surface border-border w-full max-w-2xl overflow-y-auto rounded-lg border p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">pi is ready</h1>
-        <p className="text-text-secondary mt-2 text-sm leading-relaxed">
+        <h1 className="text-3xl font-semibold tracking-tight">pi is ready</h1>
+        <p className="text-text-secondary mt-2 text-lg leading-relaxed">
           Two things make it useful: a model provider and, optionally, some extensions.
         </p>
 
-        <h2 className="mt-6 text-[13.5px] font-semibold">Connect a provider</h2>
-        <p className="text-text-secondary mt-1 text-[12.5px] leading-relaxed">
+        <h2 className="mt-6 text-lg font-semibold">Connect a provider</h2>
+        <p className="text-text-secondary mt-1 text-base leading-relaxed">
           Subscriptions (ChatGPT/Codex, Claude Pro/Max, GitHub Copilot, xAI, OpenRouter): run{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-[12px]">pi</code> in a terminal
-          and type <code className="bg-code-bg rounded px-1 font-mono text-[12px]">/login</code>.
-          API keys (Anthropic, OpenAI, Google, …) work via environment variables or Settings →
-          Agent. Tokens are shared with pidex automatically.
+          <code className="bg-code-bg rounded px-1 font-mono text-base">pi</code> in a terminal and
+          type <code className="bg-code-bg rounded px-1 font-mono text-base">/login</code>. API keys
+          (Anthropic, OpenAI, Google, …) work via environment variables or Settings → Agent. Tokens
+          are shared with pidex automatically.
         </p>
 
-        <h2 className="mt-6 text-[13.5px] font-semibold">Recommended extensions</h2>
+        <h2 className="mt-6 text-lg font-semibold">Recommended extensions</h2>
         <div className="mt-2.5">
           <CatalogueCards
             installedSpecs={installedSpecs}
@@ -67,7 +67,7 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
           <button
             onClick={onDone}
             disabled={job.running}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-4 py-2 text-lg font-medium transition-colors disabled:opacity-50"
           >
             Continue
           </button>

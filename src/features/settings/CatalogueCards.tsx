@@ -24,33 +24,29 @@ export function CatalogueCards({
         return (
           <div key={entry.spec} className="border-border bg-surface rounded-xl border p-3.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[13px] font-semibold">{entry.name}</span>
+              <span className="text-lg font-semibold">{entry.name}</span>
               {installed ? (
-                <span className="text-success text-[11px] font-medium">Added</span>
+                <span className="text-success text-sm font-medium">Added</span>
               ) : (
                 <button
                   onClick={() => onInstall(entry.spec)}
                   disabled={busy}
-                  className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors disabled:opacity-50"
+                  className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
                 >
                   Add
                 </button>
               )}
             </div>
-            <p className="text-text-secondary mt-1.5 text-[12px] leading-snug">
-              {entry.description}
-            </p>
+            <p className="text-text-secondary mt-1.5 text-base leading-snug">{entry.description}</p>
             <div className="mt-2 flex items-center gap-3">
               <button
                 onClick={() => void window.pidex.invoke('app:openExternal', entry.docsUrl)}
-                className="text-text-tertiary hover:text-text text-[11px] underline"
+                className="text-text-tertiary hover:text-text text-sm underline"
               >
                 Docs
               </button>
               {missingBinary && (
-                <span className="text-warning text-[11px]">
-                  Needs the `claude` CLI on your PATH
-                </span>
+                <span className="text-warning text-sm">Needs the `claude` CLI on your PATH</span>
               )}
             </div>
           </div>

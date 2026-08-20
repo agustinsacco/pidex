@@ -54,13 +54,13 @@ export function ExtensionsTab(): React.JSX.Element {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-[16px] font-semibold">Extensions</h2>
-      <p className="text-text-secondary mt-1 text-[12.5px]">
+      <h2 className="text-xl font-semibold">Extensions</h2>
+      <p className="text-text-secondary mt-1 text-base">
         pi packages — extensions, skills, prompts and themes. Changes apply to new sessions.
         Installs run through pi&apos;s own package manager.
       </p>
 
-      <h3 className="mt-5 text-[13.5px] font-semibold">Recommended</h3>
+      <h3 className="mt-5 text-lg font-semibold">Recommended</h3>
       <div className="mt-2.5">
         <CatalogueCards
           installedSpecs={specs}
@@ -69,7 +69,7 @@ export function ExtensionsTab(): React.JSX.Element {
           onInstall={(spec) => runAction('install', spec, 'global')}
         />
       </div>
-      <p className="text-text-tertiary mt-2 text-[11px]">
+      <p className="text-text-tertiary mt-2 text-sm">
         Browse the full ecosystem at{' '}
         <button
           onClick={() => void window.pidex.invoke('app:openExternal', 'https://pi.dev/packages')}
@@ -85,13 +85,13 @@ export function ExtensionsTab(): React.JSX.Element {
         if (scope === 'project' && !workspacePath) return null
         return (
           <div key={scope}>
-            <h3 className="mt-6 text-[13.5px] font-semibold">
+            <h3 className="mt-6 text-lg font-semibold">
               {scope === 'global' ? 'Installed (all workspaces)' : 'Installed (this workspace)'}
             </h3>
             {entries === null ? (
-              <div className="text-text-tertiary mt-2 text-[12.5px]">Reading pi settings…</div>
+              <div className="text-text-tertiary mt-2 text-base">Reading pi settings…</div>
             ) : scoped.length === 0 ? (
-              <div className="text-text-tertiary mt-2 text-[12.5px]">none</div>
+              <div className="text-text-tertiary mt-2 text-base">none</div>
             ) : (
               <div className="border-border mt-2 divide-y rounded-lg border">
                 {scoped.map((entry) => (
@@ -108,19 +108,19 @@ export function ExtensionsTab(): React.JSX.Element {
         )
       })}
 
-      <h3 className="mt-6 text-[13.5px] font-semibold">Add a package</h3>
+      <h3 className="mt-6 text-lg font-semibold">Add a package</h3>
       <div className="mt-2 flex items-center gap-2">
         <input
           value={addSpec}
           onChange={(e) => setAddSpec(e.target.value)}
           placeholder="npm:pkg, git:github.com/user/repo, or /absolute/path"
-          className="border-border bg-bg-secondary focus:border-accent min-w-0 flex-1 rounded-md border px-2.5 py-1.5 font-mono text-[12px] outline-none"
+          className="border-border bg-bg-secondary focus:border-accent min-w-0 flex-1 rounded-md border px-2.5 py-1.5 font-mono text-base outline-none"
         />
         {workspacePath && (
           <select
             value={addScope}
             onChange={(e) => setAddScope(e.target.value as 'global' | 'project')}
-            className="border-border bg-bg-secondary rounded-md border px-2 py-1.5 text-[12px]"
+            className="border-border bg-bg-secondary rounded-md border px-2 py-1.5 text-base"
           >
             <option value="global">Global</option>
             <option value="project">This workspace</option>
@@ -131,21 +131,21 @@ export function ExtensionsTab(): React.JSX.Element {
             if (addSpec.trim()) runAction('install', addSpec.trim(), addScope)
           }}
           disabled={job.running || !addSpec.trim()}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+          className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
         >
           Install
         </button>
         <button
           onClick={() => runAction('update', undefined, 'global')}
           disabled={job.running}
-          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
           title="pi update --extensions"
         >
           Update all
         </button>
       </div>
 
-      {error && <div className="text-danger mt-3 text-[12px]">{error}</div>}
+      {error && <div className="text-danger mt-3 text-base">{error}</div>}
       <JobOutput running={job.running} output={job.output} exitCode={job.exitCode} />
     </div>
   )
@@ -176,20 +176,20 @@ function PackageRow({
     <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-medium">{entry.name}</span>
+          <span className="truncate text-lg font-medium">{entry.name}</span>
           {entry.version && (
-            <span className="text-text-tertiary font-mono text-[11px]">v{entry.version}</span>
+            <span className="text-text-tertiary font-mono text-sm">v{entry.version}</span>
           )}
           {!entry.installed && (
-            <span className="text-warning text-[11px]">installs on next session start</span>
+            <span className="text-warning text-sm">installs on next session start</span>
           )}
           {entry.filtered && (
-            <span className="text-text-tertiary text-[11px]" title="Resource filters in settings">
+            <span className="text-text-tertiary text-sm" title="Resource filters in settings">
               filtered
             </span>
           )}
         </div>
-        <div className="text-text-tertiary mt-0.5 truncate font-mono text-[11px]">
+        <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm">
           {entry.spec}
           {counts && <span className="font-sans"> — {counts}</span>}
         </div>
@@ -197,7 +197,7 @@ function PackageRow({
       <button
         onClick={onRemove}
         disabled={busy}
-        className="text-danger hover:bg-danger-soft shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors disabled:opacity-50"
+        className="text-danger hover:bg-danger-soft shrink-0 rounded-md px-2 py-1 text-sm font-medium transition-colors disabled:opacity-50"
       >
         Remove
       </button>
@@ -230,13 +230,13 @@ export function JobOutput({
             running ? 'bg-warning animate-pulse' : exitCode === 0 ? 'bg-success' : 'bg-danger',
           )}
         />
-        <span className="text-text-tertiary text-[11px]">
+        <span className="text-text-tertiary text-sm">
           {running ? 'Running…' : exitCode === 0 ? 'Done' : `Failed (exit ${exitCode})`}
         </span>
       </div>
       <pre
         ref={preRef}
-        className="bg-code-bg border-border mt-1.5 max-h-48 overflow-auto rounded-md border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap"
+        className="bg-code-bg border-border mt-1.5 max-h-48 overflow-auto rounded-md border px-3 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap"
       >
         {output || '…'}
       </pre>
