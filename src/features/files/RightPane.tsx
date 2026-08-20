@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import clsx from 'clsx'
-import { useLayoutStore, type RightPane as RightPaneId } from '@/stores/layout'
+import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
 import { PaneShell } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
@@ -18,7 +18,9 @@ export const RightPane = memo(function RightPane({
   workspacePath: string
   sessionId: string
 }): React.JSX.Element | null {
-  const rightPane = useLayoutStore((s) => s.rightPane)
+  // Read via `sessionId` rather than the active-session hook: this component
+  // is already told which session it renders, and the two must not disagree.
+  const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   if (!rightPane) return null
 
   return (

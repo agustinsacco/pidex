@@ -739,6 +739,8 @@ export function installMockPidex(): void {
           for (const l of ptyListeners.get(ptyId) ?? []) l(echo)
           return Promise.resolve(undefined)
         }
+        case 'pty:attach':
+          return Promise.resolve({ scrollback: '' })
         case 'pty:resize':
         case 'pty:kill':
           return Promise.resolve(undefined)

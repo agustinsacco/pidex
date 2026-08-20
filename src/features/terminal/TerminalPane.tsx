@@ -23,6 +23,7 @@ export const TerminalPane = memo(function TerminalPane({
   const bySession = useTerminalStore((s) => s.bySession)
   const tabs = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs)
   const activeId = useTerminalStore((s) => sessionTerminals(s, sessionId).activeId)
+  const error = useTerminalStore((s) => sessionTerminals(s, sessionId).error)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -32,13 +33,32 @@ export const TerminalPane = memo(function TerminalPane({
   // StrictMode double-invokes this effect and both passes observe the empty
   // list before the first spawn resolves, producing two shells. A synchronous
   // ref latch (per session) makes the check race-free.
+  //
+  // The latch is RELEASED when the spawn fails. Latching unconditionally is
+  // how this pane used to wedge on "Starting shell…" forever: a rejected
+  // pty:create left no tab, no error, and no way to ask again.
   const spawnRequested = useRef(new Set<string>())
   useEffect(() => {
     if (spawnRequested.current.has(sessionId)) return
-    if (sessionTerminals(useTerminalStore.getState(), sessionId).tabs.length > 0) return
+    const current = sessionTerminals(useTerminalStore.getState(), sessionId)
+    if (current.tabs.length > 0 || current.error !== null) return
     spawnRequested.current.add(sessionId)
-    void useTerminalStore.getState().createTab(sessionId, workspacePath)
-  }, [sessionId, workspacePath])
+    void useTerminalStore
+      .getState()
+      .createTab(sessionId, workspacePath)
+      .then((ptyId) => {
+        if (ptyId === null) spawnRequested.current.delete(sessionId)
+      })
+  }, [sessionId, workspacePath, error])
+
+  // Clearing the error re-arms the first-open effect above (it lists `error`
+  // as a dep). With tabs already open that effect is a no-op, so a failed "+"
+  // has to ask again directly.
+  const retry = (): void => {
+    spawnRequested.current.delete(sessionId)
+    useTerminalStore.getState().clearError(sessionId)
+    if (tabs.length > 0) void useTerminalStore.getState().createTab(sessionId, workspacePath)
+  }
 
   return (
     <PaneShell
@@ -131,12 +151,49 @@ export const TerminalPane = memo(function TerminalPane({
             />
           )),
         )}
-        {tabs.length === 0 && (
+        {tabs.length === 0 && error === null && (
           <div className="text-text-tertiary flex h-full items-center justify-center text-[12.5px]">
             Starting shell…
           </div>
         )}
+        {error !== null && <SpawnError message={error} onRetry={retry} inline={tabs.length > 0} />}
       </div>
     </PaneShell>
   )
 })
+
+/**
+ * Spawn failure, shown where the shell would have been. `inline` keeps it a
+ * strip above existing terminals (a failed "+") instead of taking the pane.
+ */
+function SpawnError({
+  message,
+  onRetry,
+  inline,
+}: {
+  message: string
+  onRetry: () => void
+  inline: boolean
+}): React.JSX.Element {
+  return (
+    <div
+      className={clsx(
+        'flex px-4',
+        inline
+          ? 'border-danger/30 bg-danger/5 mb-1.5 items-start gap-2 rounded-md border py-2'
+          : 'h-full items-center justify-center',
+      )}
+    >
+      <div className={inline ? 'min-w-0 flex-1' : 'max-w-sm text-center'}>
+        <div className="text-danger text-[12.5px] font-medium">Could not start a shell</div>
+        <div className="text-text-tertiary mt-1 whitespace-pre-wrap text-[11.5px]">{message}</div>
+        <button
+          onClick={onRetry}
+          className="border-border text-text-secondary hover:text-text mt-2.5 rounded-md border px-2.5 py-1 text-[12px] transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  )
+}

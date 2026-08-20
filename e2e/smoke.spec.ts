@@ -31,6 +31,24 @@ interface Harness {
  */
 const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
 
+/**
+ * `process.env` minus electron-vite's dev markers.
+ *
+ * main.ts decides dev-vs-built purely from `ELECTRON_RENDERER_URL`, and that
+ * variable is exported into every child of `npm run dev`. Running the e2e
+ * suite from a shell descended from a dev server therefore launched the built
+ * main against the DEV SERVER's renderer: the suite silently tested code that
+ * was never built, so it passed for the wrong reasons and failed on changes it
+ * had never loaded. Strip the markers so a launch here always means `out/`.
+ */
+function devServerEnvStripped(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  delete env.ELECTRON_RENDERER_URL
+  delete env.NODE_ENV_ELECTRON_VITE
+  delete env.ELECTRON_CLI_ARGS
+  return env
+}
+
 async function launch(
   options: { workspace?: string; userDataDir?: string } = {},
 ): Promise<Harness> {
@@ -40,7 +58,7 @@ async function launch(
   const app = await electron.launch({
     args: [repoRoot],
     env: {
-      ...process.env,
+      ...devServerEnvStripped(),
       NODE_ENV: 'production',
       PIDEX_PI_STUB: piStub,
       PIDEX_E2E_WORKSPACE: workspace,
@@ -180,7 +198,7 @@ test('command palette opens with the keyboard shortcut', async () => {
   }
 })
 
-test('terminal pane spawns a real shell', async () => {
+test('terminal pane spawns a real shell, and reopening replays its scrollback', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -191,10 +209,79 @@ test('terminal pane spawns a real shell', async () => {
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
-    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
+    const toggleTerminal = async (): Promise<void> => {
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
+    }
+
+    await toggleTerminal()
     await expect(page.getByText('Terminal', { exact: true })).toBeVisible({ timeout: 15_000 })
     // xterm renders into a canvas/rows container once the PTY is attached.
     await expect(page.locator('.xterm').first()).toBeVisible({ timeout: 15_000 })
+    // A spawn failure leaves the pane on this forever, which is exactly the
+    // regression: assert we got past it rather than just that chrome rendered.
+    await expect(page.getByText('Starting shell…')).toBeHidden({ timeout: 15_000 })
+    await expect(page.getByText('Could not start a shell')).toBeHidden()
+
+    // Prove the shell is real and talking back.
+    const marker = 'pidex_marker_7f3a'
+    await page.locator('.xterm').first().click()
+    await page.keyboard.type(`echo ${marker}`)
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.xterm-rows')).toContainText(marker, { timeout: 15_000 })
+
+    // Closing the pane disposes the xterm but keeps the PTY; reopening must
+    // replay main's scrollback instead of showing a blank pane in front of a
+    // live shell.
+    await toggleTerminal()
+    await expect(page.locator('.xterm')).toHaveCount(0)
+    await toggleTerminal()
+    await expect(page.locator('.xterm-rows')).toContainText(marker, { timeout: 15_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('the right pane is per session, so a terminal does not follow you', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Two sessions in the same workspace.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('first')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await page.getByPlaceholder('Describe a task or ask a question').fill('second')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // Open a terminal in the SECOND session.
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
+    await expect(page.getByText('Terminal', { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.xterm').first()).toBeVisible({ timeout: 15_000 })
+
+    // Switching to the first session must NOT bring the pane along. It used to:
+    // rightPane was global, so the pane opened everywhere and — because first
+    // open auto-spawns — silently forked a login shell in every session you
+    // visited.
+    // The stub names every session "stub session", so rows are identified by
+    // order (sidebar is newest-first) and the switch is confirmed by the user
+    // bubble — otherwise a hidden Terminal could just mean the click missed.
+    const rows = page.getByTestId('session-row')
+    await expect(rows).toHaveCount(2, { timeout: 20_000 })
+    const terminalTitle = page.getByText('Terminal', { exact: true })
+
+    await rows.nth(1).click()
+    await expect(page.getByText('first', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(terminalTitle).toBeHidden({ timeout: 10_000 })
+
+    // …and coming back restores it, with its shell intact.
+    await rows.nth(0).click()
+    await expect(page.getByText('second', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(terminalTitle).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('.xterm').first()).toBeVisible({ timeout: 10_000 })
   } finally {
     await shutdown(harness)
   }
@@ -722,14 +809,43 @@ test('a long tool run collapses to one dense group', async () => {
 
     // Settled ⇒ collapsed: the whole run costs a single line until asked for.
     await expect(summary).toHaveAttribute('aria-expanded', 'false')
-    const collapsedHeight = await page.evaluate(
-      () =>
-        document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect().height ??
-        0,
-    )
-    expect(collapsedHeight).toBeLessThan(44)
+
+    /*
+     * Poll, don't sample once.
+     *
+     * The body collapses via a 220ms `grid-template-rows: 1fr → 0fr`
+     * transition, and the instant `aria-expanded` flips to "false" is the
+     * instant that transition STARTS. A single `evaluate` right after it
+     * therefore measures the group mid-collapse — CI read 61px of a group that
+     * settles at ~33px (one ActivityRow still in the track). Polling keeps the
+     * assertion meaningful (a group that genuinely stays tall still fails on
+     * timeout) without racing the animation.
+     */
+    const groupHeight = async (): Promise<number> =>
+      await page.evaluate(
+        () =>
+          document.querySelector('[data-testid="activity-group"]')?.getBoundingClientRect()
+            .height ?? 0,
+      )
+    await expect.poll(groupHeight, { timeout: 5_000 }).toBeLessThan(44)
 
     await summary.click()
+    // Same transition, opening: measuring mid-expand compresses the rows and
+    // would make the density assertions below pass vacuously. Wait for the
+    // height to stop changing first.
+    let previous = -1
+    await expect
+      .poll(
+        async () => {
+          const current = await groupHeight()
+          const stable = current > 100 && current === previous
+          previous = current
+          return stable
+        },
+        { timeout: 5_000, intervals: [120] },
+      )
+      .toBe(true)
+
     const geometry = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
       const sorted = rows
