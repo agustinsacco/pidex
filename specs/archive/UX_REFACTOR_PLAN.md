@@ -1,7 +1,7 @@
 # pidex — UX Refactor & Upgrade Plan
 
 Derived from a close re-read of every reference screenshot in
-[screenshots/](screenshots/) against the shipped implementation.
+[screenshots/](../screenshots/) against the shipped implementation.
 Ordered by severity. Each item names the file(s) to touch.
 
 Legend: **P0** broken/misleading · **P1** clearly wrong vs reference ·
