@@ -45,6 +45,10 @@ afterEach(() => {
 const RETENTION_ERROR =
   "Validation error: The model returned the following errors: data retention mode 'default' is not available for this model See https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html for supported data retention modes."
 
+/** Verbatim from the report: an envelope pi forwarded without unwrapping. */
+const EXTRA_USAGE_ERROR =
+  '400 {"type":"error","error":{"type":"invalid_request_error","message":"Third-party apps now draw from your extra usage, not your plan limits. Add more at claude.ai/settings/usage and keep going."},"request_id":"req_011CeDMeGVDtzbJ44qpikt1U"}'
+
 const ON_DEMAND_ERROR =
   "Validation error: Invocation of model ID anthropic.claude-fable-5 with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model."
 
@@ -110,5 +114,41 @@ describe('ErrorBlock', () => {
   it('falls back to a generic message when none is given', () => {
     render(<ErrorBlock />)
     expect(text()).toContain('The model request failed.')
+  })
+
+  describe('provider JSON envelopes', () => {
+    it('shows the sentence, not the JSON, and hides the payload behind a toggle', () => {
+      render(<ErrorBlock message={EXTRA_USAGE_ERROR} />)
+      expect(text()).toContain('Third-party apps now draw from your extra usage')
+      // The envelope itself must not be in the visible text…
+      expect(text()).not.toContain('"invalid_request_error"')
+      // …but its identifying facts stay on the toggle, for support tickets.
+      expect(text()).toContain('req_011CeDMeGVDtzbJ44qpikt1U')
+      expect(text()).toContain('HTTP 400')
+      expect(container?.querySelector('pre')).toBeNull()
+    })
+
+    it('reveals the raw payload when the toggle is clicked', () => {
+      render(<ErrorBlock message={EXTRA_USAGE_ERROR} />)
+      const toggle = container?.querySelector('button[aria-expanded]') as HTMLButtonElement
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+      act(() => toggle.click())
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      expect(container?.querySelector('pre')?.textContent).toBe(EXTRA_USAGE_ERROR)
+    })
+
+    it('offers the usage page and a model switch for the extra-usage failure', () => {
+      render(<ErrorBlock message={EXTRA_USAGE_ERROR} />)
+      expect(text()).toMatch(/plan limit is used up/i)
+      expect(links().map((a) => a.href)).toContain('https://claude.ai/settings/usage')
+      expect(text()).toMatch(/switch models/i)
+      // Nothing in a shell fixes a billing limit.
+      expect(container?.querySelector('code')).toBeNull()
+    })
+
+    it('adds no toggle when there was no envelope to unwrap', () => {
+      render(<ErrorBlock message={RETENTION_ERROR} />)
+      expect(container?.querySelector('button[aria-expanded]')).toBeNull()
+    })
   })
 })
