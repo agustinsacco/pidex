@@ -4,7 +4,8 @@ pidex is an Electron desktop app that wraps the **pi coding agent**
 (`@earendil-works/pi-coding-agent`) — one `pi --mode rpc` subprocess per live
 session, spoken to over JSONL on stdio. pidex never imports pi's code; the
 protocol is hand-mirrored in `shared/rpc.ts`. Product/domain specs live in
-`specs/` (per-domain specs + `TRACKER.md` for phase status).
+`specs/` (per-domain specs, `TRACKER.md` for phase status, `specs/log/` for
+dated write-ups of individual changes, `specs/archive/` for landed plans).
 
 ## Commands
 
@@ -95,8 +96,11 @@ stops before the slow part.
 - Browser-only dev (vite without Electron) auto-installs
   `src/dev/mockPidex.ts` when `window.pidex` is undefined — new IPC channels
   used by screens the harness renders need a mock case.
-- When you ship a substantial feature or refactor, add a dated log entry to
-  `specs/TRACKER.md` (the P0–P7 sections show the convention) and update any
+- When you ship a substantial feature or refactor: if it advances a numbered
+  phase, add a dated note to that phase's Log in `specs/TRACKER.md`; otherwise
+  write it up as its own `specs/log/YYYY-MM-DD-slug.md` (the existing files
+  show the convention). Never append a new section to `TRACKER.md` — a shared
+  append point is what used to make unrelated PRs conflict. Also update any
   plan doc in `specs/` you implemented or deviated from. The specs drifting
   from the code is a recurring failure mode here.
 
