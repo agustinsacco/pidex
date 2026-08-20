@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { piAgentDir } from './pi-paths'
+import { dirname, join } from 'node:path'
+import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
 
 export interface PiAgentSettings {
@@ -99,11 +99,19 @@ async function readJson(path: string): Promise<ReadResult> {
   }
 }
 
-/** Raw config file access for the Advanced tab. Never exposes auth.json. */
+export type EditableConfigFile = 'settings' | 'models' | 'web-search'
+
+function configFilePath(name: EditableConfigFile): string {
+  // web-search.json belongs to pi-web-access and lives in that package's
+  // own config dir (default ~/.pi), not pi's agent dir.
+  return name === 'web-search' ? webSearchConfigPath() : join(piAgentDir(), `${name}.json`)
+}
+
+/** Raw config file access for the raw editors. Never exposes auth.json. */
 export async function readConfigFile(
-  name: 'settings' | 'models',
+  name: EditableConfigFile,
 ): Promise<{ path: string; content: string }> {
-  const path = join(piAgentDir(), `${name}.json`)
+  const path = configFilePath(name)
   try {
     return { path, content: await readFile(path, 'utf8') }
   } catch {
@@ -111,12 +119,49 @@ export async function readConfigFile(
   }
 }
 
-export async function writeConfigFile(name: 'settings' | 'models', content: string): Promise<void> {
+export async function writeConfigFile(name: EditableConfigFile, content: string): Promise<void> {
   // Must be valid JSON — refuse to write broken config.
   JSON.parse(content)
-  const dir = piAgentDir()
-  await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, `${name}.json`), content, 'utf8')
+  const path = configFilePath(name)
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, content, 'utf8')
+}
+
+/**
+ * pi-web-access config (web-search.json): read with health, and merge-patch
+ * with the same malformed-file guard as settings.json — a patch onto a
+ * failed parse would drop every key the user had.
+ */
+export async function readWebSearchConfig(): Promise<{
+  path: string
+  exists: boolean
+  malformed: boolean
+  error?: string
+  config: Record<string, unknown>
+}> {
+  const path = webSearchConfigPath()
+  const read = await readJson(path)
+  return {
+    path,
+    exists: read.exists,
+    malformed: read.malformed,
+    error: read.error,
+    config: read.settings,
+  }
+}
+
+export async function patchWebSearchConfig(patch: Record<string, unknown>): Promise<void> {
+  const path = webSearchConfigPath()
+  const read = await readJson(path)
+  if (read.malformed) {
+    throw new Error(
+      `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
+        'pidex will not overwrite it — fix it via "Edit raw JSON" first.',
+    )
+  }
+  const merged = { ...read.settings, ...patch }
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, JSON.stringify(merged, null, 2) + '\n', 'utf8')
 }
 
 /**

@@ -7,6 +7,7 @@ import { AppearanceTab } from './tabs/AppearanceTab'
 import { AgentTab } from './tabs/AgentTab'
 import { ExtensionsTab } from './tabs/ExtensionsTab'
 import { ClaudeProviderTab } from './tabs/ClaudeProviderTab'
+import { WebAccessTab } from './tabs/WebAccessTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
 import { McpTab } from './tabs/McpTab'
@@ -27,6 +28,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
 /** Curated extensions contribute a tab only while their package is present. */
 const EXTENSION_TABS: Array<{ id: SettingsTab; label: string; packageMatch: string }> = [
   { id: 'claude-provider', label: 'Claude Code', packageMatch: 'pi-claude-cli' },
+  { id: 'web-access', label: 'Web access', packageMatch: 'pi-web-access' },
 ]
 
 /** Settings modal shell: sidebar tab list plus the active tab's panel. */
@@ -87,6 +89,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {tab === 'agent' && <AgentTab />}
           {tab === 'extensions' && <ExtensionsTab />}
           {tab === 'claude-provider' && <ClaudeProviderTab />}
+          {tab === 'web-access' && <WebAccessTab />}
           {tab === 'mcp' && <McpTab />}
           {tab === 'workspaces' && <WorkspacesTab />}
           {tab === 'advanced' && <AdvancedTab />}

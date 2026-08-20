@@ -503,6 +503,15 @@ export function installMockPidex(): void {
             binary: { found: true, path: '/usr/local/bin/claude', version: '2.1.219' },
             auth: { ok: true, loggedIn: true, method: 'claude.ai', email: 'dev@example.com' },
           })
+        case 'pi:webSearchConfig':
+          return Promise.resolve({
+            path: '/Users/dev/.pi/web-search.json',
+            exists: true,
+            malformed: false,
+            config: { braveApiKey: 'BSA_mock', tavilyApiKey: '$TAVILY_API_KEY' },
+          })
+        case 'pi:patchWebSearchConfig':
+          return Promise.resolve(undefined)
         case 'packages:testClaudeProvider':
           return Promise.resolve(
             runMockJob(['$ pi -p --model pi-claude-cli/claude-haiku-4-5 …', 'pidex-provider-ok']),

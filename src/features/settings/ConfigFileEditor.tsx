@@ -15,7 +15,7 @@ export function ConfigFileEditor({
   name,
   onClose,
 }: {
-  name: 'settings' | 'models'
+  name: 'settings' | 'models' | 'web-search'
   onClose: () => void
 }): React.JSX.Element {
   const [content, setContent] = useState<string | null>(null)

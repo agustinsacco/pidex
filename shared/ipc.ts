@@ -142,10 +142,25 @@ export interface IpcInvokeMap {
     }[]
   }
   'pi:readConfigFile': {
-    args: [name: 'settings' | 'models']
+    args: [name: 'settings' | 'models' | 'web-search']
     result: { path: string; content: string }
   }
-  'pi:writeConfigFile': { args: [name: 'settings' | 'models', content: string]; result: void }
+  'pi:writeConfigFile': {
+    args: [name: 'settings' | 'models' | 'web-search', content: string]
+    result: void
+  }
+  /** pi-web-access config (web-search.json), with file health for the tab. */
+  'pi:webSearchConfig': {
+    args: []
+    result: {
+      path: string
+      exists: boolean
+      malformed: boolean
+      error?: string
+      config: Record<string, unknown>
+    }
+  }
+  'pi:patchWebSearchConfig': { args: [patch: Record<string, unknown>]; result: void }
   'pi:patchAgentSettings': {
     args: [
       scope: 'global' | 'project',
