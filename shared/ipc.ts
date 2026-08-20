@@ -25,6 +25,7 @@ import type {
   AboutInfo,
   AgentSettingsHealth,
   BranchInfo,
+  ClaudeStatus,
   CreateSessionOptions,
   DirEntry,
   FileContent,
@@ -175,6 +176,10 @@ export interface IpcInvokeMap {
   'packages:installPi': { args: []; result: { jobId: string } }
   /** Binary detection for catalogue recommendations (login-shell PATH). */
   'packages:detect': { args: []; result: { claude: boolean } }
+  /** Claude Code CLI health for the provider tab (binary + local auth state). */
+  'packages:claudeStatus': { args: []; result: ClaudeStatus }
+  /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
+  'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
   /**
    * MCP config chain (pi-mcp-adapter). The renderer names scopes; paths are

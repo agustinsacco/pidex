@@ -1,9 +1,15 @@
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { PiPackageEntry, PiPackageResources } from '@shared/models'
+import type {
+  ClaudeAuthStatus,
+  ClaudeStatus,
+  PiPackageEntry,
+  PiPackageResources,
+} from '@shared/models'
 import { piAgentDir } from './pi-paths'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
 
@@ -348,4 +354,82 @@ export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }
 /** Binary presence for catalogue recommendations. */
 export async function detectBinaries(): Promise<{ claude: boolean }> {
   return { claude: (await resolveBinary('claude')) !== null }
+}
+
+// ---------- Claude Code provider support (per-extension tab) ----------
+
+/**
+ * Parse `claude auth status` output (JSON on Claude Code 2.x). Tolerates
+ * leading noise before the JSON object and non-JSON output from older CLIs.
+ */
+export function parseClaudeAuthStatus(stdout: string): ClaudeAuthStatus {
+  const start = stdout.indexOf('{')
+  if (start === -1) return { ok: false, error: stdout.trim().slice(0, 200) || 'no output' }
+  try {
+    const parsed = JSON.parse(stdout.slice(start)) as {
+      loggedIn?: unknown
+      authMethod?: unknown
+      email?: unknown
+    }
+    return {
+      ok: true,
+      loggedIn: parsed.loggedIn === true,
+      method: typeof parsed.authMethod === 'string' ? parsed.authMethod : undefined,
+      email: typeof parsed.email === 'string' ? parsed.email : undefined,
+    }
+  } catch {
+    return { ok: false, error: 'unparseable auth status output' }
+  }
+}
+
+/** Extract a version like "2.1.219" from mixed CLI output. */
+function versionFrom(output: string): string | undefined {
+  return /(\d+\.\d+\.\d+(?:-[\w.]+)?)/.exec(output)?.[1]
+}
+
+/**
+ * Claude Code CLI health for the provider tab: binary presence + version and
+ * local auth state. `claude auth status` reads local credentials only (no
+ * network round-trip), so probing on tab mount is fine.
+ */
+export async function claudeStatus(): Promise<ClaudeStatus> {
+  const path = await resolveBinary('claude')
+  if (!path) return { binary: { found: false }, auth: { ok: false, error: 'claude not found' } }
+
+  const env = await piProcessEnv()
+  let version: string | undefined
+  try {
+    const { stdout } = await execFileAsync(path, ['--version'], { timeout: 10_000, env })
+    version = versionFrom(stdout)
+  } catch {
+    // Version is cosmetic; auth state below is the load-bearing part.
+  }
+
+  try {
+    const { stdout } = await execFileAsync(path, ['auth', 'status'], { timeout: 10_000, env })
+    return { binary: { found: true, path, version }, auth: parseClaudeAuthStatus(stdout) }
+  } catch (error) {
+    const failure = error as { stdout?: string; message: string }
+    // Non-zero exit still prints the status JSON when logged out.
+    const auth = failure.stdout
+      ? parseClaudeAuthStatus(failure.stdout)
+      : { ok: false, error: failure.message }
+    return { binary: { found: true, path, version }, auth }
+  }
+}
+
+/**
+ * One-click provider proof: a single print-mode turn through the
+ * pi-claude-cli provider, streamed like any package job. Runs from the OS
+ * temp dir so no workspace is touched; spends one tiny prompt of plan usage.
+ */
+export async function runClaudeProviderTest(sender: JobSender): Promise<{ jobId: string }> {
+  const pi = await resolveBinary('pi')
+  if (!pi) return failedJob(sender, 'pi binary not found on PATH')
+  return startJob(
+    sender,
+    pi,
+    ['-p', '--model', 'pi-claude-cli/claude-haiku-4-5', 'Reply with exactly: pidex-provider-ok'],
+    { cwd: tmpdir(), env: await piProcessEnv() },
+  )
 }

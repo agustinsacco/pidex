@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
 import { CloseIcon } from '@/components/icons'
@@ -5,6 +6,7 @@ import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { AgentTab } from './tabs/AgentTab'
 import { ExtensionsTab } from './tabs/ExtensionsTab'
+import { ClaudeProviderTab } from './tabs/ClaudeProviderTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
 import { McpTab } from './tabs/McpTab'
@@ -22,13 +24,34 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'about', label: 'About' },
 ]
 
+/** Curated extensions contribute a tab only while their package is present. */
+const EXTENSION_TABS: Array<{ id: SettingsTab; label: string; packageMatch: string }> = [
+  { id: 'claude-provider', label: 'Claude Code', packageMatch: 'pi-claude-cli' },
+]
+
 /** Settings modal shell: sidebar tab list plus the active tab's panel. */
 export function SettingsModal(): React.JSX.Element | null {
   const open = useSettingsUiStore((s) => s.open)
   const tab = useSettingsUiStore((s) => s.tab)
+  const [installedSpecs, setInstalledSpecs] = useState<string[]>([])
+
+  // Refresh on every open: installing from the Extensions tab should make
+  // the extension's own tab appear without reopening the app.
+  useEffect(() => {
+    if (!open) return
+    void window.pidex
+      .invoke('packages:list')
+      .then((entries) => setInstalledSpecs(entries.map((e) => e.spec)))
+      .catch(() => setInstalledSpecs([]))
+  }, [open, tab])
 
   if (!open) return null
   const close = (): void => useSettingsUiStore.getState().setOpen(false)
+
+  const extensionTabs = EXTENSION_TABS.filter((t) =>
+    installedSpecs.some((spec) => spec.includes(t.packageMatch)),
+  )
+  const visibleTabs = [...TABS.slice(0, 3), ...extensionTabs, ...TABS.slice(3)]
 
   return (
     <ModalOverlay onClose={close} z={40}>
@@ -37,7 +60,7 @@ export function SettingsModal(): React.JSX.Element | null {
           <div className="text-text-tertiary px-2 pb-2 text-sm font-semibold font-mono uppercase tracking-wider">
             Settings
           </div>
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               onClick={() => useSettingsUiStore.getState().setTab(t.id)}
@@ -63,6 +86,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {tab === 'appearance' && <AppearanceTab />}
           {tab === 'agent' && <AgentTab />}
           {tab === 'extensions' && <ExtensionsTab />}
+          {tab === 'claude-provider' && <ClaudeProviderTab />}
           {tab === 'mcp' && <McpTab />}
           {tab === 'workspaces' && <WorkspacesTab />}
           {tab === 'advanced' && <AdvancedTab />}

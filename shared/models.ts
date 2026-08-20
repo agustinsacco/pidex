@@ -323,6 +323,21 @@ export interface PiPackageEntry {
 
 export type PackageJobAction = 'install' | 'remove' | 'update'
 
+/** Local `claude auth status` result (no network round-trip). */
+export interface ClaudeAuthStatus {
+  ok: boolean
+  loggedIn?: boolean
+  method?: string
+  email?: string
+  error?: string
+}
+
+/** Claude Code CLI health for the provider tab. */
+export interface ClaudeStatus {
+  binary: { found: boolean; path?: string; version?: string }
+  auth: ClaudeAuthStatus
+}
+
 // ---------- resource monitor ----------
 
 /** One process tree's cost. RSS is in kilobytes, matching `ps rss=`. */

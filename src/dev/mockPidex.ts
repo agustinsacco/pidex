@@ -498,6 +498,15 @@ export function installMockPidex(): void {
           )
         case 'packages:detect':
           return Promise.resolve({ claude: true })
+        case 'packages:claudeStatus':
+          return Promise.resolve({
+            binary: { found: true, path: '/usr/local/bin/claude', version: '2.1.219' },
+            auth: { ok: true, loggedIn: true, method: 'claude.ai', email: 'dev@example.com' },
+          })
+        case 'packages:testClaudeProvider':
+          return Promise.resolve(
+            runMockJob(['$ pi -p --model pi-claude-cli/claude-haiku-4-5 …', 'pidex-provider-ok']),
+          )
         case 'mcp:readConfigs':
           return Promise.resolve({
             servers: [
