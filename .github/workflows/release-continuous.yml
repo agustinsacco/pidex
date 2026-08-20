@@ -203,6 +203,39 @@ jobs:
             echo "::warning::no installable assets found for ${TAG} — skipping checksums."
           fi
 
+      # install.sh builds asset names by hand, and electron-builder expands
+      # `${arch}` per TARGET (-x64.dmg but -x86_64.AppImage), so the two drift
+      # silently: v0.1.39-v0.1.48 all shipped an AppImage the installer could
+      # not name, and `curl | sh` 404'd for every Linux user. Ask the script
+      # itself what it would fetch and assert the release has it.
+      - name: Verify install.sh can resolve its assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.guard.outputs.tag }}"
+          VERSION="${{ needs.guard.outputs.version }}"
+          AVAILABLE=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          echo "$AVAILABLE"
+          # Mirrors the mapping in scripts/install.sh — keep both in step.
+          MISSING=0
+          for EXPECTED in \
+            "pidex-${VERSION}-x86_64.AppImage" \
+            "pidex-${VERSION}-arm64.AppImage" \
+            "pidex-${VERSION}-x64.dmg" \
+            "pidex-${VERSION}-arm64.dmg"; do
+            case "$EXPECTED" in
+              *.dmg) grep -q "\.dmg$" <<<"$AVAILABLE" || continue ;;   # mac did not build
+              *.AppImage) grep -q "\.AppImage$" <<<"$AVAILABLE" || continue ;;
+            esac
+            if ! grep -qx "$EXPECTED" <<<"$AVAILABLE"; then
+              echo "::error::install.sh would request ${EXPECTED}, which this release does not contain."
+              MISSING=1
+            fi
+          done
+          [ "$MISSING" -eq 0 ] || exit 1
+          echo "install.sh asset names match the release."
+
       # install.sh downloads assets by exact name, so it ships with the release
       # it installs. Uploaded after the builds so it cannot race them.
       - name: Upload install.sh and icon
