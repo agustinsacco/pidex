@@ -88,7 +88,14 @@ async function checkManually(): Promise<void> {
   apply({ type: 'check-started' })
   try {
     // A static asset on the release, not the API: no auth, no rate limit.
-    const manifest = process.platform === 'darwin' ? 'latest-mac.yml' : 'latest-linux.yml'
+    // electron-builder names the Windows manifest plain `latest.yml`; treating
+    // win32 as Linux polled a manifest that never matches this install.
+    const manifest =
+      process.platform === 'darwin'
+        ? 'latest-mac.yml'
+        : process.platform === 'win32'
+          ? 'latest.yml'
+          : 'latest-linux.yml'
     const response = await fetch(
       `https://github.com/${REPO}/releases/latest/download/${manifest}`,
       { redirect: 'follow' },

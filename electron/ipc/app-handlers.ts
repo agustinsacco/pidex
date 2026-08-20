@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename } from 'node:path'
 import { access } from 'node:fs/promises'
 import { handle } from './handle'
+import { applyTitleBarOverlay } from '../window-chrome'
 import { userInfo } from 'node:os'
 import {
   getPrefs,
@@ -42,6 +43,8 @@ export function registerAppHandlers(): void {
 
   handle('app:setTheme', (_event, theme) => {
     setTheme(theme)
+    // The OS-drawn window controls do not follow the page theme on their own.
+    applyTitleBarOverlay(theme)
   })
 
   handle('app:setPinnedSessions', (_event, paths) => {

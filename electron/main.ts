@@ -7,6 +7,8 @@ import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { stopMonitor } from './resources/monitor'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
+import { overlayFor } from './window-chrome'
+import { getPrefs } from './store'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -44,7 +46,17 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Frameless on every platform. The sidebar and chat header already reserve
+    // a 44px drag strip for macOS's traffic lights; leaving Windows/Linux on
+    // 'default' stacked a native title bar AND a menu bar on top of that strip,
+    // so a third of the window height was chrome. Windows/Linux get no traffic
+    // lights, so Electron draws the controls via the Window Controls Overlay
+    // (@platform win32,linux) at the same 44px height the strip reserves.
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform === 'darwin' ? {} : { titleBarOverlay: overlayFor(getPrefs().theme) }),
+    // The in-window menu bar duplicated shortcuts already in the palette and
+    // cost another row of chrome; Alt still reveals it on Windows/Linux.
+    autoHideMenuBar: process.platform !== 'darwin',
     backgroundColor: '#1e1c18', // must equal the dark theme's --px-bg
     // Window/taskbar icon for unpackaged linux runs (packaged linux resolves
     // it from the desktop entry; macOS ignores this option).

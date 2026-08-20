@@ -50,7 +50,20 @@ jobs:
           sudo apt-get install -y --no-install-recommends libarchive-tools rpm
 
       - name: Build and package
-        run: npm run ${{ matrix.script }}
+        # This matrix includes windows-latest, where the default shell is
+        # PowerShell; the guard below is POSIX sh.
+        shell: bash
+        run: |
+          set -euo pipefail
+          # An EMPTY CSC_LINK is worse than an absent one: electron-builder reads
+          # it as a certificate PATH, resolves it to the project dir, and dies
+          # with "<projectDir> not a file". Missing secrets arrive as empty
+          # strings, so unset them rather than pass them through.
+          if [ -z "${CSC_LINK:-}" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npm run ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing/notarization run only when the secrets exist; unsigned otherwise.
