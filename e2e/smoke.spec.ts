@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -930,5 +930,53 @@ test('the updater stays dormant in an unpackaged run', async () => {
     await expect(page.getByTestId('update-pill')).toHaveCount(0)
   } finally {
     await shutdown(harness)
+  }
+})
+
+test('extensions tab lists pi packages and reveals per-extension tabs', async () => {
+  // Seed the sandboxed agent dir: one installed fixture package plus the
+  // Claude provider declared in settings (declared is enough to reveal its
+  // tab — installed-ness only changes the health row).
+  const pkgDir = join(agentDir, 'npm', 'node_modules', 'demo-pack')
+  await mkdir(join(pkgDir, 'extensions'), { recursive: true })
+  await writeFile(
+    join(pkgDir, 'package.json'),
+    JSON.stringify({
+      name: 'demo-pack',
+      version: '1.2.3',
+      description: 'Fixture package for the extensions tab',
+      pi: { extensions: ['extensions/main.ts'] },
+    }),
+  )
+  await writeFile(join(pkgDir, 'extensions', 'main.ts'), '')
+  await writeFile(
+    join(agentDir, 'settings.json'),
+    JSON.stringify({ packages: ['npm:demo-pack', 'npm:@saccolabs/pi-claude-cli'] }),
+  )
+
+  const harness = await launch()
+  try {
+    await openWorkspace(harness.page)
+    const page = harness.page
+
+    await page.keyboard.press('ControlOrMeta+Comma')
+    await page.getByRole('button', { name: 'Extensions', exact: true }).click()
+
+    // The installed fixture resolves against the real install-dir layout.
+    await expect(page.getByText('demo-pack', { exact: true })).toBeVisible()
+    await expect(page.getByText('v1.2.3')).toBeVisible()
+    await expect(page.getByText('npm:demo-pack — 1 extension')).toBeVisible()
+    // The declared-but-absent package is reported, not hidden.
+    await expect(page.getByText('installs on next session start')).toBeVisible()
+
+    // Presence of pi-claude-cli in packages reveals its dedicated tab.
+    await page.getByRole('button', { name: 'Claude Code', exact: true }).click()
+    await expect(page.getByText('Claude Code provider')).toBeVisible()
+    await expect(page.getByText('Extension package')).toBeVisible()
+  } finally {
+    await shutdown(harness)
+    // The agent dir is shared by the whole suite — leave it as found.
+    await rm(join(agentDir, 'settings.json'), { force: true })
+    await rm(join(agentDir, 'npm'), { recursive: true, force: true })
   }
 })
