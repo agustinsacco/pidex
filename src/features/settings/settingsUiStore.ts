@@ -4,6 +4,8 @@ export type SettingsTab =
   | 'appearance'
   | 'agent'
   | 'extensions'
+  | 'claude-provider'
+  | 'web-access'
   | 'mcp'
   | 'workspaces'
   | 'advanced'

@@ -7,6 +7,7 @@ import {
   gitDirFromSpec,
   listPackages,
   npmNameFromSpec,
+  parseClaudeAuthStatus,
   resolveInstallPath,
 } from '../packages'
 
@@ -60,6 +61,41 @@ describe('resolveInstallPath', () => {
     // ~/.pi/agent (verified against pi 0.84.2).
     expect(resolveInstallPath('../../../pkg', 'path', dirs)).toBe('/home/pkg')
     expect(resolveInstallPath('/abs/pkg', 'path', dirs)).toBe('/abs/pkg')
+  })
+})
+
+describe('parseClaudeAuthStatus', () => {
+  it('parses the Claude Code 2.x logged-in JSON shape', () => {
+    // Captured from claude 2.1.219 `claude auth status`.
+    const stdout = JSON.stringify({
+      loggedIn: true,
+      authMethod: 'claude.ai',
+      apiProvider: 'firstParty',
+      apiKeySource: '/login managed key',
+      email: 'user@example.com',
+    })
+    expect(parseClaudeAuthStatus(stdout)).toEqual({
+      ok: true,
+      loggedIn: true,
+      method: 'claude.ai',
+      email: 'user@example.com',
+    })
+  })
+
+  it('parses logged-out state and tolerates leading noise', () => {
+    const stdout = 'some banner\n{"loggedIn": false}'
+    expect(parseClaudeAuthStatus(stdout)).toEqual({
+      ok: true,
+      loggedIn: false,
+      method: undefined,
+      email: undefined,
+    })
+  })
+
+  it('reports non-JSON output as an error, not a crash', () => {
+    expect(parseClaudeAuthStatus('command not found').ok).toBe(false)
+    expect(parseClaudeAuthStatus('{broken').ok).toBe(false)
+    expect(parseClaudeAuthStatus('').ok).toBe(false)
   })
 })
 
