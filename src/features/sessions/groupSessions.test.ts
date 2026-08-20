@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GitInfo, SessionMeta } from '@shared/models'
-import { groupSessionsByProject } from './groupSessions'
+import { groupSessionsByProject, pendingSessionsByGroup } from './groupSessions'
 
 const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
   path: '/s.jsonl',
@@ -123,5 +123,40 @@ describe('groupSessionsByProject', () => {
     )
     expect(groups[0]?.metas.map((m) => m.path)).toEqual([live.path])
     expect(groups[0]?.liveCount).toBe(1)
+  })
+})
+
+describe('pendingSessionsByGroup', () => {
+  const groups = [{ workspacePath: '/repo', paths: ['/repo'] }]
+
+  it('is pending while diskPath is unknown', () => {
+    const live = [{ pidexId: 'p1', workspacePath: '/repo' }]
+    const pending = pendingSessionsByGroup(live, new Set(), groups)
+    expect(pending.get('/repo')).toEqual(['p1'])
+  })
+
+  it('stays pending once diskPath is known but the scan has not caught up yet', () => {
+    // Regression: get_state can resolve `diskPath` well before pi's file
+    // shows up in a `disk` scan (write + watcher awaitWriteFinish + debounce
+    // all still have to happen). Gating on "diskPath known" alone dropped the
+    // placeholder during that gap and left the row missing.
+    const live = [{ pidexId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
+    const pending = pendingSessionsByGroup(live, new Set(), groups)
+    expect(pending.get('/repo')).toEqual(['p1'])
+  })
+
+  it('drops out once the disk scan actually contains the session', () => {
+    const live = [{ pidexId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
+    const pending = pendingSessionsByGroup(live, new Set(['/repo/a.jsonl']), groups)
+    expect(pending.has('/repo')).toBe(false)
+  })
+
+  it('keys a pending worktree session by its main-repo group, not its own path', () => {
+    const foldedGroups = [
+      { workspacePath: '/repo', paths: ['/repo', '/repo/.pidex/worktrees/test'] },
+    ]
+    const live = [{ pidexId: 'p1', workspacePath: '/repo/.pidex/worktrees/test' }]
+    const pending = pendingSessionsByGroup(live, new Set(), foldedGroups)
+    expect(pending.get('/repo')).toEqual(['p1'])
   })
 })
