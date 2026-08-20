@@ -85,3 +85,43 @@ export function groupSessionsByProject(
       })
   )
 }
+
+interface LiveEntry {
+  pidexId: string
+  workspacePath: string
+  diskPath?: string
+}
+
+/**
+ * Live sessions with no matching row in `disk` yet, keyed by each session's
+ * *group* (via `paths`, not the raw `workspacePath`) so a live session in a
+ * worktree folded into its main repo's group still finds its placeholder.
+ *
+ * Gated on the path actually appearing in `diskPaths`, not on whether
+ * `diskPath` is merely known: `get_state` (which supplies `diskPath`)
+ * resolves as soon as pi answers the RPC call, independently of when pi
+ * actually flushes the file and independently of the session-dir watcher's
+ * awaitWriteFinish-plus-debounce picking it up. Gating on "unknown" alone
+ * reopens the gap this exists to close — a session can sit with a known
+ * `diskPath` but no sidebar row for the length of a slow first turn.
+ */
+export function pendingSessionsByGroup(
+  live: LiveEntry[],
+  diskPaths: ReadonlySet<string>,
+  groups: Pick<GroupedSessions, 'workspacePath' | 'paths'>[],
+): Map<string, string[]> {
+  const groupKeyByPath = new Map<string, string>()
+  for (const g of groups) {
+    for (const path of g.paths) groupKeyByPath.set(path, g.workspacePath)
+  }
+
+  const map = new Map<string, string[]>()
+  for (const entry of live) {
+    if (entry.diskPath && diskPaths.has(entry.diskPath)) continue
+    const key = groupKeyByPath.get(entry.workspacePath) ?? entry.workspacePath
+    const list = map.get(key)
+    if (list) list.push(entry.pidexId)
+    else map.set(key, [entry.pidexId])
+  }
+  return map
+}
