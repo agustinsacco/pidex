@@ -312,6 +312,30 @@ function failedJob(sender: JobSender, message: string): { jobId: string } {
   return { jobId }
 }
 
+/**
+ * How to invoke pi for package jobs. The e2e stub is a Node script, so it
+ * runs through Electron-as-Node exactly like the session spawner does
+ * (pi-session-handlers computes and passes the override; this module stays
+ * Electron-free for unit tests).
+ */
+export interface PiInvoker {
+  command: string
+  prefixArgs: string[]
+  env: Record<string, string>
+}
+
+async function resolvePiInvoker(stubPath?: string): Promise<PiInvoker | null> {
+  if (stubPath) {
+    return {
+      command: process.execPath,
+      prefixArgs: [stubPath],
+      env: { ...(process.env as Record<string, string>), ELECTRON_RUN_AS_NODE: '1' },
+    }
+  }
+  const pi = await resolveBinary('pi')
+  return pi ? { command: pi, prefixArgs: [], env: await piProcessEnv() } : null
+}
+
 /** `pi install|remove|update` through pi's own package manager. */
 export async function runPackageAction(
   sender: JobSender,
@@ -319,21 +343,22 @@ export async function runPackageAction(
   spec: string | undefined,
   scope: 'global' | 'project',
   workspacePath?: string,
+  stubPath?: string,
 ): Promise<{ jobId: string }> {
-  const pi = await resolveBinary('pi')
-  if (!pi) return failedJob(sender, 'pi binary not found on PATH')
+  const invoker = await resolvePiInvoker(stubPath)
+  if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   if (scope === 'project' && !workspacePath) {
     return failedJob(sender, 'project scope requires a workspace')
   }
 
-  const args: string[] = [action]
+  const args: string[] = [...invoker.prefixArgs, action]
   if (action === 'update' && !spec) args.push('--extensions')
   if (spec) args.push(spec)
   if (scope === 'project') args.push('-l')
 
-  return startJob(sender, pi, args, {
+  return startJob(sender, invoker.command, args, {
     cwd: scope === 'project' ? workspacePath : undefined,
-    env: await piProcessEnv(),
+    env: invoker.env,
   })
 }
 
@@ -352,8 +377,9 @@ export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }
 }
 
 /** Binary presence for catalogue recommendations. */
-export async function detectBinaries(): Promise<{ claude: boolean }> {
-  return { claude: (await resolveBinary('claude')) !== null }
+export async function detectBinaries(claudeOverride?: string): Promise<{ claude: boolean }> {
+  const path = claudeOverride ?? (await resolveBinary('claude'))
+  return { claude: path !== null }
 }
 
 // ---------- Claude Code provider support (per-extension tab) ----------
@@ -392,8 +418,8 @@ function versionFrom(output: string): string | undefined {
  * local auth state. `claude auth status` reads local credentials only (no
  * network round-trip), so probing on tab mount is fine.
  */
-export async function claudeStatus(): Promise<ClaudeStatus> {
-  const path = await resolveBinary('claude')
+export async function claudeStatus(claudeOverride?: string): Promise<ClaudeStatus> {
+  const path = claudeOverride ?? (await resolveBinary('claude'))
   if (!path) return { binary: { found: false }, auth: { ok: false, error: 'claude not found' } }
 
   const env = await piProcessEnv()
@@ -423,13 +449,22 @@ export async function claudeStatus(): Promise<ClaudeStatus> {
  * pi-claude-cli provider, streamed like any package job. Runs from the OS
  * temp dir so no workspace is touched; spends one tiny prompt of plan usage.
  */
-export async function runClaudeProviderTest(sender: JobSender): Promise<{ jobId: string }> {
-  const pi = await resolveBinary('pi')
-  if (!pi) return failedJob(sender, 'pi binary not found on PATH')
+export async function runClaudeProviderTest(
+  sender: JobSender,
+  stubPath?: string,
+): Promise<{ jobId: string }> {
+  const invoker = await resolvePiInvoker(stubPath)
+  if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   return startJob(
     sender,
-    pi,
-    ['-p', '--model', 'pi-claude-cli/claude-haiku-4-5', 'Reply with exactly: pidex-provider-ok'],
-    { cwd: tmpdir(), env: await piProcessEnv() },
+    invoker.command,
+    [
+      ...invoker.prefixArgs,
+      '-p',
+      '--model',
+      'pi-claude-cli/claude-haiku-4-5',
+      'Reply with exactly: pidex-provider-ok',
+    ],
+    { cwd: tmpdir(), env: invoker.env },
   )
 }
