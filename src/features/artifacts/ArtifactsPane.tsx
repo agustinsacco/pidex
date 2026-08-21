@@ -10,7 +10,7 @@ import { MermaidBlock } from '@/components/markdown/MermaidBlock'
 import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
-import { relativeTime } from '@/features/sessions/Sidebar'
+import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 
 /** Right-pane Artifacts region: gallery + versioned viewer. */
@@ -161,7 +161,7 @@ function ArtifactViewer({
         <span className="min-w-0 flex-1 truncate text-lg font-semibold">
           {shown.title || artifact.title}
         </span>
-        <span className="text-text-tertiary text-xs">{relativeTime(artifact.updatedAt)}</span>
+        <span className="text-text-tertiary text-xs">{relativeTimeShort(artifact.updatedAt)}</span>
       </div>
 
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-2 py-1.5">

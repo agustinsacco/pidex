@@ -11,6 +11,7 @@ import type {
   McpWriteScope,
 } from '@shared/mcp'
 import { piAgentDir } from './pi-paths'
+import { errorText } from '@shared/errors'
 
 /**
  * mcp.json management for the pi-mcp-adapter's config chain (see shared/mcp.ts
@@ -90,7 +91,7 @@ async function readMcpFileAt(scope: McpScope, path: string): Promise<ParsedFile>
         ...base,
         exists: true,
         malformed: true,
-        error: (error as Error).message,
+        error: errorText(error),
         serverNames: [],
       },
       servers: {},

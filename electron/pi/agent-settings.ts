@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
+import { errorText } from '@shared/errors'
 
 export interface PiAgentSettings {
   hideThinkingBlock?: boolean
@@ -95,7 +96,7 @@ async function readJson(path: string): Promise<ReadResult> {
   try {
     return { settings: JSON.parse(raw) as PiAgentSettings, exists: true, malformed: false }
   } catch (error) {
-    return { settings: {}, exists: true, malformed: true, error: (error as Error).message }
+    return { settings: {}, exists: true, malformed: true, error: errorText(error) }
   }
 }
 

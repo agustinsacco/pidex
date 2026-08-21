@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { CheckoutResult, FetchResult, PullResult, UpdateFromMainResult } from '@shared/models'
+import { errorText } from '@shared/errors'
 
 const execFileAsync = promisify(execFile)
 
@@ -77,7 +78,7 @@ export async function fetchRepo(
       return {
         fetched: false,
         reason: 'failed',
-        message: err instanceof Error ? err.message : String(err),
+        message: errorText(err),
       }
     } finally {
       inFlight.delete(repoPath)

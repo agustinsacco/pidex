@@ -4,6 +4,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, WorktreeInfo } from '@shared/models'
+import { errorText } from '@shared/errors'
 
 const execFileAsync = promisify(execFile)
 
@@ -330,7 +331,7 @@ export async function removeWorktree(
       await git(repoPath, ['branch', '-d', target.branch])
       branchDeleted = true
     } catch (error) {
-      branchError = error instanceof Error ? error.message : String(error)
+      branchError = errorText(error)
     }
   }
   return { removed: true, branchDeleted, branchError }
