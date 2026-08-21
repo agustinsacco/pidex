@@ -11,6 +11,7 @@ import {
   pruneWorktrees,
   removeWorktree,
 } from '../fs/git-worktrees'
+import { checkoutBranch, fetchRepo, pullFastForward, updateFromMain } from '../fs/git-sync'
 
 /** Git status and per-file baseline/restore for the Changes pane. */
 export function registerGitHandlers(): void {
@@ -53,4 +54,14 @@ export function registerGitHandlers(): void {
   handle('git:commitAll', (_event, worktreePath, message) => commitAll(worktreePath, message))
 
   handle('git:mergeBranch', (_event, repoPath, branch) => mergeBranch(repoPath, branch))
+
+  handle('git:fetch', (_event, repoPath, options) => fetchRepo(repoPath, options))
+
+  handle('git:pull', (_event, cwd) => pullFastForward(cwd))
+
+  handle('git:updateFromMain', (_event, worktreePath, mainBranch) =>
+    updateFromMain(worktreePath, mainBranch),
+  )
+
+  handle('git:checkoutBranch', (_event, repoPath, branch) => checkoutBranch(repoPath, branch))
 }

@@ -277,7 +277,14 @@ body {
  * top-right of the page, so anything in that strip must inset past them.
  * `titlebar-area-width` is the width NOT covered by the controls; the fallback
  * of 100vw collapses this to the plain 0.75rem gutter on macOS, where the env
- * vars do not exist and the traffic lights sit top-left over the sidebar.
+ * vars do not exist and the traffic lights sit top-left instead.
+ *
+ * This arithmetic is viewport-relative, so it is only correct on an element
+ * that actually spans the window. It belongs to the one full-width top bar
+ * (src/app/TopBar.tsx) and nowhere else. It used to sit on the chat header,
+ * which stops spanning the window the moment a right-hand pane opens — and
+ * then the pane's own expand/close buttons rendered underneath the real OS
+ * buttons with nothing compensating. One bar, one inset, no collision.
  */
 .titlebar-inset-end {
   padding-right: calc(100vw - env(titlebar-area-width, 100vw) + 0.75rem);
@@ -285,17 +292,17 @@ body {
 
 /*
  * The mirror image, for the top-LEFT corner: only macOS parks window controls
- * there (the traffic lights), so only macOS needs the sidebar to start 44px
- * down. On Windows/Linux the controls are top-right — handled by
- * .titlebar-inset-end — and this strip was a band of dead space above the
- * workspace switcher. The element keeps zero height rather than being dropped
- * so the drag region it provides on macOS stays a single call site.
+ * there (the traffic lights, ~70px under `hiddenInset`). On Windows/Linux the
+ * controls are top-right — .titlebar-inset-end's job — so this collapses to a
+ * plain gutter. Previously a 44px-tall vertical spacer above the sidebar's
+ * workspace switcher; with a single top bar the corner has exactly one
+ * occupant, so a horizontal inset on that bar replaces it.
  */
 .titlebar-inset-start {
-  height: 0;
+  padding-left: 0.5rem;
 }
 .platform-darwin .titlebar-inset-start {
-  height: 2.75rem; /* h-11, matches TITLEBAR_HEIGHT in electron/window-chrome.ts */
+  padding-left: 5rem;
 }
 
 /* ---------------------------------------------------------------------------

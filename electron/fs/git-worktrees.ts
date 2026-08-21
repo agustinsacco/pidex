@@ -159,7 +159,73 @@ export async function listBranches(
     const names = new Set(branches.map((b) => b.name))
     defaultBranch = names.has('main') ? 'main' : names.has('master') ? 'master' : currentBranch
   }
+
+  await enrichWithSync(repoPath, branches, defaultBranch)
   return { branches, defaultBranch }
+}
+
+/**
+ * Add upstream tracking and distance-from-trunk to an already-built branch
+ * list, without a `rev-list` per branch.
+ *
+ * Deliberately TWO `for-each-ref` calls rather than one with all four atoms.
+ * `%(ahead-behind:)` is git 2.41+ (June 2023) and an unknown atom makes git
+ * fail the whole command — Ubuntu 22.04 LTS still ships 2.34 — so bundling it
+ * with `%(upstream:*)` would cost every older install its "you are N behind
+ * origin, pull?" prompt as collateral. Splitting them means old git loses only
+ * the behind-trunk markers, which the UI renders as unknown, never as zero.
+ *
+ * A second pass rather than atoms on `listBranches`' first query because
+ * `%(ahead-behind:)` needs the default branch, and resolving that needs the
+ * branch names the first query produces.
+ */
+async function enrichWithSync(
+  repoPath: string,
+  branches: BranchInfo[],
+  defaultBranch: string,
+): Promise<void> {
+  const byName = new Map(branches.map((b) => [b.name, b]))
+
+  // Pass 1: upstream tracking. These atoms are ancient; a failure here means
+  // something is wrong with the repo itself, not with git's vintage.
+  try {
+    const format = ['%(refname:short)', '%(upstream:short)', '%(upstream:track,nobracket)'].join(
+      '\t',
+    )
+    const out = await git(repoPath, ['for-each-ref', 'refs/heads', `--format=${format}`])
+    for (const line of out.split('\n').filter(Boolean)) {
+      const [name = '', upstream = '', track = ''] = line.split('\t')
+      const branch = byName.get(name)
+      if (!branch || !upstream) continue
+      branch.upstream = upstream
+      // `track` is "ahead 2, behind 1", "gone", or empty when in sync.
+      if (track !== 'gone') {
+        branch.ahead = Number.parseInt(/ahead (\d+)/.exec(track)?.[1] ?? '0', 10)
+        branch.behind = Number.parseInt(/behind (\d+)/.exec(track)?.[1] ?? '0', 10)
+      }
+    }
+  } catch {
+    // Leave tracking unknown.
+  }
+
+  // Pass 2: distance from trunk, best-effort (see the git 2.41 note above).
+  try {
+    const format = ['%(refname:short)', `%(ahead-behind:refs/heads/${defaultBranch})`].join('\t')
+    const out = await git(repoPath, ['for-each-ref', 'refs/heads', `--format=${format}`])
+    for (const line of out.split('\n').filter(Boolean)) {
+      const [name = '', aheadBehind = ''] = line.split('\t')
+      const branch = byName.get(name)
+      if (!branch) continue
+      // "<ahead> <behind>" relative to trunk; the second number is what "this
+      // worktree has fallen behind main" means. Blank on unborn/unknown refs.
+      const behindDefault = aheadBehind.trim().split(/\s+/)[1]
+      if (behindDefault !== undefined && /^\d+$/.test(behindDefault)) {
+        branch.behindDefault = Number.parseInt(behindDefault, 10)
+      }
+    }
+  } catch {
+    // git < 2.41: no behind-trunk markers, everything else still works.
+  }
 }
 
 /** Append `/.pidex/` to .git/info/exclude once (never touches .gitignore). */

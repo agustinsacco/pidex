@@ -16,6 +16,7 @@ import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { Sidebar } from '@/features/sessions/Sidebar'
+import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
@@ -133,15 +134,22 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full">
-      {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
-      <main className="min-w-0 flex-1">
-        {activeSessionId ? (
-          <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
-        ) : (
-          <WorkspaceHome workspacePath={currentWorkspace} />
-        )}
-      </main>
+    // Column, not a row: the top bar spans the whole window above the
+    // sidebar/chat/pane columns. That is what keeps the OS window-control
+    // inset a single concern (see TopBar) instead of something each column
+    // that can reach the right edge has to remember.
+    <div className="flex h-full flex-col">
+      <TopBar workspacePath={currentWorkspace} />
+      <div className="flex min-h-0 flex-1">
+        {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
+        <main className="min-w-0 flex-1">
+          {activeSessionId ? (
+            <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
+          ) : (
+            <WorkspaceHome workspacePath={currentWorkspace} />
+          )}
+        </main>
+      </div>
       <FuzzyFinder workspacePath={currentWorkspace} />
       <ContextMenuHost />
       <ExtensionDialogHost />

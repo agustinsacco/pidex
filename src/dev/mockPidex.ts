@@ -761,14 +761,34 @@ export function installMockPidex(): void {
               // the default branch looks "free" and used to be offered as a
               // worktree, which is what permanently locked the main tree out of
               // it. The menu must exclude it on defaultBranch alone.
-              { name: 'main', isCurrent: false, lastCommitSubject: 'latest work' },
+              // Deliberately behind its upstream: this is the state the branch
+              // menu has to advertise with "Pull latest", so the harness must
+              // be able to render it without a real remote.
+              {
+                name: 'main',
+                isCurrent: false,
+                lastCommitSubject: 'latest work',
+                upstream: 'origin/main',
+                ahead: 0,
+                behind: 3,
+                behindDefault: 0,
+              },
               {
                 name: 'fix-auth',
                 isCurrent: false,
                 worktreePath: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
                 lastCommitSubject: 'wip',
+                behindDefault: 3,
               },
-              { name: 'feature/usage-view', isCurrent: true, lastCommitSubject: 'usage modal' },
+              {
+                name: 'feature/usage-view',
+                isCurrent: true,
+                lastCommitSubject: 'usage modal',
+                upstream: 'origin/feature/usage-view',
+                ahead: 2,
+                behind: 0,
+                behindDefault: 5,
+              },
               { name: 'chore/deps', isCurrent: false, lastCommitSubject: 'bump vite' },
             ],
             defaultBranch: 'main',
@@ -792,6 +812,14 @@ export function installMockPidex(): void {
           return Promise.resolve({ sha: 'abcdef1234567890' })
         case 'git:mergeBranch':
           return Promise.resolve({ merged: true, sha: 'abcdef1234567890' })
+        case 'git:fetch':
+          return Promise.resolve({ fetched: true, at: Date.now() })
+        case 'git:pull':
+          return Promise.resolve({ pulled: true, upstream: 'origin/main', commits: 3 })
+        case 'git:updateFromMain':
+          return Promise.resolve({ updated: true, commits: 3, sha: 'abcdef1234567890' })
+        case 'git:checkoutBranch':
+          return Promise.resolve({ checkedOut: true, branch: args[1] as string })
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
         case 'fs:readDir': {
