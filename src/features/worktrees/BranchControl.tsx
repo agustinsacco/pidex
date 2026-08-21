@@ -1,18 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
+import clsx from 'clsx'
 import type { GitInfo, WorktreeInfo } from '@shared/models'
-import { BranchIcon } from '@/components/icons'
+import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
-import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
-import { WorktreeMenu } from '@/features/worktrees/WorktreeMenu'
-import { PrRow } from '@/features/worktrees/PrRow'
+import { useWorktreesStore } from '@/stores/worktrees'
+import { MergeWorktreeModal } from './MergeWorktreeModal'
+import { RemoveWorktreeModal } from './RemoveWorktreeModal'
+import { BranchPicker } from './BranchPicker'
+import { PrRow } from './PrRow'
 import { workspaceName } from '@/lib/path'
 
-/** Branch and dirty-count chips in the chat header, refreshed on fs changes. */
-
-export function GitChips({ workspacePath }: { workspacePath: string }): React.JSX.Element | null {
+/**
+ * The top bar's branch control: which branch this workspace is on, and the
+ * single place to move to another one.
+ *
+ * Replaces the chat header's `GitChips`. Same job, but living in the window's
+ * one persistent bar means it is reachable from the home screen and from a
+ * session alike — previously worktree controls existed in the home composer
+ * and the chat header separately, and neither was visible from the other.
+ */
+export function BranchControl({
+  workspacePath,
+}: {
+  workspacePath: string
+}): React.JSX.Element | null {
   const [info, setInfo] = useState<GitInfo | null>(null)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -37,14 +50,23 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
     }
   }, [workspacePath])
 
-  if (!info?.isRepo || !info.branch) return null
-
   // In a worktree the repo of record is the main tree; in the main tree it is
-  // this workspace. Either way the menu below operates on the same repo, which
-  // is what makes main -> worktree and worktree -> main both reachable from
-  // inside a session rather than only from the home screen.
-  const mainRepo = info.mainRepoPath
-  const repoPath = info.isWorktree && mainRepo ? mainRepo : workspacePath
+  // this workspace. Either way the menu operates on the same repo, which is
+  // what makes main -> worktree and worktree -> main both reachable.
+  const mainRepo = info?.mainRepoPath
+  const repoPath = info?.isWorktree && mainRepo ? mainRepo : workspacePath
+
+  /**
+   * Fetch on workspace open, not just on menu open, so "your main is 12 behind"
+   * is already true the first time the chip is looked at rather than only after
+   * the user thinks to click it. Throttled per repo in the main process.
+   */
+  useEffect(() => {
+    if (!info?.isRepo) return
+    void useWorktreesStore.getState().syncRemote(repoPath)
+  }, [info?.isRepo, repoPath])
+
+  if (!info?.isRepo || !info.branch) return null
 
   const openWorkspaceAt = (cwd: string): void => {
     setOpen(false)
@@ -60,13 +82,22 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
     if (here) setMergeTarget(here)
   }
 
+  const behind = info.behind ?? 0
+
   return (
-    <span className="relative">
+    <span className="relative shrink-0">
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={info.isWorktree && mainRepo ? `Worktree of ${mainRepo}` : `Branch ${info.branch}`}
-        className="bg-bg-secondary text-text-secondary hover:text-text flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-sm transition-colors"
+        data-testid="branch-chip"
+        aria-expanded={open}
+        className={clsx(
+          'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-sm transition-colors',
+          open
+            ? 'bg-bg-secondary text-text'
+            : 'bg-bg-secondary text-text-secondary hover:text-text',
+        )}
       >
         {info.isWorktree && (
           <span className="bg-accent-soft text-accent rounded px-1 text-2xs font-medium">wt</span>
@@ -74,15 +105,20 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
         <BranchIcon size={10} />
         <span className="max-w-36 truncate">{info.branch}</span>
         {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
-        {(info.behind ?? 0) > 0 && <span className="text-info">↓{info.behind}</span>}
+        {behind > 0 && (
+          <span className="text-info" title={`${behind} commits behind the remote — open to pull`}>
+            ↓{behind}
+          </span>
+        )}
         {(info.dirtyCount ?? 0) > 0 && <span className="text-warning">·{info.dirtyCount}</span>}
+        <ChevronIcon size={10} className="text-text-tertiary" />
       </button>
 
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute left-0 top-full z-40 mt-1.5 w-64 py-1.5"
+          className="absolute left-0 top-full z-40 mt-1.5 max-h-[32rem] w-80 overflow-y-auto py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
             <div className="text-text truncate text-lg font-medium">{info.branch}</div>
@@ -96,8 +132,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
           <PrRow repoPath={repoPath} branch={info.branch} />
           <div className="border-border my-1 border-t" />
 
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1 text-sm">Switch workspace to</div>
-          <WorktreeMenu
+          <BranchPicker
             repoPath={repoPath}
             currentCwd={info.isWorktree ? workspacePath : null}
             mainBranch={info.isWorktree ? undefined : info.branch}
@@ -109,6 +144,7 @@ export function GitChips({ workspacePath }: { workspacePath: string }): React.JS
             }}
           />
 
+          <div className="border-border my-1 border-t" />
           {info.isWorktree && mainRepo && (
             <MenuRow active={false} onClick={() => void openMergeModal()}>
               <span className="text-lg">Merge into main repo…</span>

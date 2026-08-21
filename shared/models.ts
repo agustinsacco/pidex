@@ -142,9 +142,50 @@ export interface BranchInfo {
   worktreePath?: string
   lastCommitSubject?: string
   lastCommitAt?: number
+  /** Upstream ref (`origin/main`), absent when the branch never had one. */
+  upstream?: string
+  /** Commits this branch has that its upstream does not. */
+  ahead?: number
+  /** Commits the upstream has that this branch does not — "out of date". */
+  behind?: number
+  /**
+   * Commits the repo's default branch has that this one does not. Absent when
+   * git is too old for `%(ahead-behind:)` (< 2.41), which the UI treats the
+   * same as "unknown", never as zero.
+   */
+  behindDefault?: number
 }
 
 export type AddWorktreeBranch = { kind: 'new'; base: string } | { kind: 'existing'; branch: string }
+
+/** `git fetch --prune`, which is allowed to be a no-op or to fail quietly. */
+export type FetchResult =
+  | { fetched: true; at: number }
+  /** Skipped: a fetch for this repo already ran inside the throttle window. */
+  | { fetched: false; reason: 'throttled'; at: number }
+  /** Offline, no remote, or no credentials — all ordinary, never an error. */
+  | { fetched: false; reason: 'failed'; message: string }
+
+/** Fast-forward-only pull. Never writes a merge commit, never conflicts. */
+export type PullResult =
+  | { pulled: true; upstream: string; commits: number }
+  | { pulled: false; reason: 'up-to-date'; upstream: string }
+  | { pulled: false; reason: 'no-upstream' }
+  | { pulled: false; reason: 'diverged'; upstream: string; ahead: number; behind: number }
+  | { pulled: false; reason: 'dirty'; dirtyCount: number }
+
+/** Merging trunk into a worktree branch. Conflicts abort, never linger. */
+export type UpdateFromMainResult =
+  | { updated: true; commits: number; sha: string }
+  | { updated: false; reason: 'up-to-date' }
+  | { updated: false; reason: 'dirty'; dirtyCount: number }
+  | { updated: false; reason: 'conflict'; conflicts: string[] }
+
+/** Checking a branch out in a working tree, guarded on dirty/held. */
+export type CheckoutResult =
+  | { checkedOut: true; branch: string }
+  | { checkedOut: false; reason: 'dirty'; dirtyCount: number }
+  | { checkedOut: false; reason: 'held'; worktreePath: string }
 
 /** Summary of a PR's status checks, from `gh` statusCheckRollup. */
 export interface GhChecks {

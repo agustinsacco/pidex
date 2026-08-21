@@ -1,0 +1,267 @@
+import clsx from 'clsx'
+import { useChatStore } from '@/stores/chat'
+import { useArtifactsStore } from '@/stores/artifacts'
+import { useLayoutStore, sessionPanes } from '@/stores/layout'
+import { useSessionsStore } from '@/stores/sessions'
+import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/terminal'
+import { SessionMenu } from '@/features/chat/SessionMenu'
+import { BranchControl } from '@/features/worktrees/BranchControl'
+import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
+import { sessionTitle } from '@/lib/sessionTitle'
+import { formatShortcut } from '@/lib/shortcuts'
+
+/**
+ * The window's one and only title bar.
+ *
+ * Every column used to grow its own `h-11` header, and only the chat's carried
+ * `.titlebar-inset-end` — the padding that keeps content clear of the OS
+ * close/minimize buttons that Electron paints over the top-right of the page
+ * on Windows and Linux. That worked exactly until a right-hand pane opened, at
+ * which point the *pane* owned the top-right corner and its expand/close
+ * buttons rendered underneath the real window controls.
+ *
+ * Hoisting the bar above all three columns fixes that structurally rather than
+ * by tuning padding per column: one element spans the window, so one inset is
+ * both necessary and sufficient, and no future pane can reintroduce the bug.
+ * It also gives the workspace and branch controls a fixed home instead of
+ * moving between the home composer and the chat header.
+ */
+export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
+
+  return (
+    <header className="titlebar-drag titlebar-inset-start titlebar-inset-end border-border bg-bg flex h-11 shrink-0 items-center gap-2 border-b">
+      <IconButton
+        title={`${sidebarVisible ? 'Hide' : 'Show'} sidebar (${formatShortcut('mod', 'B')})`}
+        active={false}
+        onClick={() => useLayoutStore.getState().toggleSidebar()}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M9 4v16" />
+        </svg>
+      </IconButton>
+
+      {/* Folder then branch: the two halves of "where am I working", both
+          clickable, in the order Claude Desktop puts them. */}
+      <WorkspaceChip workspacePath={workspacePath} compact />
+      <BranchControl workspacePath={workspacePath} />
+
+      {activeSessionId ? (
+        <ActiveSessionControls sessionId={activeSessionId} />
+      ) : (
+        <div className="min-w-0 flex-1" />
+      )}
+    </header>
+  )
+}
+
+/**
+ * Session title plus the pane switches. Split out so the bar renders the same
+ * height and gutters on the home screen, where there is no session to describe.
+ */
+function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.Element {
+  const sessionName = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionName)
+  // pi never auto-titles, so fall back to the thread's own first prompt — the
+  // same chain the sidebar uses (see lib/sessionTitle).
+  const firstUserText = useChatStore((s) => {
+    const first = s.sessions[sessionId]?.items.find((item) => item.kind === 'user')
+    return first?.kind === 'user' ? first.text : undefined
+  })
+  const title = sessionTitle({ explicitName: sessionName, firstUserText })
+  const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="text-text truncate text-lg font-semibold">{title ?? 'New session'}</span>
+      </div>
+      {/* Reference order: terminal, files, changes, artifacts, kebab. */}
+      <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />
+      <IconButton
+        title={`Files pane (${formatShortcut('mod', 'shift', 'E')})`}
+        active={rightPane === 'files'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('files', sessionId)}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      </IconButton>
+      <IconButton
+        title={`Changes pane (${formatShortcut('mod', 'shift', 'G')})`}
+        active={rightPane === 'changes'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('changes', sessionId)}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M12 3v6m0 6v6M5 12h14" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </IconButton>
+      <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
+      <SessionMenu sessionId={sessionId} />
+    </>
+  )
+}
+
+/** Numeric badge anchored to a bar button's bottom-right corner. */
+function CountBadge({
+  count,
+  tone = 'neutral',
+  title,
+}: {
+  count: number
+  tone?: 'neutral' | 'success' | 'accent'
+  title?: string
+}): React.JSX.Element | null {
+  if (count === 0) return null
+  return (
+    <span
+      title={title}
+      className={clsx(
+        'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-2xs font-bold',
+        tone === 'success'
+          ? 'bg-success/15 text-success'
+          : tone === 'accent'
+            ? 'bg-accent-soft text-accent'
+            : 'bg-bg-secondary text-text-secondary',
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  )
+}
+
+function TerminalButton({
+  sessionId,
+  active,
+}: {
+  sessionId: string
+  active: boolean
+}): React.JSX.Element {
+  const tabCount = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs.length)
+  const running = useTerminalStore((s) => runningCount(s, sessionId))
+
+  return (
+    <div className="relative">
+      <IconButton
+        title={`Terminal pane (${formatShortcut('mod', '`')})`}
+        active={active}
+        onClick={() => useLayoutStore.getState().toggleRightPane('terminal', sessionId)}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m5 8 4 4-4 4M13 16h6" />
+        </svg>
+      </IconButton>
+      <CountBadge
+        count={tabCount}
+        tone={running > 0 ? 'success' : 'neutral'}
+        title={
+          running > 0 ? `${running} running` : `${tabCount} terminal${tabCount > 1 ? 's' : ''}`
+        }
+      />
+      {running > 0 && (
+        <span
+          className="bg-success absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
+          title={`${running} process${running > 1 ? 'es' : ''} running`}
+        />
+      )}
+    </div>
+  )
+}
+
+function ArtifactsButton({
+  sessionId,
+  active,
+}: {
+  sessionId: string
+  active: boolean
+}): React.JSX.Element | null {
+  const count = useArtifactsStore((s) => Object.keys(s.bySession[sessionId] ?? {}).length)
+  const unseen = useArtifactsStore((s) => s.unseen[sessionId] ?? 0)
+  if (count === 0) return null
+
+  return (
+    <div className="relative">
+      <IconButton
+        title="Artifacts pane"
+        active={active}
+        onClick={() => useLayoutStore.getState().toggleRightPane('artifacts', sessionId)}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="3" y="3" width="18" height="14" rx="2" />
+          <path d="M3 9h18M9 21h6" />
+        </svg>
+      </IconButton>
+      <CountBadge count={count} tone="accent" title={`${count} artifacts`} />
+      {unseen > 0 && !active && (
+        <span className="bg-accent absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" />
+      )}
+    </div>
+  )
+}
+
+function IconButton({
+  title,
+  active,
+  onClick,
+  children,
+}: {
+  title: string
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={clsx(
+        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
+        active
+          ? 'bg-accent-soft text-accent'
+          : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
