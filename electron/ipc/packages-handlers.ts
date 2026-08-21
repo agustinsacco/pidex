@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { handle } from './handle'
 import {
+  checkPackageUpdates,
   claudeStatus,
   detectBinaries,
   listPackages,
@@ -34,6 +35,10 @@ export function registerPackagesHandlers(): void {
   )
 
   handle('packages:installPi', (event) => runPiInstall(event.sender))
+
+  handle('packages:checkUpdates', (_event, workspacePath?: string) =>
+    checkPackageUpdates(listPackages(workspacePath)),
+  )
 
   handle('packages:detect', () => detectBinaries(claudeBinOverride()))
 

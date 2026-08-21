@@ -18,6 +18,28 @@ import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
  *     just computed client-side to match rather than a hardcoded list that was
  *     wrong for most models.
  */
+/**
+ * Providers shipped by pi itself. Anything else is a package the user
+ * installed, and worth naming in the UI.
+ */
+const NATIVE_PROVIDERS = new Set([
+  'anthropic',
+  'openai',
+  'google',
+  'azure',
+  'bedrock',
+  'vertex',
+  'groq',
+  'mistral',
+  'cerebras',
+  'xai',
+  'openrouter',
+  'zai',
+  'baseten',
+  'fireworks',
+  'together',
+])
+
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
@@ -78,6 +100,15 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         )}
       >
         {currentModel?.name ?? 'No model'}
+        {/* Two providers can expose the same model name (native anthropic
+            and the Claude Code CLI provider both offer "Claude Opus 5"), so
+            the name alone cannot answer "what is actually serving this
+            session". Show the provider whenever it is not pi's own. */}
+        {currentModel && !NATIVE_PROVIDERS.has(currentModel.provider) && (
+          <span className="text-text-tertiary ml-1.5 font-mono text-sm">
+            via {currentModel.provider}
+          </span>
+        )}
       </button>
 
       {/* Gate on what the menu will actually render (pi's answer when
