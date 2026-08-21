@@ -195,6 +195,14 @@ export interface IpcInvokeMap {
   'packages:installPi': { args: []; result: { jobId: string } }
   /** Binary detection for catalogue recommendations (login-shell PATH). */
   'packages:detect': { args: []; result: { claude: boolean } }
+  /**
+   * Latest published version per npm package spec (null when unknown:
+   * offline, private registry, unpublished). Best-effort, never throws.
+   */
+  'packages:checkUpdates': {
+    args: [workspacePath?: string]
+    result: Record<string, string | null>
+  }
   /** Claude Code CLI health for the provider tab (binary + local auth state). */
   'packages:claudeStatus': { args: []; result: ClaudeStatus }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
