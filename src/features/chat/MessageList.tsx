@@ -220,13 +220,22 @@ export const MessageList = memo(function MessageList({
   return (
     <div className="relative flex-1 overflow-hidden">
       {/* tabIndex makes the scroller focusable so PageUp/ArrowUp/Home actually
-          reach the keydown unpin listener (a plain div never receives keys). */}
+          reach the keydown unpin listener (a plain div never receives keys).
+
+          `pt-4` is the transcript's inset from the window chrome, and it has to
+          live HERE rather than on the inner container: the rows are absolutely
+          positioned, so their containing block is that container's *padding
+          box* — padding there would not move them at all. Measured flush
+          before this: the first user bubble's top edge sat exactly on the top
+          bar's bottom border (both at y=44), welding the first message to the
+          nav. It is scroller padding, not stream rhythm, so `spacingFor` still
+          owns the gap between rows and still returns none for the first. */}
       <div
         ref={attachScroller}
         onScroll={handleScroll}
         data-testid="transcript-scroll"
         tabIndex={-1}
-        className="h-full overflow-y-auto outline-none"
+        className="h-full overflow-y-auto pt-4 outline-none"
       >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"
