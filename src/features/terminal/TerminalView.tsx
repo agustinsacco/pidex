@@ -6,7 +6,27 @@ import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { useSettingsStore } from '@/stores/settings'
 import { useTerminalStore } from '@/stores/terminal'
+import { showContextMenu } from '@/components/ContextMenu'
+import { formatShortcut, hostPlatform } from '@/lib/shortcuts'
+import { clipboardActionFor, clipboardModifiers } from './clipboardKeys'
 import { xtermTheme } from './xtermTheme'
+
+/** Copy the current selection, then hand focus back to the shell. */
+function copySelection(term: Terminal): void {
+  const selection = term.getSelection()
+  if (!selection) return
+  void navigator.clipboard.writeText(selection)
+  term.clearSelection()
+  term.focus()
+}
+
+/** Paste through xterm so bracketed-paste mode is honoured. */
+function pasteFromClipboard(term: Terminal): void {
+  term.focus()
+  void navigator.clipboard.readText().then((text) => {
+    if (text) term.paste(text)
+  })
+}
 
 /** One xterm instance bound to a main-process PTY. */
 export const TerminalView = memo(function TerminalView({
@@ -110,30 +130,31 @@ export const TerminalView = memo(function TerminalView({
     observer.observe(container)
     sendResize()
 
-    // Cmd/Ctrl+F opens in-pane search.
+    // Cmd/Ctrl+F opens in-pane search; ⌘C/⌘V (Ctrl+Shift+C/V) work the
+    // clipboard, which xterm itself does not implement (see clipboardKeys.ts).
+    const platform = hostPlatform()
     term.attachCustomKeyEventHandler((event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'f' && event.type === 'keydown') {
         setSearchOpen(true)
         setTimeout(() => searchInputRef.current?.focus(), 30)
         return false
       }
+      const action = clipboardActionFor(event, platform)
+      if (action === 'copy') {
+        copySelection(term)
+        return false
+      }
+      if (action === 'paste') {
+        pasteFromClipboard(term)
+        return false
+      }
       return true
     })
-
-    // Right-click pastes (bracketed-paste aware).
-    const onContextMenu = (event: MouseEvent): void => {
-      event.preventDefault()
-      void navigator.clipboard.readText().then((text) => {
-        if (text) term.paste(text)
-      })
-    }
-    container.addEventListener('contextmenu', onContextMenu)
 
     term.focus()
 
     return () => {
       observer.disconnect()
-      container.removeEventListener('contextmenu', onContextMenu)
       dataDisposable.dispose()
       unsubscribeData()
       unsubscribeExit()
@@ -176,6 +197,33 @@ export const TerminalView = memo(function TerminalView({
       }
     }
   }, [pendingPaste, visible])
+
+  /*
+   * Right-click used to paste blind. It now opens the app's context menu, so
+   * Copy is discoverable at all: xterm's selection is invisible to the browser,
+   * which means no native menu ever offers to copy it.
+   */
+  const onContextMenu = (event: React.MouseEvent): void => {
+    const term = termRef.current
+    if (!term) return
+    const mod = clipboardModifiers(hostPlatform())
+    showContextMenu(event, [
+      {
+        label: `Copy  ${formatShortcut(...mod, 'C')}`,
+        disabled: !term.hasSelection(),
+        onClick: () => copySelection(term),
+      },
+      { label: `Paste  ${formatShortcut(...mod, 'V')}`, onClick: () => pasteFromClipboard(term) },
+      {
+        label: 'Select all',
+        separatorAbove: true,
+        onClick: () => {
+          term.selectAll()
+          term.focus()
+        },
+      },
+    ])
+  }
 
   const runSearch = (direction: 'next' | 'previous'): void => {
     if (!searchQuery) return
@@ -224,7 +272,11 @@ export const TerminalView = memo(function TerminalView({
           </button>
         </div>
       )}
-      <div ref={containerRef} className="terminal-container h-full w-full" />
+      <div
+        ref={containerRef}
+        onContextMenu={onContextMenu}
+        className="terminal-container h-full w-full"
+      />
     </div>
   )
 })

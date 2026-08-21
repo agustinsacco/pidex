@@ -13,7 +13,10 @@ export function xtermTheme(resolved: 'light' | 'dark'): ITheme {
       foreground: '#ece7db',
       cursor: '#eca03d',
       cursorAccent: '#1e1c18',
-      selectionBackground: '#3d322066',
+      // Selection has to survive being blended over --px-bg: the old
+      // #3d322066 landed within a few points of the background, so a drag
+      // looked like nothing had been selected.
+      selectionBackground: '#8a6a2f66',
       black: '#3a352c',
       red: '#dd7663',
       green: '#7fbe88',

@@ -230,6 +230,19 @@ test('terminal pane spawns a real shell, and reopening replays its scrollback', 
     await page.keyboard.press('Enter')
     await expect(page.locator('.xterm-rows')).toContainText(marker, { timeout: 15_000 })
 
+    // Copying is entirely ours: xterm ships no copy binding and its selection
+    // is invisible to the browser, so nothing else can put it on the clipboard.
+    await page.locator('.xterm').first().click({ button: 'right' })
+    // Named by its shortcut so this cannot match the chat's own Copy buttons.
+    await expect(page.getByRole('button', { name: /^Copy\s+(Ctrl\+Shift\+C|⌘C)$/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Select all' }).click()
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+c' : 'Control+Shift+C')
+    await expect
+      .poll(() => harness.app.evaluate(({ clipboard }) => clipboard.readText()), {
+        timeout: 10_000,
+      })
+      .toContain(marker)
+
     // Closing the pane disposes the xterm but keeps the PTY; reopening must
     // replay main's scrollback instead of showing a blank pane in front of a
     // live shell.
