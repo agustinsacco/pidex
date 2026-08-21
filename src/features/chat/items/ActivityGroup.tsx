@@ -152,6 +152,27 @@ function ActivityRow({
 }): React.JSX.Element | null {
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
+
+  // Tools Claude Code ran inside its own process while acting as the model
+  // provider. There is no pi tool result to show — only what was invoked —
+  // so this is a compact, always-settled row rather than a ToolCard.
+  if (step.block.type === 'externalTool') {
+    const { name, args } = step.block
+    return (
+      <div className="flex items-start" data-testid="external-tool-row">
+        <span className="flex w-6 shrink-0 justify-center pt-1" />
+        <span className="text-text-secondary min-w-0 flex-1 truncate pr-2 text-base">
+          <span className="text-text-tertiary">Claude Code</span> <span>{name}</span>
+          {args && (
+            <span className="text-text-tertiary ml-1.5 font-mono text-sm" title={args}>
+              {args}
+            </span>
+          )}
+        </span>
+      </div>
+    )
+  }
+
   if (step.block.type !== 'tool') return null
   const tool = tools[step.block.toolCallId]
   if (!tool) return null
