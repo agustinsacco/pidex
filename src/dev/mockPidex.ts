@@ -496,6 +496,12 @@ export function installMockPidex(): void {
           return Promise.resolve(
             runMockJob(['$ npm install -g @earendil-works/pi-coding-agent', 'added 120 packages']),
           )
+        case 'packages:checkUpdates':
+          // One package behind, one current — exercises both row states.
+          return Promise.resolve({
+            'npm:pi-web-access': '0.9.2',
+            'npm:pi-mcp-adapter': '1.4.0',
+          })
         case 'packages:detect':
           return Promise.resolve({ claude: true })
         case 'packages:claudeStatus':
