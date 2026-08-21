@@ -1,6 +1,6 @@
 # Extensions & Claude Code Provider Plan
 
-Status: **Phase 0+1 implemented (see TRACKER 2026-08-20); Phase 2 published — `@saccolabs/pi-claude-cli@0.4.0` on npm, releases automated via merge-to-main** — 2026-08-20
+Status: **delivered** — Phase 0+1 (#29), per-extension tabs (#31), e2e (#32); provider published as `@saccolabs/pi-claude-cli` (0.4.3, four gap fixes). Reference: [12-extensions.md](12-extensions.md) · [log/2026-08-21-claude-cli-provider-fixes.md](log/2026-08-21-claude-cli-provider-fixes.md). WS5 (ACP sub-agents) remains deferred by choice.
 
 Approval notes (2026-08-20): fully-featured package management following
 pi.dev/packages semantics; fork lives at github.com/agustinsacco/pi-claude-cli
