@@ -49,8 +49,11 @@ export async function gitInfo(workspacePath: string): Promise<GitInfo> {
         { trim: true },
       )
       const [behind, ahead] = counts.split(/\s+/).map((n) => parseInt(n, 10))
-      info.behind = behind ?? 0
-      info.ahead = ahead ?? 0
+      // `|| 0`, not `?? 0`: parseInt returns NaN (not undefined) on unexpected
+      // output, and `??` passes NaN straight through — it then crosses IPC and
+      // renders as "NaN behind". The twin in git-sync.ts always had this right.
+      info.behind = behind || 0
+      info.ahead = ahead || 0
     } catch {
       // no upstream — fine
     }
