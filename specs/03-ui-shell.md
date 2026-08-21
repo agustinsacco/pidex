@@ -6,6 +6,12 @@
 - Window title: `workspace · session name`.
 - Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar.
 
+### Top bar
+
+A **single full-width bar** (`src/app/TopBar.tsx`) sits above the sidebar, chat, and pane columns: sidebar toggle, workspace chip, branch control ([WORKTREES.md](WORKTREES.md)), session title, then the pane switches and the session kebab.
+
+It is the **only** element allowed in the strip the OS draws window controls in, and therefore the only call site of `.titlebar-inset-end` (right, Windows/Linux overlay) and `.titlebar-inset-start` (left, macOS traffic lights). This is structural, not cosmetic: those insets are `100vw`-relative, so they are only correct on an element that spans the window. Per-column headers cannot know whether they are the one under the OS buttons — when the chat header owned the inset, opening a right-hand pane put that pane's expand/close buttons directly beneath the real close button. Columns must not grow their own title bars.
+
 ## Left sidebar (Claude Desktop style)
 
 - **Workspace switcher** at top: current workspace name + dropdown of recent workspaces; "Open Folder…" via native picker. Adding a workspace records it in app prefs.

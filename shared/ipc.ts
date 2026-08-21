@@ -25,9 +25,11 @@ import type {
   AboutInfo,
   AgentSettingsHealth,
   BranchInfo,
+  CheckoutResult,
   ClaudeStatus,
   CreateSessionOptions,
   DirEntry,
+  FetchResult,
   FileContent,
   FontPrefs,
   PackageJobAction,
@@ -37,10 +39,12 @@ import type {
   LiveSessionInfo,
   PiHealth,
   PiResources,
+  PullResult,
   ResourceSnapshot,
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
+  UpdateFromMainResult,
   UpdateState,
   ThemePreference,
   UsageSummary,
@@ -294,6 +298,17 @@ export interface IpcInvokeMap {
       | { merged: false; reason: 'dirty'; dirtyCount: number }
       | { merged: false; reason: 'conflict'; conflicts: string[] }
   }
+  /** `git fetch --prune`, throttled per repo. Never rejects — see FetchResult. */
+  'git:fetch': { args: [repoPath: string, options: { force?: boolean }]; result: FetchResult }
+  /** Fast-forward-only pull for the checkout at `cwd`. */
+  'git:pull': { args: [cwd: string]; result: PullResult }
+  /** Merge the default branch into a worktree that has fallen behind. */
+  'git:updateFromMain': {
+    args: [worktreePath: string, mainBranch: string]
+    result: UpdateFromMainResult
+  }
+  /** Check a branch out in place. Refused on a dirty tree or a held branch. */
+  'git:checkoutBranch': { args: [repoPath: string, branch: string]; result: CheckoutResult }
 
   'fs:readDir': {
     args: [

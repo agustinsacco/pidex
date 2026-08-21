@@ -145,6 +145,37 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
   }
 })
 
+test('right-hand pane controls stay clear of the OS window controls', async () => {
+  // Regression: the pane header used to render its own expand/close buttons at
+  // the top-right of the window, directly underneath the Window Controls
+  // Overlay that Electron paints there on Windows/Linux — so "close pane" sat
+  // on top of "close app". Only the chat header carried the inset padding, and
+  // it stops spanning the window as soon as a pane opens.
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    await page.getByTitle(/Terminal pane/).click()
+    const closePane = page.getByRole('button', { name: 'Close pane' })
+    await expect(closePane).toBeVisible({ timeout: 10_000 })
+
+    // The pane's own chrome must start below the title bar, which is the one
+    // element allowed to occupy the strip the OS draws its buttons in.
+    const titleBarBottom = await page
+      .locator('header.titlebar-drag')
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().bottom)
+    const paneButton = await closePane.evaluate((el) => el.getBoundingClientRect().top)
+    expect(paneButton).toBeGreaterThanOrEqual(titleBarBottom)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('settings modal switches theme and reports versions', async () => {
   const harness = await launch()
   const { page } = harness
@@ -451,9 +482,9 @@ test('worktree flow: create from the branch chip, session stays under the projec
   try {
     await openWorkspace(page)
 
-    // Create a worktree from the branch chip.
+    // Create a worktree from the top bar's branch control.
     await page.getByTestId('branch-chip').click()
-    await page.getByRole('button', { name: 'New worktree…' }).click()
+    await page.getByRole('button', { name: 'New branch…' }).click()
     await page.getByPlaceholder('new branch name').fill('task-1')
     await page.getByRole('button', { name: 'Create worktree' }).click()
 
@@ -469,7 +500,7 @@ test('worktree flow: create from the branch chip, session stays under the projec
     await expect(page.getByTestId('workspace-group')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.getByTitle('Runs in a git worktree')).toBeVisible({ timeout: 15_000 })
 
-    // The chat header's git chip marks the worktree.
+    // The top bar's branch control marks the worktree.
     await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
   } finally {
     await shutdown(harness)
@@ -657,7 +688,7 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
   }
 })
 
-test('home composer: grey focus border, chip popovers, and model picker', async () => {
+test('home composer: grey focus border, top-bar chip popovers, and model picker', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -686,7 +717,9 @@ test('home composer: grey focus border, chip popovers, and model picker', async 
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
 
     // Every chip opens a popover. (The informational "Local" chip was removed —
-    // pidex only ever runs pi as a local subprocess.)
+    // pidex only ever runs pi as a local subprocess. The folder and branch
+    // chips now live in the top bar rather than above the composer, so that
+    // "which folder / which branch" has one answer on every screen.)
     await page.getByTestId('workspace-chip').click()
     await expect(page.getByText(/Open folder/)).toBeVisible()
     // PopupMenu dismisses on outside mousedown.

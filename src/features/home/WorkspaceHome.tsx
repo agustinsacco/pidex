@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { GitInfo, WorkspaceSessionStats } from '@shared/models'
+import type { WorkspaceSessionStats } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
-import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
-import { CheckIcon } from '@/components/icons'
 import {
   composePrompt,
   formatFileSize,
@@ -17,19 +14,15 @@ import {
   toImageContents,
   type PendingAttachment,
 } from '@/features/chat/attachments'
-import { BranchWorktreeChip, type StartTarget } from '@/features/worktrees/BranchWorktreeChip'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
-  const [git, setGit] = useState<GitInfo | null>(null)
   const [username, setUsername] = useState('')
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
   const [starting, setStarting] = useState(false)
-  /** Where the next session runs: null = this workspace, else a worktree. */
-  const [startTarget, setStartTarget] = useState<StartTarget | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const workspaceName = workspaceDisplayName(workspacePath)
 
@@ -72,9 +65,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   }
 
   useEffect(() => {
-    setStartTarget(null)
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
-    void window.pidex.invoke('git:info', workspacePath).then(setGit)
     void window.pidex
       .invoke('app:userInfo')
       .then((info) => setUsername(prettifyName(info.username)))
@@ -86,9 +77,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     if (!message || starting) return
     setStarting(true)
     try {
-      // Worktree sessions start in the worktree's cwd — pi records sessions
-      // under that folder, so the sidebar groups them under the worktree.
-      await useSessionsStore.getState().createSession(startTarget?.cwd ?? workspacePath, {
+      // The session starts in whatever workspace is open — including a
+      // worktree, which pi records sessions under, so the sidebar groups them
+      // there. The top bar's branch control is what changes that workspace;
+      // this screen no longer keeps a second, competing notion of "target".
+      await useSessionsStore.getState().createSession(workspacePath, {
         firstPrompt: composePrompt(message, images),
         firstImages: toImageContents(images),
       })
@@ -101,7 +94,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
   return (
     <div className="flex h-full flex-col">
-      <div className="titlebar-drag h-11 shrink-0" />
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
         <div className="w-full max-w-2xl pt-10">
           <h1 className="text-center text-4xl font-semibold tracking-tight">
@@ -134,18 +126,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           )}
         </div>
 
+        {/*
+          No folder/branch chips above the composer any more. Both now live in
+          the top bar, which is visible from every screen — previously the
+          branch control existed here AND in the chat header, so "which branch
+          will this run on?" had two answers that could disagree, and neither
+          was visible from the other screen.
+        */}
         <div className="mt-auto w-full max-w-2xl pb-8 pt-8">
-          <div className="mb-2 flex items-center gap-1.5 px-1">
-            <WorkspaceChip workspacePath={workspacePath} name={workspaceName} />
-            {git?.isRepo && git.branch && (
-              <BranchWorktreeChip
-                workspacePath={workspacePath}
-                git={git}
-                target={startTarget}
-                onSelect={setStartTarget}
-              />
-            )}
-          </div>
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
           <div
@@ -286,66 +274,6 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
   )
 }
 
-/**
- * Composer chip. Every chip opens a popover, so all of them are buttons with
- * a pointer cursor and a caret — a chip that looks identical to its
- * neighbours but does nothing on click reads as broken.
- */
-function Chip({
-  icon,
-  title,
-  testId,
-  onClick,
-  open,
-  triggerRef,
-  children,
-}: {
-  icon?: React.ReactNode
-  title?: string
-  testId?: string
-  onClick: () => void
-  open: boolean
-  /** Passed to PopupMenu so a second click closes instead of re-opening. */
-  triggerRef?: React.RefObject<HTMLButtonElement | null>
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <button
-      ref={triggerRef}
-      onClick={onClick}
-      title={title}
-      data-testid={testId}
-      aria-expanded={open}
-      className={clsx(
-        'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-base font-medium transition-colors',
-        open
-          ? 'bg-bg-secondary text-text border-border-strong'
-          : 'bg-surface text-text-secondary hover:text-text hover:border-border-strong',
-      )}
-    >
-      {icon}
-      {children}
-      <Caret />
-    </button>
-  )
-}
-
-function Caret(): React.JSX.Element {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      className="text-text-tertiary shrink-0"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  )
-}
-
 function prettifyName(username: string): string {
   if (!username) return ''
   const cleaned = username.replace(/[._-]+/g, ' ').trim()
@@ -354,93 +282,4 @@ function prettifyName(username: string): string {
 
 function formatNumber(n: number): string {
   return n.toLocaleString()
-}
-
-function FolderIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-/**
- * The folder chip doubles as the workspace picker: clicking it opens a
- * popover of recents plus "Open folder…". Putting it here — rather than on
- * the New button — keeps the folder visible at the moment you compose, next
- * to the branch you are on.
- */
-function WorkspaceChip({
-  workspacePath,
-  name,
-}: {
-  workspacePath: string
-  name: string
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const recents = useWorkspacesStore((s) => s.recents)
-
-  const choose = (path: string): void => {
-    setOpen(false)
-    if (path === workspacePath) return
-    useWorkspacesStore.getState().openWorkspace(path)
-    // Leave any active session, or the derived workspace keeps pointing at it.
-    useSessionsStore.getState().activate(null)
-  }
-
-  return (
-    <span className="relative">
-      <Chip
-        icon={<FolderIcon />}
-        title={workspacePath}
-        testId="workspace-chip"
-        onClick={() => setOpen((o) => !o)}
-        open={open}
-        triggerRef={triggerRef}
-      >
-        {name}
-      </Chip>
-
-      {open && (
-        <PopupMenu
-          onClose={() => setOpen(false)}
-          triggerRef={triggerRef}
-          className="absolute bottom-full left-0 z-40 mb-1.5 max-h-80 w-64 overflow-y-auto py-1.5"
-        >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-xs font-medium font-mono uppercase tracking-wide">
-            Recent
-          </div>
-          {recents.map((ws) => (
-            <MenuRow key={ws.path} active={false} onClick={() => choose(ws.path)}>
-              <span className="min-w-0 flex-1 truncate text-lg">{ws.name}</span>
-              {ws.path === workspacePath && <CheckIcon className="text-accent shrink-0" />}
-            </MenuRow>
-          ))}
-          <div className="border-border my-1 border-t" />
-          <MenuRow
-            active={false}
-            onClick={() => {
-              setOpen(false)
-              void useWorkspacesStore
-                .getState()
-                .pickAndOpen()
-                .then((path) => {
-                  if (path) useSessionsStore.getState().activate(null)
-                })
-            }}
-          >
-            <span className="text-lg">Open folder…</span>
-          </MenuRow>
-        </PopupMenu>
-      )}
-    </span>
-  )
 }

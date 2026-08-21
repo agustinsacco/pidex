@@ -226,8 +226,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       },
       // Only offered when the group's own representative folder is itself a
       // worktree — i.e. its main repo isn't a known workspace to fold into.
-      // Once both are known and merged, this lives on the session's own
-      // branch chip (GitChips) instead of the ambiguous, multi-folder group.
+      // Once both are known and merged, this lives on the top bar's branch
+      // control instead of the ambiguous, multi-folder group.
       ...(git?.isWorktree && git.mainRepoPath
         ? [
             {
@@ -264,7 +264,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   return (
     <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
-      <div className="titlebar-drag titlebar-inset-start shrink-0" />
+      {/* No drag strip here any more: the window's title bar is now a single
+          full-width element above every column (src/app/TopBar.tsx), which is
+          also where the macOS traffic-light inset lives. */}
       <WorkspaceSwitcher />
 
       {/* Flat nav rows, matching the reference: icon + label, no border or
