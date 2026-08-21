@@ -11,7 +11,7 @@ import type {
   McpWriteScope,
 } from '@shared/mcp'
 import { piAgentDir } from './pi-paths'
-import { errorText } from '@shared/errors'
+import { readJsonFile } from './json-config'
 
 /**
  * mcp.json management for the pi-mcp-adapter's config chain (see shared/mcp.ts
@@ -65,38 +65,31 @@ async function readMcpFileAt(scope: McpScope, path: string): Promise<ParsedFile>
     exists: false,
     malformed: false,
   }
-  let raw: string
-  try {
-    raw = await readFile(path, 'utf8')
-  } catch {
-    return { state: { ...base, serverNames: [] }, servers: {}, raw: {} }
-  }
-  if (!raw.trim()) {
-    return { state: { ...base, exists: true, serverNames: [] }, servers: {}, raw: {} }
-  }
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>
-    const servers =
-      parsed.mcpServers && typeof parsed.mcpServers === 'object'
-        ? (parsed.mcpServers as Record<string, McpServerConfig>)
-        : {}
-    return {
-      state: { ...base, exists: true, serverNames: Object.keys(servers) },
-      servers,
-      raw: parsed,
-    }
-  } catch (error) {
+  const read = await readJsonFile(path)
+  if (read.malformed) {
     return {
       state: {
         ...base,
         exists: true,
         malformed: true,
-        error: errorText(error),
+        error: read.error,
         serverNames: [],
       },
       servers: {},
       raw: {},
     }
+  }
+  if (!read.exists) {
+    return { state: { ...base, serverNames: [] }, servers: {}, raw: {} }
+  }
+  const servers =
+    read.value.mcpServers && typeof read.value.mcpServers === 'object'
+      ? (read.value.mcpServers as Record<string, McpServerConfig>)
+      : {}
+  return {
+    state: { ...base, exists: true, serverNames: Object.keys(servers) },
+    servers,
+    raw: read.value,
   }
 }
 

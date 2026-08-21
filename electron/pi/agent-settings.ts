@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
-import { errorText } from '@shared/errors'
+import { readJsonFile, type JsonFileRead } from './json-config'
 
 export interface PiAgentSettings {
   hideThinkingBlock?: boolean
@@ -13,18 +13,10 @@ export interface PiAgentSettings {
   [key: string]: unknown
 }
 
-/**
- * Result of reading one config file. `malformed` distinguishes "the file is
- * there but we could not parse it" from "there is no file" — the difference
- * matters before writing, because merging a patch onto a failed read would
- * silently discard everything the user had configured.
- */
-interface ReadResult {
-  settings: PiAgentSettings
-  exists: boolean
-  malformed: boolean
-  error?: string
-}
+/** One settings file, read with health — see `json-config.ts`. */
+type ReadResult = JsonFileRead<PiAgentSettings>
+
+const readJson = (path: string): Promise<ReadResult> => readJsonFile<PiAgentSettings>(path)
 
 /**
  * Read pi's settings.json (global, merged with the workspace override).
@@ -39,11 +31,11 @@ export async function readAgentSettings(workspacePath?: string): Promise<PiAgent
   const global = await readJson(join(piAgentDir(), 'settings.json'))
   const project = workspacePath
     ? await readJson(join(workspacePath, '.pi', 'settings.json'))
-    : { settings: {}, exists: false, malformed: false }
+    : { value: {}, exists: false, malformed: false }
 
-  const merged: PiAgentSettings = { ...global.settings, ...project.settings }
-  for (const [key, projectValue] of Object.entries(project.settings)) {
-    const globalValue = global.settings[key]
+  const merged: PiAgentSettings = { ...global.value, ...project.value }
+  for (const [key, projectValue] of Object.entries(project.value)) {
+    const globalValue = global.value[key]
     if (
       projectValue &&
       globalValue &&
@@ -70,7 +62,7 @@ export async function readAgentSettingsScoped(workspacePath?: string): Promise<{
 }> {
   const global = await readJson(join(piAgentDir(), 'settings.json'))
   const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : null
-  return { global: global.settings, project: project ? project.settings : null }
+  return { global: global.value, project: project ? project.value : null }
 }
 
 /** Read + report whether either scope's file is currently unparseable. */
@@ -80,24 +72,6 @@ export async function checkAgentSettings(
   const global = await readJson(join(piAgentDir(), 'settings.json'))
   const project = workspacePath ? await readJson(join(workspacePath, '.pi', 'settings.json')) : null
   return { global, project }
-}
-
-async function readJson(path: string): Promise<ReadResult> {
-  let raw: string
-  try {
-    raw = await readFile(path, 'utf8')
-  } catch {
-    // No file yet — writing a fresh one is safe.
-    return { settings: {}, exists: false, malformed: false }
-  }
-  if (raw.trim().length === 0) {
-    return { settings: {}, exists: true, malformed: false }
-  }
-  try {
-    return { settings: JSON.parse(raw) as PiAgentSettings, exists: true, malformed: false }
-  } catch (error) {
-    return { settings: {}, exists: true, malformed: true, error: errorText(error) }
-  }
 }
 
 export type EditableConfigFile = 'settings' | 'models' | 'web-search'
@@ -147,7 +121,7 @@ export async function readWebSearchConfig(): Promise<{
     exists: read.exists,
     malformed: read.malformed,
     error: read.error,
-    config: read.settings,
+    config: read.value,
   }
 }
 
@@ -160,7 +134,7 @@ export async function patchWebSearchConfig(patch: Record<string, unknown>): Prom
         'pidex will not overwrite it — fix it via "Edit raw JSON" first.',
     )
   }
-  const merged = { ...read.settings, ...patch }
+  const merged = { ...read.value, ...patch }
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, JSON.stringify(merged, null, 2) + '\n', 'utf8')
 }
@@ -190,7 +164,7 @@ export async function patchAgentSettings(
     )
   }
 
-  const current = read.settings
+  const current = read.value
   const merged: Record<string, unknown> = { ...current, ...patch }
   // Nested objects (compaction/retry) merge one level deep.
   for (const key of ['compaction', 'retry'] as const) {
@@ -223,7 +197,7 @@ export type { CatalogueModel } from './model-catalogue'
  */
 export async function listCatalogueModels(): Promise<CatalogueModel[]> {
   const read = await readJson(join(piAgentDir(), 'models.json'))
-  const providers = read.settings.providers
+  const providers = read.value.providers
   if (!providers || typeof providers !== 'object') return []
 
   const models: CatalogueModel[] = []

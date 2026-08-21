@@ -27,7 +27,7 @@ function claudeBinOverride(): string | undefined {
 
 /** pi package listing + mutations via pi's own CLI (streamed jobs). */
 export function registerPackagesHandlers(): void {
-  handle('packages:list', (_event, workspacePath?: string) => listPackages(workspacePath))
+  handle('packages:list', async (_event, workspacePath?: string) => listPackages(workspacePath))
 
   handle('packages:run', (event, action, spec, scope, workspacePath) =>
     runPackageAction(event.sender, action, spec, scope, workspacePath, piStubPath()),

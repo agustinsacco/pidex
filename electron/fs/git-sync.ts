@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import type { CheckoutResult, FetchResult, PullResult, UpdateFromMainResult } from '@shared/models'
 import { errorText } from '@shared/errors'
-
-const execFileAsync = promisify(execFile)
+import { abortMergeAndCollectConflicts, dirtyCount, git } from './git-exec'
+import { parseWorktreeList } from './git-worktrees'
 
 /**
  * Staying in sync with the remote: fetch, fast-forward pull, refreshing a
@@ -19,20 +17,6 @@ const execFileAsync = promisify(execFile)
  * (dirty tree, diverged history, branch held elsewhere) — same convention as
  * `git-worktrees.ts`, so the renderer can render a reason instead of a stack.
  */
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
-    cwd,
-    timeout: 30_000,
-    maxBuffer: 16 * 1024 * 1024,
-  })
-  return stdout
-}
-
-async function dirtyCount(cwd: string): Promise<number> {
-  const status = (await git(cwd, ['status', '--porcelain'])).trim()
-  return status ? status.split('\n').length : 0
-}
 
 /**
  * Per-repo throttle for background fetches.
@@ -153,20 +137,11 @@ export async function updateFromMain(
   try {
     await git(worktreePath, ['merge', '--no-edit', mainBranch])
   } catch {
-    let conflicts: string[] = []
-    try {
-      conflicts = (await git(worktreePath, ['diff', '--name-only', '--diff-filter=U']))
-        .split('\n')
-        .filter(Boolean)
-    } catch {
-      // ignore
+    return {
+      updated: false,
+      reason: 'conflict',
+      conflicts: await abortMergeAndCollectConflicts(worktreePath),
     }
-    try {
-      await git(worktreePath, ['merge', '--abort'])
-    } catch {
-      // no merge in progress (the failure predated it)
-    }
-    return { updated: false, reason: 'conflict', conflicts }
   }
 
   return {
@@ -202,14 +177,7 @@ export async function checkoutBranch(repoPath: string, branch: string): Promise<
 
 /** Path of the worktree that has `branch` checked out, excluding `repoPath`. */
 async function heldBy(repoPath: string, branch: string): Promise<string | null> {
-  const out = await git(repoPath, ['worktree', 'list', '--porcelain'])
-  let path: string | null = null
-  for (const line of out.split('\n')) {
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length).trim()
-    else if (line.startsWith('branch ')) {
-      const ref = line.slice('branch '.length).trim()
-      if (ref === `refs/heads/${branch}` && path !== null && path !== repoPath) return path
-    }
-  }
-  return null
+  const worktrees = parseWorktreeList(await git(repoPath, ['worktree', 'list', '--porcelain']))
+  const held = worktrees.find((w) => w.branch === branch && w.path !== repoPath)
+  return held?.path ?? null
 }
