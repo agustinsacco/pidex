@@ -8,6 +8,85 @@
  */
 'use strict'
 
+/**
+ * CLI-mode dispatch: pidex's package job runner invokes pi's package manager
+ * (`pi install/remove/update`) and print mode (`pi -p …`) as subprocesses.
+ * Handle those deterministically and exit before any RPC/session-file setup
+ * below runs — an `install` must not create a stub session.
+ */
+{
+  const argv = process.argv.slice(2)
+  const sub = argv[0]
+  if (sub === 'install' || sub === 'remove' || sub === 'update' || argv.includes('-p')) {
+    const path = require('node:path')
+    const fs = require('node:fs')
+    const os = require('node:os')
+    const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
+    const local = argv.includes('-l')
+    const settingsDir = local ? path.join(process.cwd(), '.pi') : agentDir
+    const settingsPath = path.join(settingsDir, 'settings.json')
+    const readSettings = () => {
+      try {
+        return JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
+      } catch {
+        return {}
+      }
+    }
+    const writeSettings = (settings) => {
+      fs.mkdirSync(settingsDir, { recursive: true })
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+    }
+    const npmName = (spec) => {
+      const bare = spec.replace(/^npm:/, '')
+      const at = bare.lastIndexOf('@')
+      return at > 0 ? bare.slice(0, at) : bare
+    }
+
+    if (argv.includes('-p')) {
+      // Print mode: the Claude-provider test path. Echo the marker the tab
+      // asserts on, regardless of prompt wording.
+      process.stdout.write('pidex-provider-ok\n')
+      process.exit(0)
+    }
+
+    const spec = argv.slice(1).find((a) => !a.startsWith('-'))
+    if (sub === 'install' && spec) {
+      const settings = readSettings()
+      const packages = Array.isArray(settings.packages) ? settings.packages : []
+      if (!packages.includes(spec)) packages.push(spec)
+      writeSettings({ ...settings, packages })
+      if (spec.startsWith('npm:')) {
+        const dir = path.join(settingsDir, 'npm', 'node_modules', npmName(spec))
+        fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(
+          path.join(dir, 'package.json'),
+          JSON.stringify({ name: npmName(spec), version: '9.9.9-stub' }),
+        )
+      }
+      process.stdout.write(`Installing ${spec}...\nInstalled ${spec}\n`)
+      process.exit(0)
+    }
+    if (sub === 'remove' && spec) {
+      const settings = readSettings()
+      const packages = (Array.isArray(settings.packages) ? settings.packages : []).filter(
+        (entry) => entry !== spec && (typeof entry !== 'object' || entry.source !== spec),
+      )
+      writeSettings({ ...settings, packages })
+      if (spec.startsWith('npm:')) {
+        fs.rmSync(path.join(settingsDir, 'npm', 'node_modules', npmName(spec)), {
+          recursive: true,
+          force: true,
+        })
+      }
+      process.stdout.write(`Removed ${spec}\n`)
+      process.exit(0)
+    }
+    // update (with or without --extensions)
+    process.stdout.write('Updated packages\n')
+    process.exit(0)
+  }
+}
+
 let buffer = ''
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', (chunk) => {
