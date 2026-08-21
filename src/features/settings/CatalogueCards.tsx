@@ -1,3 +1,4 @@
+import { Button } from '@/components/form'
 import { PACKAGE_CATALOGUE, isCatalogueEntryInstalled } from './catalogue'
 
 /**
@@ -28,13 +29,14 @@ export function CatalogueCards({
               {installed ? (
                 <span className="text-success text-sm font-medium">Added</span>
               ) : (
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={() => onInstall(entry.spec)}
                   disabled={busy}
-                  className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
                 >
                   Add
-                </button>
+                </Button>
               )}
             </div>
             <p className="text-text-secondary mt-1.5 text-base leading-snug">{entry.description}</p>

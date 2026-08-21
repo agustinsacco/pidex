@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/form'
 import { CatalogueCards } from '@/features/settings/CatalogueCards'
 import { usePackageJob } from '@/features/settings/usePackageJob'
-import { JobOutput } from '@/features/settings/tabs/ExtensionsTab'
+import { JobOutput } from '@/features/settings/JobOutput'
 
 /**
  * One-time step after pidex itself installed pi: recommend providers and
@@ -64,13 +65,9 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
         <JobOutput running={job.running} output={job.output} exitCode={job.exitCode} />
 
         <div className="mt-7 flex justify-end">
-          <button
-            onClick={onDone}
-            disabled={job.running}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-4 py-2 text-lg font-medium transition-colors disabled:opacity-50"
-          >
+          <Button variant="primary" size="lg" onClick={onDone} disabled={job.running}>
             Continue
-          </button>
+          </Button>
         </div>
       </div>
     </div>

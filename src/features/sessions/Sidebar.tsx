@@ -8,7 +8,16 @@ import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle } from './sessionSubtitle'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { ChevronIcon } from '@/components/icons'
+import {
+  ArtifactsIcon,
+  ChevronDownIcon,
+  ChevronIcon,
+  GearIcon,
+  PinIcon,
+  PlusIcon,
+  ResourcesIcon,
+  UsageIcon,
+} from '@/components/icons'
 import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
@@ -275,71 +284,22 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           label="New"
           badge
           onClick={() => useSessionsStore.getState().activate(null)}
-          icon={
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          }
+          icon={<PlusIcon strokeWidth={2.5} />}
         />
         <NavRow
           label="Artifacts"
           onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
-          icon={
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="3" width="18" height="14" rx="2" />
-              <path d="M3 9h18M9 21h6" />
-            </svg>
-          }
+          icon={<ArtifactsIcon />}
         />
         <NavRow
           label="Usage"
           onClick={() => useUsageUiStore.getState().setOpen(true)}
-          icon={
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M3 20h18M7 20V10M12 20V4M17 20v-8" />
-            </svg>
-          }
+          icon={<UsageIcon />}
         />
         <NavRow
           label="Resources"
           onClick={() => useMonitorUiStore.getState().setOpen(true)}
-          icon={
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 12h4l2 6 4-14 2 8h6" />
-            </svg>
-          }
+          icon={<ResourcesIcon />}
         />
       </nav>
 
@@ -460,7 +420,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
           {name.slice(0, 1)}
         </span>
         <span className="min-w-0 flex-1 truncate text-left text-lg font-semibold">{name}</span>
-        <ChevronDown />
+        <ChevronDownIcon className="text-text-tertiary shrink-0" />
       </button>
 
       {open && (
@@ -618,21 +578,7 @@ function SessionRow({
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
       )}
     >
-      <span
-        data-testid="session-indicator"
-        data-state={indicatorState}
-        className="flex h-4 w-4 shrink-0 items-center justify-center"
-      >
-        {indicatorState === 'streaming' ? (
-          <PiSpark size={13} />
-        ) : indicatorState === 'unseen' ? (
-          <span className="bg-success h-2 w-2 rounded-full" title="New activity" />
-        ) : indicatorState === 'live' ? (
-          <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
-        ) : (
-          <span className="border-border-strong h-2 w-2 rounded-full border" />
-        )}
-      </span>
+      <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
         <span className="text-text block truncate text-base leading-4">{title}</span>
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
@@ -687,7 +633,7 @@ function SessionRow({
           {rowWorkspaceName}
         </span>
       )}
-      {isPinned && <PinIcon />}
+      {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
     </button>
   )
 }
@@ -724,17 +670,7 @@ function PendingSessionRow({
         active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
       )}
     >
-      <span
-        data-testid="session-indicator"
-        data-state={isStreaming ? 'streaming' : 'live'}
-        className="flex h-4 w-4 shrink-0 items-center justify-center"
-      >
-        {isStreaming ? (
-          <PiSpark size={13} />
-        ) : (
-          <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
-        )}
-      </span>
+      <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
       <span className="min-w-0 flex-1">
         <span className="text-text block truncate text-base leading-4">{title}</span>
         <span className="text-text-tertiary block text-xs leading-3.5">starting…</span>
@@ -743,57 +679,41 @@ function PendingSessionRow({
   )
 }
 
+/**
+ * The dot at the head of a session row, in its four states.
+ *
+ * `data-testid` and `data-state` are asserted by e2e/smoke.spec.ts — the row
+ * types must keep emitting the same values.
+ */
+function SessionIndicator({
+  state,
+}: {
+  state: 'streaming' | 'unseen' | 'live' | 'disk'
+}): React.JSX.Element {
+  return (
+    <span
+      data-testid="session-indicator"
+      data-state={state}
+      className="flex h-4 w-4 shrink-0 items-center justify-center"
+    >
+      {state === 'streaming' ? (
+        <PiSpark size={13} />
+      ) : state === 'unseen' ? (
+        <span className="bg-success h-2 w-2 rounded-full" title="New activity" />
+      ) : state === 'live' ? (
+        <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
+      ) : (
+        <span className="border-border-strong h-2 w-2 rounded-full border" />
+      )}
+    </span>
+  )
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="text-text-tertiary px-2 pb-1 pt-3 text-xs font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
-  )
-}
-
-function ChevronDown(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      className="text-text-tertiary shrink-0"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  )
-}
-
-function PinIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className="text-text-tertiary shrink-0"
-    >
-      <path d="M16 3a1 1 0 0 1 .97 1.24l-1.09 4.34 3.83 3.83a1 1 0 0 1-.7 1.71H13.5v6.38a1 1 0 0 1-2 0v-6.38H6a1 1 0 0 1-.71-1.71l3.83-3.83L8.03 4.24A1 1 0 0 1 9 3h7z" />
-    </svg>
-  )
-}
-
-function GearIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
   )
 }
 

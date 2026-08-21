@@ -10,6 +10,7 @@ import { MermaidBlock } from '@/components/markdown/MermaidBlock'
 import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
+import { DownloadIcon, FileIcon } from '@/components/icons'
 import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 
@@ -195,32 +196,13 @@ function ArtifactViewer({
         )}
         <CopyButton text={shown.content} />
         <ActionIcon title="Save to file…" onClick={() => void save()}>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
+          <DownloadIcon />
         </ActionIcon>
         <ActionIcon
           title="Write into workspace and open in Files"
           onClick={() => void openInFiles()}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
+          <FileIcon size={12} />
         </ActionIcon>
       </div>
 

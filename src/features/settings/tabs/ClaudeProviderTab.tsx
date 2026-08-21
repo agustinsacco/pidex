@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { ClaudeStatus, PiPackageEntry } from '@shared/models'
+import { Button } from '@/components/form'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '../versions'
-import { JobOutput } from './ExtensionsTab'
+import { JobOutput } from '../JobOutput'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -127,13 +128,14 @@ export function ClaudeProviderTab(): React.JSX.Element {
         <span className="font-mono">pi-claude-cli/claude-haiku-4-5</span> model — exercising the
         CLI, your login, and the extension. Uses a negligible amount of plan quota.
       </p>
-      <button
+      <Button
+        variant="primary"
         onClick={() => void testJob.start(() => window.pidex.invoke('packages:testClaudeProvider'))}
         disabled={testJob.running || !binaryOk}
-        className="bg-accent hover:bg-accent-hover text-accent-text mt-2.5 rounded-md px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
+        className="mt-2.5"
       >
         {testJob.running ? 'Testing…' : 'Test provider'}
-      </button>
+      </Button>
       <JobOutput
         running={updateJob.running}
         output={updateJob.output}

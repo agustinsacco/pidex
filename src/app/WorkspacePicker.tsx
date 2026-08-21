@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button } from '@/components/form'
 import { useWorkspacesStore } from '@/stores/workspaces'
 
 export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JSX.Element {
@@ -31,14 +32,16 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
           </p>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          size="xl"
           onClick={() => void pick()}
           disabled={picking}
           aria-busy={picking}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-lg px-5 py-2.5 text-lg font-medium shadow-sm transition-colors disabled:opacity-60"
+          className="shadow-sm"
         >
           {picking ? 'Opening…' : 'Open Folder…'}
-        </button>
+        </Button>
 
         {recents.length > 0 && (
           <div className="w-full max-w-md">
