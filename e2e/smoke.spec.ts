@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -50,7 +50,7 @@ function devServerEnvStripped(): NodeJS.ProcessEnv {
 }
 
 async function launch(
-  options: { workspace?: string; userDataDir?: string } = {},
+  options: { workspace?: string; userDataDir?: string; env?: Record<string, string> } = {},
 ): Promise<Harness> {
   const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'pidex-e2e-')))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
@@ -64,6 +64,7 @@ async function launch(
       PIDEX_E2E_WORKSPACE: workspace,
       PIDEX_TEST_USER_DATA: options.userDataDir ?? '1',
       PI_CODING_AGENT_DIR: agentDir,
+      ...options.env,
     },
   })
   const page = await app.firstWindow()
@@ -978,5 +979,111 @@ test('extensions tab lists pi packages and reveals per-extension tabs', async ()
     // The agent dir is shared by the whole suite — leave it as found.
     await rm(join(agentDir, 'settings.json'), { force: true })
     await rm(join(agentDir, 'npm'), { recursive: true, force: true })
+  }
+})
+
+test('extensions tab installs and removes a package through pi CLI (stubbed)', async () => {
+  const harness = await launch()
+  try {
+    await openWorkspace(harness.page)
+    const page = harness.page
+
+    await page.keyboard.press('ControlOrMeta+Comma')
+    await page.getByRole('button', { name: 'Extensions', exact: true }).click()
+
+    // Install by spec: the job shells to the (stubbed) pi package manager,
+    // streams its output, and the listing refreshes on exit.
+    await page.getByPlaceholder(/npm:pkg/).fill('npm:e2e-added-pack')
+    await page.getByRole('button', { name: 'Install', exact: true }).click()
+    await expect(page.getByText('Installed npm:e2e-added-pack')).toBeVisible()
+    await expect(page.getByText('e2e-added-pack', { exact: true })).toBeVisible()
+    await expect(page.getByText('v9.9.9-stub')).toBeVisible()
+
+    // Remove round-trips the same way.
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect(page.getByText('Removed npm:e2e-added-pack')).toBeVisible()
+    await expect(page.getByText('e2e-added-pack', { exact: true })).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+    await rm(join(agentDir, 'settings.json'), { force: true })
+    await rm(join(agentDir, 'npm'), { recursive: true, force: true })
+  }
+})
+
+test('web access tab writes provider keys to web-search.json', async () => {
+  await writeFile(
+    join(agentDir, 'settings.json'),
+    JSON.stringify({ packages: ['npm:pi-web-access'] }),
+  )
+  const harness = await launch()
+  try {
+    await openWorkspace(harness.page)
+    const page = harness.page
+
+    await page.keyboard.press('ControlOrMeta+Comma')
+    await page.getByRole('button', { name: 'Web access', exact: true }).click()
+
+    // Set the first provider row (Brave). Commit on Enter.
+    await page.getByRole('button', { name: 'Set key' }).first().click()
+    await page.getByPlaceholder('BSA_…').fill('BSA_e2e_123')
+    await page.keyboard.press('Enter')
+
+    await expect(page.getByText('configured', { exact: true }).first()).toBeVisible()
+    // The key landed in pi-web-access's real config location (the sandboxed
+    // agent dir is its highest-precedence directory).
+    await expect
+      .poll(async () => {
+        try {
+          return JSON.parse(await readFile(join(agentDir, 'web-search.json'), 'utf8')).braveApiKey
+        } catch {
+          return undefined
+        }
+      })
+      .toBe('BSA_e2e_123')
+  } finally {
+    await shutdown(harness)
+    await rm(join(agentDir, 'settings.json'), { force: true })
+    await rm(join(agentDir, 'web-search.json'), { force: true })
+  }
+})
+
+test('claude provider tab proves the chain end to end (stubbed claude + pi)', async () => {
+  // A fake claude via the gated PIDEX_CLAUDE_BIN override — PATH games are
+  // machine-dependent (a developer's real install shadows the fake).
+  const claudeDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-claude-'))
+  await writeFile(
+    join(claudeDir, 'claude'),
+    '#!/bin/sh\n' +
+      'case "$1" in\n' +
+      '  --version) echo "2.1.219 (stub)";;\n' +
+      '  auth) echo \'{"loggedIn": true, "authMethod": "claude.ai", "email": "e2e@test"}\';;\n' +
+      'esac\n',
+  )
+  await chmod(join(claudeDir, 'claude'), 0o755)
+  await writeFile(
+    join(agentDir, 'settings.json'),
+    JSON.stringify({ packages: ['npm:@saccolabs/pi-claude-cli'] }),
+  )
+
+  const harness = await launch({ env: { PIDEX_CLAUDE_BIN: join(claudeDir, 'claude') } })
+  try {
+    await openWorkspace(harness.page)
+    const page = harness.page
+
+    await page.keyboard.press('ControlOrMeta+Comma')
+    await page.getByRole('button', { name: 'Claude Code', exact: true }).click()
+
+    // Health card sees the fake binary and its auth state.
+    await expect(page.getByText(/v2\.1\.219 at /)).toBeVisible()
+    await expect(page.getByText('e2e@test (claude.ai)')).toBeVisible()
+
+    // The one-click proof runs through the (stubbed) pi print mode.
+    await page.getByRole('button', { name: 'Test provider' }).click()
+    await expect(page.getByText('pidex-provider-ok')).toBeVisible()
+    await expect(page.getByText('Round-trip confirmed', { exact: false })).toBeVisible()
+  } finally {
+    await shutdown(harness)
+    await rm(claudeDir, { recursive: true, force: true })
+    await rm(join(agentDir, 'settings.json'), { force: true })
   }
 })
