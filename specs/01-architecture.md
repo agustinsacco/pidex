@@ -61,7 +61,7 @@ pidex/
 │  ├─ features/{chat,files,terminal,artifacts,sessions,settings}/
 │  └─ styles/
 ├─ shared/                     # types shared by main+renderer (ipc, rpc, models)
-├─ pi-ext/                     # bundled pidex pi extension(s): artifacts.ts
+├─ pi-ext/                     # bundled pi extensions: artifacts, context-breakdown
 ├─ specs/                      # these docs + TRACKER.md
 ├─ scripts/                    # install.sh, release helpers
 └─ e2e/                        # playwright tests
