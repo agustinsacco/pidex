@@ -23,6 +23,7 @@ import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
+import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import {
   composePrompt,
   formatFileSize,
@@ -57,6 +58,7 @@ export function Composer({
   const [activeIndex, setActiveIndex] = useState(0)
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
 
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
@@ -459,8 +461,8 @@ export function Composer({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={placeholder}
-            rows={Math.min(10, Math.max(1, text.split('\n').length))}
-            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-lg outline-none"
+            rows={1}
+            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none"
           />
 
           {/* Footer mirrors the reference: attach on the left, model +
