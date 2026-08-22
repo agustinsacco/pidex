@@ -6,6 +6,8 @@ import { CloseIcon } from '@/components/icons'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@/lib/ansi'
+import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
+import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 
 /**
  * Extension-authored text styled with ANSI SGR codes, rendered as colored
@@ -218,13 +220,24 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
   )
 }
 
+/**
+ * Status keys this strip must not render: they carry structured payloads for a
+ * specific component rather than a human-readable line. `setStatus` is pi's
+ * only channel for pushing extension state to the front-end, so it doubles as
+ * a data bus — a status the strip doesn't recognise as prose belongs to
+ * whichever component parses it.
+ */
+const STRUCTURED_STATUS_KEYS = new Set([CONTEXT_BREAKDOWN_STATUS_KEY, RATE_LIMIT_STATUS_KEY])
+
 /** Status strip entries for a session (extension setStatus). */
 export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const statuses = useExtensionUiStore((s) => s.statuses[sessionId])
-  if (!statuses || Object.keys(statuses).length === 0) return null
+  if (!statuses) return null
+  const entries = Object.entries(statuses).filter(([key]) => !STRUCTURED_STATUS_KEYS.has(key))
+  if (entries.length === 0) return null
   return (
     <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 border-t px-3">
-      {Object.entries(statuses).map(([key, text]) => (
+      {entries.map(([key, text]) => (
         <span
           key={key}
           title={stripAnsi(text)}
