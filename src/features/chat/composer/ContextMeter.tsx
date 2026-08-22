@@ -5,12 +5,23 @@ import { PopupMenu } from '@/components/PopupMenu'
 import { formatCost, formatTokens } from '@/lib/format'
 import { hasNoPricing } from './pricing'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import {
+  CONTEXT_BREAKDOWN_STATUS_KEY,
+  breakdownSlices,
+  parseContextBreakdown,
+} from './contextBreakdown'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  // Pushed by the bundled context-breakdown extension, so it is present for
+  // every provider — including ones pidex knows nothing about.
+  const breakdownStatus = useExtensionUiStore(
+    (s) => s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY],
+  )
 
   const usage = stats?.contextUsage
   if (!stats || !usage || usage.percent == null) return null
@@ -63,7 +74,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute bottom-full right-0 mb-2 w-64 p-3"
+          className="absolute bottom-full right-0 mb-2 w-80 p-3"
         >
           <div className="text-text text-base font-medium">Session usage</div>
           <div className="mt-2 space-y-1 text-base">
@@ -71,6 +82,11 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             <StatRow
               label="Window"
               value={`${formatTokens(usage.tokens ?? 0)} / ${formatTokens(usage.contextWindow)} (${percent}%)`}
+            />
+            <ContextComposition
+              statusText={breakdownStatus}
+              total={usage.tokens ?? 0}
+              window={usage.contextWindow}
             />
             <SectionLabel>Tokens</SectionLabel>
             <StatRow label="Input" value={formatTokens(stats.tokens.input)} />
@@ -101,6 +117,68 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
           </div>
         </PopupMenu>
+      )}
+    </div>
+  )
+}
+
+/**
+ * What is actually filling the window. Absent until the bundled extension
+ * reports (first turn of a session), and silently absent if a user runs pi
+ * without pidex's extensions — the meter must still work.
+ */
+function ContextComposition({
+  statusText,
+  total,
+  window,
+}: {
+  statusText: string | undefined
+  total: number
+  window: number
+}): React.JSX.Element | null {
+  const breakdown = parseContextBreakdown(statusText)
+  if (!breakdown || window <= 0) return null
+  const slices = breakdownSlices(breakdown, total, window)
+  if (slices.length <= 1) return null
+
+  return (
+    <div className="pt-1.5">
+      <div className="bg-bg-secondary flex h-2 overflow-hidden rounded-full">
+        {slices.map((slice) => (
+          <div
+            key={slice.key}
+            style={{ width: `${slice.percent}%`, backgroundColor: slice.color }}
+            title={`${slice.label}: ${formatTokens(slice.tokens)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-1.5 space-y-0.5">
+        {slices.map((slice) => (
+          <div key={slice.key} className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: slice.color }}
+              aria-hidden
+            />
+            <span className="text-text-tertiary flex-1 truncate">
+              {slice.label}
+              {slice.count !== undefined && slice.count > 0 && (
+                <span className="text-text-tertiary/70"> · {slice.count}</span>
+              )}
+            </span>
+            <span className="text-text-secondary font-mono text-sm tabular-nums">
+              {formatTokens(slice.tokens)}
+            </span>
+            <span className="text-text-tertiary w-10 text-right font-mono text-sm tabular-nums">
+              {slice.percent < 0.1 ? '<0.1' : slice.percent.toFixed(1)}%
+            </span>
+          </div>
+        ))}
+      </div>
+      {breakdown.approximate && (
+        <div className="text-text-tertiary pt-1 text-sm">
+          Component sizes are estimates; the total is pi&apos;s own figure.
+        </div>
       )}
     </div>
   )
