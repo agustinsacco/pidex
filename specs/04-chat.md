@@ -55,7 +55,10 @@ documents its shape. The argument preview is truncation-prone and therefore
 frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
 (JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
 headline — `Agent`/`Task` markers additionally render as sub-agent rows and
-feed the "N agents launched in background" strip (`trailingAgentLaunches`).
+feed the composer's sub-agent strip (`trailingAgentLaunches`). **A Claude
+Code sub-agent never returns its results to pidex** — it dies when the
+per-turn CLI exits, so no surface may imply one is still running; see
+[log/2026-08-22-claude-subagents-never-return.md](log/2026-08-22-claude-subagents-never-return.md).
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
 
