@@ -27,6 +27,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  ClaudeSystemPromptMode,
   CreateSessionOptions,
   DirEntry,
   FetchResult,
@@ -114,6 +115,11 @@ export interface IpcInvokeMap {
       | { kind: 'none' }
   }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
+  /**
+   * Takes effect on the next session start: the mode is read when pi spawns,
+   * and the CLI keeps its system prompt for the life of a session.
+   */
+  'app:setClaudeSystemPrompt': { args: [ClaudeSystemPromptMode]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
   /**
