@@ -129,3 +129,47 @@ export function ModalOverlay({
     document.body,
   )
 }
+
+/**
+ * The panel that sits inside an overlay: fixed width capped at the viewport, a
+ * bordered header with title (and optional subtitle), and a right-aligned
+ * bordered footer for the buttons.
+ *
+ * Deliberately separate from `ModalOverlay` — the extension dialog host runs
+ * its own portal for arrow-key navigation, and it still wants this chrome.
+ */
+export function ModalPanel({
+  width,
+  title,
+  subtitle,
+  footer,
+  children,
+}: {
+  /** Panel width in px; `max-w-[92vw]` still wins on a narrow window. */
+  width: number
+  title?: React.ReactNode
+  subtitle?: React.ReactNode
+  /** Button row under a top border, right-aligned. */
+  footer?: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      style={{ width }}
+      className="border-border bg-surface-raised max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl"
+    >
+      {title !== undefined && (
+        <div className="border-border border-b px-4 py-3">
+          <div className="text-lg font-semibold">{title}</div>
+          {subtitle !== undefined && (
+            <div className="text-text-tertiary mt-0.5 text-sm">{subtitle}</div>
+          )}
+        </div>
+      )}
+      {children}
+      {footer !== undefined && (
+        <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">{footer}</div>
+      )}
+    </div>
+  )
+}

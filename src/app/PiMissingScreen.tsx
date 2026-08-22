@@ -1,6 +1,7 @@
 import type { PiHealth } from '@shared/models'
+import { Button } from '@/components/form'
 import { usePackageJob } from '@/features/settings/usePackageJob'
-import { JobOutput } from '@/features/settings/tabs/ExtensionsTab'
+import { JobOutput } from '@/features/settings/JobOutput'
 
 export function PiMissingScreen({
   health,
@@ -31,20 +32,17 @@ export function PiMissingScreen({
         </p>
 
         <div className="mt-6 flex items-center gap-3">
-          <button
+          <Button
+            variant="primary"
+            size="lg"
             onClick={() => void job.start(() => window.pidex.invoke('packages:installPi'))}
             disabled={job.running}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-4 py-2 text-lg font-medium transition-colors disabled:opacity-50"
           >
             {job.running ? 'Installing…' : tooOld ? 'Update pi' : 'Install pi'}
-          </button>
-          <button
-            onClick={onRetry}
-            disabled={job.running}
-            className="border-border hover:bg-bg-secondary rounded-md border px-4 py-2 text-lg font-medium transition-colors disabled:opacity-50"
-          >
+          </Button>
+          <Button size="lg" onClick={onRetry} disabled={job.running}>
             Check again
-          </button>
+          </Button>
         </div>
 
         <JobOutput running={job.running} output={job.output} exitCode={job.exitCode} />

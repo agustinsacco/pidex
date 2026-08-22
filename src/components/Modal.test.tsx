@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { ModalOverlay, useEscapeKey } from './Modal'
+import { ModalOverlay, ModalPanel, useEscapeKey } from './Modal'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -162,6 +162,46 @@ describe('ModalOverlay', () => {
       pressEscape()
       expect(closeOuter).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('ModalPanel', () => {
+  function panel(): HTMLElement {
+    const el = container!.firstElementChild
+    if (!el) throw new Error('panel not rendered')
+    return el as HTMLElement
+  }
+
+  it('sizes itself in px but stays capped at the viewport', () => {
+    render(<ModalPanel width={440}>body</ModalPanel>)
+    expect(panel().style.width).toBe('440px')
+    expect(panel().className).toContain('max-w-[92vw]')
+  })
+
+  it('omits the header and footer chrome when neither is given', () => {
+    render(<ModalPanel width={440}>body</ModalPanel>)
+    expect(panel().querySelector('.border-b')).toBeNull()
+    expect(panel().querySelector('.border-t')).toBeNull()
+  })
+
+  it('renders title, subtitle and footer when given', () => {
+    render(
+      <ModalPanel width={440} title="Remove worktree" subtitle="pidex — main" footer={<button />}>
+        body
+      </ModalPanel>,
+    )
+    expect(panel().textContent).toContain('Remove worktree')
+    expect(panel().textContent).toContain('pidex — main')
+    expect(panel().querySelector('.border-t button')).not.toBeNull()
+  })
+
+  it('keeps the subtitle out of the DOM when only a title is given', () => {
+    render(
+      <ModalPanel width={460} title="Merge worktree">
+        body
+      </ModalPanel>,
+    )
+    expect(panel().querySelector('.text-text-tertiary')).toBeNull()
   })
 })
 

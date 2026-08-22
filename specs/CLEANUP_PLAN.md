@@ -354,6 +354,34 @@ clone all have smoke coverage).
 Highest line-count reduction, lowest individual risk. Purely visual, so e2e +
 a manual pass through the app is the check.
 
+> **Landed 2026-08-21** — write-up:
+> [log/2026-08-21-presentation-primitives.md](log/2026-08-21-presentation-primitives.md).
+> 5.1–5.4, 5.6 and 5.7 are done; 5.5 (Composer) shipped separately. Deviations
+> from what is written below:
+>
+> - **5.1** — five sizes (`xs`/`sm`/`md`/`lg`/`xl`), each carrying its own
+>   radius. Six one-off paddings folded into a neighbouring step, all moves
+>   ≤2px. `TextInput` takes the same treatment with three sizes.
+>   `src/features/chat/banners.tsx`, `EditorPane` and `FilesChangedPane` are
+>   **not** converted: the last two use `px-2 py-0.5`, denser than any step, and
+>   normalizing them would visibly change the pane headers.
+> - **5.3** — `ModalPanel` is the panel only, not an overlay wrapper, so the
+>   extension dialog host can keep its own portal. Adopted by
+>   `RemoveWorktreeModal`, `MergeWorktreeModal` and `ExtensionUiHosts`.
+>   `ConfigFileEditor` stays hand-rolled (different background, `h-[70vh]`
+>   flex column, header is a path + inline buttons rather than a title), and
+>   `FuzzyFinder`/`CommandPalette` stay out as the plan allowed — note they do
+>   not use `ModalOverlay` either, which is a separate finding.
+> - **5.4** — the hook exposes `setError` rather than `clearError`, because
+>   several actions report a non-throwing `{ok: false, reason}` into the same
+>   slot, plus an optional `onError` for `BranchPicker`'s `onBusyError`. It
+>   lives in `src/components/` (there is no `src/hooks/`). Adopted by
+>   `BranchPicker`, `RemoveWorktreeModal` and `MergeWorktreeModal`;
+>   `MessageItem`, `ForkPickerModal` and `TreeViewModal` are still open.
+> - **5.6** — the generalized `ConfigFileEditor` moves MCP raw-file editing
+>   from an inline textarea to the shared Monaco modal. That is a visible
+>   change, and the only one in this phase.
+
 ### 5.1 Button primitives (`src/components/form.tsx`)
 
 `form.tsx` already exists as the home for shared form primitives but has no

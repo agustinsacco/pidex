@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Row, SectionTitle } from '@/components/form'
+import { Button, Row, SectionTitle } from '@/components/form'
 import type { PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
-import { ConfigFileEditor } from '../ConfigFileEditor'
+import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
@@ -43,23 +43,13 @@ export function AdvancedTab(): React.JSX.Element {
         title="pi settings.json"
         description="Raw editor for ~/.pi/agent/settings.json. Restart sessions to apply."
       >
-        <button
-          onClick={() => setEditing('settings')}
-          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-base font-medium transition-colors"
-        >
-          Edit…
-        </button>
+        <Button onClick={() => setEditing('settings')}>Edit…</Button>
       </Row>
       <Row
         title="pi models.json"
         description="Custom providers and models (local endpoints live here)."
       >
-        <button
-          onClick={() => setEditing('models')}
-          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1.5 text-base font-medium transition-colors"
-        >
-          Edit…
-        </button>
+        <Button onClick={() => setEditing('models')}>Edit…</Button>
       </Row>
 
       <SectionTitle small>
@@ -88,7 +78,9 @@ export function AdvancedTab(): React.JSX.Element {
         auth.json is never read or displayed by pidex.
       </p>
 
-      {editing && <ConfigFileEditor name={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <ConfigFileEditor source={piConfigFile(editing)} onClose={() => setEditing(null)} />
+      )}
     </div>
   )
 }
