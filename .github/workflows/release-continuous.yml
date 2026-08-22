@@ -21,8 +21,16 @@ permissions:
 
 concurrency:
   # Rapid merges cancel superseded release builds — the newest commit wins and
-  # a skipped intermediate version number is harmless.
-  group: release-main
+  # a skipped intermediate version number is harmless. That is the intent for
+  # actual main-targeted release attempts ONLY: this workflow's `workflow_run`
+  # trigger fires for every completed run of the CI workflow, on any branch,
+  # and the concurrency claim happens before `guard`'s own `if:` gets to
+  # filter those out. A static `release-main` group let a PR branch's own CI
+  # completion cancel an in-flight main release build outright (v0.1.60 lost
+  # this way to an unrelated branch's CI, mid `electron-builder` package step —
+  # not a skip, a cancellation). Runs that will not touch main now key off
+  # their own run id, so they can never collide with `release-main`.
+  group: release-${{ (github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_branch == 'main') && 'main' || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -81,6 +89,47 @@ jobs:
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Publishing ${TAG}."
+
+      # The macOS and Linux `build` jobs below both run
+      # `electron-builder --publish always` in parallel, and each
+      # independently asks GitHub "does a release for this tag exist yet? if
+      # not, create it" before uploading. When both land on "not yet" at the
+      # same moment, the loser's create-call 422s — either "already_exists" on
+      # tag_name, or the oddly worded "Published releases must have a valid
+      # tag" — and electron-builder appears to re-run that check per asset
+      # upload, not once per job, so the failure mode ranges from "one
+      # platform ships nothing" (v0.1.62, v0.1.65 lost this way on macOS) to a
+      # partially-uploaded platform (v0.1.61 shipped only one of four macOS
+      # binaries and neither .deb). Creating the draft release once, here,
+      # sequentially, before either matrix job starts, means every later
+      # "does it exist" check from either platform's electron-builder answers
+      # "yes" and goes straight to uploading — which each already does
+      # correctly and without clobbering the other's files.
+      #
+      # Uses the same `gh release create` → `POST .../releases` endpoint
+      # electron-builder's own publisher calls, so this is not a different
+      # code path from the one already relied on when a job retries against
+      # an existing release — just the first path both jobs take instead of
+      # only the race's winner. Left as a draft with throwaway notes;
+      # `finalize` overwrites both once every asset is attached, and a draft
+      # never appears on `releases/latest`, so this is invisible to users even
+      # if `finalize` never ran.
+      #
+      # Deliberately non-fatal: a failure here (permissions hiccup, transient
+      # network) falls back to today's behavior — both jobs race to create it
+      # themselves — rather than blocking either platform from building.
+      - name: Pre-create the draft release
+        if: steps.decide.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.decide.outputs.tag }}"
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          if ! gh release create "$TAG" --draft --target "$SHA" --title "$TAG" \
+            --notes "Building…"; then
+            echo "::notice::could not pre-create ${TAG} — build jobs will race to create it as before."
+          fi
 
   build:
     name: Build and publish ${{ matrix.name }}
