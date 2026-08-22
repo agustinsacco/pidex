@@ -145,6 +145,63 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
   }
 })
 
+/** 1×1 transparent PNG, as base64. */
+const PNG_1X1 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+test('dropped chat images open on click and copy on right-click', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Drop the PNG onto the home composer's drop zone. A synthetic
+    // DataTransfer is the only drivable way to attach in e2e (the native
+    // picker is undriveable): a File built in JS has no real path, but
+    // images travel inline as base64, so no path is ever needed.
+    await page.evaluate((pngB64: string) => {
+      const bytes = Uint8Array.from(atob(pngB64), (c) => c.charCodeAt(0))
+      const dataTransfer = new DataTransfer()
+      dataTransfer.items.add(new File([bytes], 'dot.png', { type: 'image/png' }))
+      const zone = document
+        .querySelector<HTMLTextAreaElement>(
+          'textarea[placeholder="Describe a task or ask a question"]',
+        )!
+        .closest('div.relative')!
+      zone.dispatchEvent(
+        new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }),
+      )
+      zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
+    }, PNG_1X1)
+
+    // The attachment is an openable, copyable control (the accessible name
+    // comes from the img's alt; the hover ring and the contract title are
+    // CSS/tooltip-only).
+    const thumbnail = page.getByRole('button', { name: 'Attached image', exact: true })
+    await expect(thumbnail).toBeVisible()
+
+    // Right-click copies the image to the system clipboard — read back in the
+    // MAIN process, which is where `clipboard:writeImage` lands and which is
+    // invisible to the renderer.
+    await thumbnail.click({ button: 'right' })
+    await expect
+      .poll(() =>
+        harness.app.evaluate(({ clipboard }) =>
+          clipboard.readImage().isEmpty() ? 0 : clipboard.readImage().toPNG().length,
+        ),
+      )
+      .toBeGreaterThan(0)
+
+    // Click opens the full-size lightbox; Escape closes it.
+    await thumbnail.click()
+    await expect(page.getByAltText('Attached image, full size')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByAltText('Attached image, full size')).toBeHidden()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls

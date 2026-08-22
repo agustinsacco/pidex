@@ -390,6 +390,40 @@ function runMockJob(lines: string[], exitCode = 0): { jobId: string } {
   return { jobId }
 }
 
+/**
+ * Best-effort clipboard image write for the browser harness. The async
+ * clipboard accepts png/jpeg natively, so gif/webp/bmp are rasterized to
+ * png first. Permission or type failures are swallowed — a copy attempt
+ * must never crash the harness.
+ */
+async function mockClipboardWriteImage(image: { data: string; mimeType: string }): Promise<void> {
+  const write = (mime: string, blob: Blob): Promise<void> =>
+    navigator.clipboard.write([new ClipboardItem({ [mime]: blob })])
+  try {
+    if (image.mimeType === 'image/png' || image.mimeType === 'image/jpeg') {
+      const bytes = Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0))
+      await write(image.mimeType, new Blob([bytes], { type: image.mimeType }))
+    } else {
+      const img = new Image()
+      img.src = `data:${image.mimeType};base64,${image.data}`
+      await img.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d')?.drawImage(img, 0, 0)
+      const png = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error('PNG encode failed'))),
+          'image/png',
+        ),
+      )
+      await write('image/png', png)
+    }
+  } catch {
+    // Clipboard permission or an unsupported type.
+  }
+}
+
 /** Context composition, as the bundled extension would report it. */
 const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   totalTokens: 51350,
@@ -733,6 +767,8 @@ export function installMockPidex(): void {
           return Promise.resolve(mockStats())
         case 'app:openExternal':
           return Promise.resolve(undefined)
+        case 'clipboard:writeImage':
+          return mockClipboardWriteImage(args[0] as { data: string; mimeType: string })
         case 'gh:available':
           return Promise.resolve(true)
         case 'gh:prForBranch':

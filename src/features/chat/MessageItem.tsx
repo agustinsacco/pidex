@@ -9,6 +9,7 @@ import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
 import { entryIdForUserMessageOrdinal, rewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
+import { ChatImage } from './ChatImage'
 import type { TranscriptRow } from './items/transcriptRows'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
@@ -105,11 +106,7 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
       {item.images && item.images.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-2">
           {item.images.map((img, i) => (
-            <img
-              key={i}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              className="max-h-32 rounded-md"
-            />
+            <ChatImage key={i} image={img} className="max-h-32 rounded-md" />
           ))}
         </div>
       )}
@@ -158,11 +155,7 @@ function UserMessage({
       {item.images && item.images.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2">
           {item.images.map((img, i) => (
-            <img
-              key={i}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              className="max-h-40 rounded-lg"
-            />
+            <ChatImage key={i} image={img} className="max-h-40 rounded-lg" />
           ))}
         </div>
       )}
