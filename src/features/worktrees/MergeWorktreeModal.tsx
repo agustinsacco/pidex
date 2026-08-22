@@ -3,6 +3,7 @@ import type { WorktreeInfo } from '@shared/models'
 import { ModalOverlay } from '@/components/Modal'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { RemoveWorktreeModal } from './RemoveWorktreeModal'
+import { errorText } from '@shared/errors'
 
 type Phase =
   | { step: 'commit'; dirtyCount: number }
@@ -55,7 +56,7 @@ export function MergeWorktreeModal({
       await window.pidex.invoke('git:commitAll', worktree.path, message)
       setPhase({ step: 'ready' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }
@@ -76,7 +77,7 @@ export function MergeWorktreeModal({
         setPhase({ step: 'conflict', conflicts: result.conflicts })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

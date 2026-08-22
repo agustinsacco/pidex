@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ConfigFileEditor } from '../ConfigFileEditor'
+import { errorText } from '@shared/errors'
 
 /**
  * Search providers surfaced as first-class fields. pi-web-access supports
@@ -45,7 +46,7 @@ export function WebAccessTab(): React.JSX.Element {
       useExtensionUiStore.getState().pushToast('Saved — applies to new sessions', 'info')
       await refresh()
     } catch (error) {
-      useExtensionUiStore.getState().pushToast((error as Error).message, 'error')
+      useExtensionUiStore.getState().pushToast(errorText(error), 'error')
     }
   }
 

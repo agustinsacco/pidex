@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errorText } from '@shared/errors'
 
 export interface PackageJobState {
   running: boolean
@@ -50,7 +51,7 @@ export function usePackageJob(onExit?: (exitCode: number) => void): PackageJobSt
     } catch (err) {
       setRunning(false)
       setExitCode(127)
-      setOutput(err instanceof Error ? err.message : String(err))
+      setOutput(errorText(err))
     }
   }, [])
 

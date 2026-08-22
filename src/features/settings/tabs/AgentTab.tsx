@@ -5,6 +5,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Row, SectionTitle, NumberField, TextField, Toggle } from '@/components/form'
 import type { ConfigFileHealth } from '@shared/models'
 import { useSettingsUiStore } from '../settingsUiStore'
+import { errorText } from '@shared/errors'
 
 /** Agent defaults written into pi's own settings.json (global or per project). */
 
@@ -52,7 +53,7 @@ export function AgentTab(): React.JSX.Element {
       useExtensionUiStore.getState().pushToast('Saved — applies to newly started sessions', 'info')
     } catch (error) {
       // Malformed existing config: main refuses to write rather than clobber it.
-      useExtensionUiStore.getState().pushToast((error as Error).message, 'error')
+      useExtensionUiStore.getState().pushToast(errorText(error), 'error')
       reload()
     } finally {
       setSaving(false)

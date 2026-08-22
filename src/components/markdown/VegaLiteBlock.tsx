@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { CodeBlock } from './CodeBlock'
+import { errorText } from '@shared/errors'
 
 export const VegaLiteBlock = memo(function VegaLiteBlock({
   code,
@@ -20,7 +21,7 @@ export const VegaLiteBlock = memo(function VegaLiteBlock({
       try {
         spec = JSON.parse(code)
       } catch (err) {
-        setError(`Invalid JSON: ${(err as Error).message}`)
+        setError(`Invalid JSON: ${errorText(err)}`)
         return
       }
       try {
@@ -38,7 +39,7 @@ export const VegaLiteBlock = memo(function VegaLiteBlock({
         })
         finalize = () => result.finalize()
       } catch (err) {
-        if (!disposed) setError((err as Error).message)
+        if (!disposed) setError(errorText(err))
       }
     })()
 

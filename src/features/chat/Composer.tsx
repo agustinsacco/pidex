@@ -30,6 +30,7 @@ import {
   toImageContents,
   type PendingAttachment,
 } from './attachments'
+import { errorText } from '@shared/errors'
 
 interface MentionState {
   /** Index of the '@' in the textarea value. */
@@ -179,7 +180,7 @@ export function Composer({
           }
         } catch (error) {
           chat.updateBashItem(sessionId, itemId, {
-            output: (error as Error).message,
+            output: errorText(error),
             exitCode: -1,
             running: false,
           })
@@ -214,7 +215,7 @@ export function Composer({
         })
         if (!response.success) chat.setError(sessionId, response.error)
       } catch (error) {
-        chat.setError(sessionId, (error as Error).message)
+        chat.setError(sessionId, errorText(error))
       }
     },
     [sessionId, text, images, isStreaming],
@@ -232,7 +233,7 @@ export function Composer({
         textareaRef.current?.focus()
       }
     } catch (error) {
-      chat.setError(sessionId, (error as Error).message)
+      chat.setError(sessionId, errorText(error))
     }
   }, [sessionId])
 

@@ -2,6 +2,7 @@ import { memo, useEffect, useId, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { CodeBlock } from './CodeBlock'
 import { Lightbox } from '../Lightbox'
+import { errorText } from '@shared/errors'
 
 let mermaidCounter = 0
 
@@ -48,7 +49,7 @@ export const MermaidBlock = memo(function MermaidBlock({
         const result = await mermaid.render(id, code)
         if (!cancelled) setSvg(result.svg)
       } catch (err) {
-        if (!cancelled) setError((err as Error).message)
+        if (!cancelled) setError(errorText(err))
       }
     })()
     return () => {

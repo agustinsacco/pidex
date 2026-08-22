@@ -4,6 +4,7 @@ import { ModalOverlay } from '@/components/Modal'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { workspaceName } from '@/lib/path'
+import { errorText } from '@shared/errors'
 
 /**
  * Remove a linked worktree with the safety ladder: live-session guard →
@@ -61,7 +62,7 @@ export function RemoveWorktreeModal({
       onRemoved?.()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

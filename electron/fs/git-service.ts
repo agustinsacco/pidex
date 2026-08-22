@@ -1,26 +1,9 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { shell } from 'electron'
-
-const execFileAsync = promisify(execFile)
-
-async function git(cwd: string, args: string[], allowFail = false): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd,
-      timeout: 20_000,
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    return stdout
-  } catch (error) {
-    if (allowFail) return ''
-    throw error
-  }
-}
+import { git } from './git-exec'
 
 /** Per-file porcelain status for explorer dots: relativePath → XY code. */
 export async function gitStatusMap(workspacePath: string): Promise<Record<string, string>> {
-  const out = await git(workspacePath, ['status', '--porcelain', '-uall'], true)
+  const out = await git(workspacePath, ['status', '--porcelain', '-uall'], { allowFail: true })
   const map: Record<string, string> = {}
   for (const line of out.split('\n')) {
     if (line.length < 4) continue
@@ -43,13 +26,13 @@ export async function gitStatusMap(workspacePath: string): Promise<Record<string
  */
 export async function createSessionBaseline(workspacePath: string): Promise<string | null> {
   try {
-    await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: workspacePath, timeout: 10_000 })
+    await git(workspacePath, ['rev-parse', '--git-dir'])
   } catch {
     return null
   }
-  const stashRef = (await git(workspacePath, ['stash', 'create'], true)).trim()
+  const stashRef = await git(workspacePath, ['stash', 'create'], { allowFail: true, trim: true })
   if (stashRef) return stashRef
-  const head = (await git(workspacePath, ['rev-parse', 'HEAD'], true)).trim()
+  const head = await git(workspacePath, ['rev-parse', 'HEAD'], { allowFail: true, trim: true })
   return head || null
 }
 
@@ -60,12 +43,9 @@ export async function showFileAt(
   relativePath: string,
 ): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['show', `${ref}:${relativePath}`], {
-      cwd: workspacePath,
-      timeout: 20_000,
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    return stdout
+    // Not `allowFail`: '' is a legitimate file content, and `restoreFileTo`
+    // treats null as "did not exist at baseline" and trashes the file.
+    return await git(workspacePath, ['show', `${ref}:${relativePath}`])
   } catch {
     return null
   }

@@ -5,6 +5,7 @@ import { useActiveWorkspace } from '@/stores/workspaces'
 import { CatalogueCards } from '../CatalogueCards'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '../versions'
+import { errorText } from '@shared/errors'
 
 /**
  * Settings → Extensions: pi package management. Reads come from settings
@@ -35,7 +36,7 @@ export function ExtensionsTab(): React.JSX.Element {
         .then(setLatest)
         .catch(() => setLatest({}))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }, [workspacePath])
 

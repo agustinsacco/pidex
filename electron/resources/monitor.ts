@@ -72,8 +72,3 @@ export function stopMonitor(): void {
   subscribers = 0
   latest = null
 }
-
-/** Test seam: is the loop currently running? */
-export function isSampling(): boolean {
-  return timer !== null
-}
