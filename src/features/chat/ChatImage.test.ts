@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ImageContent } from '@shared/rpc'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { copyChatImage, imageUrl } from './chatImage'
+import { copyChatImage, imageUrl } from './ChatImage'
 
 const image: ImageContent = { type: 'image', data: 'QUJD', mimeType: 'image/png' }
 
