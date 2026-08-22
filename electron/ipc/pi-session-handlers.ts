@@ -1,9 +1,12 @@
 import { app } from 'electron'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { basename, join as joinPath } from 'node:path'
 import { registry } from '../registry'
 import { handle } from './handle'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
+import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
 import { sessionEventChannel } from '@shared/ipc'
 import { recordWorkspace } from '../store'
 import {
@@ -133,4 +136,40 @@ export function registerPiSessionHandlers(): void {
   })
 
   handle('pi:listLiveSessions', () => registry.list())
+
+  // Best-effort: naming is a nicety, so every failure path returns null and
+  // the session keeps its first-message-derived title.
+  handle(
+    'pi:generateTitle',
+    async (_event, workspacePath: string, message: string, existingNames: string[]) => {
+      const stub = piStubPath()
+      let binaryPath: string
+      let prefixArgs: string[] = []
+      let env: NodeJS.ProcessEnv
+      if (stub) {
+        binaryPath = process.execPath
+        prefixArgs = [stub]
+        env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+      } else {
+        const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
+        if (!health.ok || !health.binaryPath) return null
+        binaryPath = health.binaryPath
+        env = { ...process.env, ...(await piProcessEnv()) }
+      }
+
+      try {
+        // `--no-session` keeps this run out of the sidebar; `--no-tools`
+        // keeps a title request from being able to touch anything.
+        const { stdout } = await promisify(execFile)(
+          binaryPath,
+          [...prefixArgs, '-p', '--no-session', '--no-tools', titlePrompt(message, existingNames)],
+          { cwd: workspacePath, env, timeout: 30_000, maxBuffer: 1024 * 1024 },
+        )
+        const title = sanitizeTitle(stdout)
+        return title ? dedupeTitle(title, existingNames) : null
+      } catch {
+        return null
+      }
+    },
+  )
 }

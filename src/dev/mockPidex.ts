@@ -481,6 +481,8 @@ export function installMockPidex(): void {
           })
         case 'pi:command':
           return Promise.resolve(respond(args[1] as RpcCommand))
+        case 'pi:generateTitle':
+          return Promise.resolve('Mock Generated Title')
         case 'fs:listFiles':
           return Promise.resolve([
             'src/main.tsx',

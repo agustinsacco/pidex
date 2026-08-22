@@ -37,6 +37,17 @@ import { cloneSession, exportSidebarSession, renameSidebarSession } from './side
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
+const SIDEBAR_WIDTH_KEY = 'pidex:sidebarWidth'
+const SIDEBAR_MIN = 208
+const SIDEBAR_MAX = 420
+const SIDEBAR_DEFAULT = 256
+
+function loadSidebarWidth(): number {
+  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  if (!Number.isFinite(stored) || stored === 0) return SIDEBAR_DEFAULT
+  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, stored))
+}
+
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const disk = useSessionsStore((s) => s.disk)
   const live = useSessionsStore((s) => s.live)
@@ -54,6 +65,31 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
+  const [width, setWidth] = useState(loadSidebarWidth)
+  const [resizing, setResizing] = useState(false)
+
+  const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = width
+    setResizing(true)
+    const onMove = (move: PointerEvent): void => {
+      const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth + move.clientX - startX))
+      setWidth(next)
+    }
+    const onUp = (up: PointerEvent): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      setResizing(false)
+      const finalWidth = Math.min(
+        SIDEBAR_MAX,
+        Math.max(SIDEBAR_MIN, startWidth + up.clientX - startX),
+      )
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth))
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
 
   /**
    * Every workspace worth listing: the known recents plus the active one and
@@ -270,7 +306,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }
 
   return (
-    <aside className="border-border bg-bg-secondary/50 flex h-full w-64 shrink-0 flex-col border-r">
+    <aside
+      className="border-border bg-bg-secondary/50 relative flex h-full shrink-0 flex-col border-r"
+      style={{ width }}
+    >
       {/* No drag strip here any more: the window's title bar is now a single
           full-width element above every column (src/app/TopBar.tsx), which is
           also where the macOS traffic-light inset lives. */}
@@ -279,7 +318,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       {/* Flat nav rows, matching the reference: icon + label, no border or
           shadow. New routes to the home screen; the folder is chosen there
           via the composer's workspace chip. */}
-      <nav className="px-2 pb-2">
+      <nav className="px-2 pb-1.5">
         <NavRow
           label="New"
           badge
@@ -317,22 +356,47 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           const isCollapsed = isGroupCollapsed(group)
           return (
             <div key={group.workspacePath}>
-              <button
-                onClick={() => toggleGroup(group, isCollapsed)}
+              <div
                 onContextMenu={(event) => groupContextMenu(event, group)}
-                data-testid="workspace-group"
-                className="text-text-tertiary hover:text-text flex w-full items-center gap-1 px-2 pb-1 pt-3 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
-                title={group.workspacePath}
+                className="group/header flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
               >
-                <ChevronIcon size={8} strokeWidth={3} expanded={!isCollapsed} />
-                <span className="min-w-0 flex-1 truncate">{group.name}</span>
-                {group.liveCount > 0 && (
-                  <span
-                    className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
-                    title={`${group.liveCount} live`}
+                <button
+                  onClick={() => toggleGroup(group, isCollapsed)}
+                  data-testid="workspace-group"
+                  className="text-text-tertiary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
+                  title={group.workspacePath}
+                >
+                  <span className="min-w-0 truncate">{group.name}</span>
+                  <ChevronIcon
+                    size={8}
+                    strokeWidth={3}
+                    expanded={!isCollapsed}
+                    className={clsx(
+                      'shrink-0 transition-opacity',
+                      // Collapsed groups keep their caret as the "there's more
+                      // here" cue; expanded ones reveal it on hover only.
+                      !isCollapsed && 'opacity-0 group-hover/header:opacity-100',
+                    )}
                   />
-                )}
-              </button>
+                  {group.liveCount > 0 && (
+                    <span
+                      className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
+                      title={`${group.liveCount} live`}
+                    />
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    useWorkspacesStore.getState().openWorkspace(group.workspacePath)
+                    useSessionsStore.getState().activate(null)
+                  }}
+                  data-testid="workspace-group-new-session"
+                  title="New session here"
+                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 focus-visible:opacity-100 group-hover/header:opacity-100 active:scale-90"
+                >
+                  <PlusIcon size={12} strokeWidth={2.5} />
+                </button>
+              </div>
               {!isCollapsed &&
                 (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
                   <PendingSessionRow
@@ -361,7 +425,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         })}
       </div>
 
-      <div className="border-border border-t px-3 py-2.5">
+      <div className="border-border border-t px-3 py-2">
         <UpdatePill />
         <button
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
@@ -393,6 +457,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           onClose={() => setWorktreeModal(null)}
         />
       )}
+
+      {/* Width resize handle: an invisible strip over the right border. */}
+      <div
+        onPointerDown={startResize}
+        className={clsx(
+          'hover:bg-accent/40 absolute -right-0.5 top-0 z-30 h-full w-1 cursor-col-resize transition-colors',
+          resizing && 'bg-accent/40',
+        )}
+      />
+      {resizing && <div className="fixed inset-0 z-50 cursor-col-resize select-none" />}
     </aside>
   )
 }
@@ -409,12 +483,12 @@ function WorkspaceSwitcher(): React.JSX.Element {
     // Draggable: on Windows/Linux this row sits flush against the top of the
     // window (there is no traffic-light strip above it), so it is the only
     // grab handle the sidebar has. The trigger and the menu opt back out.
-    <div className="titlebar-drag relative px-3 pb-2 pt-1">
+    <div className="titlebar-drag relative px-3 pb-1.5 pt-1">
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
-        className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+        className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1 transition-colors"
       >
         <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-base font-bold uppercase">
           {name.slice(0, 1)}
@@ -711,7 +785,7 @@ function SessionIndicator({
 
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary px-2 pb-1 pt-3 text-xs font-semibold font-mono uppercase tracking-wider">
+    <div className="text-text-tertiary px-2 pb-0.5 pt-2.5 text-xs font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
   )
@@ -737,7 +811,7 @@ function NavRow({
   return (
     <button
       onClick={onClick}
-      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-lg transition-colors"
+      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1 text-left text-lg transition-colors"
     >
       <span
         className={clsx(
