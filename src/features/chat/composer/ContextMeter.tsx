@@ -11,6 +11,7 @@ import {
   breakdownSlices,
   parseContextBreakdown,
 } from './contextBreakdown'
+import { RATE_LIMIT_STATUS_KEY, parseRateLimit, resetLabel, windowLabel } from './rateLimit'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
@@ -22,6 +23,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const breakdownStatus = useExtensionUiStore(
     (s) => s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY],
   )
+  // Only sessions served by the Claude Code provider push this; every other
+  // provider leaves the key unset and the section stays hidden.
+  const rateLimitStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
 
   const usage = stats?.contextUsage
   if (!stats || !usage || usage.percent == null) return null
@@ -115,6 +119,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             )}
             <StatRow label="Messages" value={String(stats.totalMessages)} />
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
+            <PlanLimits statusText={rateLimitStatus} />
           </div>
         </PopupMenu>
       )}
@@ -181,6 +186,40 @@ function ContextComposition({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Account-level usage window for Claude Code sessions — which window the
+ * account is in and when capacity returns. Utilization percentages are not
+ * available: the CLI reads them from response headers and never forwards
+ * them (see rateLimit.ts).
+ */
+function PlanLimits({ statusText }: { statusText: string | undefined }): React.JSX.Element | null {
+  const limit = parseRateLimit(statusText)
+  if (!limit) return null
+  const reset = resetLabel(limit.resetsAt)
+  const capped = limit.status === 'rejected'
+
+  return (
+    <>
+      <SectionLabel>Plan limits · Claude Code</SectionLabel>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-text-tertiary">{windowLabel(limit.windowType)}</span>
+        <span
+          className={clsx(
+            'font-mono text-sm tabular-nums',
+            capped ? 'text-danger' : 'text-text-secondary',
+          )}
+        >
+          {capped ? 'limit reached' : (reset ?? 'active')}
+        </span>
+      </div>
+      {limit.isUsingOverage && (
+        <div className="text-warning text-sm">Using extra usage beyond the plan allowance.</div>
+      )}
+      {capped && reset && <div className="text-text-tertiary text-sm">{reset}.</div>}
+    </>
   )
 }
 
