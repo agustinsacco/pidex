@@ -12,6 +12,7 @@ import {
   parseContextBreakdown,
 } from './contextBreakdown'
 import { RATE_LIMIT_STATUS_KEY, parseRateLimit, resetLabel, windowLabel } from './rateLimit'
+import { assessBurn, burnSamples } from '@/lib/burnRate'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
@@ -33,6 +34,10 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const percent = Math.min(100, Math.round(usage.percent))
   const warn = percent >= 75
   const critical = percent >= 90
+  // Spending fast while producing nothing is invisible in the percentage — a
+  // stuck tool loop can bill millions without the meter moving.
+  const burn = assessBurn(burnSamples(sessionId), Date.now())
+  const burning = burn?.level === 'runaway' || burn?.level === 'elevated'
 
   return (
     <div className="relative">
@@ -72,6 +77,16 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         >
           {percent}%
         </span>
+        {burning && (
+          <span
+            className={clsx(
+              'text-2xs font-mono uppercase tracking-wide',
+              burn.level === 'runaway' ? 'text-danger' : 'text-warning',
+            )}
+          >
+            {formatTokens(Math.round(burn.tokensPerMinute))}/min
+          </span>
+        )}
       </button>
 
       {open && (
@@ -81,6 +96,20 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
           className="absolute bottom-full right-0 mb-2 w-80 p-3"
         >
           <div className="text-text text-base font-medium">Session usage</div>
+          {burning && (
+            <div
+              className={clsx(
+                'mt-2 rounded-md border px-2.5 py-2 text-sm leading-snug',
+                burn.level === 'runaway'
+                  ? 'border-danger/30 bg-danger-soft text-danger'
+                  : 'border-warning/30 bg-warning/10 text-warning',
+              )}
+            >
+              Burning {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min with{' '}
+              {(burn.yield * 100).toFixed(1)}% going to output. The agent may be repeating itself —
+              worth stopping the turn and checking.
+            </div>
+          )}
           <div className="mt-2 space-y-1 text-base">
             <SectionLabel>Context</SectionLabel>
             <StatRow

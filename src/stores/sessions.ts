@@ -5,6 +5,7 @@ import { useChatStore } from './chat'
 import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -219,6 +220,12 @@ async function refreshStats(pidexId: string): Promise<void> {
     const response = await window.pidex.piCommand(pidexId, { type: 'get_session_stats' })
     if (response.success && response.data) {
       useChatStore.getState().setStats(pidexId, response.data)
+      const { input, output, cacheRead, cacheWrite } = response.data.tokens
+      recordBurnSample(pidexId, {
+        at: Date.now(),
+        billed: input + output + cacheRead + cacheWrite,
+        output,
+      })
     }
   } catch {
     // session gone
@@ -505,6 +512,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // `clearSession` existed but was never wired up, so statuses and widgets
     // (which hold extension-supplied line arrays) accumulated until quit.
     useExtensionUiStore.getState().clearSession(sessionId)
+    clearBurnSamples(sessionId)
     set((s) => ({
       live: drop(s.live, sessionId),
       unread: drop(s.unread, sessionId),
