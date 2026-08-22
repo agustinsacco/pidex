@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
 import { CloseIcon } from '@/components/icons'
@@ -25,11 +25,17 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'about', label: 'About' },
 ]
 
-/** Curated extensions contribute a tab only while their package is present. */
+/**
+ * Curated extensions contribute a tab only while their package is present.
+ * They render nested under the Extensions entry in the sidebar — they are
+ * configuration for an installed package, not top-level settings.
+ */
 const EXTENSION_TABS: Array<{ id: SettingsTab; label: string; packageMatch: string }> = [
   { id: 'claude-provider', label: 'Claude Code', packageMatch: 'pi-claude-cli' },
   { id: 'web-access', label: 'Web access', packageMatch: 'pi-web-access' },
 ]
+
+const isExtensionTab = (id: SettingsTab): boolean => EXTENSION_TABS.some((t) => t.id === id)
 
 /** Settings modal shell: sidebar tab list plus the active tab's panel. */
 export function SettingsModal(): React.JSX.Element | null {
@@ -53,7 +59,11 @@ export function SettingsModal(): React.JSX.Element | null {
   const extensionTabs = EXTENSION_TABS.filter((t) =>
     installedSpecs.some((spec) => spec.includes(t.packageMatch)),
   )
-  const visibleTabs = [...TABS.slice(0, 3), ...extensionTabs, ...TABS.slice(3)]
+
+  // Stale sub-tab (e.g. the package was removed out-of-band) falls back to
+  // the Extensions list, so the panel never renders an orphaned sub-tab.
+  const effectiveTab: SettingsTab =
+    isExtensionTab(tab) && !extensionTabs.some((t) => t.id === tab) ? 'extensions' : tab
 
   return (
     <ModalOverlay onClose={close} z={40}>
@@ -62,19 +72,35 @@ export function SettingsModal(): React.JSX.Element | null {
           <div className="text-text-tertiary px-2 pb-2 text-sm font-semibold font-mono uppercase tracking-wider">
             Settings
           </div>
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => useSettingsUiStore.getState().setTab(t.id)}
-              className={clsx(
-                'mb-0.5 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-lg transition-colors',
-                tab === t.id
-                  ? 'bg-bg-secondary text-text font-medium'
-                  : 'text-text-secondary hover:text-text',
-              )}
-            >
-              {t.label}
-            </button>
+          {TABS.map((t) => (
+            <Fragment key={t.id}>
+              <button
+                onClick={() => useSettingsUiStore.getState().setTab(t.id)}
+                className={clsx(
+                  'mb-0.5 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-lg transition-colors',
+                  effectiveTab === t.id || (t.id === 'extensions' && isExtensionTab(effectiveTab))
+                    ? 'bg-bg-secondary text-text font-medium'
+                    : 'text-text-secondary hover:text-text',
+                )}
+              >
+                {t.label}
+              </button>
+              {t.id === 'extensions' &&
+                extensionTabs.map((et) => (
+                  <button
+                    key={et.id}
+                    onClick={() => useSettingsUiStore.getState().setTab(et.id)}
+                    className={clsx(
+                      'mb-0.5 ml-4 flex w-[calc(100%-1rem)] items-center border-l border-border py-1 pl-3 text-left text-base transition-colors',
+                      effectiveTab === et.id
+                        ? 'text-text font-medium'
+                        : 'text-text-secondary hover:text-text',
+                    )}
+                  >
+                    {et.label}
+                  </button>
+                ))}
+            </Fragment>
           ))}
         </aside>
 
@@ -85,16 +111,16 @@ export function SettingsModal(): React.JSX.Element | null {
           >
             <CloseIcon size={14} />
           </button>
-          {tab === 'appearance' && <AppearanceTab />}
-          {tab === 'agent' && <AgentTab />}
-          {tab === 'extensions' && <ExtensionsTab />}
-          {tab === 'claude-provider' && <ClaudeProviderTab />}
-          {tab === 'web-access' && <WebAccessTab />}
-          {tab === 'mcp' && <McpTab />}
-          {tab === 'workspaces' && <WorkspacesTab />}
-          {tab === 'advanced' && <AdvancedTab />}
-          {tab === 'keybindings' && <KeybindingsTab />}
-          {tab === 'about' && <AboutTab />}
+          {effectiveTab === 'appearance' && <AppearanceTab />}
+          {effectiveTab === 'agent' && <AgentTab />}
+          {effectiveTab === 'extensions' && <ExtensionsTab />}
+          {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
+          {effectiveTab === 'web-access' && <WebAccessTab />}
+          {effectiveTab === 'mcp' && <McpTab />}
+          {effectiveTab === 'workspaces' && <WorkspacesTab />}
+          {effectiveTab === 'advanced' && <AdvancedTab />}
+          {effectiveTab === 'keybindings' && <KeybindingsTab />}
+          {effectiveTab === 'about' && <AboutTab />}
         </div>
       </div>
     </ModalOverlay>
