@@ -440,6 +440,7 @@ export function installMockPidex(): void {
               terminalFontSize: 12.5,
               monoFont: 'JetBrains Mono',
             },
+            claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
           })
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
@@ -947,6 +948,7 @@ export function installMockPidex(): void {
           })
         case 'pi:patchAgentSettings':
         case 'pi:writeConfigFile':
+        case 'app:setClaudeSystemPrompt':
         case 'app:setFontPrefs':
         case 'app:setRecentWorkspaces':
         case 'app:setCollapsedWorkspaces':

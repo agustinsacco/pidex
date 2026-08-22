@@ -8,7 +8,7 @@ import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
 import { sessionEventChannel } from '@shared/ipc'
-import { recordWorkspace } from '../store'
+import { getPrefs, recordWorkspace } from '../store'
 import {
   MIN_PI_VERSION,
   type CreateSessionOptions,
@@ -82,7 +82,15 @@ export function registerPiSessionHandlers(): void {
 
     // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
     // to find node under a version manager, not the GUI-inherited one.
-    const spawnEnv = stub ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv()
+    const spawnEnv: Record<string, string> = stub
+      ? { ELECTRON_RUN_AS_NODE: '1' }
+      : {
+          ...(await piProcessEnv()),
+          // Read by pi-claude-cli when it spawns `claude`. Passed per session
+          // rather than set once, so changing the setting applies to the next
+          // session started without restarting pidex.
+          PI_CLAUDE_CLI_SYSTEM_PROMPT: getPrefs().claudeSystemPrompt,
+        }
 
     const session = registry.create(options.workspacePath, {
       binaryPath,

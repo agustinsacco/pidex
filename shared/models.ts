@@ -278,7 +278,21 @@ export interface AppPrefs {
    */
   seenSessions: Record<string, number>
   fonts: FontPrefs
+  /** Whose system prompt Claude Code sessions run under. */
+  claudeSystemPrompt: ClaudeSystemPromptMode
 }
+
+/**
+ * Which system prompt the pi-claude-cli provider gives its `claude`
+ * subprocess. Mirrors the extension's `PI_CLAUDE_CLI_SYSTEM_PROMPT`, which
+ * pidex sets when spawning pi.
+ *
+ * `claude` appends pi's prompt to Claude Code's own — everything the CLI
+ * normally knows about its tools stays. `pi` replaces it, which frees roughly
+ * 12k tokens of context per call but leaves the model working from pi's
+ * instructions plus the raw tool schemas.
+ */
+export type ClaudeSystemPromptMode = 'claude' | 'pi'
 
 export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'dark',
@@ -287,6 +301,9 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   collapsedWorkspaces: [],
   seenSessions: {},
   fonts: DEFAULT_FONT_PREFS,
+  // Matches the extension's own default: keep Claude Code's prompt unless the
+  // user opts out of it.
+  claudeSystemPrompt: 'claude',
 }
 
 /** Minimum pi version pidex is verified against. */
