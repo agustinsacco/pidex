@@ -7,6 +7,7 @@ import { HomeModelPicker } from './HomeModelPicker'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import {
   composePrompt,
   formatFileSize,
@@ -24,6 +25,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [dragging, setDragging] = useState(false)
   const [starting, setStarting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
   const workspaceName = workspaceDisplayName(workspacePath)
 
   /** Images inline; everything else attaches by path (see attachments.ts). */
@@ -199,8 +201,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               }}
               onPaste={handlePaste}
               placeholder="Describe a task or ask a question"
-              rows={Math.min(8, Math.max(2, text.split('\n').length))}
-              className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
+              rows={2}
+              className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
             />
 
             {/* Footer mirrors the chat composer: attachments on the left,

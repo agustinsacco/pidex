@@ -29,3 +29,4 @@ to collide with.
 | 2026-08-20 | ["UI scale" that never scaled, and a dead strip above the sidebar](2026-08-20-ui-scale-and-linux-titlebar.md) |
 | 2026-08-20 | [Provider errors show the sentence, not the JSON](2026-08-20-provider-error-envelopes.md)                     |
 | 2026-08-20 | [A type scale, replacing 424 hand-picked pixel sizes](2026-08-20-type-scale.md)                               |
+| 2026-08-21 | [The composer that wouldn't grow with its text](2026-08-21-composer-autogrow.md)                              |
