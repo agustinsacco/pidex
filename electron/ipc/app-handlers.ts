@@ -14,6 +14,7 @@ import {
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
+  setWorktreePrefs,
 } from '../store'
 
 /**
@@ -107,6 +108,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setRecentWorkspaces', (_event, workspaces) => {
     setRecentWorkspaces(workspaces)
+  })
+
+  handle('app:setWorktreePrefs', (_event, worktrees) => {
+    setWorktreePrefs(worktrees)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {
