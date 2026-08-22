@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { piCall, piCallOk } from './rpc'
+import { piCall, piCallOk, rehydrateTranscript } from './rpc'
 import { useChatStore } from '@/stores/chat'
 
 const piCommand = vi.fn()
@@ -67,5 +67,25 @@ describe('piCallOk', () => {
     const ok = await piCallOk('s1', { type: 'set_model', provider: 'anthropic', modelId: 'x' })
     expect(ok).toBe(false)
     expect(storedError('s1')).toBe('set_model rejected')
+  })
+})
+
+describe('rehydrateTranscript', () => {
+  it('replaces the rendered items and hands the messages back', async () => {
+    const messages = [{ role: 'user', content: 'hi' }]
+    piCommand.mockResolvedValue({ success: true, data: { messages } })
+
+    await expect(rehydrateTranscript('s1')).resolves.toBe(messages)
+    expect(piCommand).toHaveBeenCalledWith('s1', { type: 'get_messages' })
+    expect(useChatStore.getState().sessions.s1?.items).toHaveLength(1)
+  })
+
+  it('reports the failure instead of leaving the old transcript in place silently', async () => {
+    // All three former call sites (rewind, fork picker, resume) checked
+    // `success && data` and did nothing at all when it was false.
+    piCommand.mockResolvedValue({ success: false, error: 'session gone' })
+
+    await expect(rehydrateTranscript('s1')).resolves.toBeUndefined()
+    expect(storedError('s1')).toBe('session gone')
   })
 })

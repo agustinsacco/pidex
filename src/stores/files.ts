@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { DirEntry } from '@shared/models'
 import { languageForPath } from '@/lib/monaco'
+import { keyedSlice } from './keyedSlice'
 
 export interface OpenFile {
   path: string
@@ -31,8 +32,11 @@ interface WorkspaceFiles {
   gitStatus: Record<string, string>
 }
 
-/** Stable empty value so selectors don't allocate a new object per render. */
-const EMPTY_WORKSPACE_FILES: WorkspaceFiles = Object.freeze({
+/**
+ * Slice helpers over `byWorkspace`. The empty value is shared and frozen, so
+ * selectors don't allocate a new object per render.
+ */
+const workspaces = keyedSlice<WorkspaceFiles>({
   openFiles: [],
   activePath: null,
   gitStatus: {},
@@ -69,7 +73,7 @@ interface FilesState {
 
 /** Files state for a workspace; the shared empty value when none exists yet. */
 export function workspaceFiles(state: FilesState, workspacePath: string): WorkspaceFiles {
-  return state.byWorkspace[workspacePath] ?? EMPTY_WORKSPACE_FILES
+  return workspaces.read(state.byWorkspace, workspacePath)
 }
 
 function relativeTo(workspacePath: string, path: string): string {
@@ -83,8 +87,19 @@ function patchWorkspace(
   workspacePath: string,
   update: (current: WorkspaceFiles) => WorkspaceFiles,
 ): Pick<FilesState, 'byWorkspace'> {
-  const current = state.byWorkspace[workspacePath] ?? EMPTY_WORKSPACE_FILES
-  return { byWorkspace: { ...state.byWorkspace, [workspacePath]: update(current) } }
+  return { byWorkspace: workspaces.patch(state.byWorkspace, workspacePath, update) }
+}
+
+/**
+ * Replace fields on ONE open file, leaving the rest of the workspace slice
+ * alone. `updateBuffer` and `saveFile` derive their new fields from the file
+ * they are replacing, so they still map inline.
+ */
+function patchFile(w: WorkspaceFiles, path: string, fields: Partial<OpenFile>): WorkspaceFiles {
+  return {
+    ...w,
+    openFiles: w.openFiles.map((f) => (f.path === path ? { ...f, ...fields } : f)),
+  }
 }
 
 export const useFilesStore = create<FilesState>((set, get) => ({
@@ -136,11 +151,8 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     if (existing) {
       set((s) =>
         patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
+          ...patchFile(w, path, { pendingRevealLine: line ?? existing.pendingRevealLine }),
           activePath: path,
-          openFiles: w.openFiles.map((f) =>
-            f.path === path ? { ...f, pendingRevealLine: line ?? f.pendingRevealLine } : f,
-          ),
         })),
       )
       return
@@ -251,12 +263,9 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     const line = file?.pendingRevealLine
     if (line !== undefined) {
       set((s) =>
-        patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
-          openFiles: w.openFiles.map((f) =>
-            f.path === path ? { ...f, pendingRevealLine: undefined } : f,
-          ),
-        })),
+        patchWorkspace(s, workspacePath, (w) =>
+          patchFile(w, path, { pendingRevealLine: undefined }),
+        ),
       )
     }
     return line
@@ -270,12 +279,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     for (const file of affected) {
       if (file.dirty) {
         set((s) =>
-          patchWorkspace(s, workspacePath, (w) => ({
-            ...w,
-            openFiles: w.openFiles.map((f) =>
-              f.path === file.path ? { ...f, diskConflict: true } : f,
-            ),
-          })),
+          patchWorkspace(s, workspacePath, (w) => patchFile(w, file.path, { diskConflict: true })),
         )
       } else {
         await get().reloadFromDisk(workspacePath, file.path)
@@ -287,41 +291,29 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     try {
       const file = await window.pidex.invoke('fs:readFile', path)
       set((s) =>
-        patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
-          openFiles: w.openFiles.map((f) =>
-            f.path === path
-              ? {
-                  ...f,
-                  savedContent: file.content,
-                  content: file.content,
-                  mtimeMs: file.mtimeMs,
-                  dirty: false,
-                  diskConflict: false,
-                }
-              : f,
-          ),
-        })),
+        patchWorkspace(s, workspacePath, (w) =>
+          patchFile(w, path, {
+            savedContent: file.content,
+            content: file.content,
+            mtimeMs: file.mtimeMs,
+            dirty: false,
+            diskConflict: false,
+          }),
+        ),
       )
     } catch {
       // Deleted externally — keep the buffer, flag the conflict.
       set((s) =>
-        patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
-          openFiles: w.openFiles.map((f) => (f.path === path ? { ...f, diskConflict: true } : f)),
-        })),
+        patchWorkspace(s, workspacePath, (w) => patchFile(w, path, { diskConflict: true })),
       )
     }
   },
 
   keepBuffer: (workspacePath, path) => {
     set((s) =>
-      patchWorkspace(s, workspacePath, (w) => ({
-        ...w,
-        openFiles: w.openFiles.map((f) =>
-          f.path === path ? { ...f, diskConflict: false, dirty: true } : f,
-        ),
-      })),
+      patchWorkspace(s, workspacePath, (w) =>
+        patchFile(w, path, { diskConflict: false, dirty: true }),
+      ),
     )
   },
 }))

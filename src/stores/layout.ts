@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
 
 export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null
@@ -10,8 +11,11 @@ interface SessionPanes {
   expanded: boolean
 }
 
-/** Stable empty value so selectors don't allocate a new object per render. */
-const CLOSED: SessionPanes = Object.freeze({ pane: null, expanded: false })
+/**
+ * Slice helpers over `bySession`. The empty value (a closed pane) is shared and
+ * frozen, so selectors don't allocate a new object per render.
+ */
+const panes = keyedSlice<SessionPanes>({ pane: null, expanded: false })
 
 /**
  * Pane layout state. Panel sizes persist via react-resizable-panels autoSaveId.
@@ -43,7 +47,7 @@ export function sessionPanes(
   state: LayoutState,
   sessionId: string | null | undefined,
 ): SessionPanes {
-  return (sessionId ? state.bySession[sessionId] : undefined) ?? CLOSED
+  return panes.read(state.bySession, sessionId)
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -70,10 +74,8 @@ export const useLayoutStore = create<LayoutState>((set) => ({
 
   removeSession: (sessionId) =>
     set((state) => {
-      if (!(sessionId in state.bySession)) return state
-      const bySession = { ...state.bySession }
-      delete bySession[sessionId]
-      return { bySession }
+      const bySession = drop(state.bySession, sessionId)
+      return bySession === state.bySession ? state : { bySession }
     }),
 }))
 
@@ -86,7 +88,7 @@ function patch(
   const id = sessionId ?? useSessionsStore.getState().activeSessionId
   // No session means no right pane exists to act on (workspace home).
   if (!id) return state
-  return { bySession: { ...state.bySession, [id]: update(state.bySession[id] ?? CLOSED) } }
+  return { bySession: panes.patch(state.bySession, id, update) }
 }
 
 /**

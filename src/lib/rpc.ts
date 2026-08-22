@@ -1,4 +1,4 @@
-import type { RpcCommand, RpcResponseDataMap } from '@shared/rpc'
+import type { AgentMessage, RpcCommand, RpcResponseDataMap } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 
 /**
@@ -43,4 +43,22 @@ export async function piCallOk<T extends RpcCommand['type']>(
     return false
   }
   return true
+}
+
+/**
+ * Re-read the transcript from pi and replace the rendered items.
+ *
+ * Anything that moves the session's branch point — rewind, the fork picker,
+ * resuming from disk — has to follow up with this, and the three call sites had
+ * drifted into three different error postures (two silent, one partial).
+ *
+ * Returns the messages so a caller can replay them for its own purposes
+ * (artifacts rebuild theirs from persisted toolResults), or `undefined` when
+ * the read failed — `piCall` has already reported that on the chat surface.
+ */
+export async function rehydrateTranscript(sessionId: string): Promise<AgentMessage[] | undefined> {
+  const data = await piCall(sessionId, { type: 'get_messages' })
+  if (!data) return undefined
+  useChatStore.getState().hydrate(sessionId, data.messages)
+  return data.messages
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
+import { piCall, rehydrateTranscript } from '@/lib/rpc'
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
 
@@ -17,9 +18,8 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
   useEffect(() => {
     if (!open) return
     setCandidates(null)
-    void window.pidex.piCommand(sessionId, { type: 'get_fork_messages' }).then((response) => {
-      if (response.success && response.data) setCandidates(response.data.messages)
-      else setCandidates([])
+    void piCall(sessionId, { type: 'get_fork_messages' }).then((data) => {
+      setCandidates(data?.messages ?? [])
     })
   }, [open, sessionId])
 
@@ -29,26 +29,17 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
   const fork = async (candidate: ForkCandidate): Promise<void> => {
     setBusy(true)
     try {
-      const response = await window.pidex.piCommand(sessionId, {
-        type: 'fork',
-        entryId: candidate.entryId,
-      })
-      if (!response.success) {
-        useChatStore.getState().setError(sessionId, response.error)
-        return
-      }
-      if (response.data?.cancelled) {
+      const result = await piCall(sessionId, { type: 'fork', entryId: candidate.entryId })
+      if (!result) return
+      if (result.cancelled) {
         useChatStore.getState().setError(sessionId, 'Fork was cancelled by an extension.')
         return
       }
       // Rebuild the transcript from the new branch point and prefill the
       // original prompt for edit-and-refork.
-      const messages = await window.pidex.piCommand(sessionId, { type: 'get_messages' })
-      if (messages.success && messages.data) {
-        useChatStore.getState().hydrate(sessionId, messages.data.messages)
-      }
-      if (response.data?.text) {
-        useChatUiStore.getState().setPrefill(sessionId, response.data.text)
+      await rehydrateTranscript(sessionId)
+      if (result.text) {
+        useChatUiStore.getState().setPrefill(sessionId, result.text)
       }
       close()
     } finally {

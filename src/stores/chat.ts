@@ -17,6 +17,7 @@ import {
   type BashItem,
   type ChatSessionState,
 } from '@/features/chat/reducer'
+import { drop, keyedSliceFrom } from './keyedSlice'
 
 export interface ChatSession extends ChatSessionState {
   /** Session metadata fetched over RPC. */
@@ -50,6 +51,13 @@ const emptySession = (): ChatSession => ({
   resuming: false,
 })
 
+/**
+ * Built from a factory, not a frozen singleton like the other keyed stores: a
+ * `ChatSession` owns the item/queue arrays the reducer appends to, so every
+ * session needs its own.
+ */
+const chats = keyedSliceFrom(emptySession)
+
 interface ChatStore {
   sessions: Record<string, ChatSession>
   ensure: (sessionId: string, options?: { resuming?: boolean }) => void
@@ -75,8 +83,7 @@ function patchSession(
   sessionId: string,
   patch: Partial<ChatSession>,
 ): Record<string, ChatSession> {
-  const session = sessions[sessionId] ?? emptySession()
-  return { ...sessions, [sessionId]: { ...session, ...patch } }
+  return chats.patch(sessions, sessionId, (session) => ({ ...session, ...patch }))
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -96,43 +103,31 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   applyEvent: (sessionId, event) =>
     set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
+      const session = chats.read(state.sessions, sessionId)
       const reduced = reduceChatEvent(session, event)
       if (reduced === session) return state
       return { sessions: { ...state.sessions, [sessionId]: { ...session, ...reduced } } }
     }),
 
   addUserMessage: (sessionId, text, images) =>
-    set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
-      return {
-        sessions: {
-          ...state.sessions,
-          [sessionId]: {
-            ...session,
-            items: [
-              ...session.items,
-              { id: newItemId(), kind: 'user', text, images, optimistic: true },
-            ],
-          },
-        },
-      }
-    }),
+    set((state) => ({
+      sessions: chats.patch(state.sessions, sessionId, (session) => ({
+        ...session,
+        items: [
+          ...session.items,
+          { id: newItemId(), kind: 'user', text, images, optimistic: true },
+        ],
+      })),
+    })),
 
   addBashItem: (sessionId, item) => {
     const id = newItemId()
-    set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
-      return {
-        sessions: {
-          ...state.sessions,
-          [sessionId]: {
-            ...session,
-            items: [...session.items, { ...item, id, kind: 'bash' }],
-          },
-        },
-      }
-    })
+    set((state) => ({
+      sessions: chats.patch(state.sessions, sessionId, (session) => ({
+        ...session,
+        items: [...session.items, { ...item, id, kind: 'bash' }],
+      })),
+    }))
     return id
   },
 
@@ -154,16 +149,13 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   hydrate: (sessionId, messages) =>
-    set((state) => {
-      const session = state.sessions[sessionId] ?? emptySession()
-      const hydrated = hydrateFromMessages(messages)
-      return {
-        sessions: {
-          ...state.sessions,
-          [sessionId]: { ...session, ...hydrated, resuming: false },
-        },
-      }
-    }),
+    set((state) => ({
+      sessions: chats.patch(state.sessions, sessionId, (session) => ({
+        ...session,
+        ...hydrateFromMessages(messages),
+        resuming: false,
+      })),
+    })),
 
   doneResuming: (sessionId) =>
     set((s) =>
@@ -200,9 +192,7 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   remove: (sessionId) =>
     set((state) => {
-      if (!state.sessions[sessionId]) return state
-      const sessions = { ...state.sessions }
-      delete sessions[sessionId]
-      return { sessions }
+      const sessions = drop(state.sessions, sessionId)
+      return sessions === state.sessions ? state : { sessions }
     }),
 }))

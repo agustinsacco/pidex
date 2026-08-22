@@ -158,6 +158,9 @@ export function Composer({
           excludeFromContext: exclude,
         })
         try {
+          // Deliberately raw rather than `piCall` (CLAUDE.md fact 3): a failed
+          // `!command` belongs in the bash item's own output next to the
+          // command that produced it, not on the session-wide error surface.
           const response = await window.pidex.piCommand(sessionId, {
             type: 'bash',
             command: shellCommand,
@@ -207,14 +210,15 @@ export function Composer({
       )
 
       try {
-        const response = await window.pidex.piCommand(sessionId, {
+        await piCallOk(sessionId, {
           type: 'prompt',
           message: messageWithFiles,
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
-        if (!response.success) chat.setError(sessionId, response.error)
       } catch (error) {
+        // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
+        // session's process died mid-send) still lands here.
         chat.setError(sessionId, errorText(error))
       }
     },

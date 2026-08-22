@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { GitInfo, SessionMeta, SessionPush } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
+import { drop } from './keyedSlice'
+import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -91,6 +93,13 @@ const unsubscribers = new Map<string, () => void>()
 /** Workspaces already being watched, so repeat calls are no-ops. */
 const watchedWorkspaces = new Set<string>()
 
+/**
+ * The one sanctioned exemption from the `piCall` rule (CLAUDE.md fact 3): this
+ * batch wants the raw envelopes, both because `Promise.allSettled` reasons over
+ * them and because a per-command failure is expected here — older pi builds
+ * simply lack some of these commands, and surfacing five chat errors while a
+ * session is still opening would be worse than the graceful degradation below.
+ */
 async function bootstrapSession(pidexId: string): Promise<void> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
@@ -154,6 +163,9 @@ async function bootstrapSession(pidexId: string): Promise<void> {
  *
  * Must run after every model switch: the supported set is per-model, so a
  * stale list would offer levels the new model silently clamps away.
+ *
+ * Raw `piCommand` on purpose: the failure mode is "pi is too old to know this
+ * command", which the picker already handles by deriving the levels locally.
  */
 export async function refreshThinkingLevels(pidexId: string): Promise<void> {
   try {
@@ -168,6 +180,11 @@ export async function refreshThinkingLevels(pidexId: string): Promise<void> {
   }
 }
 
+/**
+ * Raw `piCommand` on purpose: this fires on every completed sub-step of a turn,
+ * so routing failures to the chat surface would paint an error per token batch.
+ * A stale context meter is the better failure.
+ */
 async function refreshStats(pidexId: string): Promise<void> {
   try {
     const response = await window.pidex.piCommand(pidexId, { type: 'get_session_stats' })
@@ -360,12 +377,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // Resume: hydrate history before metadata so the transcript paints fast.
       if (options.sessionPath) {
         try {
-          const messages = await window.pidex.piCommand(pidexId, { type: 'get_messages' })
-          if (messages.success && messages.data) {
-            useChatStore.getState().hydrate(pidexId, messages.data.messages)
+          const messages = await rehydrateTranscript(pidexId)
+          if (messages) {
             // Rebuild artifacts by replaying persisted toolResult messages.
             const { useArtifactsStore } = await import('./artifacts')
-            useArtifactsStore.getState().ingestFromHistory(pidexId, messages.data.messages)
+            useArtifactsStore.getState().ingestFromHistory(pidexId, messages)
           }
         } catch {
           // non-fatal
@@ -380,15 +396,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       if (options.firstPrompt) {
         const images = options.firstImages?.length ? options.firstImages : undefined
         useChatStore.getState().addUserMessage(pidexId, options.firstPrompt, images)
-        void window.pidex
-          .piCommand(pidexId, {
-            type: 'prompt',
-            message: options.firstPrompt,
-            ...(images ? { images } : {}),
-          })
-          .then((response) => {
-            if (!response.success) useChatStore.getState().setError(pidexId, response.error)
-          })
+        void piCallOk(pidexId, {
+          type: 'prompt',
+          message: options.firstPrompt,
+          ...(images ? { images } : {}),
+        })
       }
       return pidexId
     } finally {
@@ -458,21 +470,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // `clearSession` existed but was never wired up, so statuses and widgets
     // (which hold extension-supplied line arrays) accumulated until quit.
     useExtensionUiStore.getState().clearSession(sessionId)
-    set((s) => {
-      const live = { ...s.live }
-      delete live[sessionId]
-      const unread = { ...s.unread }
-      delete unread[sessionId]
+    set((s) => ({
+      live: drop(s.live, sessionId),
+      unread: drop(s.unread, sessionId),
       // Was missing: every disposed session left a permanent baselines entry.
-      const baselines = { ...s.baselines }
-      delete baselines[sessionId]
-      return {
-        live,
-        unread,
-        baselines,
-        activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
-      }
-    })
+      baselines: drop(s.baselines, sessionId),
+      activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
+    }))
   },
 
   suspendSession: async (sessionId) => {

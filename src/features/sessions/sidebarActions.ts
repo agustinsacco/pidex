@@ -1,6 +1,7 @@
 import type { SessionMeta } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
+import { piCall } from '@/lib/rpc'
 import { exportSessionHtml, renameSession } from './sessionActions'
 
 /**
@@ -25,8 +26,11 @@ export async function cloneSession(
   livePidexId?: string,
 ): Promise<void> {
   if (livePidexId) {
-    const response = await window.pidex.piCommand(livePidexId, { type: 'clone' })
-    if (response.success && response.data?.cancelled) {
+    // The `success &&` guard used to swallow the failure branch entirely, so a
+    // clone that never happened still refreshed the sidebar and looked done.
+    const result = await piCall(livePidexId, { type: 'clone' })
+    if (!result) return
+    if (result.cancelled) {
       useChatStore.getState().setError(livePidexId, 'Clone was cancelled by an extension.')
       return
     }
