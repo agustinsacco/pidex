@@ -11,6 +11,28 @@ sidebar group.
   `.git/info/exclude` (appended idempotently; tracked files never touched).
   In-repo keeps worktrees discoverable and the sidebar group name meaningful
   (groups key on cwd basename).
+- **A new chat gets its own branch, named after itself.** Sending the first
+  message from the home composer generates the session title, derives a branch
+  and folder from it, and starts pi there — one name in three places
+  (`src/features/sessions/startChat.ts`). This is why the send button waits a
+  couple of seconds: a pi session is bound to the cwd it spawned in, so the
+  worktree has to exist first. Every step degrades rather than aborting — a
+  naming timeout falls back to the message text, an unreachable remote to
+  local trunk, a git refusal to a plain session with the reason shown.
+- **Auto-created branches start from `origin/<trunk>`, not local trunk.**
+  "Branch off the latest main" is the intent, and a local `main` in a repo
+  someone has been working in is routinely stale. Pulling it first would fail
+  on a dirty main tree, so pidex fetches (throttled) and branches off the
+  remote-tracking ref instead: freshest trunk, main checkout untouched, dirty
+  or not. `--no-track` goes with it, or the new branch would take `origin/main`
+  as its upstream and read as "behind trunk" forever
+  (`startPoint` in `git-worktrees.ts`).
+- **The branch prefix is configurable, and one flag governs isolation.**
+  `pidex/` by default (Settings → Workspaces, empty allowed). The composer's
+  "new branch" checkbox, the branch popup's "worktree" checkbox and the
+  settings toggle are one persisted preference — three surfaces asking "does
+  my work get its own branch?" that must not be able to disagree. It persists
+  now; before, it reset to on at every launch.
 - **The main tree's checkout may be changed, but only deliberately and only
   when it is safe.** _This reverses the original rule that pidex would never
   run `git checkout` in the main tree._ The reversal was requested so the
@@ -64,11 +86,22 @@ which was visible from the others.
 | Prune stale worktrees                             | ✓ (when any prunable)       |                        |
 | New session in worktree                           | ✓ (switch, then compose)    | ✓ ("New session here") |
 
-The home composer no longer picks a start target: a session starts in whatever
-workspace is open, and the top bar is what changes that.
+The home composer still does not pick a start _target_ — that is the top bar's
+job. Its one git control is a checkbox that opts the next message out of
+isolation, which is a different question ("does this chat need a branch at
+all?") and is worth answering per message: a quick question does not deserve
+one. Ticked (the default), a new chat branches off trunk even when the open
+workspace is itself a worktree, because a new chat means new work. Continuing
+on the branch you are looking at is the sidebar's "New session here".
 
 ## Code map
 
+- `src/features/sessions/startChat.ts` — the home composer's send path: title
+  - fetch in parallel, branch/folder derivation, worktree creation, workspace
+    switch, session spawn. Every failure mode degrades to a running session.
+- `src/lib/branchName.ts` — pure title → `{folder, branch}` derivation
+  (slug, prefix normalization, collision suffixes). Its charset is narrower
+  than git's ref rules on purpose, so no result needs re-validating.
 - `electron/fs/git-worktrees.ts` — worktree lifecycle (execFile, no shell);
   `parseWorktreeList` is pure. `listBranches` enriches each branch with
   upstream tracking and distance from trunk in two `for-each-ref` calls —
@@ -96,7 +129,12 @@ checkoutBranch` (`shared/ipc.ts`, `electron/ipc/git-handlers.ts`, mocks in
 - `electron/fs/__tests__/git-worktrees.test.ts` and `git-sync.test.ts` run
   **real git** in mkdtemp repos; the sync suite clones a local "remote" so
   fetch/pull/ff-only refusal are exercised for real.
+- `src/lib/branchName.test.ts` covers the derivation, including that no slug it
+  can produce is a ref `git check-ref-format` would reject.
 - `e2e/smoke.spec.ts` "worktree flow": git-init a scratch workspace → create
-  `task-1` from the top-bar control → session starts in the worktree → sidebar
-  group `task-1` appears → the control shows the worktree. The pi stub needs no
-  changes — it derives its session dir from `process.cwd()`.
+  `task-1` from the top-bar control → send a first message → the chat branches
+  off trunk into `pidex/stub-session-title` rather than continuing on `task-1`
+  → one sidebar group for the project. Its sibling test unticks the composer
+  checkbox and asserts nothing is created. The stub answers the naming prompt
+  with a fixed title and honours `-n`, which is what makes the branch name
+  deterministic; it still derives its session dir from `process.cwd()`.

@@ -44,6 +44,7 @@ import type {
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
+  StartPoint,
   UpdateFromMainResult,
   UpdateState,
   ThemePreference,
@@ -51,6 +52,7 @@ import type {
   WorkspaceInfo,
   WorkspaceSessionStats,
   WorktreeInfo,
+  WorktreePrefs,
 } from './models'
 
 /** Parsed session tree (subset of entries) for the tree view. */
@@ -114,6 +116,7 @@ export interface IpcInvokeMap {
       | { kind: 'none' }
   }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
+  'app:setWorktreePrefs': { args: [WorktreePrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
   /**
@@ -285,6 +288,12 @@ export interface IpcInvokeMap {
     args: [repoPath: string]
     result: { branches: BranchInfo[]; defaultBranch: string }
   }
+  /**
+   * Freshest trunk ref to branch a new session from — `origin/main` when the
+   * remote-tracking ref exists, else local `main`. Read-only: it never pulls,
+   * so a dirty main tree is irrelevant to starting a chat.
+   */
+  'git:startPoint': { args: [repoPath: string]; result: StartPoint }
   /** Create `<repo>/.pidex/worktrees/<name>` on a new or existing branch. */
   'git:addWorktree': {
     args: [repoPath: string, name: string, branch: AddWorktreeBranch]

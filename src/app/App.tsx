@@ -27,6 +27,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal'
 import { UsageModal } from '@/features/usage/UsageModal'
 import { MonitorModal } from '@/features/resources/MonitorModal'
 import { useTerminalStore } from '@/stores/terminal'
+import { useWorktreesStore } from '@/stores/worktrees'
 import { worktreeAwareName } from '@/lib/path'
 
 export function App(): React.JSX.Element {
@@ -44,6 +45,7 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     void useSettingsStore.getState().hydrate()
     void useWorkspacesStore.getState().hydrate()
+    void useWorktreesStore.getState().hydratePrefs()
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
 

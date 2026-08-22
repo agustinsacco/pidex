@@ -10,6 +10,7 @@ import {
   mergeBranch,
   pruneWorktrees,
   removeWorktree,
+  startPoint,
 } from '../fs/git-worktrees'
 import { checkoutBranch, fetchRepo, pullFastForward, updateFromMain } from '../fs/git-sync'
 
@@ -42,6 +43,8 @@ export function registerGitHandlers(): void {
   handle('git:listWorktrees', (_event, repoPath) => listWorktrees(repoPath))
 
   handle('git:listBranches', (_event, repoPath) => listBranches(repoPath))
+
+  handle('git:startPoint', (_event, repoPath) => startPoint(repoPath))
 
   handle('git:addWorktree', (_event, repoPath, name, branch) => addWorktree(repoPath, name, branch))
 

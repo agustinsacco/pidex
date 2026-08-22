@@ -14,6 +14,7 @@ import {
   parseWorktreeList,
   pruneWorktrees,
   removeWorktree,
+  startPoint,
   worktreeRootFor,
 } from '../git-worktrees'
 
@@ -200,5 +201,101 @@ describe('git-worktrees (real git)', () => {
 
   it('commitAll refuses empty messages', async () => {
     await expect(commitAll(repo, '   ')).rejects.toThrow(/empty/)
+  })
+
+  it('creates a branch whose name differs from the worktree folder', async () => {
+    // Auto-created session branches are prefixed (`pidex/…`) but their folder
+    // cannot be — the basename names the sidebar group, and a `/` would nest
+    // the checkout a level deeper.
+    const created = await addWorktree(repo, 'session-naming', {
+      kind: 'new',
+      base: 'main',
+      branch: 'pidex/session-naming',
+    })
+    expect(created.branch).toBe('pidex/session-naming')
+    expect(created.path.endsWith(join('worktrees', 'session-naming'))).toBe(true)
+    expect(existsSync(join(worktreeRootFor(repo), 'session-naming'))).toBe(true)
+  })
+
+  it('rejects a ref-hostile explicit branch name', async () => {
+    await expect(
+      addWorktree(repo, 'ok-name', { kind: 'new', base: 'main', branch: '../../evil' }),
+    ).rejects.toThrow(/Invalid branch name/)
+  })
+
+  it('startPoint falls back to local trunk without a remote', async () => {
+    const point = await startPoint(repo)
+    expect(point).toEqual({ base: 'main', defaultBranch: 'main', fromRemote: false })
+  })
+})
+
+/**
+ * The origin-based start point needs a real remote-tracking ref, so this block
+ * clones the fixture repo the way `git-sync.test.ts` does. The behaviour under
+ * test is precisely that a new branch starts from `origin/main` rather than
+ * from the clone's own (deliberately stale) `main`.
+ */
+describe('startPoint with a remote (real git)', () => {
+  let origin: string
+  let clone: string
+
+  beforeEach(async () => {
+    origin = repo
+    clone = await mkdtemp(join(tmpdir(), 'pidex-wt-clone-'))
+    await execFileAsync('git', ['clone', '--quiet', origin, clone])
+    await git(clone, ['config', 'user.email', 'test@pidex.dev'])
+    await git(clone, ['config', 'user.name', 'pidex test'])
+  })
+
+  afterEach(async () => {
+    await rm(clone, { recursive: true, force: true })
+  })
+
+  it('prefers origin/main and branches off it even when local main is stale', async () => {
+    // A commit lands on the remote; the clone fetches but never pulls, so its
+    // local `main` is now a commit behind — the everyday state of a repo you
+    // have been working in.
+    await writeFile(join(origin, 'b.txt'), 'two\n')
+    await git(origin, ['add', '-A'])
+    await git(origin, ['commit', '-m', 'second'])
+    await git(clone, ['fetch', '--quiet'])
+
+    const point = await startPoint(clone)
+    expect(point).toEqual({ base: 'origin/main', defaultBranch: 'main', fromRemote: true })
+
+    const created = await addWorktree(clone, 'fresh', {
+      kind: 'new',
+      base: point.base,
+      branch: 'pidex/fresh',
+      noTrack: true,
+    })
+    // The new branch has the remote's newest commit; local main does not — the
+    // whole point of preferring origin/main over the stale local trunk.
+    expect(existsSync(join(created.path, 'b.txt'))).toBe(true)
+    expect(await git(clone, ['rev-parse', 'pidex/fresh'])).toBe(
+      await git(clone, ['rev-parse', 'origin/main']),
+    )
+    expect(await git(clone, ['rev-parse', 'main'])).not.toBe(
+      await git(clone, ['rev-parse', 'origin/main']),
+    )
+  })
+
+  it('noTrack keeps origin/main from becoming the new branch upstream', async () => {
+    await addWorktree(clone, 'tracked', { kind: 'new', base: 'origin/main', branch: 'pidex/t' })
+    await addWorktree(clone, 'untracked', {
+      kind: 'new',
+      base: 'origin/main',
+      branch: 'pidex/u',
+      noTrack: true,
+    })
+    // Without --no-track git adopts origin/main as upstream, which would make
+    // the branch chip measure the session against trunk and point `git push`
+    // at main. With it, the branch simply has no upstream.
+    expect(
+      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/pidex/t']),
+    ).toBe('origin/main')
+    expect(
+      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/pidex/u']),
+    ).toBe('')
   })
 })

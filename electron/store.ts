@@ -34,6 +34,7 @@ export function getPrefs(): AppPrefs {
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
+    worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
   }
 }
 
@@ -46,6 +47,10 @@ export function markSessionSeen(sessionPath: string): void {
 
 export function setFontPrefs(fonts: AppPrefs['fonts']): void {
   prefs().set('fonts', fonts)
+}
+
+export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {
+  prefs().set('worktrees', worktrees)
 }
 
 export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {

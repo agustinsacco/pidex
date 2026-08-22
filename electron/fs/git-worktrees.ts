@@ -3,7 +3,7 @@ import { promisify } from 'node:util'
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AddWorktreeBranch, BranchInfo, WorktreeInfo } from '@shared/models'
+import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { abortMergeAndCollectConflicts, dirtyCount, git } from './git-exec'
 
@@ -142,18 +142,80 @@ export async function listBranches(
     })
     .sort((a, b) => (b.lastCommitAt ?? 0) - (a.lastCommitAt ?? 0))
 
-  let defaultBranch: string
-  try {
-    defaultBranch = (await git(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']))
-      .trim()
-      .replace(/^origin\//, '')
-  } catch {
-    const names = new Set(branches.map((b) => b.name))
-    defaultBranch = names.has('main') ? 'main' : names.has('master') ? 'master' : currentBranch
-  }
+  const defaultBranch = await defaultBranchOf(repoPath, {
+    names: new Set(branches.map((b) => b.name)),
+    currentBranch,
+  })
 
   await enrichWithSync(repoPath, branches, defaultBranch)
   return { branches, defaultBranch }
+}
+
+/**
+ * This repo's trunk: what `origin/HEAD` points at, else `main`/`master` if one
+ * exists locally, else whatever is checked out.
+ *
+ * Hints let `listBranches` reuse the branch names and current branch it has
+ * already paid for; `startPoint` has neither and asks git directly.
+ */
+async function defaultBranchOf(
+  repoPath: string,
+  hints: { names?: Set<string>; currentBranch?: string } = {},
+): Promise<string> {
+  try {
+    return (await git(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']))
+      .trim()
+      .replace(/^origin\//, '')
+  } catch {
+    // No origin/HEAD (no remote, or never set) — fall back to local names.
+  }
+  const names =
+    hints.names ??
+    new Set(
+      (await git(repoPath, ['for-each-ref', 'refs/heads', '--format=%(refname:short)']))
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean),
+    )
+  if (names.has('main')) return 'main'
+  if (names.has('master')) return 'master'
+  return hints.currentBranch ?? (await git(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+}
+
+/**
+ * Where a new session branch should start.
+ *
+ * Prefers `origin/<trunk>` over local trunk deliberately. "Branch off the
+ * latest main" is the actual intent, and the local `main` in a repo the user
+ * has been working in for a week is routinely stale — but bringing it up to
+ * date would mean pulling, which fails outright on a dirty main tree and is
+ * exactly the kind of surprise a "new chat" button must not spring. Branching
+ * straight off the remote-tracking ref gets the freshest trunk while leaving
+ * the main tree's checkout untouched, dirty or not.
+ *
+ * The caller is expected to have fetched (throttled) first; without a fetch
+ * this is still correct, just as fresh as the last fetch.
+ */
+export async function startPoint(repoPath: string): Promise<StartPoint> {
+  const defaultBranch = await defaultBranchOf(repoPath)
+  if (await refExists(repoPath, `refs/remotes/origin/${defaultBranch}`)) {
+    return { base: `origin/${defaultBranch}`, defaultBranch, fromRemote: true }
+  }
+  if (await refExists(repoPath, `refs/heads/${defaultBranch}`)) {
+    return { base: defaultBranch, defaultBranch, fromRemote: false }
+  }
+  // Neither ref resolves: a repo whose trunk is unborn or oddly named. HEAD is
+  // always *something*, and branching from it beats refusing to start a chat.
+  return { base: 'HEAD', defaultBranch, fromRemote: false }
+}
+
+async function refExists(repoPath: string, ref: string): Promise<boolean> {
+  try {
+    await git(repoPath, ['show-ref', '--verify', '--quiet', ref])
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -245,6 +307,11 @@ export async function addWorktree(
   if (!NAME_PATTERN.test(name) || name.includes('..')) {
     throw new Error(`Invalid worktree name "${name}" — letters, digits, ./_- only.`)
   }
+  if (branch.kind === 'new' && branch.branch !== undefined) {
+    if (!NAME_PATTERN.test(branch.branch) || branch.branch.includes('..')) {
+      throw new Error(`Invalid branch name "${branch.branch}" — letters, digits, ./_- only.`)
+    }
+  }
   const path = join(worktreeRootFor(repoPath), name)
   if (existsSync(path)) {
     throw new Error(`Worktree folder already exists: ${path}`)
@@ -279,7 +346,14 @@ export async function addWorktree(
   await ensureExcluded(repoPath)
 
   if (branch.kind === 'new') {
-    await git(repoPath, ['worktree', 'add', '-b', name, path, branch.base])
+    // `--no-track` when the base is a remote-tracking ref: git would otherwise
+    // make `origin/main` the new branch's upstream, so the branch chip would
+    // report it as "behind origin/main" forever and `git push` would aim at
+    // trunk. Distance from trunk is already reported via `behindDefault`.
+    const args = ['worktree', 'add', '-b', branch.branch ?? name]
+    if (branch.noTrack) args.push('--no-track')
+    args.push(path, branch.base)
+    await git(repoPath, args)
   } else {
     await git(repoPath, ['worktree', 'add', path, branch.branch])
   }
