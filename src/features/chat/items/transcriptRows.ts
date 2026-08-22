@@ -32,7 +32,10 @@ export interface ExternalToolBlock {
   index: number
   /** Tool name as Claude Code reported it, e.g. "WebSearch". */
   name: string
-  /** Truncated argument preview, verbatim from the marker. Never parsed. */
+  /**
+   * Truncated argument preview, verbatim from the marker. Read best-effort
+   * by `externalToolInfo` (it survives truncation); never a hard dependency.
+   */
   args?: string
 }
 
@@ -44,6 +47,79 @@ export function parseExternalToolMarker(text: string): { name: string; args?: st
   if (!match) return null
   const args = match[2]?.trim()
   return { name: match[1]!, args: args && args.length > 0 ? args : undefined }
+}
+
+/** Claude Code's sub-agent tools, as they appear in marker blocks. */
+const AGENT_MARKER_NAMES = new Set(['Agent', 'Task'])
+
+export function isAgentMarker(name: string): boolean {
+  return AGENT_MARKER_NAMES.has(name)
+}
+
+/** What an external-tool row should actually say, instead of raw JSON. */
+export interface ExternalToolInfo {
+  /** A Claude Code sub-agent launch (Agent/Task). */
+  isAgent: boolean
+  /** Human headline: the agent's description, or the primary argument. */
+  headline?: string
+  /** Longer secondary text (the agent's prompt), when recoverable. */
+  detail?: string
+}
+
+/** Argument keys worth surfacing, most meaningful first. */
+const HEADLINE_KEYS = [
+  'description',
+  'query',
+  'url',
+  'path',
+  'file_path',
+  'command',
+  'pattern',
+  'skill',
+  'prompt',
+]
+
+/**
+ * Best-effort read of a marker's argument preview.
+ *
+ * The provider caps the preview, so `args` is often TRUNCATED mid-string and
+ * `JSON.parse` fails; the fallback pulls out whichever complete `"key":"value"`
+ * pairs survived. Values are unescaped through JSON.parse per field so `\"`
+ * and `\n` read naturally.
+ */
+export function externalToolInfo(name: string, args?: string): ExternalToolInfo {
+  const isAgent = isAgentMarker(name)
+  if (!args) return { isAgent }
+
+  let fields: Record<string, string> = {}
+  try {
+    const parsed: unknown = JSON.parse(args)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'string') fields[key] = value
+      }
+    }
+  } catch {
+    fields = {}
+    const pair = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+    for (let match = pair.exec(args); match; match = pair.exec(args)) {
+      try {
+        fields[match[1]!] = JSON.parse(`"${match[2]!}"`) as string
+      } catch {
+        fields[match[1]!] = match[2]!
+      }
+    }
+  }
+
+  if (isAgent) {
+    return {
+      isAgent,
+      headline: fields['description'] || fields['subagent_type'] || undefined,
+      detail: fields['prompt'] || undefined,
+    }
+  }
+  const key = HEADLINE_KEYS.find((k) => fields[k])
+  return { isAgent, headline: key ? fields[key] : undefined }
 }
 
 export interface ActivityStep {
@@ -155,6 +231,30 @@ export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): s
   return null
 }
 
+/**
+ * Sub-agent launches in the transcript's trailing assistant run — everything
+ * after the last user message. Once the user prompts again, Claude Code gets
+ * its chance to report on them and the count resets to zero.
+ *
+ * This is marker counting, not live tracking: the provider today neither
+ * streams sub-agent progress nor keeps the CLI alive past the turn's result,
+ * so pidex cannot know whether these agents finished (see
+ * specs/12-extensions.md). The strip fed by this says "launched", never
+ * "running".
+ */
+export function trailingAgentLaunches(rows: TranscriptRow[]): number {
+  let count = 0
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]
+    if (row?.kind === 'item' && row.item.kind === 'user') break
+    if (row?.kind !== 'activity') continue
+    for (const step of row.steps) {
+      if (step.block.type === 'externalTool' && isAgentMarker(step.block.name)) count++
+    }
+  }
+  return count
+}
+
 /** True while any step in the group is still producing output. */
 export function isActivityLive(steps: ActivityStep[], tools: Record<string, ToolState>): boolean {
   return steps.some((s) => {
@@ -187,6 +287,7 @@ const NOUNS: Record<string, [string, string]> = {
   Created: ['artifact', 'artifacts'],
   Updated: ['artifact', 'artifacts'],
   'Claude Code': ['tool', 'tools'],
+  Launched: ['agent', 'agents'],
 }
 
 /**
@@ -212,7 +313,9 @@ export function summarizeActivity(
       continue
     }
     if (step.block.type === 'externalTool') {
-      const label = 'Claude Code'
+      // Sub-agent launches summarize as "launched N agents", not as
+      // anonymous "claude code N tools" — they are the headline of a turn.
+      const label = isAgentMarker(step.block.name) ? 'Launched' : 'Claude Code'
       if (!counts.has(label)) order.push(label)
       counts.set(label, (counts.get(label) ?? 0) + 1)
       continue

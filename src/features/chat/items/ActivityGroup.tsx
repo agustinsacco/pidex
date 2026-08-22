@@ -1,7 +1,12 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
-import { isActivityLive, summarizeActivity, type ActivityStep } from './transcriptRows'
+import {
+  externalToolInfo,
+  isActivityLive,
+  summarizeActivity,
+  type ActivityStep,
+} from './transcriptRows'
 import { ToolCard } from '../tools/ToolCard'
 import { settledVerb } from '../tools/toolSummaries'
 import { Markdown } from '@/components/markdown/Markdown'
@@ -73,22 +78,29 @@ export const ActivityGroup = memo(function ActivityGroup({
   }
   const trailingThought = pendingThought
 
+  const liveLabel = [
+    summary.stepLabel,
+    summary.detail,
+    summary.thinkingCount > 0
+      ? `${summary.thinkingCount} thought${summary.thinkingCount === 1 ? '' : 's'}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <div
-      data-testid="activity-group"
-      data-live={activeRun || undefined}
-      className={clsx(
-        'overflow-hidden rounded-lg border transition-colors duration-200',
-        activeRun ? 'border-accent/45 bg-surface' : 'border-border bg-surface',
-      )}
-    >
+    // The frame moved off this wrapper on purpose: the summary line is plain
+    // prose-adjacent text (caret + label), and only the step list below gets
+    // a bordered card. Boxing the whole run made the summary read as part of
+    // the tool output instead of the narration above it.
+    <div data-testid="activity-group" data-live={activeRun || undefined}>
       <button
         data-testid="activity-summary"
         onClick={() => {
           if (!activeRun) setUserOpen(!open)
         }}
         aria-expanded={open}
-        className="hover:bg-bg-secondary flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors"
+        className="hover:bg-bg-secondary/60 flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors"
       >
         {activeRun ? (
           <span
@@ -98,16 +110,22 @@ export const ActivityGroup = memo(function ActivityGroup({
         ) : (
           <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
         )}
-        <span className="text-text-secondary min-w-0 flex-1 truncate text-base">
-          <span className="text-text font-medium">{summary.stepLabel}</span>
-          {summary.detail && ` · ${summary.detail}`}
-          {summary.thinkingCount > 0 && (
-            <span className="text-text-tertiary">
-              {' · '}
-              {summary.thinkingCount} thought{summary.thinkingCount === 1 ? '' : 's'}
-            </span>
-          )}
-        </span>
+        {activeRun ? (
+          // One flat span while live: the shimmer clips a gradient to the
+          // text, which needs a single run of same-colored glyphs.
+          <span className="thinking-shimmer min-w-0 flex-1 truncate text-base">{liveLabel}</span>
+        ) : (
+          <span className="text-text-secondary min-w-0 flex-1 truncate text-base">
+            <span className="text-text font-medium">{summary.stepLabel}</span>
+            {summary.detail && ` · ${summary.detail}`}
+            {summary.thinkingCount > 0 && (
+              <span className="text-text-tertiary">
+                {' · '}
+                {summary.thinkingCount} thought{summary.thinkingCount === 1 ? '' : 's'}
+              </span>
+            )}
+          </span>
+        )}
         {summary.failedCount > 0 && (
           <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
             {summary.failedCount} failed
@@ -120,8 +138,10 @@ export const ActivityGroup = memo(function ActivityGroup({
         inert={!open}
         className={clsx('activity-group-body', open && 'activity-group-body-open')}
       >
-        <div className="min-h-0">
-          <div className="border-border divide-border/50 divide-y border-t">
+        {/* overflow-hidden moved here from the old outer frame — the grid
+            track collapse needs a clipping child to actually hide the card. */}
+        <div className="min-h-0 overflow-hidden">
+          <div className="border-border bg-surface divide-border/50 mt-1 divide-y overflow-hidden rounded-lg border">
             {rows.map(({ step, thought }) => (
               <div
                 className="activity-step-enter"
@@ -158,16 +178,20 @@ function ActivityRow({
   // so this is a compact, always-settled row rather than a ToolCard.
   if (step.block.type === 'externalTool') {
     const { name, args } = step.block
+    const info = externalToolInfo(name, args)
+    if (info.isAgent) {
+      return <SubagentRow headline={info.headline} detail={info.detail} />
+    }
     return (
       <div className="flex items-start" data-testid="external-tool-row">
         <span className="flex w-6 shrink-0 justify-center pt-1" />
-        <span className="text-text-secondary min-w-0 flex-1 truncate pr-2 text-base">
-          <span className="text-text-tertiary">Claude Code</span> <span>{name}</span>
-          {args && (
-            <span className="text-text-tertiary ml-1.5 font-mono text-sm" title={args}>
-              {args}
-            </span>
-          )}
+        <span
+          className="text-text-secondary min-w-0 flex-1 truncate pr-2 text-base"
+          title={args && `${name} ${args}`}
+        >
+          <span className="text-text-tertiary">Claude Code</span>{' '}
+          <span className="text-text">{name}</span>
+          {info.headline && <span className="text-text-tertiary ml-1.5">{info.headline}</span>}
         </span>
       </div>
     )
@@ -215,6 +239,58 @@ function ActivityRow({
           className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={thought} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A Claude Code sub-agent launch (`Agent`/`Task` marker).
+ *
+ * Rendered as its own labeled step — an agent spinning up is the headline of
+ * a turn, not an anonymous tool. Only the invocation is knowable: the
+ * provider neither streams the agent's transcript nor keeps the CLI alive
+ * past the turn (specs/12-extensions.md), so this row makes no claims about
+ * progress or completion. The prompt expands on click when it survived the
+ * provider's argument-preview cap.
+ */
+function SubagentRow({
+  headline,
+  detail,
+}: {
+  headline?: string
+  detail?: string
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const expandable = Boolean(detail)
+  return (
+    <div data-testid="subagent-row">
+      <button
+        onClick={() => expandable && setOpen((o) => !o)}
+        aria-expanded={expandable ? open : undefined}
+        disabled={!expandable}
+        className={clsx(
+          'flex w-full items-center gap-1.5 py-1 pl-2 pr-2 text-left transition-colors',
+          expandable && 'hover:bg-bg-secondary/60',
+        )}
+      >
+        <span className="bg-accent-soft text-accent shrink-0 rounded px-1.5 py-px text-xs font-semibold uppercase tracking-wide">
+          agent
+        </span>
+        <span className="text-text min-w-0 flex-1 truncate text-base">
+          {headline ?? 'Sub-agent task'}
+        </span>
+        {expandable && (
+          <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
+        )}
+      </button>
+      {open && detail && (
+        <div
+          data-testid="subagent-prompt"
+          className="border-accent/30 text-text-secondary mb-1.5 ml-2 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
+        >
+          {detail}
         </div>
       )}
     </div>

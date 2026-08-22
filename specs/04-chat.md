@@ -51,8 +51,13 @@ inherits them for free — but anything that re-derives rows from
 | thinking block with a signature and no text | Encrypted thinking. Measured: fable-5, opus-5, sonnet-5 all do this; haiku-4-5 is the only family sending plaintext                                                             | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                      |
 
 The marker string is a **cross-repo wire contract**; the emitting side
-documents its shape. Never parse the argument preview — the provider
-truncates it, so it is frequently invalid JSON and is display-only.
+documents its shape. The argument preview is truncation-prone and therefore
+frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
+(JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
+headline — `Agent`/`Task` markers additionally render as sub-agent rows and
+feed the "N agents launched in background" strip (`trailingAgentLaunches`).
+Nothing may ever _depend_ on the preview parsing: a marker whose args are
+unreadable still renders as a plain named step.
 
 ## Rich content (first-class citizens)
 
