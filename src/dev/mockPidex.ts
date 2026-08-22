@@ -457,6 +457,22 @@ export function installMockPidex(): void {
                 statusText: MOCK_CONTEXT_BREAKDOWN,
               },
             } as SessionPush)
+            push('mock-session-id', {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
+                id: 'mock-rl',
+                method: 'setStatus',
+                statusKey: 'claude-rate-limit',
+                statusText: JSON.stringify({
+                  status: 'allowed',
+                  resetsAt: Math.floor(Date.now() / 1000) + 8640,
+                  rateLimitType: 'five_hour',
+                  overageStatus: 'rejected',
+                  isUsingOverage: false,
+                }),
+              },
+            } as SessionPush)
           }, 120)
           return Promise.resolve({
             sessionId: 'mock-session-id',
