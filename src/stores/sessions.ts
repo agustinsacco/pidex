@@ -427,21 +427,33 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           useChatStore.getState().doneResuming(pidexId)
         }
       }
-      void bootstrapSession(pidexId)
+      // Never rejects (it wraps get_state and allSettles the rest), so the
+      // naming chain below can hang off it safely.
+      const bootstrapped = bootstrapSession(pidexId)
+      void bootstrapped
 
-      if (options.firstPrompt) {
+      const firstPrompt = options.firstPrompt
+      if (firstPrompt) {
         const images = options.firstImages?.length ? options.firstImages : undefined
-        useChatStore.getState().addUserMessage(pidexId, options.firstPrompt, images)
+        useChatStore.getState().addUserMessage(pidexId, firstPrompt, images)
         void piCallOk(pidexId, {
           type: 'prompt',
-          message: options.firstPrompt,
+          message: firstPrompt,
           ...(images ? { images } : {}),
         })
         // A brand-new session (not a resume, not explicitly named) gets a
         // generated title once its first message exists. Fire-and-forget: the
         // first-message-derived title stands until (and unless) this lands.
+        //
+        // Deliberately sequenced AFTER bootstrap rather than fired alongside
+        // it. autoNameSession's "pi already named this" guard reads
+        // `meta.sessionName`, which ONLY get_state populates — starting both
+        // at once made that guard a race it merely tended to win. It also
+        // put a subprocess spawn (`pi -p`) in the middle of session startup,
+        // competing with the get_state round-trip that "reopen my last
+        // session" depends on.
         if (!options.name && !options.sessionPath) {
-          void autoNameSession(pidexId, workspacePath, options.firstPrompt)
+          void bootstrapped.then(() => autoNameSession(pidexId, workspacePath, firstPrompt))
         }
       }
       return pidexId

@@ -47,16 +47,17 @@ the collapse animation.
   instead of raw JSON spill.
 - `Agent`/`Task` markers render as a dedicated sub-agent row (`agent` badge,
   description headline, prompt expandable) and summarize as "launched N
-  agents". `trailingAgentLaunches` feeds an **"N agents launched in
-  background"** strip above the composer, shown until the user's next
-  message.
-- The strip deliberately says _launched_, never _running_, and has no
-  spinner: the provider forwards only the launch marker — no progress, no
-  completion — and its process manager **force-kills the CLI when the turn's
-  result arrives**, so a background agent does not outlive the turn at all.
-  Live tracking ("2 agents running", per-agent transcripts in the right
-  pane, working indicator until agents settle) is provider work first:
-  forward `parent_tool_use_id` events (or bridge sub-agents as synthetic pi
-  tool calls, which would also normalize them with the `pi-subagents`
-  extension's real tool calls) and keep the process alive until background
-  tasks settle. Seams named in the fork's `docs/ARCHITECTURE.md`.
+  agents". `trailingAgentLaunches` feeds a strip above the composer, shown
+  until the user's next message.
+- The strip deliberately makes no liveness claim and has no spinner: the
+  provider forwards only the launch marker, with no progress and no
+  completion.
+
+> **Corrected 2026-08-22** — two claims above were wrong, and the strip's
+> original wording ("N agents launched in background") was wrong with them.
+> The CLI is only _force-killed_ on the break-early path, which fires for
+> pi-executable tools; a sub-agent turn ends with the CLI exiting normally.
+> More importantly the agent is not working "in the background" at all — it
+> dies with that exit and never reports back. See
+> [2026-08-22-claude-subagents-never-return.md](2026-08-22-claude-subagents-never-return.md)
+> for the captured evidence and the corrected wording.
