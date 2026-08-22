@@ -21,8 +21,11 @@ export function TranscriptSkeleton({
   message?: string
 } = {}): React.JSX.Element {
   return (
+    // Same column as the transcript it stands in for (mx-auto max-w-3xl px-6,
+    // see MessageList) — full-width bars made the loading state look like a
+    // different screen, then everything jumped inward when content landed.
     <div
-      className="flex flex-1 flex-col gap-6 overflow-hidden px-6 py-6"
+      className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 overflow-hidden px-6 py-6"
       data-testid="transcript-skeleton"
       aria-busy="true"
       aria-label="Loading session history"

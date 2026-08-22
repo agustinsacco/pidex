@@ -90,6 +90,11 @@ export interface IpcInvokeMap {
   }
   'pi:disposeSession': { args: [sessionId: string]; result: void }
   'pi:listLiveSessions': { args: []; result: LiveSessionInfo[] }
+  /** One-shot `pi -p` completion that names a session after its first message. */
+  'pi:generateTitle': {
+    args: [workspacePath: string, message: string, existingNames: string[]]
+    result: string | null
+  }
 
   'app:getPrefs': { args: []; result: AppPrefs }
   'app:setTheme': { args: [ThemePreference]; result: void }

@@ -4,6 +4,7 @@ import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
+import { sessionTitle } from '@/lib/sessionTitle'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -177,6 +178,34 @@ export async function refreshThinkingLevels(pidexId: string): Promise<void> {
     }
   } catch {
     // Session gone, or pi too old — the picker's local derivation covers it.
+  }
+}
+
+/**
+ * Generate and apply a title for a brand-new session's first message.
+ *
+ * The one-shot completion (`pi:generateTitle`) can take seconds; by the time
+ * it lands the user may have renamed the session (guard: explicit
+ * `sessionName` wins) or closed it (guard: still live). Existing titles ride
+ * along so the model avoids duplicating a sibling session's name.
+ */
+async function autoNameSession(
+  pidexId: string,
+  workspacePath: string,
+  firstPrompt: string,
+): Promise<void> {
+  const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
+    .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
+    .filter((t): t is string => Boolean(t))
+  const title = await window.pidex
+    .invoke('pi:generateTitle', workspacePath, firstPrompt, existing)
+    .catch(() => null)
+  if (!title) return
+  if (useChatStore.getState().sessions[pidexId]?.meta?.sessionName) return
+  if (!useSessionsStore.getState().live[pidexId]) return
+  if (await piCallOk(pidexId, { type: 'set_session_name', name: title })) {
+    useChatStore.getState().patchMeta(pidexId, { sessionName: title })
+    void useSessionsStore.getState().refreshDisk(workspacePath)
   }
 }
 
@@ -401,6 +430,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           message: options.firstPrompt,
           ...(images ? { images } : {}),
         })
+        // A brand-new session (not a resume, not explicitly named) gets a
+        // generated title once its first message exists. Fire-and-forget: the
+        // first-message-derived title stands until (and unless) this lands.
+        if (!options.name && !options.sessionPath) {
+          void autoNameSession(pidexId, workspacePath, options.firstPrompt)
+        }
       }
       return pidexId
     } finally {

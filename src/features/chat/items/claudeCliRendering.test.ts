@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { hydrateFromMessages } from '../reducer'
 import {
   buildTranscriptRows,
+  externalToolInfo,
   parseExternalToolMarker,
   summarizeActivity,
+  trailingAgentLaunches,
   type ActivityStep,
 } from './transcriptRows'
 import { settledVerb } from '../tools/toolSummaries'
@@ -103,6 +105,26 @@ describe('Claude Code provider transcripts', () => {
     expect(summary.detail).toContain('claude code 2 tools')
   })
 
+  it('summarizes sub-agent launches as launched agents, not anonymous tools', () => {
+    const launch: AgentMessage[] = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '[Claude Code · Agent {"description":"Find rename code"}]' },
+        ],
+        stopReason: 'stop',
+      } as unknown as AgentMessage,
+    ]
+    const state = hydrateFromMessages(launch)
+    const steps = buildTranscriptRows(state.items)
+      .filter((r) => r.kind === 'activity')
+      .flatMap((r) => (r as { steps: ActivityStep[] }).steps)
+
+    const summary = summarizeActivity(steps, state.tools, (t) => settledVerb(t.toolName ?? ''))
+    expect(summary.detail).toContain('launched 1 agent')
+    expect(summary.detail).not.toContain('claude code')
+  })
+
   it('still shows a thinking block that carries real text', () => {
     const withThought: AgentMessage[] = [
       {
@@ -120,5 +142,73 @@ describe('Claude Code provider transcripts', () => {
       .flatMap((r) => (r as { steps: ActivityStep[] }).steps)
 
     expect(steps.filter((s) => s.block.type === 'thinking')).toHaveLength(1)
+  })
+})
+
+describe('externalToolInfo', () => {
+  it('reads an agent launch: description headline, prompt detail', () => {
+    const info = externalToolInfo(
+      'Agent',
+      '{"description":"Find rename code","prompt":"In this Electron app, locate…"}',
+    )
+    expect(info.isAgent).toBe(true)
+    expect(info.headline).toBe('Find rename code')
+    expect(info.detail).toBe('In this Electron app, locate…')
+  })
+
+  it('recovers complete fields from a truncated preview', () => {
+    // The provider caps the preview mid-string — JSON.parse fails, but the
+    // complete description pair must still surface.
+    const info = externalToolInfo(
+      'Task',
+      '{"description":"Find chat rename and sort code","prompt":"In this Electron app (pide…',
+    )
+    expect(info.isAgent).toBe(true)
+    expect(info.headline).toBe('Find chat rename and sort code')
+  })
+
+  it('unescapes JSON escapes in recovered fields', () => {
+    const info = externalToolInfo('WebSearch', '{"query":"say \\"hi\\""}')
+    expect(info.headline).toBe('say "hi"')
+  })
+
+  it('picks a meaningful headline for ordinary tools and tolerates no args', () => {
+    expect(externalToolInfo('WebSearch', '{"query":"pygame docs"}').headline).toBe('pygame docs')
+    expect(externalToolInfo('ListAgents').headline).toBeUndefined()
+    expect(externalToolInfo('ListAgents').isAgent).toBe(false)
+  })
+})
+
+describe('trailingAgentLaunches', () => {
+  const agentText = '[Claude Code · Agent {"description":"scout"}]'
+  const message = (role: string, content: unknown): AgentMessage =>
+    ({ role, content, stopReason: 'stop' }) as unknown as AgentMessage
+
+  it('counts launches after the last user message', () => {
+    const state = hydrateFromMessages([
+      message('user', 'go'),
+      message('assistant', [
+        { type: 'text', text: agentText },
+        { type: 'text', text: 'Launched a scout.' },
+      ]),
+    ])
+    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(1)
+  })
+
+  it('resets once the user replies', () => {
+    const state = hydrateFromMessages([
+      message('user', 'go'),
+      message('assistant', [{ type: 'text', text: agentText }]),
+      message('user', 'any news?'),
+    ])
+    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(0)
+  })
+
+  it('ignores ordinary external tools', () => {
+    const state = hydrateFromMessages([
+      message('user', 'go'),
+      message('assistant', [{ type: 'text', text: '[Claude Code · WebSearch {"query":"x"}]' }]),
+    ])
+    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(0)
   })
 })
