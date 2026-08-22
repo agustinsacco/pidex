@@ -137,6 +137,48 @@ testClaudeProvider` (`electron/ipc/packages-handlers.ts`);
   package, install/remove round-trip through the stub's package-manager
   mode, web-access key write, and the Claude provider chain.
 
+## Bundled extensions (pidex's own)
+
+Separate from packages the user installs, pidex ships its own pi extensions
+as TypeScript files in `pi-ext/`, loaded into **every** session via
+`pi --mode rpc -e <path>` (`bundledExtensions()` in
+`electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
+
+| File                   | Why it must run inside pi                                             |
+| ---------------------- | --------------------------------------------------------------------- |
+| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](07-artifacts.md)) |
+| `context-breakdown.ts` | measures context composition — the parts are only visible in-process  |
+
+`context-breakdown.ts` exists because pi reports context usage as one
+number. The composed system prompt and the active tool schemas are not
+reachable from the renderer at all, so measuring them has to happen inside
+pi. Two traps it documents at its call sites, both of which produced wrong
+numbers first: `getAllTools()` returns definitions (the schemas that
+actually occupy context) while `getActiveTools()` returns **names** — using
+the latter for sizing reports a handful of tokens for a tool set costing
+thousands; and it publishes at rest (`session_start`, `agent_settled`,
+`turn_end`), never mid-stream, because a per-delta recompute walks the whole
+branch on every token.
+
+### The status channel is a wire contract
+
+Both bundled extensions and provider packages talk to pidex's UI the same
+way: `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the
+per-session map in `stores/extensionUi.ts`. Two keys are load-bearing today:
+
+| Key                       | Emitter                            | Consumer                                      |
+| ------------------------- | ---------------------------------- | --------------------------------------------- |
+| `pidex-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter |
+| `claude-rate-limit`       | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter        |
+
+The second crosses a repo boundary, so its shape is API — it is documented
+on the emitting side in that repo's `docs/ARCHITECTURE.md`, and changing it
+there breaks rendering here with no compile error. Rules for both: the
+payload is JSON in a string, every parser returns `null` rather than
+throwing on garbage, and a missing key means "render nothing", never an
+empty section. Status pushes must never be able to break a turn — the
+emitters swallow their own errors for that reason.
+
 ## How provider transcripts render
 
 The Claude Code provider is the first package whose sessions contain block
@@ -158,13 +200,21 @@ families through pidex's own hydration and transcript builder; the fixture in
 `chat/__fixtures__/claude-cli-blocks.json` is trimmed from those captures and
 guards the behaviour (`items/claudeCliRendering.test.ts`).
 
-**If you extend this** (tool request/response UX, sub-agent trees): the
-provider currently drops two things that would be the starting points — the
-`tool_result` blocks the CLI feeds itself between cycles (so external tools
-have no result to show), and everything tagged `parent_tool_use_id` (Claude
-Code's own sub-agent episodes). Both seams are named in that repo's
-`docs/ARCHITECTURE.md`; surfacing either needs a provider change first, then
-a step kind here.
+- **Sub-agent launches** — `Agent`/`Task` markers render as sub-agent rows
+  (badge, description, expandable prompt) and feed the "N agents launched in
+  background" strip. What the provider forwards is the **launch and nothing
+  else**, so the UI makes no liveness claim: no progress, no result, and the
+  CLI does not outlive the turn.
+
+**If you extend this** (tool request/response UX, live sub-agent trees): the
+provider still drops the two things you would need — the `tool_result`
+blocks the CLI feeds itself between cycles (so external tools have no result
+to show), and everything tagged `parent_tool_use_id` (the nested sub-agent
+episode). Both seams are named in that repo's `docs/ARCHITECTURE.md`;
+surfacing either needs a provider change first, then a step kind here. Do
+not attempt to infer either one from the marker stream — the argument
+preview is truncated and read best-effort precisely because nothing may
+depend on it parsing.
 
 ## Sharp edges
 

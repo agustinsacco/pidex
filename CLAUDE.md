@@ -88,6 +88,15 @@ stops before the slow part.
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
   read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
+- **Two UI surfaces are fed by extensions, not by RPC.** The context meter's
+  composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
+  into every session) and its plan-limits section from the Claude provider
+  package — both over `ctx.ui.setStatus` into `stores/extensionUi.ts`. The
+  second crosses a repo boundary, so nothing here fails to compile when it
+  changes; the keys and their rules are in
+  [specs/12-extensions.md](specs/12-extensions.md#the-status-channel-is-a-wire-contract).
+  Component sizes in that breakdown are estimates and must stay labelled as
+  such — only pi's total is authoritative.
 
 ## Conventions
 

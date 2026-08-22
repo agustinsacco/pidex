@@ -74,5 +74,38 @@ unreadable still renders as a plain named step.
 ## Session header / status strip (per session)
 
 - Model picker (from `get_available_models`, grouped by provider — remember custom/local providers exist), thinking-level selector (off→xhigh, hidden if model lacks reasoning).
-- Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover).
+- Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
 - Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
+
+### What the context meter's popover shows
+
+Three sources, three different confidence levels — and the UI is required to
+keep them distinguishable, because they are not equally trustworthy.
+
+| Section             | Source                                                   | Shown for                     |
+| ------------------- | -------------------------------------------------------- | ----------------------------- |
+| Tokens / cost       | `get_session_stats`                                      | every session                 |
+| Context composition | `pidex-context-breakdown` status key (bundled extension) | every session                 |
+| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)         | Claude Code provider sessions |
+
+**Context composition** answers "full of _what_" — messages, system prompt,
+tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
+number cannot. Only that **total is authoritative**: component sizes are
+character-based estimates (no tokenizer is reachable from an extension), so
+`breakdownSlices` scales them onto pi's real total, free space is the honest
+remainder, and the popover labels them approximate. Never present an
+estimate as measured, and never let the parts sum past the total.
+
+**Plan limits** is account state, not session state: the window
+(`five_hour`), when it resets, whether the account is capped or on overage.
+It renders only when the key is present, so other providers show nothing
+rather than an empty section. It deliberately has **no utilization
+percentage** — the CLI never forwards the header that carries it, so "when
+capacity returns" is the honest answer and "how much is left" is not
+available at any price we're willing to pay (see 12-extensions.md).
+
+Both keys arrive through pi's extension-UI status channel and land in
+`stores/extensionUi.ts` keyed by session; parsing lives in
+`composer/contextBreakdown.ts` and `composer/rateLimit.ts`, each of which
+returns `null` for a missing or malformed payload so a bad push degrades to
+"section absent" rather than a broken meter.

@@ -29,4 +29,16 @@ to collide with.
 | 2026-08-20 | ["UI scale" that never scaled, and a dead strip above the sidebar](2026-08-20-ui-scale-and-linux-titlebar.md) |
 | 2026-08-20 | [Provider errors show the sentence, not the JSON](2026-08-20-provider-error-envelopes.md)                     |
 | 2026-08-20 | [A type scale, replacing 424 hand-picked pixel sizes](2026-08-20-type-scale.md)                               |
+| 2026-08-20 | [You could not copy out of the terminal](2026-08-20-terminal-clipboard.md)                                    |
+| 2026-08-20 | [Extensions management + first-run onboarding](2026-08-20-extensions-phase01-settings-audit.md)               |
+| 2026-08-20 | [Per-extension settings tabs: Claude Code + Web access](2026-08-20-per-extension-settings-tabs.md)            |
+| 2026-08-20 | [E2E coverage for the extensions surface](2026-08-20-extensions-e2e-coverage.md)                              |
 | 2026-08-21 | [The composer that wouldn't grow with its text](2026-08-21-composer-autogrow.md)                              |
+| 2026-08-21 | [Claude Code provider: four gap fixes, live-verified](2026-08-21-claude-cli-provider-fixes.md)                |
+| 2026-08-21 | [Rendering Claude Code provider transcripts properly](2026-08-21-claude-cli-transcript-rendering.md)          |
+| 2026-08-21 | [Cleanup, part 1: foundations and the git layer](2026-08-21-cleanup-foundations-and-git-layer.md)             |
+| 2026-08-21 | [Presentation primitives](2026-08-21-presentation-primitives.md)                                              |
+| 2026-08-21 | [One top bar, one branch control](2026-08-21-top-bar-and-branch-control.md)                                   |
+| 2026-08-22 | [Sidebar density, resizable width, per-group "+"](2026-08-22-sidebar-density-and-resize.md)                   |
+| 2026-08-22 | [Auto-named sessions, unboxed activity, sub-agent rendering](2026-08-22-chat-polish-and-auto-naming.md)       |
+| 2026-08-22 | [What's in the context window, and what's left of the account](2026-08-22-context-and-account-visibility.md)  |
