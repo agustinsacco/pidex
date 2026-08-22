@@ -4,6 +4,13 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/terminal'
+import {
+  ArtifactsIcon,
+  ChangesIcon,
+  FileIcon,
+  SidebarToggleIcon,
+  TerminalIcon,
+} from '@/components/icons'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
@@ -37,17 +44,7 @@ export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.
         active={false}
         onClick={() => useLayoutStore.getState().toggleSidebar()}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <path d="M9 4v16" />
-        </svg>
+        <SidebarToggleIcon />
       </IconButton>
 
       {/* Folder then branch: the two halves of "where am I working", both
@@ -91,34 +88,14 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
         active={rightPane === 'files'}
         onClick={() => useLayoutStore.getState().toggleRightPane('files', sessionId)}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
+        <FileIcon />
       </IconButton>
       <IconButton
         title={`Changes pane (${formatShortcut('mod', 'shift', 'G')})`}
         active={rightPane === 'changes'}
         onClick={() => useLayoutStore.getState().toggleRightPane('changes', sessionId)}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M12 3v6m0 6v6M5 12h14" />
-          <circle cx="12" cy="12" r="9" />
-        </svg>
+        <ChangesIcon />
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SessionMenu sessionId={sessionId} />
@@ -171,18 +148,7 @@ function TerminalButton({
         active={active}
         onClick={() => useLayoutStore.getState().toggleRightPane('terminal', sessionId)}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m5 8 4 4-4 4M13 16h6" />
-        </svg>
+        <TerminalIcon />
       </IconButton>
       <CountBadge
         count={tabCount}
@@ -219,17 +185,7 @@ function ArtifactsButton({
         active={active}
         onClick={() => useLayoutStore.getState().toggleRightPane('artifacts', sessionId)}
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <rect x="3" y="3" width="18" height="14" rx="2" />
-          <path d="M3 9h18M9 21h6" />
-        </svg>
+        <ArtifactsIcon />
       </IconButton>
       <CountBadge count={count} tone="accent" title={`${count} artifacts`} />
       {unseen > 0 && !active && (

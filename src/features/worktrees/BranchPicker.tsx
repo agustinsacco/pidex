@@ -3,9 +3,10 @@ import clsx from 'clsx'
 import type { BranchInfo, WorktreeInfo } from '@shared/models'
 import { MenuRow } from '@/components/PopupMenu'
 import { CheckIcon, Spinner } from '@/components/icons'
+import { Button, TextInput } from '@/components/form'
+import { useAsyncAction } from '@/components/useAsyncAction'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { workspaceName } from '@/lib/path'
-import { errorText } from '@shared/errors'
 
 /**
  * The branch/worktree picker body, shared by the top bar and the home composer.
@@ -49,8 +50,14 @@ export function BranchPicker({
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [base, setBase] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Thrown failures are also handed to the caller's banner; the "it returned a
+  // reason" branches below only fill this picker's own error line.
+  const {
+    busy,
+    error,
+    setError,
+    run: runAction,
+  } = useAsyncAction((message) => onBusyError?.(message))
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
@@ -61,23 +68,9 @@ export function BranchPicker({
     void useWorktreesStore.getState().syncRemote(repoPath)
   }, [repoPath])
 
-  const fail = (err: unknown): void => {
-    const message = errorText(err)
-    setError(message)
-    onBusyError?.(message)
-  }
-
-  const run = async (action: () => Promise<void>): Promise<void> => {
-    setBusy(true)
-    setError(null)
+  const run = (action: () => Promise<void>): Promise<void> => {
     setNotice(null)
-    try {
-      await action()
-    } catch (err) {
-      fail(err)
-    } finally {
-      setBusy(false)
-    }
+    return runAction(action)
   }
 
   const linked = repo.worktrees.filter((w) => !w.isMain)
@@ -201,12 +194,13 @@ export function BranchPicker({
   return (
     <>
       <div className="px-2 pb-1.5 pt-1">
-        <input
+        <TextInput
           autoFocus
+          size="sm"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search branches…"
-          className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2 py-1 text-base outline-none focus:border-[var(--px-border-strong)]"
+          className="w-full"
         />
       </div>
 
@@ -326,15 +320,16 @@ export function BranchPicker({
 
       {creating ? (
         <div className="space-y-1.5 px-3 py-1.5">
-          <input
+          <TextInput
             autoFocus
+            size="sm"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void create()
             }}
             placeholder="new branch name"
-            className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2 py-1 font-mono text-base outline-none focus:border-[var(--px-border-strong)]"
+            className="w-full font-mono"
           />
           <select
             value={base}
@@ -355,13 +350,15 @@ export function BranchPicker({
                 </option>
               ))}
           </select>
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => void create()}
             disabled={busy || !newName.trim()}
-            className="bg-accent hover:bg-accent-hover text-accent-text w-full rounded-md px-2 py-1 text-base font-medium transition-colors disabled:opacity-50"
+            className="w-full"
           >
             {busy ? 'Creating…' : 'Create worktree'}
-          </button>
+          </Button>
         </div>
       ) : (
         <MenuRow

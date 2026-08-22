@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { highlightCode } from './highlighter'
 import { CopyButton } from '../CopyButton'
+import { ArtifactsIcon } from '../icons'
 import { runInTerminal } from '@/stores/terminal'
 import { getActiveWorkspace } from '@/stores/workspaces'
 
@@ -86,17 +87,7 @@ export const CodeBlock = memo(function CodeBlock({
             onClick={() => void promoteToArtifact(code, language)}
             className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="3" width="18" height="14" rx="2" />
-              <path d="M3 9h18M9 21h6" />
-            </svg>
+            <ArtifactsIcon size={12} />
           </button>
           {SHELL_LANGUAGES.has(language.toLowerCase()) && (
             <button
