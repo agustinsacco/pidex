@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
+import { piCallOk } from '@/lib/rpc'
 import { Spinner } from '@/components/icons'
 
 export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
@@ -20,7 +21,9 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
   if (!retry) return null
 
   const cancel = async (): Promise<void> => {
-    await window.pidex.piCommand(sessionId, { type: 'abort_retry' })
+    // A failed cancel leaves the strip counting down with no explanation, so
+    // this one really does need the error branch it used to skip.
+    await piCallOk(sessionId, { type: 'abort_retry' })
   }
 
   return (

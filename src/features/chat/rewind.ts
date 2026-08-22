@@ -1,4 +1,5 @@
 import { useChatStore } from '@/stores/chat'
+import { piCall, rehydrateTranscript } from '@/lib/rpc'
 import { useChatUiStore } from './uiState'
 
 /**
@@ -10,22 +11,16 @@ import { useChatUiStore } from './uiState'
  * it does not create a new session file.
  */
 export async function rewindToEntry(sessionId: string, entryId: string): Promise<void> {
-  const response = await window.pidex.piCommand(sessionId, { type: 'fork', entryId })
-  if (!response.success) {
-    useChatStore.getState().setError(sessionId, response.error)
-    return
-  }
-  if (response.data?.cancelled) {
+  const fork = await piCall(sessionId, { type: 'fork', entryId })
+  if (!fork) return
+  if (fork.cancelled) {
     useChatStore.getState().setError(sessionId, 'Rewind was cancelled by an extension.')
     return
   }
   // Rebuild the transcript from the new (earlier) branch point.
-  const messages = await window.pidex.piCommand(sessionId, { type: 'get_messages' })
-  if (messages.success && messages.data) {
-    useChatStore.getState().hydrate(sessionId, messages.data.messages)
-  }
-  if (response.data?.text) {
-    useChatUiStore.getState().setPrefill(sessionId, response.data.text)
+  await rehydrateTranscript(sessionId)
+  if (fork.text) {
+    useChatUiStore.getState().setPrefill(sessionId, fork.text)
   }
 }
 
@@ -35,6 +30,11 @@ export async function rewindToEntry(sessionId: string, entryId: string): Promise
  * this transcript and `get_fork_messages` both derive from the same on-disk
  * entry order — so a rendered message row can target its own rewind point
  * without opening a picker over every user message in the session.
+ *
+ * Deliberately NOT `piCall` (CLAUDE.md fact 3): every `null` from here, however
+ * it arose, means the same thing to the caller, and `MessageItem`'s rewind
+ * button already reports it as "Could not locate this message to rewind." —
+ * a piCall error would just be overwritten a line later by that better message.
  */
 export async function entryIdForUserMessageOrdinal(
   sessionId: string,

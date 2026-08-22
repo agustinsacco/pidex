@@ -7,6 +7,7 @@ import type {
   UpdateFromMainResult,
   WorktreeInfo,
 } from '@shared/models'
+import { keyedSlice } from './keyedSlice'
 
 interface RepoWorktrees {
   worktrees: WorktreeInfo[]
@@ -19,15 +20,20 @@ interface RepoWorktrees {
   fetchedAt: number
 }
 
-/** Stable empty value so selectors don't allocate a new object per render. */
-const EMPTY_REPO: RepoWorktrees = Object.freeze({
+/**
+ * Stable empty value so selectors don't allocate a new object per render, and
+ * the base a failed listing resets to.
+ */
+const EMPTY_REPO: RepoWorktrees = {
   worktrees: [],
   branches: [],
   defaultBranch: '',
   loadedAt: 0,
   fetching: false,
   fetchedAt: 0,
-})
+}
+// Freezes EMPTY_REPO in place; the const stays readable as a spread source.
+const repos = keyedSlice(EMPTY_REPO)
 
 interface WorktreesState {
   byRepo: Record<string, RepoWorktrees>
@@ -63,7 +69,16 @@ interface WorktreesState {
 
 /** Worktree/branch state for a repo; shared frozen empty value. */
 export function repoWorktrees(state: WorktreesState, repoPath: string): RepoWorktrees {
-  return state.byRepo[repoPath] ?? EMPTY_REPO
+  return repos.read(state.byRepo, repoPath)
+}
+
+/** Apply a patch to one repo's slice, creating it if absent. */
+function patchRepo(
+  state: WorktreesState,
+  repoPath: string,
+  update: (current: RepoWorktrees) => RepoWorktrees,
+): Pick<WorktreesState, 'byRepo'> {
+  return { byRepo: repos.patch(state.byRepo, repoPath, update) }
 }
 
 export const useWorktreesStore = create<WorktreesState>((set, get) => ({
@@ -78,34 +93,28 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
         window.pidex.invoke('git:listWorktrees', repoPath),
         window.pidex.invoke('git:listBranches', repoPath),
       ])
-      set((s) => ({
-        byRepo: {
-          ...s.byRepo,
-          [repoPath]: {
-            // Spread the previous entry so a refresh triggered mid-fetch does
-            // not blank out `fetching`/`fetchedAt` and strand the spinner.
-            ...(s.byRepo[repoPath] ?? EMPTY_REPO),
-            worktrees,
-            branches: branchData.branches,
-            defaultBranch: branchData.defaultBranch,
-            loadedAt: Date.now(),
-          },
-        },
-      }))
+      set((s) =>
+        // Spread the previous entry so a refresh triggered mid-fetch does not
+        // blank out `fetching`/`fetchedAt` and strand the spinner.
+        patchRepo(s, repoPath, (repo) => ({
+          ...repo,
+          worktrees,
+          branches: branchData.branches,
+          defaultBranch: branchData.defaultBranch,
+          loadedAt: Date.now(),
+        })),
+      )
     } catch {
       // Listing failed (not a repo, git missing): clear the lists as before,
       // but keep the fetch bookkeeping so an in-flight spinner still resolves.
-      set((s) => ({
-        byRepo: {
-          ...s.byRepo,
-          [repoPath]: {
-            ...EMPTY_REPO,
-            fetching: s.byRepo[repoPath]?.fetching ?? false,
-            fetchedAt: s.byRepo[repoPath]?.fetchedAt ?? 0,
-            loadedAt: Date.now(),
-          },
-        },
-      }))
+      set((s) =>
+        patchRepo(s, repoPath, (repo) => ({
+          ...EMPTY_REPO,
+          fetching: repo.fetching,
+          fetchedAt: repo.fetchedAt,
+          loadedAt: Date.now(),
+        })),
+      )
     }
   },
 
@@ -129,9 +138,7 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
 
   syncRemote: async (repoPath, options = {}) => {
     const patch = (fields: Partial<RepoWorktrees>): void =>
-      set((s) => ({
-        byRepo: { ...s.byRepo, [repoPath]: { ...(s.byRepo[repoPath] ?? EMPTY_REPO), ...fields } },
-      }))
+      set((s) => patchRepo(s, repoPath, (repo) => ({ ...repo, ...fields })))
 
     patch({ fetching: true })
     try {
