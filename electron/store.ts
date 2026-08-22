@@ -34,6 +34,7 @@ export function getPrefs(): AppPrefs {
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
+    claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
   }
 }
 
@@ -46,6 +47,10 @@ export function markSessionSeen(sessionPath: string): void {
 
 export function setFontPrefs(fonts: AppPrefs['fonts']): void {
   prefs().set('fonts', fonts)
+}
+
+export function setClaudeSystemPrompt(mode: AppPrefs['claudeSystemPrompt']): void {
+  prefs().set('claudeSystemPrompt', mode)
 }
 
 export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {

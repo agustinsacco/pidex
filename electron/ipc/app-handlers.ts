@@ -9,6 +9,7 @@ import {
   markSessionSeen,
   recordWorkspace,
   setCollapsedWorkspaces,
+  setClaudeSystemPrompt,
   setFontPrefs,
   setLastSession,
   setPinnedSessions,
@@ -96,6 +97,10 @@ export function registerAppHandlers(): void {
     }
 
     return { kind: 'none' as const }
+  })
+
+  handle('app:setClaudeSystemPrompt', (_event, mode) => {
+    setClaudeSystemPrompt(mode)
   })
 
   handle('app:setFontPrefs', (_event, fonts) => {
