@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MonacoEditor } from '@/features/files/MonacoEditor'
 import { ModalOverlay } from '@/components/Modal'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { errorText } from '@shared/errors'
 
 /**
  * Nested modal for editing a raw pi config file (settings.json / models.json).
@@ -38,7 +39,7 @@ export function ConfigFileEditor({
         .pushToast(`${name}.json saved — restart sessions to apply`, 'info')
       onClose()
     } catch (err) {
-      setError(`Invalid JSON: ${(err as Error).message}`)
+      setError(`Invalid JSON: ${errorText(err)}`)
     }
   }
 

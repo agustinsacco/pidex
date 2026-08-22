@@ -122,7 +122,7 @@ describe('listPackages', () => {
     writeFileSync(join(dir, 'settings.json'), JSON.stringify({ packages }))
   }
 
-  it('returns entries from both scopes with installed-state resolution', () => {
+  it('returns entries from both scopes with installed-state resolution', async () => {
     // Installed npm package with a pi manifest.
     const installDir = join(home, 'agent', 'npm', 'node_modules', 'demo-pkg')
     mkdirSync(installDir, { recursive: true })
@@ -138,7 +138,7 @@ describe('listPackages', () => {
     writeSettings(join(home, 'agent'), ['npm:demo-pkg', 'npm:not-installed'])
     writeSettings(join(workspace, '.pi'), [{ source: 'npm:demo-proj', extensions: [] }])
 
-    const entries = listPackages(workspace)
+    const entries = await listPackages(workspace)
     expect(entries).toHaveLength(3)
 
     const demo = entries.find((e) => e.spec === 'npm:demo-pkg')!
@@ -158,7 +158,7 @@ describe('listPackages', () => {
     expect(proj.filtered).toBe(true)
   })
 
-  it('discovers convention directories when there is no pi manifest', () => {
+  it('discovers convention directories when there is no pi manifest', async () => {
     const installDir = join(home, 'agent', 'npm', 'node_modules', 'conv-pkg')
     mkdirSync(join(installDir, 'extensions'), { recursive: true })
     mkdirSync(join(installDir, 'skills', 'my-skill'), { recursive: true })
@@ -168,24 +168,24 @@ describe('listPackages', () => {
     writeFileSync(join(installDir, 'skills', 'my-skill', 'SKILL.md'), '')
     writeSettings(join(home, 'agent'), ['npm:conv-pkg'])
 
-    const [entry] = listPackages()
+    const [entry] = await listPackages()
     expect(entry!.resources.extensions).toEqual(['main.ts'])
     expect(entry!.resources.skills).toEqual(['my-skill'])
   })
 
-  it('handles missing and malformed settings files', () => {
-    expect(listPackages()).toEqual([])
+  it('handles missing and malformed settings files', async () => {
+    await expect(listPackages()).resolves.toEqual([])
     writeFileSync(join(home, 'agent', 'settings.json'), '{not json')
-    expect(listPackages()).toEqual([])
+    await expect(listPackages()).resolves.toEqual([])
   })
 
-  it('resolves relative path specs against the settings dir', () => {
+  it('resolves relative path specs against the settings dir', async () => {
     const pkgDir = join(home, 'local-pkg')
     mkdirSync(pkgDir, { recursive: true })
     writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'local-pkg' }))
     writeSettings(join(home, 'agent'), ['../local-pkg'])
 
-    const [entry] = listPackages()
+    const [entry] = await listPackages()
     expect(entry!.kind).toBe('path')
     expect(entry!.installed).toBe(true)
     expect(entry!.installPath).toBe(pkgDir)

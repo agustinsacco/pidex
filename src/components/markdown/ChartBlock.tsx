@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '@/stores/settings'
 import { CodeBlock } from './CodeBlock'
+import { errorText } from '@shared/errors'
 
 /**
  * ```chart blocks — Chart.js config JSON: { type, data, options? }.
@@ -20,7 +21,7 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
       try {
         spec = JSON.parse(code)
       } catch (err) {
-        setError(`Invalid JSON: ${(err as Error).message}`)
+        setError(`Invalid JSON: ${errorText(err)}`)
         return
       }
       try {
@@ -47,7 +48,7 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
         }
         chart = new Chart(canvasRef.current, config as never)
       } catch (err) {
-        if (!disposed) setError((err as Error).message)
+        if (!disposed) setError(errorText(err))
       }
     })()
 

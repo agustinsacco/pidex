@@ -7,8 +7,6 @@ import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle } from './sessionSubtitle'
-
-export { relativeTimeShort as relativeTime } from '@/lib/time'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { ChevronIcon } from '@/components/icons'
 import { PiSpark } from '@/components/PiSpark'
@@ -745,7 +743,6 @@ function PendingSessionRow({
   )
 }
 
-/** Rename a disk or live session, then refresh the sidebar listing. */
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="text-text-tertiary px-2 pb-1 pt-3 text-xs font-semibold font-mono uppercase tracking-wider">

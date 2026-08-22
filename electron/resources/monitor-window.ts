@@ -75,8 +75,3 @@ export function closeMonitorWindow(): void {
   if (monitorWindow && !monitorWindow.isDestroyed()) monitorWindow.close()
   monitorWindow = null
 }
-
-/** True while the floating window is open (drives the toggle's state). */
-export function isMonitorWindowOpen(): boolean {
-  return monitorWindow !== null && !monitorWindow.isDestroyed()
-}

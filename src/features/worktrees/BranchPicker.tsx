@@ -5,6 +5,7 @@ import { MenuRow } from '@/components/PopupMenu'
 import { CheckIcon, Spinner } from '@/components/icons'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { workspaceName } from '@/lib/path'
+import { errorText } from '@shared/errors'
 
 /**
  * The branch/worktree picker body, shared by the top bar and the home composer.
@@ -61,7 +62,7 @@ export function BranchPicker({
   }, [repoPath])
 
   const fail = (err: unknown): void => {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = errorText(err)
     setError(message)
     onBusyError?.(message)
   }

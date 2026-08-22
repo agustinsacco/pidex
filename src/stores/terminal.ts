@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
+import { errorText } from '@shared/errors'
 
 export interface TerminalTab {
   ptyId: string
@@ -66,7 +67,7 @@ export function sessionTerminals(state: TerminalState, sessionId: string): Sessi
  * strip that so the pane shows the shell's actual complaint.
  */
 function spawnErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error)
+  const raw = errorText(error)
   return raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
 }
 

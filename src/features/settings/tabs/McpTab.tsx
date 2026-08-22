@@ -15,6 +15,7 @@ import { stripAnsi } from '@/lib/ansi'
 import { ChevronIcon } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { JobOutput } from './ExtensionsTab'
+import { errorText } from '@shared/errors'
 
 const SCOPE_LABELS: Record<McpScope, string> = {
   xdg: '~/.config/mcp',
@@ -56,7 +57,7 @@ export function McpTab(): React.JSX.Element {
       setCache(nextCache)
       setPackages(packageEntries.map((entry) => entry.spec))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }, [workspacePath])
 
@@ -82,7 +83,7 @@ export function McpTab(): React.JSX.Element {
       await fn()
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 
@@ -523,7 +524,7 @@ function RawFileEditor({
       await window.pidex.invoke('mcp:writeFile', scope, workspacePath, content)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

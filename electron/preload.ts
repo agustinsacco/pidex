@@ -4,6 +4,23 @@ import { sessionEventChannel } from '@shared/ipc'
 import type { ResourceSnapshot, SessionPush, UpdateState } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 
+/**
+ * Listen on a push channel until the returned function is called.
+ *
+ * Every `on*` method below is this same four-line dance — attach a wrapper that
+ * drops Electron's event argument, hand back a matching `removeListener`. The
+ * wrapper identity is what makes unsubscribe work, so it has to be captured per
+ * subscription rather than shared.
+ */
+function subscribe<A extends unknown[]>(
+  channel: string,
+  listener: (...args: A) => void,
+): () => void {
+  const wrapped = (_event: Electron.IpcRendererEvent, ...args: A): void => listener(...args)
+  ipcRenderer.on(channel, wrapped)
+  return () => ipcRenderer.removeListener(channel, wrapped)
+}
+
 const api: PidexApi = {
   // A sandboxed preload still gets `process.platform` from Electron's polyfill.
   platform:
@@ -13,76 +30,29 @@ const api: PidexApi = {
     return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeMap[C]['result']>
   },
 
-  onSessionPush(sessionId: string, listener: (push: SessionPush) => void) {
-    const channel = sessionEventChannel(sessionId)
-    const wrapped = (_event: Electron.IpcRendererEvent, push: SessionPush) => listener(push)
-    ipcRenderer.on(channel, wrapped)
-    return () => ipcRenderer.removeListener(channel, wrapped)
-  },
+  onSessionPush: (sessionId, listener) =>
+    subscribe<[SessionPush]>(sessionEventChannel(sessionId), listener),
 
-  onSessionsChanged(listener: (payload: { workspacePath: string }) => void) {
-    const wrapped = (_event: Electron.IpcRendererEvent, payload: { workspacePath: string }) =>
-      listener(payload)
-    ipcRenderer.on('sessions:changed', wrapped)
-    return () => ipcRenderer.removeListener('sessions:changed', wrapped)
-  },
+  onSessionsChanged: (listener) =>
+    subscribe<[{ workspacePath: string }]>('sessions:changed', listener),
 
-  onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void) {
-    const wrapped = (
-      _event: Electron.IpcRendererEvent,
-      payload: { workspacePath: string; paths: string[] },
-    ) => listener(payload)
-    ipcRenderer.on('fs:changed', wrapped)
-    return () => ipcRenderer.removeListener('fs:changed', wrapped)
-  },
+  onFsChanged: (listener) =>
+    subscribe<[{ workspacePath: string; paths: string[] }]>('fs:changed', listener),
 
-  onPackagesJobOutput(jobId: string, listener: (data: string) => void) {
-    const channel = `packages:output:${jobId}`
-    const wrapped = (_event: Electron.IpcRendererEvent, data: string) => listener(data)
-    ipcRenderer.on(channel, wrapped)
-    return () => ipcRenderer.removeListener(channel, wrapped)
-  },
+  onPackagesJobOutput: (jobId, listener) =>
+    subscribe<[string]>(`packages:output:${jobId}`, listener),
 
-  onPackagesJobExit(jobId: string, listener: (exitCode: number) => void) {
-    const channel = `packages:exit:${jobId}`
-    const wrapped = (_event: Electron.IpcRendererEvent, exitCode: number) => listener(exitCode)
-    ipcRenderer.on(channel, wrapped)
-    return () => ipcRenderer.removeListener(channel, wrapped)
-  },
+  onPackagesJobExit: (jobId, listener) => subscribe<[number]>(`packages:exit:${jobId}`, listener),
 
-  onPtyData(ptyId: string, listener: (data: string) => void) {
-    const channel = `pty:data:${ptyId}`
-    const wrapped = (_event: Electron.IpcRendererEvent, data: string) => listener(data)
-    ipcRenderer.on(channel, wrapped)
-    return () => ipcRenderer.removeListener(channel, wrapped)
-  },
+  onPtyData: (ptyId, listener) => subscribe<[string]>(`pty:data:${ptyId}`, listener),
 
-  onPtyExit(ptyId: string, listener: (exitCode: number) => void) {
-    const channel = `pty:exit:${ptyId}`
-    const wrapped = (_event: Electron.IpcRendererEvent, exitCode: number) => listener(exitCode)
-    ipcRenderer.on(channel, wrapped)
-    return () => ipcRenderer.removeListener(channel, wrapped)
-  },
+  onPtyExit: (ptyId, listener) => subscribe<[number]>(`pty:exit:${ptyId}`, listener),
 
-  onResourceSample(listener: (snapshot: ResourceSnapshot) => void) {
-    const wrapped = (_event: Electron.IpcRendererEvent, snapshot: ResourceSnapshot) =>
-      listener(snapshot)
-    ipcRenderer.on('resources:sample', wrapped)
-    return () => ipcRenderer.removeListener('resources:sample', wrapped)
-  },
+  onResourceSample: (listener) => subscribe<[ResourceSnapshot]>('resources:sample', listener),
 
-  onUpdateEvent(listener: (state: UpdateState) => void) {
-    const wrapped = (_event: Electron.IpcRendererEvent, state: UpdateState) => listener(state)
-    ipcRenderer.on('updates:event', wrapped)
-    return () => ipcRenderer.removeListener('updates:event', wrapped)
-  },
+  onUpdateEvent: (listener) => subscribe<[UpdateState]>('updates:event', listener),
 
-  onPtyStatus(listener: (statuses: Record<string, boolean>) => void) {
-    const wrapped = (_event: Electron.IpcRendererEvent, statuses: Record<string, boolean>) =>
-      listener(statuses)
-    ipcRenderer.on('pty:status', wrapped)
-    return () => ipcRenderer.removeListener('pty:status', wrapped)
-  },
+  onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 
   piCommand(sessionId: string, command: RpcCommand) {
     return ipcRenderer.invoke('pi:command', sessionId, command)
