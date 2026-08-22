@@ -1,6 +1,8 @@
 import { create } from 'zustand'
+import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
+import { errorText } from '@shared/errors'
 
 export interface TerminalTab {
   ptyId: string
@@ -28,8 +30,11 @@ interface SessionTerminals {
   error: string | null
 }
 
-/** Stable empty value so selectors don't allocate a new object per render. */
-const EMPTY_TERMINALS: SessionTerminals = Object.freeze({
+/**
+ * Slice helpers over `bySession`. The empty value is shared and frozen, so
+ * selectors don't allocate a new object per render.
+ */
+const terminals = keyedSlice<SessionTerminals>({
   tabs: [],
   activeId: null,
   error: null,
@@ -58,7 +63,7 @@ interface TerminalState {
 
 /** Terminals for a session; stable empty value avoids per-render allocation. */
 export function sessionTerminals(state: TerminalState, sessionId: string): SessionTerminals {
-  return state.bySession[sessionId] ?? EMPTY_TERMINALS
+  return terminals.read(state.bySession, sessionId)
 }
 
 /**
@@ -66,7 +71,7 @@ export function sessionTerminals(state: TerminalState, sessionId: string): Sessi
  * strip that so the pane shows the shell's actual complaint.
  */
 function spawnErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error)
+  const raw = errorText(error)
   return raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
 }
 
@@ -76,8 +81,7 @@ function patchSession(
   sessionId: string,
   update: (current: SessionTerminals) => SessionTerminals,
 ): Pick<TerminalState, 'bySession'> {
-  const current = state.bySession[sessionId] ?? EMPTY_TERMINALS
-  return { bySession: { ...state.bySession, [sessionId]: update(current) } }
+  return { bySession: terminals.patch(state.bySession, sessionId, update) }
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -178,11 +182,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   removeSession: async (sessionId) => {
     const tabs = get().bySession[sessionId]?.tabs ?? []
     await Promise.allSettled(tabs.map((tab) => window.pidex.invoke('pty:kill', tab.ptyId)))
-    set((s) => {
-      const bySession = { ...s.bySession }
-      delete bySession[sessionId]
-      return { bySession }
-    })
+    set((s) => ({ bySession: drop(s.bySession, sessionId) }))
   },
 
   queuePaste: (text) => set({ pendingPaste: text }),

@@ -4,6 +4,7 @@ import { basename } from 'node:path'
 import { BrowserWindow } from 'electron'
 import { isBusy } from './busy'
 import { ensureSpawnHelperExecutable } from './spawn-helper'
+import { errorText } from '@shared/errors'
 
 /**
  * Replayed to a reattaching xterm so closing and reopening the pane doesn't
@@ -193,7 +194,7 @@ function broadcast(channel: string, payload: unknown): void {
 
 /** Turn node-pty's opaque spawn errors into something a user can act on. */
 function describeSpawnFailure(error: unknown, shell: string, cwd: string): string {
-  const detail = error instanceof Error ? error.message : String(error)
+  const detail = errorText(error)
   if (/posix_spawnp? failed/i.test(detail)) {
     return (
       `Could not start a shell (${shell}): ${detail} ` +

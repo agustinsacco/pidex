@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
 import { CloseIcon } from '@/components/icons'
+import { ModalPanel } from '@/components/Modal'
+import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@/lib/ansi'
 
 /**
@@ -81,12 +83,37 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="border-border bg-surface-raised w-[480px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
-        <div className="border-border border-b px-4 py-3">
-          <div className="text-lg font-semibold">{stripAnsi(request.title)}</div>
-          <div className="text-text-tertiary mt-0.5 text-sm">Requested by a pi extension</div>
-        </div>
-
+      <ModalPanel
+        width={480}
+        title={stripAnsi(request.title)}
+        subtitle="Requested by a pi extension"
+        footer={
+          <>
+            <Button onClick={() => resolve({ cancelled: true })}>Cancel</Button>
+            {request.method === 'confirm' && (
+              <>
+                <Button onClick={() => resolve({ confirmed: false })}>No</Button>
+                <Button variant="primary" onClick={() => resolve({ confirmed: true })}>
+                  Yes
+                </Button>
+              </>
+            )}
+            {(request.method === 'input' || request.method === 'editor') && (
+              <Button variant="primary" onClick={() => resolve({ value })}>
+                Submit
+              </Button>
+            )}
+            {request.method === 'select' && (
+              <Button
+                variant="primary"
+                onClick={() => resolve({ value: request.options[selectedIndex] })}
+              >
+                Choose
+              </Button>
+            )}
+          </>
+        }
+      >
         {request.method === 'select' && (
           <div className="max-h-72 overflow-y-auto py-1.5">
             {request.options.map((option, index) => (
@@ -112,15 +139,16 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
 
         {request.method === 'input' && (
           <div className="px-4 py-3">
-            <input
+            <TextInput
               ref={inputRef}
+              size="lg"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') resolve({ value })
               }}
               placeholder={request.placeholder}
-              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-lg outline-none focus:border-[var(--px-border-strong)]"
+              className="w-full"
             />
           </div>
         )}
@@ -136,48 +164,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
             />
           </div>
         )}
-
-        <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
-          <button
-            onClick={() => resolve({ cancelled: true })}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          {request.method === 'confirm' && (
-            <>
-              <button
-                onClick={() => resolve({ confirmed: false })}
-                className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
-              >
-                No
-              </button>
-              <button
-                onClick={() => resolve({ confirmed: true })}
-                className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
-              >
-                Yes
-              </button>
-            </>
-          )}
-          {(request.method === 'input' || request.method === 'editor') && (
-            <button
-              onClick={() => resolve({ value })}
-              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
-            >
-              Submit
-            </button>
-          )}
-          {request.method === 'select' && (
-            <button
-              onClick={() => resolve({ value: request.options[selectedIndex] })}
-              className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors"
-            >
-              Choose
-            </button>
-          )}
-        </div>
-      </div>
+      </ModalPanel>
     </div>,
     document.body,
   )

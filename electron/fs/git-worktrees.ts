@@ -4,6 +4,8 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, WorktreeInfo } from '@shared/models'
+import { errorText } from '@shared/errors'
+import { abortMergeAndCollectConflicts, dirtyCount, git } from './git-exec'
 
 const execFileAsync = promisify(execFile)
 
@@ -22,15 +24,6 @@ const execFileAsync = promisify(execFile)
  * - The main tree's checkout is NEVER changed on the user's behalf.
  * - Nothing uncommitted is deleted without an explicit force.
  */
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
-    cwd,
-    timeout: 30_000,
-    maxBuffer: 16 * 1024 * 1024,
-  })
-  return stdout
-}
 
 /** Both dir name and branch name — reject anything path- or ref-hostile. */
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
@@ -102,20 +95,19 @@ export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
   const mainPath = parsed[0]?.path
   return Promise.all(
     parsed.map(async (wt) => {
-      let dirtyCount = -1
+      let dirty = -1
       if (existsSync(wt.path)) {
         try {
-          const status = await git(wt.path, ['status', '--porcelain'])
-          dirtyCount = status.trim() ? status.trim().split('\n').length : 0
+          dirty = await dirtyCount(wt.path)
         } catch {
-          dirtyCount = -1
+          dirty = -1
         }
       }
       return {
         ...wt,
         realPath: normalizeRealPath(wt.path),
         isMain: wt.path === mainPath,
-        dirtyCount,
+        dirtyCount: dirty,
       }
     }),
   )
@@ -330,7 +322,7 @@ export async function removeWorktree(
       await git(repoPath, ['branch', '-d', target.branch])
       branchDeleted = true
     } catch (error) {
-      branchError = error instanceof Error ? error.message : String(error)
+      branchError = errorText(error)
     }
   }
   return { removed: true, branchDeleted, branchError }
@@ -370,27 +362,18 @@ export async function mergeBranch(
   | { merged: false; reason: 'dirty'; dirtyCount: number }
   | { merged: false; reason: 'conflict'; conflicts: string[] }
 > {
-  const status = (await git(repoPath, ['status', '--porcelain'])).trim()
-  if (status) {
-    return { merged: false, reason: 'dirty', dirtyCount: status.split('\n').length }
+  const dirty = await dirtyCount(repoPath)
+  if (dirty > 0) {
+    return { merged: false, reason: 'dirty', dirtyCount: dirty }
   }
   try {
     await git(repoPath, ['merge', '--no-ff', '--no-edit', branch])
   } catch {
-    let conflicts: string[] = []
-    try {
-      conflicts = (await git(repoPath, ['diff', '--name-only', '--diff-filter=U']))
-        .split('\n')
-        .filter(Boolean)
-    } catch {
-      // ignore
+    return {
+      merged: false,
+      reason: 'conflict',
+      conflicts: await abortMergeAndCollectConflicts(repoPath),
     }
-    try {
-      await git(repoPath, ['merge', '--abort'])
-    } catch {
-      // no merge in progress (e.g. the failure predated the merge)
-    }
-    return { merged: false, reason: 'conflict', conflicts }
   }
   return { merged: true, sha: (await git(repoPath, ['rev-parse', 'HEAD'])).trim() }
 }

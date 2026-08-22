@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
+import { drop } from './keyedSlice'
 import { useLayoutStore, sessionPanes } from './layout'
 
 export type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
@@ -192,15 +193,10 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
   // All four records are keyed by sessionId; cleaning only `bySession` left
   // the selection and unseen-count entries behind for every disposed session.
   remove: (sessionId) =>
-    set((s) => {
-      const bySession = { ...s.bySession }
-      delete bySession[sessionId]
-      const selected = { ...s.selected }
-      delete selected[sessionId]
-      const selectedVersion = { ...s.selectedVersion }
-      delete selectedVersion[sessionId]
-      const unseen = { ...s.unseen }
-      delete unseen[sessionId]
-      return { bySession, selected, selectedVersion, unseen }
-    }),
+    set((s) => ({
+      bySession: drop(s.bySession, sessionId),
+      selected: drop(s.selected, sessionId),
+      selectedVersion: drop(s.selectedVersion, sessionId),
+      unseen: drop(s.unseen, sessionId),
+    })),
 }))

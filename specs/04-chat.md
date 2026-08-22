@@ -38,6 +38,22 @@
 | `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                   |
 | unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                       |
 
+### Blocks from the Claude Code provider
+
+Sessions on `@saccolabs/pi-claude-cli` carry two shapes no pi-native provider
+produces. Both are handled in `items/transcriptRows.ts`, so tool-UX work
+inherits them for free — but anything that re-derives rows from
+`AssistantBlock`s must handle them again.
+
+| Shape                                       | Where it comes from                                                                                                                                                             | Treatment                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[Claude Code · Name {args}]` text block    | Tools Claude Code ran **inside its own process** (WebSearch, WebFetch, ToolSearch, the user's MCP servers, sub-agents). pi cannot execute them, so they are never pi tool calls | Parsed into an `externalTool` activity step: grouped with pi's tools, counted in the summary, never markdown-rendered. There is **no result** — only what was invoked |
+| thinking block with a signature and no text | Encrypted thinking. Measured: fable-5, opus-5, sonnet-5 all do this; haiku-4-5 is the only family sending plaintext                                                             | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                      |
+
+The marker string is a **cross-repo wire contract**; the emitting side
+documents its shape. Never parse the argument preview — the provider
+truncates it, so it is frequently invalid JSON and is display-only.
+
 ## Rich content (first-class citizens)
 
 - GFM: headings, tables (copy as markdown/CSV), task lists, blockquote callouts, footnotes, autolinks.

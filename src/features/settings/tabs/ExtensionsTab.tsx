@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import clsx from 'clsx'
+import { useCallback, useEffect, useState } from 'react'
 import type { PiPackageEntry } from '@shared/models'
 import { useActiveWorkspace } from '@/stores/workspaces'
+import { Button } from '@/components/form'
 import { CatalogueCards } from '../CatalogueCards'
+import { JobOutput } from '../JobOutput'
 import { usePackageJob } from '../usePackageJob'
+import { isNewerVersion } from '../versions'
+import { errorText } from '@shared/errors'
 
 /**
  * Settings → Extensions: pi package management. Reads come from settings
@@ -13,6 +16,7 @@ import { usePackageJob } from '../usePackageJob'
 export function ExtensionsTab(): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
   const [entries, setEntries] = useState<PiPackageEntry[] | null>(null)
+  const [latest, setLatest] = useState<Record<string, string | null>>({})
   const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [addSpec, setAddSpec] = useState('')
@@ -26,8 +30,14 @@ export function ExtensionsTab(): React.JSX.Element {
       ])
       setEntries(list)
       setClaudeDetected(detect.claude)
+      // Registry lookup is slower than the local reads and may fail
+      // (offline, private registry) — never let it block the listing.
+      void window.pidex
+        .invoke('packages:checkUpdates', workspacePath ?? undefined)
+        .then(setLatest)
+        .catch(() => setLatest({}))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }, [workspacePath])
 
@@ -98,7 +108,9 @@ export function ExtensionsTab(): React.JSX.Element {
                   <PackageRow
                     key={`${entry.scope}:${entry.spec}`}
                     entry={entry}
+                    latest={latest[entry.spec] ?? null}
                     busy={job.running}
+                    onUpdate={() => runAction('update', entry.spec, entry.scope)}
                     onRemove={() => runAction('remove', entry.spec, entry.scope)}
                   />
                 ))}
@@ -126,23 +138,22 @@ export function ExtensionsTab(): React.JSX.Element {
             <option value="project">This workspace</option>
           </select>
         )}
-        <button
+        <Button
+          variant="primary"
           onClick={() => {
             if (addSpec.trim()) runAction('install', addSpec.trim(), addScope)
           }}
           disabled={job.running || !addSpec.trim()}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
         >
           Install
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => runAction('update', undefined, 'global')}
           disabled={job.running}
-          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
           title="pi update --extensions"
         >
           Update all
-        </button>
+        </Button>
       </div>
 
       {error && <div className="text-danger mt-3 text-base">{error}</div>}
@@ -153,13 +164,20 @@ export function ExtensionsTab(): React.JSX.Element {
 
 function PackageRow({
   entry,
+  latest,
   busy,
+  onUpdate,
   onRemove,
 }: {
   entry: PiPackageEntry
+  /** Latest published version, or null when unknown. */
+  latest: string | null
   busy: boolean
+  onUpdate: () => void
   onRemove: () => void
 }): React.JSX.Element {
+  const updatable =
+    latest !== null && entry.version !== undefined && isNewerVersion(latest, entry.version)
   const counts = (
     [
       ['extension', entry.resources.extensions.length],
@@ -180,6 +198,11 @@ function PackageRow({
           {entry.version && (
             <span className="text-text-tertiary font-mono text-sm">v{entry.version}</span>
           )}
+          {updatable && (
+            <span className="text-accent bg-accent-soft rounded-full px-2 py-0.5 font-mono text-sm">
+              v{latest} available
+            </span>
+          )}
           {!entry.installed && (
             <span className="text-warning text-sm">installs on next session start</span>
           )}
@@ -194,6 +217,15 @@ function PackageRow({
           {counts && <span className="font-sans"> — {counts}</span>}
         </div>
       </div>
+      {updatable && (
+        <button
+          onClick={onUpdate}
+          disabled={busy}
+          className="bg-accent hover:bg-accent-hover text-accent-text mr-1 shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
+        >
+          Update
+        </button>
+      )}
       <button
         onClick={onRemove}
         disabled={busy}
@@ -201,45 +233,6 @@ function PackageRow({
       >
         Remove
       </button>
-    </div>
-  )
-}
-
-/** Streamed output of the running (or last) package job. */
-export function JobOutput({
-  running,
-  output,
-  exitCode,
-}: {
-  running: boolean
-  output: string
-  exitCode: number | null
-}): React.JSX.Element | null {
-  const preRef = useRef<HTMLPreElement>(null)
-  useEffect(() => {
-    preRef.current?.scrollTo({ top: preRef.current.scrollHeight })
-  }, [output])
-
-  if (!running && !output) return null
-  return (
-    <div className="mt-3">
-      <div className="flex items-center gap-2">
-        <span
-          className={clsx(
-            'h-1.5 w-1.5 rounded-full',
-            running ? 'bg-warning animate-pulse' : exitCode === 0 ? 'bg-success' : 'bg-danger',
-          )}
-        />
-        <span className="text-text-tertiary text-sm">
-          {running ? 'Running…' : exitCode === 0 ? 'Done' : `Failed (exit ${exitCode})`}
-        </span>
-      </div>
-      <pre
-        ref={preRef}
-        className="bg-code-bg border-border mt-1.5 max-h-48 overflow-auto rounded-md border px-3 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap"
-      >
-        {output || '…'}
-      </pre>
     </div>
   )
 }

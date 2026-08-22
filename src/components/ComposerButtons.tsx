@@ -1,3 +1,5 @@
+import { PlusIcon } from './icons'
+
 /**
  * Quiet icon controls shared by the chat composer and the home composer.
  *
@@ -28,17 +30,7 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }):
       title="Attach files — images inline, other files by path"
       className={iconButtonClass}
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <path d="M12 5v14M5 12h14" />
-      </svg>
+      <PlusIcon size={16} />
     </button>
   )
 }

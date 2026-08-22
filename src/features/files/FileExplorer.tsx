@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
-import { BranchIcon } from '@/components/icons'
+import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry } from './fileActions'
 
 export const FileExplorer = memo(function FileExplorer({
@@ -152,7 +152,12 @@ function ExplorerRow({
       >
         {entry.isDirectory ? (
           <>
-            <ChevronIcon expanded={isExpanded} />
+            <ChevronIcon
+              size={9}
+              strokeWidth={3}
+              expanded={isExpanded}
+              className="text-text-tertiary"
+            />
             <FolderGlyph open={isExpanded} />
           </>
         ) : (
@@ -215,22 +220,6 @@ function IconToggle({
     >
       {children}
     </button>
-  )
-}
-
-function ChevronIcon({ expanded }: { expanded: boolean }): React.JSX.Element {
-  return (
-    <svg
-      width="9"
-      height="9"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      className={clsx('text-text-tertiary shrink-0 transition-transform', expanded && 'rotate-90')}
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
   )
 }
 

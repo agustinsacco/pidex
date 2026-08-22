@@ -13,8 +13,11 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { stripAnsi } from '@/lib/ansi'
 import { ChevronIcon } from '@/components/icons'
+import { Button, TextInput } from '@/components/form'
 import { usePackageJob } from '../usePackageJob'
-import { JobOutput } from './ExtensionsTab'
+import { JobOutput } from '../JobOutput'
+import { ConfigFileEditor, mcpConfigFile } from '../ConfigFileEditor'
+import { errorText } from '@shared/errors'
 
 const SCOPE_LABELS: Record<McpScope, string> = {
   xdg: '~/.config/mcp',
@@ -56,7 +59,7 @@ export function McpTab(): React.JSX.Element {
       setCache(nextCache)
       setPackages(packageEntries.map((entry) => entry.spec))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }, [workspacePath])
 
@@ -82,7 +85,7 @@ export function McpTab(): React.JSX.Element {
       await fn()
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 
@@ -110,13 +113,15 @@ export function McpTab(): React.JSX.Element {
             <span className="text-text-secondary">
               The adapter package is not installed — servers below will not load.
             </span>
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={installAdapter}
               disabled={installJob.running}
-              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
+              className="shrink-0"
             >
               {installJob.running ? 'Installing…' : 'Install'}
-            </button>
+            </Button>
           </div>
         )}
         {adapterInstalled === false && packages !== null && (
@@ -135,12 +140,9 @@ export function McpTab(): React.JSX.Element {
       {/* Servers */}
       <div className="mt-5 flex items-center justify-between">
         <h3 className="text-lg font-semibold">Configured servers</h3>
-        <button
-          onClick={() => setAdding(true)}
-          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-base font-medium transition-colors"
-        >
+        <Button size="sm" onClick={() => setAdding(true)}>
           Add server…
-        </button>
+        </Button>
       </div>
       <div className="mt-2 space-y-1.5">
         {configs?.servers.map((server) => (
@@ -241,9 +243,8 @@ export function McpTab(): React.JSX.Element {
       )}
 
       {rawEdit && (
-        <RawFileEditor
-          scope={rawEdit}
-          workspacePath={workspacePath ?? undefined}
+        <ConfigFileEditor
+          source={mcpConfigFile(rawEdit, workspacePath ?? undefined)}
           onClose={() => {
             setRawEdit(null)
             void refresh()
@@ -409,21 +410,18 @@ function ServerEditor({
     onSave(scope, name.trim(), config)
   }
 
-  const input =
-    'border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-md border px-2.5 py-1.5 text-base outline-none focus:border-[var(--px-border-strong)]'
-
   return (
     <div className="border-border bg-bg-secondary/40 mt-4 space-y-2 rounded-lg border p-3">
       <div className="text-lg font-semibold">
         {initial ? `Edit ${initial.name}` : 'Add MCP server'}
       </div>
-      <input
+      <TextInput
         autoFocus={!initial}
         value={name}
         onChange={(e) => setName(e.target.value)}
         disabled={initial !== null}
         placeholder="server name (e.g. linear)"
-        className={clsx(input, 'font-mono')}
+        className="w-full font-mono"
       />
       <div className="flex items-center gap-3 text-base">
         <label className="flex items-center gap-1">
@@ -435,25 +433,25 @@ function ServerEditor({
         </label>
       </div>
       {kind === 'url' ? (
-        <input
+        <TextInput
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://mcp.example.com/sse"
-          className={clsx(input, 'font-mono')}
+          className="w-full font-mono"
         />
       ) : (
-        <input
+        <TextInput
           value={command}
           onChange={(e) => setCommand(e.target.value)}
           placeholder="npx some-mcp-server --flag"
-          className={clsx(input, 'font-mono')}
+          className="w-full font-mono"
         />
       )}
-      <input
+      <TextInput
         value={directTools}
         onChange={(e) => setDirectTools(e.target.value)}
         placeholder="directTools (comma-separated, optional)"
-        className={clsx(input, 'font-mono')}
+        className="w-full font-mono"
       />
       {initial === null && (
         <div className="flex items-center gap-3 text-base">
@@ -477,82 +475,17 @@ function ServerEditor({
         </div>
       )}
       <div className="flex justify-end gap-2 pt-1">
-        <button
-          onClick={onClose}
-          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-base font-medium transition-colors"
-        >
+        <Button size="sm" onClick={onClose}>
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={save}
           disabled={!name.trim() || (kind === 'url' ? !url.trim() : !command.trim())}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-base font-medium transition-colors disabled:opacity-50"
         >
           Save
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** Raw JSON escape hatch — the same last-resort editor Advanced offers. */
-function RawFileEditor({
-  scope,
-  workspacePath,
-  onClose,
-}: {
-  scope: McpScope
-  workspacePath?: string
-  onClose: () => void
-}): React.JSX.Element {
-  const [content, setContent] = useState<string | null>(null)
-  const [path, setPath] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    void window.pidex.invoke('mcp:readFile', scope, workspacePath).then((file) => {
-      setPath(file.path)
-      setContent(file.content || '{\n  "mcpServers": {}\n}\n')
-    })
-  }, [scope, workspacePath])
-
-  const save = async (): Promise<void> => {
-    if (content === null) return
-    setError(null)
-    try {
-      await window.pidex.invoke('mcp:writeFile', scope, workspacePath, content)
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  return (
-    <div className="border-border bg-bg-secondary/40 mt-4 rounded-lg border p-3">
-      <div className="text-text-tertiary mb-2 truncate font-mono text-sm" title={path}>
-        {path}
-      </div>
-      <textarea
-        value={content ?? ''}
-        onChange={(e) => setContent(e.target.value)}
-        rows={12}
-        spellCheck={false}
-        className="border-border bg-code-bg text-text w-full resize-y rounded-lg border px-3 py-2 font-mono text-base outline-none"
-      />
-      {error && <div className="text-danger mt-1 text-base">{error}</div>}
-      <div className="mt-2 flex justify-end gap-2">
-        <button
-          onClick={onClose}
-          className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-base font-medium transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => void save()}
-          className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3 py-1 text-base font-medium transition-colors"
-        >
-          Save
-        </button>
+        </Button>
       </div>
     </div>
   )

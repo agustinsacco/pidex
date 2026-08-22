@@ -8,6 +8,7 @@ import { reconstructOriginal } from './patch'
 import { MonacoDiff } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
 import { basename } from '@/lib/path'
+import { errorText } from '@shared/errors'
 
 export const FilesChangedPane = memo(function FilesChangedPane({
   workspacePath,
@@ -209,7 +210,7 @@ function FileDiffView({
           setModified(currentContent)
         }
       } catch (err) {
-        if (!cancelled) setError((err as Error).message)
+        if (!cancelled) setError(errorText(err))
       }
     })()
     return () => {

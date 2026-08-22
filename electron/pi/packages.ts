@@ -12,6 +12,7 @@ import type {
 } from '@shared/models'
 import { piAgentDir } from './pi-paths'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { readJsonFile } from './json-config'
 
 const execFileAsync = promisify(execFile)
 
@@ -85,28 +86,19 @@ export function resolveInstallPath(
   return isAbsolute(spec) ? spec : resolve(base, spec)
 }
 
-function readPackagesArray(settingsPath: string): RawPackageEntry[] {
-  let raw: string
-  try {
-    raw = readFileSync(settingsPath, 'utf8')
-  } catch {
-    return []
-  }
-  try {
-    const parsed = JSON.parse(raw) as { packages?: unknown }
-    if (!Array.isArray(parsed.packages)) return []
-    return parsed.packages.filter(
-      (entry): entry is RawPackageEntry =>
-        typeof entry === 'string' ||
-        (typeof entry === 'object' &&
-          entry !== null &&
-          typeof (entry as { source?: unknown }).source === 'string'),
-    )
-  } catch {
-    // Malformed settings are surfaced by pi:checkAgentSettings; here we
-    // simply have nothing to list.
-    return []
-  }
+async function readPackagesArray(settingsPath: string): Promise<RawPackageEntry[]> {
+  // A missing or malformed file both read as empty here: malformed settings
+  // are surfaced by pi:checkAgentSettings, so this module simply has nothing
+  // to list.
+  const { value } = await readJsonFile<{ packages?: unknown }>(settingsPath)
+  if (!Array.isArray(value.packages)) return []
+  return value.packages.filter(
+    (entry): entry is RawPackageEntry =>
+      typeof entry === 'string' ||
+      (typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as { source?: unknown }).source === 'string'),
+  )
 }
 
 const EMPTY_RESOURCES: PiPackageResources = {
@@ -214,13 +206,17 @@ function toEntry(raw: RawPackageEntry, dirs: ScopeDirs): PiPackageEntry {
 }
 
 /** All packages declared in the global and (when given) project settings. */
-export function listPackages(workspacePath?: string): PiPackageEntry[] {
+export async function listPackages(workspacePath?: string): Promise<PiPackageEntry[]> {
   const scopes: ScopeDirs[] = [{ settingsDir: piAgentDir(), scope: 'global' }]
   if (workspacePath) scopes.push({ settingsDir: join(workspacePath, '.pi'), scope: 'project' })
 
-  return scopes.flatMap((dirs) =>
-    readPackagesArray(join(dirs.settingsDir, 'settings.json')).map((raw) => toEntry(raw, dirs)),
+  const perScope = await Promise.all(
+    scopes.map(async (dirs) => {
+      const raws = await readPackagesArray(join(dirs.settingsDir, 'settings.json'))
+      return raws.map((raw) => toEntry(raw, dirs))
+    }),
   )
+  return perScope.flat()
 }
 
 // ---------- job runner ----------
@@ -380,6 +376,46 @@ export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }
 export async function detectBinaries(claudeOverride?: string): Promise<{ claude: boolean }> {
   const path = claudeOverride ?? (await resolveBinary('claude'))
   return { claude: path !== null }
+}
+
+// ---------- update checks ----------
+
+/**
+ * Latest published version for each npm-sourced package, from the registry.
+ *
+ * pi installs a package once and never moves it again on its own, so a
+ * fix published upstream is invisible until someone runs `pi update`. This
+ * is what lets the UI say "0.4.3 → 0.4.4" instead of the user discovering
+ * months later that they are running old code.
+ *
+ * Best-effort by design: offline, a private registry, or an unpublished
+ * package all yield `null` rather than an error, because a failed version
+ * check must never make package management look broken.
+ */
+export async function checkPackageUpdates(
+  entries: PiPackageEntry[],
+): Promise<Record<string, string | null>> {
+  const npmEntries = entries.filter((entry) => entry.kind === 'npm')
+  const results = await Promise.all(
+    npmEntries.map(async (entry) => {
+      const name = npmNameFromSpec(entry.spec)
+      try {
+        const response = await fetch(
+          `https://registry.npmjs.org/${name.replace('/', '%2f')}/latest`,
+          {
+            headers: { accept: 'application/vnd.npm.install-v1+json' },
+            signal: AbortSignal.timeout(8_000),
+          },
+        )
+        if (!response.ok) return [entry.spec, null] as const
+        const body = (await response.json()) as { version?: unknown }
+        return [entry.spec, typeof body.version === 'string' ? body.version : null] as const
+      } catch {
+        return [entry.spec, null] as const
+      }
+    }),
+  )
+  return Object.fromEntries(results)
 }
 
 // ---------- Claude Code provider support (per-extension tab) ----------

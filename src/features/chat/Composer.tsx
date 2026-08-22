@@ -31,6 +31,7 @@ import {
   toImageContents,
   type PendingAttachment,
 } from './attachments'
+import { errorText } from '@shared/errors'
 
 interface MentionState {
   /** Index of the '@' in the textarea value. */
@@ -159,6 +160,9 @@ export function Composer({
           excludeFromContext: exclude,
         })
         try {
+          // Deliberately raw rather than `piCall` (CLAUDE.md fact 3): a failed
+          // `!command` belongs in the bash item's own output next to the
+          // command that produced it, not on the session-wide error surface.
           const response = await window.pidex.piCommand(sessionId, {
             type: 'bash',
             command: shellCommand,
@@ -181,7 +185,7 @@ export function Composer({
           }
         } catch (error) {
           chat.updateBashItem(sessionId, itemId, {
-            output: (error as Error).message,
+            output: errorText(error),
             exitCode: -1,
             running: false,
           })
@@ -208,15 +212,16 @@ export function Composer({
       )
 
       try {
-        const response = await window.pidex.piCommand(sessionId, {
+        await piCallOk(sessionId, {
           type: 'prompt',
           message: messageWithFiles,
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
-        if (!response.success) chat.setError(sessionId, response.error)
       } catch (error) {
-        chat.setError(sessionId, (error as Error).message)
+        // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
+        // session's process died mid-send) still lands here.
+        chat.setError(sessionId, errorText(error))
       }
     },
     [sessionId, text, images, isStreaming],
@@ -234,7 +239,7 @@ export function Composer({
         textareaRef.current?.focus()
       }
     } catch (error) {
-      chat.setError(sessionId, (error as Error).message)
+      chat.setError(sessionId, errorText(error))
     }
   }, [sessionId])
 

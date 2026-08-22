@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { WorktreeInfo } from '@shared/models'
-import { ModalOverlay } from '@/components/Modal'
+import { ModalOverlay, ModalPanel } from '@/components/Modal'
+import { Button } from '@/components/form'
+import { useAsyncAction } from '@/components/useAsyncAction'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { workspaceName } from '@/lib/path'
@@ -26,8 +28,7 @@ export function RemoveWorktreeModal({
   const [dirtyCount, setDirtyCount] = useState<number>(Math.max(0, worktree.dirtyCount))
   const [discard, setDiscard] = useState(false)
   const [deleteBranch, setDeleteBranch] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { busy, error, run } = useAsyncAction()
   const [branchNote, setBranchNote] = useState<string | null>(null)
 
   const liveHere = useMemo(
@@ -39,10 +40,8 @@ export function RemoveWorktreeModal({
     [live, worktree],
   )
 
-  const remove = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
+  const remove = (): Promise<void> =>
+    run(async () => {
       const result = await useWorktreesStore.getState().removeWorktree(repoPath, worktree.path, {
         force: dirtyCount > 0 && discard,
         deleteBranch,
@@ -60,24 +59,35 @@ export function RemoveWorktreeModal({
       }
       onRemoved?.()
       onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="border-border bg-surface-raised w-[440px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
-        <div className="border-border border-b px-4 py-3">
-          <div className="text-lg font-semibold">Remove worktree</div>
-          <div className="text-text-tertiary mt-0.5 truncate text-sm" title={worktree.path}>
+      <ModalPanel
+        width={440}
+        title="Remove worktree"
+        subtitle={
+          <span className="block truncate" title={worktree.path}>
             {workspaceName(worktree.path)}
             {worktree.branch ? ` — ${worktree.branch}` : ''}
-          </div>
-        </div>
-
+          </span>
+        }
+        footer={
+          <>
+            <Button onClick={onClose}>{branchNote ? 'Done' : 'Cancel'}</Button>
+            {!branchNote && (
+              <Button
+                variant="danger"
+                onClick={() => void remove()}
+                disabled={busy || liveHere || (dirtyCount > 0 && !discard)}
+                className="disabled:cursor-not-allowed"
+              >
+                {busy ? 'Removing…' : 'Remove worktree'}
+              </Button>
+            )}
+          </>
+        }
+      >
         <div className="space-y-3 px-4 py-3 text-lg">
           {liveHere && (
             <div className="bg-warning/10 border-warning/30 text-text rounded-lg border px-3 py-2 text-base">
@@ -121,25 +131,7 @@ export function RemoveWorktreeModal({
 
           {error && <div className="text-danger text-base">{error}</div>}
         </div>
-
-        <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
-          <button
-            onClick={onClose}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
-          >
-            {branchNote ? 'Done' : 'Cancel'}
-          </button>
-          {!branchNote && (
-            <button
-              onClick={() => void remove()}
-              disabled={busy || liveHere || (dirtyCount > 0 && !discard)}
-              className="bg-danger hover:bg-danger/90 rounded-md px-3.5 py-1.5 text-base font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? 'Removing…' : 'Remove worktree'}
-            </button>
-          )}
-        </div>
-      </div>
+      </ModalPanel>
     </ModalOverlay>
   )
 }

@@ -17,11 +17,20 @@ import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 let cachedHealth: PiHealth | null = null
 
 /** Bundled pidex pi extension (dev: repo path; packaged: resources). */
-function artifactsExtensionPath(): string {
+function bundledExtensionPath(file: string): string {
   if (app.isPackaged) {
-    return joinPath(process.resourcesPath, 'pi-ext', 'artifacts.ts')
+    return joinPath(process.resourcesPath, 'pi-ext', file)
   }
-  return joinPath(app.getAppPath(), 'pi-ext', 'artifacts.ts')
+  return joinPath(app.getAppPath(), 'pi-ext', file)
+}
+
+/**
+ * Extensions pidex loads into EVERY session, regardless of provider:
+ * artifacts (tools the model can call) and context-breakdown (passive
+ * reporting of what is filling the context window, which only pi can see).
+ */
+function bundledExtensions(): string[] {
+  return [bundledExtensionPath('artifacts.ts'), bundledExtensionPath('context-breakdown.ts')]
 }
 
 /**
@@ -82,7 +91,7 @@ export function registerPiSessionHandlers(): void {
       provider: options.provider,
       thinkingLevel: options.thinkingLevel,
       // The bundled artifacts extension rides along in every session.
-      ...(stub ? {} : { extensions: [artifactsExtensionPath()] }),
+      ...(stub ? {} : { extensions: bundledExtensions() }),
       env: spawnEnv,
     })
 

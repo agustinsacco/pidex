@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { ConfigFileEditor } from '../ConfigFileEditor'
+import { Button } from '@/components/form'
+import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
+import { errorText } from '@shared/errors'
 
 /**
  * Search providers surfaced as first-class fields. pi-web-access supports
@@ -45,7 +47,7 @@ export function WebAccessTab(): React.JSX.Element {
       useExtensionUiStore.getState().pushToast('Saved — applies to new sessions', 'info')
       await refresh()
     } catch (error) {
-      useExtensionUiStore.getState().pushToast((error as Error).message, 'error')
+      useExtensionUiStore.getState().pushToast(errorText(error), 'error')
     }
   }
 
@@ -90,12 +92,7 @@ export function WebAccessTab(): React.JSX.Element {
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <button
-          onClick={() => setRawEdit(true)}
-          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
-        >
-          Edit raw JSON…
-        </button>
+        <Button onClick={() => setRawEdit(true)}>Edit raw JSON…</Button>
         <span className="text-text-tertiary font-mono text-sm">{state?.path ?? ''}</span>
       </div>
       <p className="text-text-tertiary mt-3 text-sm">
@@ -105,7 +102,7 @@ export function WebAccessTab(): React.JSX.Element {
 
       {rawEdit && (
         <ConfigFileEditor
-          name="web-search"
+          source={piConfigFile('web-search')}
           onClose={() => {
             setRawEdit(false)
             void refresh()
@@ -160,22 +157,15 @@ function ProviderRow({
             placeholder={hint || 'API key or $ENV_VAR'}
             className="border-border bg-bg-secondary focus:border-accent w-56 rounded-md border px-2.5 py-1.5 font-mono text-base outline-none"
           />
-          <button
-            onClick={commit}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-2.5 py-1.5 text-base font-medium transition-colors"
-          >
+          <Button variant="primary" onClick={commit}>
             Save
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditing(true)}
-            disabled={disabled}
-            className="border-border hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
-          >
+          <Button size="sm" onClick={() => setEditing(true)} disabled={disabled}>
             {configured ? 'Replace' : 'Set key'}
-          </button>
+          </Button>
           {configured && (
             <button
               onClick={() => onCommit('')}

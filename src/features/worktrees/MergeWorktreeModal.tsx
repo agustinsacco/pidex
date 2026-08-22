@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { WorktreeInfo } from '@shared/models'
-import { ModalOverlay } from '@/components/Modal'
+import { ModalOverlay, ModalPanel } from '@/components/Modal'
+import { Button, TextInput } from '@/components/form'
+import { useAsyncAction } from '@/components/useAsyncAction'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { RemoveWorktreeModal } from './RemoveWorktreeModal'
 
@@ -32,8 +34,8 @@ export function MergeWorktreeModal({
       : { step: 'ready' },
   )
   const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // One busy/error pair for both steps: they are sequential, never concurrent.
+  const { busy, error, run } = useAsyncAction()
   const [removing, setRemoving] = useState(false)
   const [freshWorktree, setFreshWorktree] = useState(worktree)
 
@@ -48,24 +50,15 @@ export function MergeWorktreeModal({
     })
   }, [phase.step, repoPath, worktree.path])
 
-  const commit = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
+  const commit = (): Promise<void> =>
+    run(async () => {
       await window.pidex.invoke('git:commitAll', worktree.path, message)
       setPhase({ step: 'ready' })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
-  const merge = async (): Promise<void> => {
-    if (!branch) return
-    setBusy(true)
-    setError(null)
-    try {
+  const merge = (): Promise<void> =>
+    run(async () => {
+      if (!branch) return
       const result = await window.pidex.invoke('git:mergeBranch', repoPath, branch)
       if (result.merged) {
         setPhase({ step: 'merged', sha: result.sha })
@@ -75,12 +68,7 @@ export function MergeWorktreeModal({
       } else {
         setPhase({ step: 'conflict', conflicts: result.conflicts })
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
   if (removing) {
     return <RemoveWorktreeModal repoPath={repoPath} worktree={freshWorktree} onClose={onClose} />
@@ -88,138 +76,114 @@ export function MergeWorktreeModal({
 
   if (!branch) {
     return (
-      <Shell onClose={onClose} title="Merge worktree">
-        <div className="text-text-secondary px-4 py-3 text-lg">
-          This worktree has a detached HEAD — check out a branch in it before merging.
-        </div>
-      </Shell>
+      <ModalOverlay onClose={onClose}>
+        <ModalPanel width={460} title="Merge worktree">
+          <div className="text-text-secondary px-4 py-3 text-lg">
+            This worktree has a detached HEAD — check out a branch in it before merging.
+          </div>
+        </ModalPanel>
+      </ModalOverlay>
     )
   }
 
   return (
-    <Shell onClose={onClose} title={`Merge ${branch}`}>
-      <div className="space-y-3 px-4 py-3 text-lg">
-        {phase.step === 'commit' && (
-          <>
-            <div className="text-text-secondary text-base">
-              The worktree has {phase.dirtyCount} uncommitted change
-              {phase.dirtyCount === 1 ? '' : 's'}. Commit them to{' '}
-              <span className="font-mono">{branch}</span> first:
-            </div>
-            <input
-              autoFocus
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && message.trim()) void commit()
-              }}
-              placeholder="Commit message"
-              className="border-border bg-surface text-text placeholder:text-text-tertiary w-full rounded-lg border px-3 py-2 text-lg outline-none focus:border-[var(--px-border-strong)]"
-            />
-          </>
-        )}
-
-        {phase.step === 'ready' && (
-          <div className="text-text-secondary text-base">
-            Merge <span className="font-mono">{branch}</span> into the main tree&apos;s current
-            branch with <span className="font-mono">--no-ff</span>. The main tree must be clean;
-            pidex never checks out or stashes for you.
-          </div>
-        )}
-
-        {phase.step === 'main-dirty' && (
-          <div className="bg-warning/10 border-warning/30 rounded-lg border px-3 py-2.5 text-base">
-            The main tree has {phase.dirtyCount} uncommitted change
-            {phase.dirtyCount === 1 ? '' : 's'}. Commit or stash them there, then retry.
-          </div>
-        )}
-
-        {phase.step === 'conflict' && (
-          <div className="bg-danger-soft border-danger/25 rounded-lg border px-3 py-2.5 text-base">
-            <div className="text-danger font-medium">
-              Merge conflicts — aborted cleanly, nothing changed.
-            </div>
-            {phase.conflicts.length > 0 && (
-              <ul className="text-text-secondary mt-1 max-h-32 list-inside list-disc overflow-y-auto font-mono text-sm">
-                {phase.conflicts.map((file) => (
-                  <li key={file}>{file}</li>
-                ))}
-              </ul>
-            )}
-            <div className="text-text-secondary mt-1">
-              Resolve in a terminal (merge manually) or rebase the branch first.
-            </div>
-          </div>
-        )}
-
-        {phase.step === 'merged' && (
-          <div className="text-base">
-            <span className="text-success font-medium">Merged ✓</span>
-            <span className="text-text-secondary font-mono"> {phase.sha.slice(0, 8)}</span>
-            <div className="text-text-secondary mt-1">
-              The worktree is no longer needed — remove it to tidy up.
-            </div>
-          </div>
-        )}
-
-        {error && <div className="text-danger text-base">{error}</div>}
-      </div>
-
-      <div className="border-border flex justify-end gap-2 border-t px-4 py-2.5">
-        <button
-          onClick={onClose}
-          className="border-border hover:bg-bg-secondary rounded-md border px-3 py-1.5 text-base font-medium transition-colors"
-        >
-          {phase.step === 'merged' || phase.step === 'conflict' ? 'Done' : 'Cancel'}
-        </button>
-        {phase.step === 'commit' && (
-          <button
-            onClick={() => void commit()}
-            disabled={busy || !message.trim()}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
-          >
-            {busy ? 'Committing…' : 'Commit'}
-          </button>
-        )}
-        {(phase.step === 'ready' || phase.step === 'main-dirty') && (
-          <button
-            onClick={() => void merge()}
-            disabled={busy}
-            className="bg-accent hover:bg-accent-hover text-accent-text rounded-md px-3.5 py-1.5 text-base font-medium transition-colors disabled:opacity-50"
-          >
-            {busy ? 'Merging…' : phase.step === 'main-dirty' ? 'Retry merge' : 'Merge'}
-          </button>
-        )}
-        {phase.step === 'merged' && (
-          <button
-            onClick={() => setRemoving(true)}
-            className="border-border hover:bg-bg-secondary rounded-md border px-3.5 py-1.5 text-base font-medium transition-colors"
-          >
-            Remove worktree…
-          </button>
-        )}
-      </div>
-    </Shell>
-  )
-}
-
-function Shell({
-  title,
-  onClose,
-  children,
-}: {
-  title: string
-  onClose: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
     <ModalOverlay onClose={onClose}>
-      <div className="border-border bg-surface-raised w-[460px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl">
-        <div className="border-border border-b px-4 py-3">
-          <div className="text-lg font-semibold">{title}</div>
+      <ModalPanel
+        width={460}
+        title={`Merge ${branch}`}
+        footer={
+          <>
+            <Button onClick={onClose}>
+              {phase.step === 'merged' || phase.step === 'conflict' ? 'Done' : 'Cancel'}
+            </Button>
+            {phase.step === 'commit' && (
+              <Button
+                variant="primary"
+                onClick={() => void commit()}
+                disabled={busy || !message.trim()}
+              >
+                {busy ? 'Committing…' : 'Commit'}
+              </Button>
+            )}
+            {(phase.step === 'ready' || phase.step === 'main-dirty') && (
+              <Button variant="primary" onClick={() => void merge()} disabled={busy}>
+                {busy ? 'Merging…' : phase.step === 'main-dirty' ? 'Retry merge' : 'Merge'}
+              </Button>
+            )}
+            {phase.step === 'merged' && (
+              <Button onClick={() => setRemoving(true)}>Remove worktree…</Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-3 px-4 py-3 text-lg">
+          {phase.step === 'commit' && (
+            <>
+              <div className="text-text-secondary text-base">
+                The worktree has {phase.dirtyCount} uncommitted change
+                {phase.dirtyCount === 1 ? '' : 's'}. Commit them to{' '}
+                <span className="font-mono">{branch}</span> first:
+              </div>
+              <TextInput
+                autoFocus
+                size="lg"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && message.trim()) void commit()
+                }}
+                placeholder="Commit message"
+                className="w-full"
+              />
+            </>
+          )}
+
+          {phase.step === 'ready' && (
+            <div className="text-text-secondary text-base">
+              Merge <span className="font-mono">{branch}</span> into the main tree&apos;s current
+              branch with <span className="font-mono">--no-ff</span>. The main tree must be clean;
+              pidex never checks out or stashes for you.
+            </div>
+          )}
+
+          {phase.step === 'main-dirty' && (
+            <div className="bg-warning/10 border-warning/30 rounded-lg border px-3 py-2.5 text-base">
+              The main tree has {phase.dirtyCount} uncommitted change
+              {phase.dirtyCount === 1 ? '' : 's'}. Commit or stash them there, then retry.
+            </div>
+          )}
+
+          {phase.step === 'conflict' && (
+            <div className="bg-danger-soft border-danger/25 rounded-lg border px-3 py-2.5 text-base">
+              <div className="text-danger font-medium">
+                Merge conflicts — aborted cleanly, nothing changed.
+              </div>
+              {phase.conflicts.length > 0 && (
+                <ul className="text-text-secondary mt-1 max-h-32 list-inside list-disc overflow-y-auto font-mono text-sm">
+                  {phase.conflicts.map((file) => (
+                    <li key={file}>{file}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="text-text-secondary mt-1">
+                Resolve in a terminal (merge manually) or rebase the branch first.
+              </div>
+            </div>
+          )}
+
+          {phase.step === 'merged' && (
+            <div className="text-base">
+              <span className="text-success font-medium">Merged ✓</span>
+              <span className="text-text-secondary font-mono"> {phase.sha.slice(0, 8)}</span>
+              <div className="text-text-secondary mt-1">
+                The worktree is no longer needed — remove it to tidy up.
+              </div>
+            </div>
+          )}
+
+          {error && <div className="text-danger text-base">{error}</div>}
         </div>
-        {children}
-      </div>
+      </ModalPanel>
     </ModalOverlay>
   )
 }

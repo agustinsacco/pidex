@@ -1,6 +1,6 @@
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { SectionTitle } from '@/components/form'
+import { Button, SectionTitle } from '@/components/form'
 import type { WorkspaceInfo } from '@shared/models'
 
 /** Recent workspaces and per-workspace layout reset. */
@@ -34,12 +34,9 @@ export function WorkspacesTab(): React.JSX.Element {
               <span className="block truncate text-lg font-medium">{workspace.name}</span>
               <span className="text-text-tertiary block truncate text-sm">{workspace.path}</span>
             </span>
-            <button
-              onClick={() => resetLayout(workspace)}
-              className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-1 text-sm font-medium transition-colors"
-            >
+            <Button size="xs" onClick={() => resetLayout(workspace)} className="shrink-0">
               Reset layout
-            </button>
+            </Button>
             <button
               onClick={() => void remove(workspace)}
               className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"

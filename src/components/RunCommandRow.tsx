@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CopyButton } from './CopyButton'
+import { Button } from './form'
 
 /**
  * A fix presented as one runnable command: the command in mono, a play button
@@ -40,14 +41,16 @@ export function RunCommandRow({
       </code>
       <CopyButton text={command} />
       {workspacePath && (
-        <button
+        <Button
+          variant="primary"
+          size="xs"
           onClick={run}
           title={`Run in the session terminal: ${command}`}
-          className="bg-accent hover:bg-accent-hover text-accent-text flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium transition-colors"
+          className="flex shrink-0 items-center gap-1.5"
         >
           <PlayIcon />
           {ran ? 'Ran' : label}
-        </button>
+        </Button>
       )}
     </div>
   )

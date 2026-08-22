@@ -130,6 +130,35 @@ testClaudeProvider` (`electron/ipc/packages-handlers.ts`);
   package, install/remove round-trip through the stub's package-manager
   mode, web-access key write, and the Claude provider chain.
 
+## How provider transcripts render
+
+The Claude Code provider is the first package whose sessions contain block
+shapes pi itself never emits, so the transcript layer has provider-specific
+handling (`items/transcriptRows.ts`, contract table in
+[04-chat.md](04-chat.md#blocks-from-the-claude-code-provider)):
+
+- **CLI-side tools** — WebSearch, WebFetch, ToolSearch, the user's own MCP
+  servers, and Claude Code sub-agents run _inside_ the CLI, so pi never sees
+  them as tool calls. The provider reports each as a
+  `[Claude Code · Name {args}]` marker text block; pidex parses it into an
+  `externalTool` activity step. Left as prose it wrapped raw JSON across
+  paragraphs and markdown-linkified any URL inside it.
+- **Encrypted thinking** — a signature with no plaintext, which rendered as a
+  "thought" that expands to nothing. Skipped on settled items.
+
+Both were quantified by replaying real sessions from all four Claude
+families through pidex's own hydration and transcript builder; the fixture in
+`chat/__fixtures__/claude-cli-blocks.json` is trimmed from those captures and
+guards the behaviour (`items/claudeCliRendering.test.ts`).
+
+**If you extend this** (tool request/response UX, sub-agent trees): the
+provider currently drops two things that would be the starting points — the
+`tool_result` blocks the CLI feeds itself between cycles (so external tools
+have no result to show), and everything tagged `parent_tool_use_id` (Claude
+Code's own sub-agent episodes). Both seams are named in that repo's
+`docs/ARCHITECTURE.md`; surfacing either needs a provider change first, then
+a step kind here.
+
 ## Sharp edges
 
 - **The e2e stub is also a package manager.** `e2e/fixtures/pi-stub.cjs`
