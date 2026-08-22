@@ -1,0 +1,85 @@
+[
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "",
+        "thinkingSignature": "CAISkwMKpAEIERgCKkAJ5okz\u2026truncated"
+      },
+      {
+        "type": "text",
+        "text": "I'll search the web for a fact about pygame."
+      },
+      {
+        "type": "text",
+        "text": "[Claude Code \u00b7 ToolSearch {\"query\":\"select:WebSearch\",\"max_results\":1}]"
+      },
+      {
+        "type": "text",
+        "text": "[Claude Code \u00b7 WebSearch {\"query\":\"pygame python library history facts\"}]"
+      },
+      {
+        "type": "text",
+        "text": "Pygame, created by Pete Shinners and first released in October 2000, is a cross-platform Python library that wraps the low-level SDL library to make writing games in Python easier.\n\nSources: [pygame w\u2026"
+      }
+    ],
+    "api": "pi-claude-cli",
+    "provider": "pi-claude-cli",
+    "model": "claude-fable-5",
+    "usage": {
+      "input": 6,
+      "output": 343,
+      "cacheRead": 72063,
+      "cacheWrite": 11110,
+      "totalTokens": 83522,
+      "cost": {
+        "input": 6.000000000000001e-05,
+        "output": 0.017150000000000002,
+        "cacheRead": 0.072063,
+        "cacheWrite": 0.138875,
+        "total": 0.22814800000000002
+      }
+    },
+    "stopReason": "stop",
+    "timestamp": 1787335320814
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "",
+        "thinkingSignature": "CAISvwIKpAEIERgCKkCw/wuX\u2026truncated"
+      },
+      {
+        "type": "toolCall",
+        "id": "toolu_01RFhLovt7cGv6e7rt5YVPDB",
+        "name": "write",
+        "arguments": {
+          "path": "/tmp/claude-1000/-home-agustinsacco-src-agustinsacco-pidex--claude-worktrees-pi-agent-cli-integration-b2e20a/aafae7b3-f013-473d-b384-bc1f3676c36b/scratchpad/matrix-thinking/claude-fable-5-tools/ws/probe.txt",
+          "content": "ok"
+        }
+      }
+    ],
+    "api": "pi-claude-cli",
+    "provider": "pi-claude-cli",
+    "model": "claude-fable-5",
+    "usage": {
+      "input": 2,
+      "output": 213,
+      "cacheRead": 17488,
+      "cacheWrite": 9548,
+      "totalTokens": 27251,
+      "cost": {
+        "input": 2e-05,
+        "output": 0.01065,
+        "cacheRead": 0.017488,
+        "cacheWrite": 0.11935,
+        "total": 0.147508
+      }
+    },
+    "stopReason": "toolUse",
+    "timestamp": 1787335302982
+  }
+]

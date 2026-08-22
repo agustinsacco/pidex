@@ -18,10 +18,38 @@ import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../redu
  * the behavior stays unit-testable.
  */
 
+/**
+ * A tool Claude Code ran INSIDE its own process (WebSearch, WebFetch,
+ * ToolSearch, the user's MCP servers, sub-agents) while acting as pi's model
+ * provider. pi never sees these as tool calls — it cannot execute them — so
+ * the provider extension reports them as one-line marker text blocks. They
+ * are real activity, so they belong in the activity group next to pi's own
+ * tools rather than in the prose lane, where the raw JSON wrapped across
+ * paragraphs and any URL inside it got auto-linkified as markdown.
+ */
+export interface ExternalToolBlock {
+  type: 'externalTool'
+  index: number
+  /** Tool name as Claude Code reported it, e.g. "WebSearch". */
+  name: string
+  /** Truncated argument preview, verbatim from the marker. Never parsed. */
+  args?: string
+}
+
+/** `[Claude Code · WebSearch {"query":"…"}]` → name + argument preview. */
+const EXTERNAL_TOOL_MARKER = /^\[Claude Code · ([^\s\]]+)(?:\s+([\s\S]*))?\]$/
+
+export function parseExternalToolMarker(text: string): { name: string; args?: string } | null {
+  const match = EXTERNAL_TOOL_MARKER.exec(text.trim())
+  if (!match) return null
+  const args = match[2]?.trim()
+  return { name: match[1]!, args: args && args.length > 0 ? args : undefined }
+}
+
 export interface ActivityStep {
   /** Owning assistant item — needed for streaming/stop-reason context. */
   itemId: string
-  block: Exclude<AssistantBlock, { type: 'text' }>
+  block: Exclude<AssistantBlock, { type: 'text' }> | ExternalToolBlock
   /** The owning item is still streaming. */
   streaming: boolean
   /** This block is the last one in its message (streaming tail detection). */
@@ -69,8 +97,27 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
     for (const block of item.blocks) {
       const isLastInItem = block.index === lastIndex
       if (block.type === 'text') {
+        const marker = parseExternalToolMarker(block.text)
+        if (marker) {
+          pushStep({
+            itemId: item.id,
+            block: { type: 'externalTool', index: block.index, ...marker },
+            streaming: item.streaming,
+            isLastInItem,
+          })
+          continue
+        }
         rows.push({ kind: 'text', id: `${item.id}-t${block.index}`, item, block, isLastInItem })
       } else {
+        // Encrypted thinking (signature, no plaintext) reaches pi as a
+        // thinking block with no text. The provider extension stopped
+        // emitting these, but sessions recorded before that fix are on
+        // disk forever — and an empty thought renders as a card that
+        // expands to nothing, and inflates the "N thoughts" count.
+        // A streaming block is legitimately empty for a few frames.
+        if (block.type === 'thinking' && !item.streaming && block.text.trim() === '') {
+          continue
+        }
         pushStep({ itemId: item.id, block, streaming: item.streaming, isLastInItem })
       }
     }
@@ -111,6 +158,7 @@ export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): s
 /** True while any step in the group is still producing output. */
 export function isActivityLive(steps: ActivityStep[], tools: Record<string, ToolState>): boolean {
   return steps.some((s) => {
+    if (s.block.type === 'externalTool') return false
     if (s.block.type === 'thinking') {
       return s.streaming && s.isLastInItem && !s.block.closed
     }
@@ -138,6 +186,7 @@ const NOUNS: Record<string, [string, string]> = {
   Listed: ['directory', 'directories'],
   Created: ['artifact', 'artifacts'],
   Updated: ['artifact', 'artifacts'],
+  'Claude Code': ['tool', 'tools'],
 }
 
 /**
@@ -160,6 +209,12 @@ export function summarizeActivity(
   for (const step of steps) {
     if (step.block.type === 'thinking') {
       thinkingCount++
+      continue
+    }
+    if (step.block.type === 'externalTool') {
+      const label = 'Claude Code'
+      if (!counts.has(label)) order.push(label)
+      counts.set(label, (counts.get(label) ?? 0) + 1)
       continue
     }
     const tool = tools[step.block.toolCallId]

@@ -4,6 +4,7 @@ import type { PiPackageEntry } from '@shared/models'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { CatalogueCards } from '../CatalogueCards'
 import { usePackageJob } from '../usePackageJob'
+import { isNewerVersion } from '../versions'
 import { errorText } from '@shared/errors'
 
 /**
@@ -14,6 +15,7 @@ import { errorText } from '@shared/errors'
 export function ExtensionsTab(): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
   const [entries, setEntries] = useState<PiPackageEntry[] | null>(null)
+  const [latest, setLatest] = useState<Record<string, string | null>>({})
   const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [addSpec, setAddSpec] = useState('')
@@ -27,6 +29,12 @@ export function ExtensionsTab(): React.JSX.Element {
       ])
       setEntries(list)
       setClaudeDetected(detect.claude)
+      // Registry lookup is slower than the local reads and may fail
+      // (offline, private registry) — never let it block the listing.
+      void window.pidex
+        .invoke('packages:checkUpdates', workspacePath ?? undefined)
+        .then(setLatest)
+        .catch(() => setLatest({}))
     } catch (err) {
       setError(errorText(err))
     }
@@ -99,7 +107,9 @@ export function ExtensionsTab(): React.JSX.Element {
                   <PackageRow
                     key={`${entry.scope}:${entry.spec}`}
                     entry={entry}
+                    latest={latest[entry.spec] ?? null}
                     busy={job.running}
+                    onUpdate={() => runAction('update', entry.spec, entry.scope)}
                     onRemove={() => runAction('remove', entry.spec, entry.scope)}
                   />
                 ))}
@@ -154,13 +164,20 @@ export function ExtensionsTab(): React.JSX.Element {
 
 function PackageRow({
   entry,
+  latest,
   busy,
+  onUpdate,
   onRemove,
 }: {
   entry: PiPackageEntry
+  /** Latest published version, or null when unknown. */
+  latest: string | null
   busy: boolean
+  onUpdate: () => void
   onRemove: () => void
 }): React.JSX.Element {
+  const updatable =
+    latest !== null && entry.version !== undefined && isNewerVersion(latest, entry.version)
   const counts = (
     [
       ['extension', entry.resources.extensions.length],
@@ -181,6 +198,11 @@ function PackageRow({
           {entry.version && (
             <span className="text-text-tertiary font-mono text-sm">v{entry.version}</span>
           )}
+          {updatable && (
+            <span className="text-accent bg-accent-soft rounded-full px-2 py-0.5 font-mono text-sm">
+              v{latest} available
+            </span>
+          )}
           {!entry.installed && (
             <span className="text-warning text-sm">installs on next session start</span>
           )}
@@ -195,6 +217,15 @@ function PackageRow({
           {counts && <span className="font-sans"> — {counts}</span>}
         </div>
       </div>
+      {updatable && (
+        <button
+          onClick={onUpdate}
+          disabled={busy}
+          className="bg-accent hover:bg-accent-hover text-accent-text mr-1 shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
+        >
+          Update
+        </button>
+      )}
       <button
         onClick={onRemove}
         disabled={busy}

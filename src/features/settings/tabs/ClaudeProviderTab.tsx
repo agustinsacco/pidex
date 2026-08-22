@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { ClaudeStatus, PiPackageEntry } from '@shared/models'
 import { usePackageJob } from '../usePackageJob'
+import { isNewerVersion } from '../versions'
 import { JobOutput } from './ExtensionsTab'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
@@ -13,6 +14,7 @@ const TESTED_CLI_LINE = '2.1'
  */
 export function ClaudeProviderTab(): React.JSX.Element {
   const [pkg, setPkg] = useState<PiPackageEntry | null | undefined>(undefined)
+  const [latest, setLatest] = useState<string | null>(null)
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -20,15 +22,25 @@ export function ClaudeProviderTab(): React.JSX.Element {
       window.pidex.invoke('packages:list'),
       window.pidex.invoke('packages:claudeStatus'),
     ])
-    setPkg(entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null)
+    const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
+    setPkg(entry)
     setStatus(claudeState)
+    if (entry) {
+      void window.pidex
+        .invoke('packages:checkUpdates')
+        .then((map) => setLatest(map[entry.spec] ?? null))
+        .catch(() => setLatest(null))
+    }
   }, [])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
+  const updateJob = usePackageJob(() => void refresh())
   const testJob = usePackageJob()
+  const updatable =
+    latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
   const binaryOk = status?.binary.found === true
   const authOk = status?.auth.loggedIn === true
 
@@ -56,6 +68,27 @@ export function ClaudeProviderTab(): React.JSX.Element {
                   : 'declared — installs on next session start'
           }
         />
+        {updatable && (
+          <div className="border-border flex items-center justify-between gap-3 border-t px-3.5 py-2.5">
+            <div className="text-base">
+              <span className="text-accent font-medium">v{latest} is available.</span>{' '}
+              <span className="text-text-secondary">
+                pi never moves an installed package on its own — update, then restart sessions.
+              </span>
+            </div>
+            <button
+              onClick={() =>
+                void updateJob.start(() =>
+                  window.pidex.invoke('packages:run', 'update', pkg!.spec, 'global', undefined),
+                )
+              }
+              disabled={updateJob.running}
+              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
+            >
+              {updateJob.running ? 'Updating…' : 'Update'}
+            </button>
+          </div>
+        )}
         <StatusRow
           label="claude CLI"
           ok={binaryOk}
@@ -101,6 +134,11 @@ export function ClaudeProviderTab(): React.JSX.Element {
       >
         {testJob.running ? 'Testing…' : 'Test provider'}
       </button>
+      <JobOutput
+        running={updateJob.running}
+        output={updateJob.output}
+        exitCode={updateJob.exitCode}
+      />
       <JobOutput running={testJob.running} output={testJob.output} exitCode={testJob.exitCode} />
       {testJob.exitCode === 0 && testJob.output.includes('pidex-provider-ok') && (
         <p className="text-success mt-2 text-base">
