@@ -83,6 +83,13 @@ in `EXTENSION_TABS` (`SettingsModal.tsx`) and shown **only while their
 package is present** — the list re-reads `packages:list` on every modal
 open, so installing from the Extensions tab reveals a tab immediately.
 
+They render **nested under the Extensions entry** in the settings sidebar
+(indented sub-entries, guide line), not as top-level tabs: they configure an
+installed package, so they belong to the package list. The Extensions entry
+stays highlighted while a sub-tab is active, and a stale sub-tab (package
+removed out-of-band) falls back to the Extensions list instead of rendering
+an orphaned panel.
+
 | Tab         | Package                    | Contents                                                                                                                       |
 | ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Claude Code | `@saccolabs/pi-claude-cli` | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
