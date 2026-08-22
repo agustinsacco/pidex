@@ -1,12 +1,16 @@
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { Button, SectionTitle } from '@/components/form'
+import { useWorktreesStore } from '@/stores/worktrees'
+import { Button, Row, SectionTitle, TextField, Toggle } from '@/components/form'
+import { normalizePrefix } from '@/lib/branchName'
 import type { WorkspaceInfo } from '@shared/models'
 
-/** Recent workspaces and per-workspace layout reset. */
+/** How new chats get their branch, plus recent workspaces and layout reset. */
 
 export function WorkspacesTab(): React.JSX.Element {
   const recents = useWorkspacesStore((s) => s.recents)
+  const preferWorktree = useWorktreesStore((s) => s.preferWorktree)
+  const branchPrefix = useWorktreesStore((s) => s.branchPrefix)
 
   const remove = async (workspace: WorkspaceInfo): Promise<void> => {
     const next = recents.filter((w) => w.path !== workspace.path)
@@ -21,8 +25,39 @@ export function WorkspacesTab(): React.JSX.Element {
     useExtensionUiStore.getState().pushToast(`Layout reset for ${workspace.name}`, 'info')
   }
 
+  // Show what the branch will actually look like, since the prefix is
+  // normalized (a bare "pidex" becomes "pidex/") before it is ever used.
+  const examplePrefix = normalizePrefix(branchPrefix)
+
   return (
     <div>
+      <SectionTitle>New sessions</SectionTitle>
+      <div className="border-border bg-surface mb-2 rounded-xl border px-4">
+        <Row
+          title="Give each chat its own branch"
+          description="A new chat is named from its first message, then branched off the latest main into its own worktree. The same switch as the “worktree” checkbox in the branch menu."
+        >
+          <Toggle
+            on={preferWorktree}
+            onChange={(on) => useWorktreesStore.getState().setPreferWorktree(on)}
+          />
+        </Row>
+        <Row
+          title="Branch prefix"
+          description={
+            examplePrefix
+              ? `Branches are named ${examplePrefix}session-title. Leave empty for no prefix.`
+              : 'Branches are named after the session title, with no prefix.'
+          }
+        >
+          <TextField
+            defaultValue={branchPrefix}
+            placeholder="pidex/"
+            onCommit={(value) => useWorktreesStore.getState().setBranchPrefix(value)}
+          />
+        </Row>
+      </div>
+
       <SectionTitle>Workspaces</SectionTitle>
       {recents.length === 0 && (
         <p className="text-text-tertiary text-base">No recent workspaces.</p>

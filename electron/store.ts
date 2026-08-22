@@ -35,6 +35,7 @@ export function getPrefs(): AppPrefs {
     seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
+    worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
   }
 }
 
@@ -51,6 +52,10 @@ export function setFontPrefs(fonts: AppPrefs['fonts']): void {
 
 export function setClaudeSystemPrompt(mode: AppPrefs['claudeSystemPrompt']): void {
   prefs().set('claudeSystemPrompt', mode)
+}
+
+export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {
+  prefs().set('worktrees', worktrees)
 }
 
 export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {
