@@ -390,6 +390,15 @@ function runMockJob(lines: string[], exitCode = 0): { jobId: string } {
   return { jobId }
 }
 
+/** Context composition, as the bundled extension would report it. */
+const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
+  totalTokens: 51350,
+  contextWindow: 262144,
+  parts: { messages: 41000, systemPrompt: 4200, tools: 5200, mcpTools: 2600 },
+  counts: { tools: 6, mcpTools: 12, messages: 9 },
+  approximate: true,
+})
+
 export function installMockPidex(): void {
   const api: PidexApi = {
     // The browser harness has no Electron; report the real host so key hints
@@ -435,6 +444,20 @@ export function installMockPidex(): void {
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
         case 'pi:createSession':
+          // The bundled context-breakdown extension publishes on
+          // session_start; mirror that so the meter has data in the harness.
+          setTimeout(() => {
+            push('mock-session-id', {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
+                id: 'mock-ctx',
+                method: 'setStatus',
+                statusKey: 'pidex-context-breakdown',
+                statusText: MOCK_CONTEXT_BREAKDOWN,
+              },
+            } as SessionPush)
+          }, 120)
           return Promise.resolve({
             sessionId: 'mock-session-id',
             workspacePath: '/Users/dev/projects/pidex',
