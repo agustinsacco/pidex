@@ -28,7 +28,7 @@ import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { worktreeAwareName } from '@/lib/path'
+import { worktreeAwareName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -71,8 +71,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
+  /** Worktree folders discovered under each known repo workspace. */
+  const [worktreeDirs, setWorktreeDirs] = useState<string[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  /** Which roots we already listed worktrees for (avoids re-listing on toggle). */
+  const worktreeListedKey = useRef<string | null>(null)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
@@ -98,19 +102,27 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }
 
   /**
+   * Persisted workspaces only — always user folders, never worktree nodes.
+   */
+  const cleanRecents = useMemo(() => recents.filter((ws) => !isWorktreeFolder(ws.path)), [recents])
+
+  /**
    * Every workspace worth listing: the known recents plus the active one and
    * any folder that currently has a live session (a session can outlive its
-   * entry in recents).
+   * entry in recents). Worktree folders are not workspaces — instead of
+   * living in recents they are discovered under each known repo (see the
+   * `git:listWorktrees` effect below) and fold back into that repo's group.
    */
   const knownWorkspaces = useMemo(() => {
     // The persisted recents list is the user's sidebar order. Runtime-only
     // paths are appended, so activating or creating a session cannot promote
     // any existing workspace.
-    const paths = new Set(recents.map((workspace) => workspace.path))
+    const paths = new Set(cleanRecents.map((workspace) => workspace.path))
     paths.add(workspacePath)
     for (const entry of Object.values(live)) paths.add(entry.workspacePath)
+    for (const worktree of worktreeDirs) paths.add(worktree)
     return [...paths].filter(Boolean)
-  }, [workspacePath, live, recents])
+  }, [workspacePath, live, cleanRecents, worktreeDirs])
 
   // Scan every known workspace (capped; collapsed groups lazy-load on expand).
   useEffect(() => {
@@ -130,6 +142,47 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
     })
   }, [])
+
+  /**
+   * Discover the worktree folders under each known repo workspace.
+   *
+   * Worktrees are not persisted as workspaces (they are branches of one), so
+   * the sidebar would otherwise never scan them and their sessions would
+   * vanish from the project group they fold into. Listing each known working
+   * tree restores them; the merge in `groupSessionsByProject` puts every one
+   * back under its main repo's header.
+   */
+  useEffect(() => {
+    // Wait for prefs hydration, and only list once per set of known roots —
+    // expanding/collapsing a group must not re-run a full `git:listWorktrees`
+    // per workspace.
+    if (collapsed === null) return
+    const roots = [...cleanRecents.map((ws) => ws.path), workspacePath].filter(
+      (p) => Boolean(p) && !isWorktreeFolder(p!),
+    )
+    const key = roots.join('\u0000')
+    if (worktreeListedKey.current === key) return
+    worktreeListedKey.current = key
+    let cancelled = false
+    void (async () => {
+      const found = new Set<string>()
+      for (const root of roots) {
+        if (cancelled) return
+        try {
+          const worktrees = (await window.pidex.invoke('git:listWorktrees', root)) as WorktreeInfo[]
+          for (const wt of worktrees) {
+            if (!wt.isMain) found.add(wt.realPath || wt.path)
+          }
+        } catch {
+          // Not a repo, or git unavailable — nothing to discover there.
+        }
+      }
+      if (!cancelled) setWorktreeDirs([...found])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cleanRecents, workspacePath, collapsed])
 
   // Git summaries for row subtitles: refresh (debounced) whenever the disk
   // listing changes, and again on window focus (branch switches happen in

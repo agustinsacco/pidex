@@ -1077,10 +1077,15 @@ test('resource monitor reports real per-session process usage', async () => {
     await expect(row).toContainText(/\d+(\.\d+)?\s*(KB|MB|GB)/, { timeout: 30_000 })
 
     // The terminals toggle must actually change what is charged to a session.
+    // The input is controlled (`checked={includeTerminals}`) and re-renders
+    // after the state store round-trips, so `uncheck()` — which carries its own
+    // fast internal verification — races the re-render on a slow (unmapped or
+    // loaded) run; same controlled-checkbox race the MCP settings test works
+    // around. Click first, then let the `expect` poll for the re-rendered state.
     const toggle = page.getByTestId('monitor-include-terminals')
     await expect(toggle).toBeChecked()
-    await toggle.uncheck()
-    await expect(toggle).not.toBeChecked()
+    await toggle.click()
+    await expect(toggle).not.toBeChecked({ timeout: 10_000 })
     await expect(row).toBeVisible()
   } finally {
     await shutdown(harness)

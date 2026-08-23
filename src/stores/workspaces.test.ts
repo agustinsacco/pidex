@@ -43,4 +43,21 @@ describe('workspace ordering', () => {
       expect.objectContaining({ path: '/c' }),
     ])
   })
+
+  it('does not add a worktree folder as a workspace (a branch, not a project)', async () => {
+    const { useWorkspacesStore } = await import('./workspaces')
+    const wt = '/a/.pidex/worktrees/my-task'
+
+    useWorkspacesStore.getState().openWorkspace(wt)
+
+    expect(useWorkspacesStore.getState().recents.map((workspace) => workspace.path)).toEqual([
+      '/a',
+      '/b',
+      '/c',
+    ])
+    // The screen does point at it (resume target / top bar), and the main
+    // process is told so it can remember `lastWorkspacePath`.
+    expect(useWorkspacesStore.getState().homePath).toBe(wt)
+    expect(invoke).toHaveBeenCalledWith('app:recordWorkspace', wt)
+  })
 })
