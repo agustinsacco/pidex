@@ -1,5 +1,7 @@
 import { useChatStore } from '@/stores/chat'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { piCall, piCallOk } from '@/lib/rpc'
+import { formatSessionDebugInfo } from '@/lib/sessionDebugInfo'
 
 /**
  * Session operations shared by the chat composer, the session menu and the
@@ -43,4 +45,36 @@ export async function renameSession(
   if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) return undefined
   useChatStore.getState().patchMeta(sessionId, { sessionName: name })
   return name
+}
+
+/**
+ * Copy a pointer to everything this session wrote to disk, for pasting into a
+ * bug report or a debugging conversation.
+ *
+ * Provider and model come from the live session when there is one; a session
+ * that is only on disk still yields its pi paths, which is the part that
+ * always exists. See lib/sessionDebugInfo for why the Claude Code path is
+ * worth carrying separately.
+ */
+export async function copySessionDebugInfo(
+  meta: { path: string; sessionId: string; cwd: string },
+  livePidexId?: string,
+): Promise<void> {
+  const chat = livePidexId ? useChatStore.getState().sessions[livePidexId]?.meta : undefined
+  const text = formatSessionDebugInfo({
+    path: meta.path,
+    sessionId: meta.sessionId,
+    cwd: meta.cwd,
+    provider: chat?.model?.provider,
+    model: chat?.model?.id,
+  })
+  const toast = useExtensionUiStore.getState().pushToast
+  try {
+    await navigator.clipboard.writeText(text)
+    toast('Session debug info copied', 'info')
+  } catch {
+    // Clipboard can be denied; the text is useless if it is neither copied nor
+    // shown, so fall back to something the user can select by hand.
+    window.prompt('Copy session debug info', text)
+  }
 }

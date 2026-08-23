@@ -34,6 +34,7 @@ import {
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
+import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
@@ -621,6 +622,10 @@ function SessionRow({
       {
         label: 'Export HTML…',
         onClick: () => void exportSidebarSession(workspacePath, meta, livePidexId),
+      },
+      {
+        label: 'Copy debug info',
+        onClick: () => void copySessionDebugInfo(meta, livePidexId),
       },
       {
         label: 'Delete (move to trash)',
