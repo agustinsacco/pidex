@@ -56,6 +56,7 @@ describe('groupSessionsByProject', () => {
         meta({
           path: '/repo/.pidex/worktrees/test/b.jsonl',
           cwd: '/repo/.pidex/worktrees/test',
+          createdAt: '2026-08-10T00:00:00.000Z',
           mtimeMs: 2000,
         }),
       ],
@@ -75,7 +76,7 @@ describe('groupSessionsByProject', () => {
     expect(groups[0]?.name).toBe('repo')
     expect(groups[0]?.paths.sort()).toEqual(['/repo', '/repo/.pidex/worktrees/test'].sort())
     // Sessions from both physical folders show up under the merged group,
-    // newest first, each still carrying its own (worktree) cwd.
+    // newest-created first, each still carrying its own (worktree) cwd.
     expect(groups[0]?.metas.map((m) => m.cwd)).toEqual(['/repo/.pidex/worktrees/test', '/repo'])
   })
 
@@ -124,6 +125,35 @@ describe('groupSessionsByProject', () => {
       '/repo-c',
     )
     expect(groups.map((group) => group.workspacePath)).toEqual(['/repo-a', '/repo-b', '/repo-c'])
+  })
+
+  it('keeps session rows in creation order when older sessions get new activity', () => {
+    const sessions = groupSessionsByProject(
+      ['/repo'],
+      {
+        '/repo': [
+          meta({
+            path: '/repo/older.jsonl',
+            createdAt: '2026-08-01T00:00:00.000Z',
+            mtimeMs: 300,
+          }),
+          meta({
+            path: '/repo/newer.jsonl',
+            createdAt: '2026-08-02T00:00:00.000Z',
+            mtimeMs: 100,
+          }),
+        ],
+      },
+      {},
+      notPinned,
+      notLive,
+      '/repo',
+    )
+
+    expect(sessions[0]?.metas.map((session) => session.path)).toEqual([
+      '/repo/newer.jsonl',
+      '/repo/older.jsonl',
+    ])
   })
 
   it('excludes pinned sessions and counts live sessions per merged group', () => {

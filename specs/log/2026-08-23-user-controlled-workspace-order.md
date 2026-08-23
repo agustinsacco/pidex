@@ -17,3 +17,14 @@ Each workspace group header now has a three-dot menu with **Move up** and
 preferences, and the boundary action is disabled. A linked-worktree group
 continues to be represented by its main project, so it remains one movable
 sidebar item rather than splitting into branch-specific entries.
+
+Session rows had the same, smaller problem: pi updates a resumed session's
+JSONL modification time, and the scanner then promoted it above newer sessions.
+They now order by the immutable timestamp in their session header instead,
+via `compareSessionsByCreation()` in `shared/session-order.ts`, which the
+scanner, the per-group row list, and the mixed Pinned section all use. New
+sessions appear at the top, while clicking, resuming, or receiving activity
+on an existing one leaves its position unchanged. Rows whose header lacks a
+parseable timestamp fall back to file mtime rather than disappearing from the
+sort. The Usage report's per-session table keeps its mtime sort on purpose:
+it answers "where did the latest spend happen", not "which thread is mine".

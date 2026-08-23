@@ -1,4 +1,5 @@
 import type { GitInfo, SessionMeta } from '@shared/models'
+import { compareSessionsByCreation } from '@shared/session-order'
 import { workspaceName } from '@/lib/path'
 
 export interface GroupedSessions {
@@ -69,7 +70,7 @@ export function groupSessionsByProject(
           workspacePath,
           paths: entry.paths,
           name: workspaceName(projectKey),
-          metas: entry.metas.sort((a, b) => b.mtimeMs - a.mtimeMs),
+          metas: entry.metas.sort(compareSessionsByCreation),
           liveCount: entry.liveCount,
           scanned: entry.scanned,
         }

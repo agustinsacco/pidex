@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
+import { compareSessionsByCreation } from '@shared/session-order'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
@@ -164,7 +165,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       Object.values(disk)
         .flat()
         .filter((m) => pinnedSet.has(m.path))
-        .sort((a, b) => b.mtimeMs - a.mtimeMs),
+        .sort(compareSessionsByCreation),
     [disk, pinnedSet],
   )
 
