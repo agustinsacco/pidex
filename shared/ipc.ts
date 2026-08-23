@@ -39,6 +39,7 @@ import type {
   GitInfo,
   LiveSessionInfo,
   PiHealth,
+  SubscriptionProviderStatus,
   PiResources,
   PullResult,
   ResourceSnapshot,
@@ -199,6 +200,18 @@ export interface IpcInvokeMap {
   }
   'pi:checkAgentSettings': { args: [workspacePath?: string]; result: AgentSettingsHealth }
   'pi:listResources': { args: []; result: PiResources }
+
+  /** Which subscription providers pi is signed into, via `pi auth check --json`. */
+  'pi:subscriptionAuth': { args: []; result: SubscriptionProviderStatus[] }
+  /**
+   * A PTY running pi interactively so the user can complete `/login`.
+   *
+   * This exists because pi exposes sign-in nowhere else: no RPC command, no
+   * `pi login` subcommand, and pi-ai no longer exports its OAuth runtime.
+   * Hosting pi's own TUI is the only path that does not couple pidex to pi
+   * internals. Drive it with the ordinary `pty:*` channels once created.
+   */
+  'pi:loginTerminal': { args: [cols: number, rows: number]; result: { ptyId: string } }
 
   /**
    * pi packages (settings.json `packages` arrays + install dirs). Mutations
