@@ -156,7 +156,40 @@ export interface BranchInfo {
   behindDefault?: number
 }
 
-export type AddWorktreeBranch = { kind: 'new'; base: string } | { kind: 'existing'; branch: string }
+export type AddWorktreeBranch =
+  | {
+      kind: 'new'
+      base: string
+      /**
+       * Branch to create, when it must differ from the worktree folder name.
+       * Auto-created session branches carry a configurable prefix (`pidex/…`)
+       * that cannot appear in the folder name — the folder's basename is what
+       * names the sidebar group, and a `/` in it would nest the checkout.
+       * Absent means "same as the folder name", the hand-created case.
+       */
+      branch?: string
+      /**
+       * Skip `git`'s automatic upstream setup. Set when `base` is a
+       * remote-tracking ref: without it the new branch would take `origin/main`
+       * as its upstream, so its ahead/behind counts would be measured against
+       * trunk and a stray `git push` would aim at main.
+       */
+      noTrack?: boolean
+    }
+  | { kind: 'existing'; branch: string }
+
+/**
+ * Where a new session branch should start from: the freshest trunk this repo
+ * can offer without touching the main tree's checkout.
+ */
+export interface StartPoint {
+  /** Ref to branch from — `origin/main` when fetched, else local `main`. */
+  base: string
+  /** Trunk's local branch name (`main`, `master`, …). */
+  defaultBranch: string
+  /** True when `base` is a remote-tracking ref (implies `noTrack` on create). */
+  fromRemote: boolean
+}
 
 /** `git fetch --prune`, which is allowed to be a no-op or to fail quietly. */
 export type FetchResult =
@@ -258,6 +291,29 @@ export const DEFAULT_FONT_PREFS: FontPrefs = {
   monoFont: 'JetBrains Mono',
 }
 
+/**
+ * How new chats relate to git branches.
+ *
+ * `auto` is the same switch the branch popup's "worktree" checkbox flips — one
+ * persisted preference, not two that can disagree: it decides both whether
+ * picking a branch isolates it and whether a new chat gets a branch of its own.
+ */
+export interface WorktreePrefs {
+  /** New chats start on their own branch in their own worktree. */
+  auto: boolean
+  /**
+   * Prepended to auto-generated branch names. `pidex/session-naming` keeps
+   * generated branches sorted together and away from hand-made ones. Empty is
+   * allowed and means "no prefix".
+   */
+  branchPrefix: string
+}
+
+export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
+  auto: true,
+  branchPrefix: 'pidex/',
+}
+
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
@@ -280,6 +336,7 @@ export interface AppPrefs {
   fonts: FontPrefs
   /** Whose system prompt Claude Code sessions run under. */
   claudeSystemPrompt: ClaudeSystemPromptMode
+  worktrees: WorktreePrefs
 }
 
 /**
@@ -304,6 +361,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   // Matches the extension's own default: keep Claude Code's prompt unless the
   // user opts out of it.
   claudeSystemPrompt: 'claude',
+  worktrees: DEFAULT_WORKTREE_PREFS,
 }
 
 /** Minimum pi version pidex is verified against. */

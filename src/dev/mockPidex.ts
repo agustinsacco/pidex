@@ -475,7 +475,10 @@ export function installMockPidex(): void {
               monoFont: 'JetBrains Mono',
             },
             claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
+            worktrees: DEFAULT_APP_PREFS.worktrees,
           })
+        case 'app:setWorktreePrefs':
+          return Promise.resolve(undefined)
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
         case 'pi:createSession':
@@ -877,17 +880,23 @@ export function installMockPidex(): void {
             ],
             defaultBranch: 'main',
           })
-        case 'git:addWorktree':
+        case 'git:startPoint':
+          return Promise.resolve({ base: 'origin/main', defaultBranch: 'main', fromRemote: true })
+        case 'git:addWorktree': {
+          // Auto-created session branches carry a prefix the folder cannot, so
+          // the harness has to echo the requested branch rather than the folder.
+          const branch = args[2] as { kind: string; branch?: string }
           return Promise.resolve({
             path: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
             realPath: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
-            branch: args[1] as string,
+            branch: branch.branch ?? (args[1] as string),
             head: 'abcdef1234567890',
             isMain: false,
             locked: false,
             prunable: false,
             dirtyCount: 0,
           })
+        }
         case 'git:removeWorktree':
           return Promise.resolve({ removed: true, branchDeleted: false })
         case 'git:pruneWorktrees':

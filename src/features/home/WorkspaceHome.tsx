@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
-import { useSessionsStore } from '@/stores/sessions'
+import { useWorktreesStore } from '@/stores/worktrees'
+import { startChat, type StartChatPhase } from '@/features/sessions/startChat'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { formatCost, formatTokens } from '@/lib/format'
@@ -24,7 +25,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
-  const [starting, setStarting] = useState(false)
+  const [phase, setPhase] = useState<StartChatPhase | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
+  const [isRepo, setIsRepo] = useState(false)
+  const isolate = useWorktreesStore((s) => s.preferWorktree)
+  const starting = phase !== null
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
   const workspaceName = workspaceDisplayName(workspacePath)
@@ -72,26 +77,38 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     void window.pidex
       .invoke('app:userInfo')
       .then((info) => setUsername(prettifyName(info.username)))
+    // Only a git repo can offer isolation, so the toggle stays hidden until we
+    // know this folder is one.
+    void window.pidex
+      .invoke('git:info', workspacePath)
+      .then((info) => setIsRepo(info.isRepo))
+      .catch(() => setIsRepo(false))
     textareaRef.current?.focus()
   }, [workspacePath])
 
   const start = async (): Promise<void> => {
     const message = text.trim()
     if (!message || starting) return
-    setStarting(true)
+    setWarning(null)
+    // Set synchronously, before any await: `startChat` reports its first phase
+    // only after a git round trip, and until something marks the composer busy
+    // a second Enter would start a second session (and a second branch).
+    setPhase('starting')
     try {
-      // The session starts in whatever workspace is open — including a
-      // worktree, which pi records sessions under, so the sidebar groups them
-      // there. The top bar's branch control is what changes that workspace;
-      // this screen no longer keeps a second, competing notion of "target".
-      await useSessionsStore.getState().createSession(workspacePath, {
-        firstPrompt: composePrompt(message, images),
-        firstImages: toImageContents(images),
+      // Naming, branching and spawning are one operation (see startChat): the
+      // generated title is what the branch is named after, and the branch has
+      // to exist before pi spawns because a session is bound to its cwd.
+      await startChat({
+        workspacePath,
+        prompt: composePrompt(message, images),
+        images: toImageContents(images),
+        onPhase: setPhase,
+        onWarning: setWarning,
       })
       setText('')
       setImages([])
     } finally {
-      setStarting(false)
+      setPhase(null)
     }
   }
 
@@ -215,11 +232,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             {/* Footer mirrors the chat composer: attachments on the left,
                 model + thinking on the right, submit at the far right. */}
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
-              <AttachButton
-                onFiles={(files) => {
-                  for (const file of files) void addFile(file)
-                }}
-              />
+              <div className="flex min-w-0 items-center gap-1.5">
+                <AttachButton
+                  onFiles={(files) => {
+                    for (const file of files) void addFile(file)
+                  }}
+                />
+                {isRepo && <IsolateToggle checked={isolate} disabled={starting} />}
+              </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
                 <HomeModelPicker />
@@ -227,14 +247,77 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                   busy={starting}
                   disabled={!text.trim()}
                   onClick={() => void start()}
-                  label={starting ? 'Starting session' : 'Start session'}
+                  label={startLabel(phase)}
                 />
               </div>
             </div>
           </div>
+          {/* The session still started; this says what it did not get. */}
+          {warning && <p className="text-warning mt-2 px-1 text-sm">{warning}</p>}
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * The submit button narrates the wait.
+ *
+ * Sending now takes a couple of seconds before anything appears, because the
+ * name has to be generated and the branch created before pi can spawn in it.
+ * An unlabelled spinner for that long reads as a hang, so each step says what
+ * it is doing.
+ */
+function startLabel(phase: StartChatPhase | null): string {
+  switch (phase) {
+    case 'naming':
+      return 'Naming session…'
+    case 'branching':
+      return 'Creating branch…'
+    case 'starting':
+      return 'Starting session'
+    default:
+      return 'Start session'
+  }
+}
+
+/**
+ * Per-chat opt-out from branch isolation, next to the message it applies to.
+ *
+ * The same preference as the branch popup's "worktree" checkbox and the
+ * Workspaces settings switch — deliberately one flag in three places rather
+ * than three flags, since all three answer "does my work get its own branch?".
+ * It lives here because the answer is worth changing per message: a quick
+ * question does not deserve a branch, and the composer is where you know that.
+ */
+function IsolateToggle({
+  checked,
+  disabled,
+}: {
+  checked: boolean
+  disabled: boolean
+}): React.JSX.Element {
+  return (
+    <label
+      title={
+        checked
+          ? 'This chat gets its own branch, off the latest main, in its own worktree.'
+          : 'This chat runs in the folder that is already open, on its current branch.'
+      }
+      className={clsx(
+        'flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors',
+        disabled ? 'opacity-50' : 'hover:bg-bg-secondary',
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => useWorktreesStore.getState().setPreferWorktree(e.target.checked)}
+        className="accent-[var(--px-accent)]"
+      />
+      <span className="text-text-tertiary text-sm">new branch</span>
+    </label>
   )
 }
 
