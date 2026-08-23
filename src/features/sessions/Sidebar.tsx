@@ -307,10 +307,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }
 
   return (
-    <aside
-      className="border-border bg-bg-secondary/50 relative flex h-full shrink-0 flex-col border-r"
-      style={{ width }}
-    >
+    <aside className="bg-sidebar relative flex h-full shrink-0 flex-col" style={{ width }}>
       {/* No drag strip here any more: the window's title bar is now a single
           full-width element above every column (src/app/TopBar.tsx), which is
           also where the macOS traffic-light inset lives. */}

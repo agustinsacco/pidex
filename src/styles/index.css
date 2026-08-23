@@ -13,6 +13,10 @@
      accent stays; only the neutrals were desaturated. */
   --px-bg: #f7f7f8;
   --px-bg-secondary: #efeff1;
+  /* Sidebar: a touch darker than the page so the column reads as a panel
+     without needing a border (which was producing a translucent "card"
+     edge — see Sidebar.tsx). */
+  --px-sidebar: #ededef;
   --px-surface: #ffffff;
   --px-surface-raised: #ffffff;
   --px-border: #e4e4e7;
@@ -62,6 +66,8 @@
      white on amber fails contrast (2.2:1). Always use the token pair. */
   --px-bg: #1e1c18;
   --px-bg-secondary: #26231e;
+  /* Sidebar: one step darker than the page so it sits flush (no border). */
+  --px-sidebar: #15130f;
   --px-surface: #2a2721;
   --px-surface-raised: #322e27;
   --px-border: #3a352c;
@@ -88,6 +94,7 @@
 @theme inline {
   --color-bg: var(--px-bg);
   --color-bg-secondary: var(--px-bg-secondary);
+  --color-sidebar: var(--px-sidebar);
   --color-surface: var(--px-surface);
   --color-surface-raised: var(--px-surface-raised);
   --color-border: var(--px-border);
