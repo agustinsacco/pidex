@@ -1,4 +1,5 @@
 import chokidar, { type FSWatcher } from 'chokidar'
+import { mkdirSync } from 'node:fs'
 import { BrowserWindow } from 'electron'
 import { sessionDirForCwd } from './session-scanner'
 
@@ -9,6 +10,25 @@ const debounceTimers = new Map<string, NodeJS.Timeout>()
 export function watchWorkspaceSessions(workspacePath: string): void {
   if (watchers.has(workspacePath)) return
   const dir = sessionDirForCwd(workspacePath)
+
+  // Create the directory first, or this watcher is born dead. chokidar does
+  // not poll for a watch target that does not exist yet: pointed at a missing
+  // path it reports `getWatched() === {}` and never fires, even once the path
+  // appears (verified against chokidar 4). That is exactly the state a brand-
+  // new worktree is in — pi has not written its first session file, so
+  // `~/.pi/agent/sessions/--<mangled cwd>--` does not exist — so the session
+  // that a chat just started never got a `sessions:changed` push, and its
+  // sidebar row sat as a context-menu-less placeholder until some unrelated
+  // re-render happened to re-scan the folder.
+  //
+  // mkdir is safe and non-destructive: pi creates this exact directory itself
+  // (same `sessionDirForCwd` mangling), so at worst we create it a second
+  // earlier, and an empty dir simply scans to zero sessions.
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch {
+    // Unwritable session root: watching still beats not watching.
+  }
 
   const watcher = chokidar.watch(dir, {
     ignoreInitial: true,

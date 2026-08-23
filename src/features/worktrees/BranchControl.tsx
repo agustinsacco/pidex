@@ -5,12 +5,13 @@ import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { useWorktreesStore } from '@/stores/worktrees'
+import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { MergeWorktreeModal } from './MergeWorktreeModal'
 import { RemoveWorktreeModal } from './RemoveWorktreeModal'
 import { BranchPicker } from './BranchPicker'
 import { PrRow } from './PrRow'
 import { workspaceName } from '@/lib/path'
+import { useWorkspaceNameTransition } from '@/features/sessions/nameTransition'
 
 /**
  * The top bar's branch control: which branch this workspace is on, and the
@@ -66,6 +67,33 @@ export function BranchControl({
     void useWorktreesStore.getState().syncRemote(repoPath)
   }, [info?.isRepo, repoPath])
 
+  /**
+   * Re-read after any worktree-store mutation — rename, checkout, add, remove.
+   *
+   * The fs watcher above cannot cover these: they all write inside `.git`,
+   * which `fs:watchWorkspace` does not report, so the chip kept displaying
+   * whatever `git:info` said when the workspace was opened. That was invisible
+   * until branches started being renamed under a live session (a chat's branch
+   * is cut from a slug and retitled once its name arrives), which left the chip
+   * naming a branch that no longer existed.
+   */
+  const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
+  useEffect(() => {
+    if (repoLoadedAt === 0) return
+    void window.pidex.invoke('git:info', workspacePath).then(setInfo)
+  }, [repoLoadedAt, workspacePath])
+
+  /**
+   * A branch about to be renamed says so.
+   *
+   * An auto-created chat branch starts as a slug of the first message and is
+   * renamed once the chat's generated name arrives. A branch name silently
+   * changing under the user is alarming — this is the one surface where that
+   * shows — so it shimmers while the rename is still possible and animates the
+   * new name in when it happens.
+   */
+  const naming = useWorkspaceNameTransition(workspacePath)
+
   if (!info?.isRepo || !info.branch) return null
 
   const openWorkspaceAt = (cwd: string): void => {
@@ -89,7 +117,13 @@ export function BranchControl({
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        title={info.isWorktree && mainRepo ? `Worktree of ${mainRepo}` : `Branch ${info.branch}`}
+        title={
+          naming.pending
+            ? `${info.branch} — provisional, renamed once this chat is named`
+            : info.isWorktree && mainRepo
+              ? `Worktree of ${mainRepo}`
+              : `Branch ${info.branch}`
+        }
         data-testid="branch-chip"
         aria-expanded={open}
         className={clsx(
@@ -103,7 +137,16 @@ export function BranchControl({
           <span className="bg-accent-soft text-accent rounded px-1 text-2xs font-medium">wt</span>
         )}
         <BranchIcon size={10} />
-        <span className="max-w-36 truncate">{info.branch}</span>
+        <span
+          key={info.branch}
+          className={clsx(
+            'max-w-36 truncate',
+            naming.pending && 'name-pending',
+            naming.settled && 'name-enter',
+          )}
+        >
+          {info.branch}
+        </span>
         {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
         {behind > 0 && (
           <span className="text-info" title={`${behind} commits behind the remote — open to pull`}>

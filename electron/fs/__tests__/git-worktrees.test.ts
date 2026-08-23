@@ -14,6 +14,7 @@ import {
   parseWorktreeList,
   pruneWorktrees,
   removeWorktree,
+  renameBranch,
   startPoint,
   worktreeRootFor,
 } from '../git-worktrees'
@@ -235,6 +236,67 @@ describe('git-worktrees (real git)', () => {
  * test is precisely that a new branch starts from `origin/main` rather than
  * from the clone's own (deliberately stale) `main`.
  */
+describe('renameBranch (real git)', () => {
+  /**
+   * The case that matters: a chat's branch is cut before its name is known, so
+   * the rename always lands on a branch a live worktree has checked out.
+   */
+  it('renames a branch checked out in a linked worktree, and the worktree follows', async () => {
+    await addWorktree(repo, 'slug-folder', {
+      kind: 'new',
+      base: 'HEAD',
+      branch: 'pidex/read-each-of-the-12-largest-files',
+    })
+    const path = join(worktreeRootFor(repo), 'slug-folder')
+
+    const result = await renameBranch(
+      repo,
+      'pidex/read-each-of-the-12-largest-files',
+      'pidex/tsx-file-survey',
+    )
+
+    expect(result).toEqual({ renamed: true, branch: 'pidex/tsx-file-survey' })
+    expect(await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).toBe('pidex/tsx-file-survey')
+    // The folder deliberately does NOT move: it is a live session's cwd.
+    expect(existsSync(path)).toBe(true)
+    const { worktrees } = { worktrees: await listWorktrees(repo) }
+    expect(worktrees.find((w) => w.path === path)?.branch).toBe('pidex/tsx-file-survey')
+  })
+
+  it('reports failure instead of throwing when the target name is taken', async () => {
+    await git(repo, ['branch', 'pidex/taken'])
+    await git(repo, ['branch', 'pidex/original'])
+
+    expect(await renameBranch(repo, 'pidex/original', 'pidex/taken')).toEqual({
+      renamed: false,
+      branch: 'pidex/original',
+    })
+    // Neither branch was disturbed — `-m` refuses rather than clobbering.
+    const names = (await listBranches(repo)).branches.map((b) => b.name)
+    expect(names).toContain('pidex/original')
+    expect(names).toContain('pidex/taken')
+  })
+
+  it('refuses ref-hostile targets without invoking git', async () => {
+    await git(repo, ['branch', 'pidex/original'])
+    for (const hostile of ['bad..name', '-leading-dash', 'has space', 'tilde~1']) {
+      expect(await renameBranch(repo, 'pidex/original', hostile)).toEqual({
+        renamed: false,
+        branch: 'pidex/original',
+      })
+    }
+    expect((await listBranches(repo)).branches.map((b) => b.name)).toContain('pidex/original')
+  })
+
+  it('is a no-op when the name is already right', async () => {
+    await git(repo, ['branch', 'pidex/same'])
+    expect(await renameBranch(repo, 'pidex/same', 'pidex/same')).toEqual({
+      renamed: false,
+      branch: 'pidex/same',
+    })
+  })
+})
+
 describe('startPoint with a remote (real git)', () => {
   let origin: string
   let clone: string

@@ -116,10 +116,16 @@ const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
  * Honour `-n <name>` the way real pi does, so a session pidex names up front
  * reports that name back from `get_state`. Without this the stub insisted on
  * its own title and the auto-naming path was untestable end to end.
+ *
+ * An UNNAMED session must report no name at all — pi never titles a session by
+ * itself, and every pidex auto-naming path is guarded on "has pi already got a
+ * name for this?". A stub that invented one made that guard fire on every
+ * session and silently disabled auto-naming end to end, which is exactly what
+ * it was added to test.
  */
 const NAME_FLAG = process.argv.indexOf('-n')
 const SESSION_NAME =
-  NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : 'E2E stub session'
+  NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : null
 
 // A real session file on disk in the workspace, so the app's existence
 // check for the persisted resume target succeeds.
