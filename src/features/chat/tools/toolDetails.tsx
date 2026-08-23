@@ -15,8 +15,30 @@ import { CopyButton } from '@/components/CopyButton'
 import { Lightbox } from '@/components/Lightbox'
 import { PathLink } from './PathLink'
 import { ChevronIcon } from '@/components/icons'
+import type { DiffStats } from '../diff'
 
 /** Per-tool expanded detail views, dispatched from ToolCard by tool name. */
+
+/**
+ * "+3 −1" counters. Zero halves are omitted — "+148 −0" on a created file is
+ * noise. Both zero renders nothing at all.
+ */
+export function DiffStatBadges({
+  stats,
+  className,
+}: {
+  stats: DiffStats
+  className?: string
+}): React.JSX.Element | null {
+  if (stats.additions === 0 && stats.deletions === 0) return null
+  return (
+    <span className={clsx('shrink-0 font-mono', className)}>
+      {stats.additions > 0 && <span className="text-success">+{stats.additions}</span>}
+      {stats.additions > 0 && stats.deletions > 0 && ' '}
+      {stats.deletions > 0 && <span className="text-danger">−{stats.deletions}</span>}
+    </span>
+  )
+}
 
 export function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   const command = typeof tool.args?.command === 'string' ? tool.args.command : tool.argsText
@@ -72,12 +94,7 @@ export function EditDetail({ tool }: { tool: ToolState }): React.JSX.Element {
     <div>
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
         <PathLink path={path} line={details?.firstChangedLine} />
-        {stats && (
-          <span className="shrink-0 font-mono text-sm">
-            <span className="text-success">+{stats.additions}</span>{' '}
-            <span className="text-danger">−{stats.deletions}</span>
-          </span>
-        )}
+        {stats && <DiffStatBadges stats={stats} className="text-sm" />}
       </div>
       {details?.diff ? (
         <DiffView diff={details.diff} />

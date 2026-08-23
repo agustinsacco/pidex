@@ -189,6 +189,37 @@ describe('summarizeTool', () => {
       expect(summary.object).toBe('a command')
       expect(summary.mono).toBe(false)
     })
+
+    it('drops a leading cd into the workspace, keeping the real command', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const t = tool({ toolName: 'bash', args: { command: `cd ${ws} && git status` } })
+      expect(summarizeTool(t, ws).object).toBe('git status')
+    })
+
+    it('handles quoted cd targets and trailing slashes in the workspace', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar/'
+      const trimmed = ws.replace(/\/+$/, '')
+      const t = tool({ toolName: 'bash', args: { command: `cd "${trimmed}" && npm test` } })
+      expect(summarizeTool(t, ws).object).toBe('npm test')
+    })
+
+    it('collapses later workspace mentions to the folder basename', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const t = tool({ toolName: 'bash', args: { command: `git -C ${ws} diff` } })
+      expect(summarizeTool(t, ws).object).toBe('git -C fix-sidebar diff')
+    })
+
+    it('leaves the command untouched without a workspace path', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const t = tool({ toolName: 'bash', args: { command: `cd ${ws} && git status` } })
+      expect(summarizeTool(t).object).toBe(`cd ${ws} && git status`)
+    })
+
+    it('does not strip a cd into a different directory', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const t = tool({ toolName: 'bash', args: { command: 'cd /tmp && ls' } })
+      expect(summarizeTool(t, ws).object).toBe('cd /tmp && ls')
+    })
   })
 
   describe('write', () => {

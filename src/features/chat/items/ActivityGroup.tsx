@@ -7,7 +7,7 @@ import {
   summarizeActivity,
   type ActivityStep,
 } from './transcriptRows'
-import { ToolCard } from '../tools/ToolCard'
+import { ToolCard, ToolDetail } from '../tools/ToolCard'
 import { settledVerb } from '../tools/toolSummaries'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
@@ -172,6 +172,7 @@ function ActivityRow({
 }): React.JSX.Element | null {
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   // Tools Claude Code ran inside its own process while acting as the model
   // provider. There is no pi tool result to show — only what was invoked —
@@ -183,10 +184,10 @@ function ActivityRow({
       return <SubagentRow headline={info.headline} detail={info.detail} />
     }
     return (
-      <div className="flex items-start" data-testid="external-tool-row">
-        <span className="flex w-6 shrink-0 justify-center pt-1" />
+      <div className="flex items-start px-2" data-testid="external-tool-row">
+        <span className="flex w-5 shrink-0 justify-center pt-1" />
         <span
-          className="text-text-secondary min-w-0 flex-1 truncate pr-2 text-base"
+          className="text-text-secondary min-w-0 flex-1 truncate text-base"
           title={args && `${name} ${args}`}
         >
           <span className="text-text-tertiary">Claude Code</span>{' '}
@@ -205,8 +206,8 @@ function ActivityRow({
 
   return (
     <div>
-      <div className="flex items-start">
-        <span className="flex w-6 shrink-0 justify-center pt-1">
+      <div className="flex items-start px-2">
+        <span className="flex w-5 shrink-0 justify-center pt-1">
           {thought && (
             <button
               onClick={() => setPinned((p) => !p)}
@@ -229,14 +230,27 @@ function ActivityRow({
             </button>
           )}
         </span>
-        <span className="min-w-0 flex-1 pr-2">
-          <ToolCard tool={tool} sessionId={sessionId} />
+        <span className="min-w-0 flex-1">
+          <ToolCard
+            tool={tool}
+            sessionId={sessionId}
+            expanded={expanded}
+            onToggle={() => setExpanded((e) => !e)}
+          />
         </span>
       </div>
+      {expanded && (
+        // Not a second card: the detail is a full-width section of the
+        // group's card, divided from the row above. A nested bordered box
+        // here read as box-in-a-box.
+        <div className="border-border expand-enter border-t">
+          <ToolDetail tool={tool} sessionId={sessionId} />
+        </div>
+      )}
       {showThought && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-7 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={thought} />
         </div>
@@ -271,7 +285,7 @@ function SubagentRow({
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(
-          'flex w-full items-center gap-1.5 py-1 pl-2 pr-2 text-left transition-colors',
+          'flex w-full items-center gap-1.5 px-2 py-1 text-left transition-colors',
           expandable && 'hover:bg-bg-secondary/60',
         )}
       >
@@ -306,15 +320,15 @@ function ThoughtOnlyRow({ text }: { text: string }): React.JSX.Element {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         data-testid="thought-mark"
-        className="text-text-tertiary hover:text-text-secondary flex w-full items-center gap-1.5 px-2.5 py-1 text-left text-base italic transition-colors"
+        className="text-text-tertiary hover:text-text-secondary flex w-full items-center gap-1.5 px-2 py-1 text-left text-base italic transition-colors"
       >
-        <span className="text-2xs">✳</span>
+        <span className="text-2xs flex w-5 justify-center">✳</span>
         <span>Reasoning</span>
       </button>
       {open && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-6 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-7 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={text} />
         </div>
