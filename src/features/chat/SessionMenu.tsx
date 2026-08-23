@@ -4,6 +4,7 @@ import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import type { QueueMode } from '@shared/rpc'
 import { piCallOk } from '@/lib/rpc'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
+import { promptText } from '@/stores/prompt'
 
 /**
  * Auto-retry state isn't reported by get_state, so pidex tracks the last
@@ -46,10 +47,12 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
 
   const compactNow = async (): Promise<void> => {
-    const instructions = window.prompt(
-      'Optional: custom instructions for the compaction summary (leave blank for default)',
-    )
-    if (instructions === null) return
+    const instructions = await promptText({
+      title: 'Compact context now',
+      message: 'Optional: custom instructions for the compaction summary (leave blank for default)',
+      allowEmpty: true,
+    })
+    if (instructions === undefined) return
     await piCallOk(sessionId, {
       type: 'compact',
       ...(instructions ? { customInstructions: instructions } : {}),

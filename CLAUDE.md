@@ -123,6 +123,10 @@ you want to watch.
 - Modals use `ModalOverlay` from `src/components/Modal.tsx` — portalling,
   backdrop dismissal, and depth-aware Escape (innermost wins). Don't add
   window-level Escape listeners in modal content.
+- **Never call `window.prompt`** (or rely on it existing): Electron overrides
+  it to throw. Ask for text with `promptText` / show fallback text with
+  `presentText` from `src/stores/prompt.ts` (rendered by `PromptHost`).
+  ESLint (`no-restricted-syntax`) enforces this in `src/`.
 - Model-authored HTML renders **only** inside a sandboxed iframe under the
   strict CSP. Never widen this.
 - Renderer path aliases: `@/` → `src/`, `@shared/` → `shared/`.
