@@ -88,8 +88,15 @@ export function setTheme(theme: ThemePreference): void {
 export function recordWorkspace(path: string, name: string): void {
   const s = prefs()
   const now = Date.now()
-  const existing = s.get('recentWorkspaces').filter((w: WorkspaceInfo) => w.path !== path)
+  const workspaces = s.get('recentWorkspaces')
   const entry: WorkspaceInfo = { path, name, lastOpenedAt: now }
-  s.set('recentWorkspaces', [entry, ...existing].slice(0, 20))
+  // Recency is metadata for launch recovery, not sidebar order. Preserve an
+  // existing workspace's position; only a newly opened folder is appended.
+  const index = workspaces.findIndex((workspace) => workspace.path === path)
+  const next =
+    index < 0
+      ? [...workspaces, entry].slice(-20)
+      : workspaces.map((workspace) => (workspace.path === path ? entry : workspace))
+  s.set('recentWorkspaces', next)
   s.set('lastWorkspacePath', path)
 }

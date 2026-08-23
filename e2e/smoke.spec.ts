@@ -771,6 +771,15 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
       await expect(groups.filter({ hasText: nameA })).toBeVisible({ timeout: 20_000 })
       await expect(groups.filter({ hasText: nameB })).toBeVisible()
 
+      // Starting in B must not promote it over A. The header overflow menu is
+      // the sole control that changes the user-defined workspace order.
+      await expect(groups).toHaveCount(2)
+      expect(await groups.allTextContents()).toEqual([nameA, nameB])
+      const groupB = groups.filter({ hasText: nameB })
+      await groupB.locator('..').getByTestId('workspace-group-menu').click()
+      await second.page.getByRole('button', { name: 'Move up' }).click()
+      expect(await groups.allTextContents()).toEqual([nameB, nameA])
+
       // Pin a session from B's group; it moves to Pinned and gains a
       // workspace badge — the badge is what identifies a project once the
       // group no longer does.
