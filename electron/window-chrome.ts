@@ -1,6 +1,32 @@
-import { BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserWindow, nativeTheme } from 'electron'
 import { clampUiScale, type ThemePreference } from '@shared/models'
 import { getPrefs } from './store'
+
+/**
+ * Whether this process should leave its windows unmapped (E2E runs).
+ *
+ * Playwright drives the renderer over CDP, not through the compositor, so a
+ * window that is never shown still loads, lays out, animates and answers
+ * geometry queries — it just stops seizing focus from whatever the developer
+ * is doing while the suite runs. The always-on-top monitor window was the
+ * worst offender.
+ *
+ * Gated on packaging for the same reason as the other E2E env hooks (an env
+ * var must not change a shipped app's behavior — see
+ * ipc/pi-session-handlers.ts:piStubPath). `PIDEX_E2E_SHOW=1` opts back in when
+ * you want to watch a run.
+ *
+ * Callers that honor this MUST also set `backgroundThrottling: false`: an
+ * unmapped window counts as hidden, and Chromium throttles hidden windows'
+ * timers to roughly 1Hz, which would stall every streaming assertion.
+ */
+export function hideWindowsForE2E(): boolean {
+  return (
+    !app.isPackaged &&
+    Boolean(process.env.PIDEX_TEST_USER_DATA) &&
+    process.env.PIDEX_E2E_SHOW !== '1'
+  )
+}
 
 /**
  * Window Controls Overlay colors (Windows/Linux; macOS draws traffic lights),

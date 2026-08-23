@@ -2,6 +2,7 @@ import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { clampUiScale } from '@shared/models'
 import { getPrefs } from '../store'
+import { hideWindowsForE2E } from '../window-chrome'
 
 /**
  * The floating monitor: a small always-on-top window so resource usage stays
@@ -16,8 +17,12 @@ let monitorWindow: BrowserWindow | null = null
 
 export function openMonitorWindow(isDev: boolean): void {
   if (monitorWindow && !monitorWindow.isDestroyed()) {
-    monitorWindow.show()
-    monitorWindow.focus()
+    // Under E2E the window stays unmapped (hideWindowsForE2E) — re-showing it
+    // here would defeat that on the second open.
+    if (!hideWindowsForE2E()) {
+      monitorWindow.show()
+      monitorWindow.focus()
+    }
     return
   }
 
@@ -42,13 +47,17 @@ export function openMonitorWindow(isDev: boolean): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Required whenever the window stays unmapped; see hideWindowsForE2E.
+      ...(hideWindowsForE2E() ? { backgroundThrottling: false } : {}),
     },
   })
 
   // Visible on top of full-screen apps too, which is the point of the float.
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
-  window.on('ready-to-show', () => window.show())
+  window.on('ready-to-show', () => {
+    if (!hideWindowsForE2E()) window.show()
+  })
   window.on('closed', () => {
     monitorWindow = null
   })

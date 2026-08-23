@@ -25,9 +25,17 @@ change done; run e2e when touching IPC, session lifecycle, or visible UI flow.
 
 `npm run validate` (`scripts/validate.sh`) is the one to reach for when you
 just want a verdict: it prints one line per step and sends everything else to
-`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`), so the e2e run's
-reporter and its Electron windows don't take over the screen. `SKIP_E2E=1`
-stops before the slow part.
+`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`). `SKIP_E2E=1` stops
+before the slow part.
+
+**E2E windows never appear on your screen**, so a background agent running the
+suite can't steal focus mid-keystroke. `scripts/e2e.sh` prefers `xvfb-run`
+(real windows on a virtual display, full speed — install with
+`sudo apt install xvfb`) and otherwise leaves the windows unmapped
+(`hideWindowsForE2E` in `electron/window-chrome.ts`), which is ~2-3x slower
+because Chromium deprioritizes rendering for a window that was never shown.
+`PIDEX_E2E_SHOW=1 npm run test:e2e` puts them back on your real display when
+you want to watch.
 
 ## Architecture in five facts
 
