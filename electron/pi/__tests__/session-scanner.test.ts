@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, mkdir, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -143,6 +143,49 @@ describe('session scanner', () => {
     const jump = lines.at(-1)!
     expect(jump.type).toBe('branch_summary')
     expect(jump.parentId).toBe('aaaa0001')
+  })
+
+  it('orders sessions by immutable creation time, not changed-file mtime', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pidex-scan-order-'))
+    const previousRoot = process.env.PI_CODING_AGENT_SESSION_DIR
+    process.env.PI_CODING_AGENT_SESSION_DIR = root
+    try {
+      const workspace = '/work/ordered'
+      const workspaceDir = join(root, sessionDirNameForCwd(workspace))
+      await mkdir(workspaceDir, { recursive: true })
+      const older = join(workspaceDir, 'older.jsonl')
+      const newer = join(workspaceDir, 'newer.jsonl')
+      await writeFile(older, SESSION_CONTENT, 'utf8')
+      await writeFile(
+        newer,
+        SESSION_CONTENT.replace('sess-uuid-1', 'sess-uuid-2').replace(
+          '2026-08-01T10:00:00.000Z',
+          '2026-08-02T10:00:00.000Z',
+        ),
+        'utf8',
+      )
+      // Activity on the older session touches its JSONL file, but must not
+      // move it above the newer session in the sidebar.
+      await utimes(
+        older,
+        new Date('2026-08-03T00:00:00.000Z'),
+        new Date('2026-08-03T00:00:00.000Z'),
+      )
+      await utimes(
+        newer,
+        new Date('2026-08-01T00:00:00.000Z'),
+        new Date('2026-08-01T00:00:00.000Z'),
+      )
+
+      expect((await listSessions(workspace)).map((session) => session.sessionId)).toEqual([
+        'sess-uuid-2',
+        'sess-uuid-1',
+      ])
+    } finally {
+      if (previousRoot === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
+      else process.env.PI_CODING_AGENT_SESSION_DIR = previousRoot
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('lists and aggregates workspace stats through the mangled dir', async () => {
