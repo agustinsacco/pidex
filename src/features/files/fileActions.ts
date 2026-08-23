@@ -1,6 +1,7 @@
 import type { DirEntry } from '@shared/models'
 import { dirname } from '@/lib/path'
 import { useFilesStore } from '@/stores/files'
+import { promptText } from '@/stores/prompt'
 
 /** Create / rename / trash actions for the file explorer's context menu. */
 
@@ -10,7 +11,10 @@ export async function createIn(
   kind: 'file' | 'folder',
 ): Promise<void> {
   const dir = entry.isDirectory ? entry.path : dirname(entry.path)
-  const name = window.prompt(`New ${kind} name`)
+  const name = await promptText({
+    title: kind === 'file' ? 'New file' : 'New folder',
+    placeholder: 'Name',
+  })
   if (!name) return
   const target = `${dir}/${name}`
   if (kind === 'file') await window.pidex.invoke('fs:createFile', target)
@@ -21,7 +25,7 @@ export async function createIn(
 }
 
 export async function renameEntry(workspacePath: string, entry: DirEntry): Promise<void> {
-  const name = window.prompt('New name', entry.name)
+  const name = await promptText({ title: 'Rename', initialValue: entry.name })
   if (!name || name === entry.name) return
   const dir = dirname(entry.path)
   await window.pidex.invoke('fs:rename', entry.path, `${dir}/${name}`)

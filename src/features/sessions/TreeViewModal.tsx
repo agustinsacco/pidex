@@ -6,6 +6,7 @@ import type { SessionTree } from '@shared/ipc'
 import { buildTreeLayout, type DisplayNode } from './treeLayout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useEscapeKey } from '@/components/Modal'
+import { promptText } from '@/stores/prompt'
 import { panBy, zoomAtPoint } from './panZoom'
 import { sessionTitle } from '@/lib/sessionTitle'
 
@@ -122,8 +123,13 @@ export function TreeViewModal({
   }
 
   const labelNode = async (node: DisplayNode): Promise<void> => {
-    const label = window.prompt('Label for this point (empty to clear)', node.label ?? '')
-    if (label === null) return
+    const label = await promptText({
+      title: 'Label this point',
+      message: 'Empty to clear the label',
+      initialValue: node.label ?? '',
+      allowEmpty: true,
+    })
+    if (label === undefined) return
     setBusy('Labeling…')
     try {
       await withSessionClosed(async () => {
