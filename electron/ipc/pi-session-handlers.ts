@@ -147,6 +147,13 @@ async function spawnSession(
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
+  // Teach the hub how a session's folder maps to the project that owns it,
+  // BEFORE it starts observing. pidex runs most chats in a worktree, so
+  // without this a project's own sessions look like they belong elsewhere.
+  fleetHub.setProjectResolver(async (cwd) => {
+    const info = await gitInfo(cwd)
+    return info.mainRepoPath ?? cwd
+  })
   fleetHub.start()
   // Tell the user when something blocks while they are elsewhere — the whole
   // premise of orchestration is that work continues when they are not looking.
@@ -203,7 +210,15 @@ export function registerPiSessionHandlers(): void {
   handle('pi:command', async (_event, sessionId: string, command: RpcCommand) => {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
-    return session.client.request(command)
+    const response = await session.client.request(command)
+    // A session is auto-named AFTER its first reply, which for a one-shot
+    // question is after it has already settled for the last time — so the hub
+    // would keep reporting "untitled" forever, to the home screen and to the
+    // orchestrator alike. This is the one place the name ever changes.
+    if (command.type === 'set_session_name' && response.success) {
+      fleetHub.noteRenamed(sessionId)
+    }
+    return response
   })
 
   handle('pi:extensionUiResponse', (_event, sessionId: string, response: ExtensionUIResponse) => {

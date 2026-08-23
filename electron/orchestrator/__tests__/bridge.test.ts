@@ -279,3 +279,47 @@ describe('actionable suggestions', () => {
     expect(digest.items[1]?.action).toBeUndefined()
   })
 })
+
+/**
+ * Regression, found by driving the real app: a project's orchestrator reported
+ * "No sessions are running right now" while a session was plainly running.
+ *
+ * pidex gives most chats their own git worktree, so a session's cwd is
+ * usually `<repo>/.pidex/worktrees/<name>` and matches no project path
+ * exactly. Scoping on cwd alone made the fleet invisible to the very agent
+ * whose job is to watch it.
+ */
+describe('worktree sessions belong to their project', () => {
+  it('are visible to fleet_status when scoped by projectRoot', async () => {
+    const inWorktree = session('w1', {
+      workspacePath: '/repo/.pidex/worktrees/auth-refactor',
+      projectRoot: '/repo',
+      title: 'auth refactor',
+    })
+    const d = deps({
+      snapshot: () => [session(ORCHESTRATOR, { isOrchestrator: true }), inWorktree],
+    })
+    const result = await call(d, ORCHESTRATOR, 'fleet_status')
+    const sessions = (result as { data: { sessions: FleetSession[] } }).data.sessions
+    expect(sessions.map((s) => s.sessionId)).toEqual(['w1'])
+  })
+
+  it('can be driven, since the target lookup uses the same scoped snapshot', async () => {
+    const d = deps({
+      snapshot: () => [
+        session(ORCHESTRATOR, { isOrchestrator: true }),
+        session('w1', {
+          workspacePath: '/repo/.pidex/worktrees/auth-refactor',
+          projectRoot: '/repo',
+          phase: 'streaming',
+        }),
+      ],
+    })
+    const result = await call(d, ORCHESTRATOR, 'session_send', {
+      sessionId: 'w1',
+      text: 'check the migration',
+      mode: 'steer',
+    })
+    expect(result).toEqual({ ok: true, data: { delivered: 'steer' } })
+  })
+})

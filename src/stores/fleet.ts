@@ -86,6 +86,11 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     const existing = get().liveOrchestrators[workspacePath]
     if (existing) return existing
     const { sessionId } = await window.pidex.invoke('orchestrator:ensure', workspacePath)
+    // Main spawned it, so the renderer has no record of it yet. Without this
+    // the session is unrenderable: no transcript, no push subscription, and
+    // `useActiveWorkspace()` resolves to null the moment it is activated.
+    const { useSessionsStore } = await import('./sessions')
+    await useSessionsStore.getState().adoptSession(sessionId, workspacePath)
     set((s) => ({
       liveOrchestrators: { ...s.liveOrchestrators, [workspacePath]: sessionId },
       prefs: {

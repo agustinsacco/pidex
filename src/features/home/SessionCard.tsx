@@ -5,6 +5,7 @@ import { PiSpark } from '@/components/PiSpark'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
+import { sessionTitle } from '@/lib/sessionTitle'
 
 /**
  * One live session on the home screen: what it is doing, and a box to talk to
@@ -18,6 +19,14 @@ import { piCallOk } from '@/lib/rpc'
 export function SessionCard({ session }: { session: FleetSession }): React.JSX.Element {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  // Same fallback the sidebar uses. pi never titles a session, and pidex's
+  // one-shot naming call can fail or time out (it does on slower local
+  // models), so a card keyed only on the pi-reported name reads "Untitled"
+  // while the sidebar row right beside it shows the real thing.
+  const firstUserText = useChatStore(
+    (s) => s.sessions[session.sessionId]?.items.find((item) => item.kind === 'user')?.text,
+  )
+  const title = sessionTitle({ explicitName: session.title, firstUserText }) ?? 'Untitled session'
 
   const send = async (): Promise<void> => {
     const message = text.trim()
@@ -56,7 +65,7 @@ export function SessionCard({ session }: { session: FleetSession }): React.JSX.E
           onClick={open}
           className="text-text min-w-0 flex-1 truncate text-left text-base hover:underline"
         >
-          {session.title ?? 'Untitled session'}
+          {title}
         </button>
         {session.currentTool && (
           <span className="text-text-tertiary shrink-0 font-mono text-xs">

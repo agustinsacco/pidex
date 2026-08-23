@@ -54,7 +54,12 @@ export function describeFleet(sessions: FleetSession[], now: number = Date.now()
   if (working.length === 0) return 'No sessions are running right now.'
   return working
     .map((s) => {
-      const bits = [`- ${s.title ?? 'untitled'} (${s.sessionId})`, `phase: ${s.phase}`]
+      // A session may genuinely have no name (pi never titles one, and
+      // pidex's naming call can fail), but its folder always means something —
+      // usually the worktree cut for this piece of work. "untitled" told the
+      // model nothing and it fell back to quoting raw session ids at the user.
+      const label = s.title ?? s.workspacePath.split('/').filter(Boolean).pop() ?? 'untitled'
+      const bits = [`- ${label} (${s.sessionId})`, `phase: ${s.phase}`]
       if (s.currentTool) bits.push(`running: ${s.currentTool}`)
       if (s.pendingQuestion) bits.push(`BLOCKED asking: "${s.pendingQuestion.title}"`)
       if (s.idleSince) bits.push(`idle ${Math.round((now - s.idleSince) / 60_000)}m`)

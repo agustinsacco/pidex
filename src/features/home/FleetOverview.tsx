@@ -50,6 +50,7 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
   )
 
   const working = live.filter((s) => s.phase === 'streaming').length
+  const idle = live.length - working
 
   // Nothing running, nothing waiting, nothing ever reported: the home screen
   // stays the greeting it was.
@@ -58,7 +59,13 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
   return (
     <div className="mt-8">
       <p className="text-text-secondary mb-4 text-center text-sm">
-        {working > 0 ? `${working} agent${working === 1 ? '' : 's'} working` : 'Nothing running'}
+        {/* "Nothing running" while a card sits under "Running now" read as a
+            contradiction: an open session that has finished its turn is idle,
+            not absent. Count both, and say which is which. */}
+        {working > 0 && `${working} agent${working === 1 ? '' : 's'} working`}
+        {working > 0 && idle > 0 && ', '}
+        {idle > 0 && `${idle} idle`}
+        {working === 0 && idle === 0 && 'Nothing running'}
         {inbox.length > 0 && ` · ${inbox.length} need${inbox.length === 1 ? 's' : ''} you`}
       </p>
 

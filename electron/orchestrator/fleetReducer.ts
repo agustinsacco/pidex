@@ -17,8 +17,8 @@ export type FleetInput =
   /** A reply was sent for `requestId`, so the question is no longer pending. */
   | { kind: 'question-answered'; requestId: string }
   | { kind: 'exit' }
-  /** `get_state` landed: the session file path is finally known. */
-  | { kind: 'meta'; diskPath?: string; title?: string }
+  /** `get_state` landed, or the session's project root was resolved. */
+  | { kind: 'meta'; diskPath?: string; title?: string; projectRoot?: string }
 
 const LAST_LINE_MAX = 160
 
@@ -123,12 +123,20 @@ export function fleetReducer(
 ): FleetSession {
   switch (input.kind) {
     case 'meta': {
-      if (state.diskPath === input.diskPath && state.title === input.title) return state
-      return {
+      const next = {
         ...state,
         diskPath: input.diskPath ?? state.diskPath,
         title: input.title ?? state.title,
+        projectRoot: input.projectRoot ?? state.projectRoot,
       }
+      if (
+        next.diskPath === state.diskPath &&
+        next.title === state.title &&
+        next.projectRoot === state.projectRoot
+      ) {
+        return state
+      }
+      return next
     }
 
     case 'exit':

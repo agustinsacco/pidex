@@ -344,6 +344,16 @@ export interface FleetSession {
   /** pidex-side live session id. */
   sessionId: string
   workspacePath: string
+  /**
+   * The project this session belongs to: its repo's main working tree, or its
+   * own cwd when that is unknown.
+   *
+   * Load-bearing, not cosmetic. pidex gives most chats their own git worktree,
+   * so `workspacePath` is usually a folder under `.pidex/worktrees/` that
+   * matches no project path exactly — grouping on it made a project's own
+   * orchestrator report "no sessions are running" while several were.
+   */
+  projectRoot?: string
   /** Session file, once `get_state` has reported it. */
   diskPath?: string
   title?: string

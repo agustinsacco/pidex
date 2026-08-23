@@ -217,7 +217,15 @@ export class OrchestratorManager {
 
     let payload: string
     try {
-      payload = encodeResult(await handleFleetCommand(this.bridgeDeps(), sessionId, command, args))
+      // Which project this orchestrator speaks for — the key it was spawned
+      // under, not its cwd, so worktree sessions resolve into the same scope.
+      const workspace =
+        [...this.live.entries()].find(([, id]) => id === sessionId)?.[0] ??
+        this.hub.get(sessionId)?.workspacePath ??
+        ''
+      payload = encodeResult(
+        await handleFleetCommand(this.bridgeDeps(workspace), sessionId, command, args),
+      )
     } catch (error) {
       payload = encodeResult({ ok: false, error: (error as Error).message })
     }
@@ -230,9 +238,15 @@ export class OrchestratorManager {
     })
   }
 
-  private bridgeDeps(): BridgeDeps {
+  private bridgeDeps(callerWorkspace: string): BridgeDeps {
     return {
-      snapshot: () => this.hub.snapshot().sessions,
+      // Scoped to this orchestrator's own project — its main tree plus every
+      // worktree under it. That is both a correctness fix (most chats run in
+      // a worktree, so an exact-path filter saw nothing) and the read boundary
+      // the spec declares: an orchestrator sees its project, not the machine.
+      // Its own session stays in the list so the bridge can recognise the
+      // caller; `fleet_status` filters orchestrators out separately.
+      snapshot: () => this.hub.forWorkspace(callerWorkspace),
       isOrchestrator: (id) => this.hub.isOrchestrator(id),
       requestOn: async (sessionId, command) => {
         const session = this.registry.get(sessionId)

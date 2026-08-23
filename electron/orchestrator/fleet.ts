@@ -28,6 +28,8 @@ export class FleetHub {
   private readonly listeners = new Set<(snapshot: FleetSnapshot) => void>()
   private timer: NodeJS.Timeout | null = null
   private started = false
+  /** Overridden via `setProjectResolver`; the identity is the safe default. */
+  private resolveProject: (cwd: string) => Promise<string> = (cwd) => Promise.resolve(cwd)
 
   constructor(private readonly registry: SessionRegistry) {}
 
@@ -66,9 +68,22 @@ export class FleetHub {
     return this.sessions.get(sessionId)
   }
 
-  /** Sessions belonging to one project folder (exact cwd match). */
-  forWorkspace(workspacePath: string): FleetSession[] {
-    return [...this.sessions.values()].filter((s) => s.workspacePath === workspacePath)
+  /**
+   * How a session's cwd maps to the project that owns it. Injected because
+   * resolving it means asking git, which the hub must not import.
+   */
+  setProjectResolver(resolve: (cwd: string) => Promise<string>): void {
+    this.resolveProject = resolve
+  }
+
+  /**
+   * Sessions belonging to one project — its main working tree *and* every
+   * worktree hanging off it, which is where most pidex chats actually run.
+   */
+  forWorkspace(projectPath: string): FleetSession[] {
+    return [...this.sessions.values()].filter(
+      (s) => s.projectRoot === projectPath || s.workspacePath === projectPath,
+    )
   }
 
   /**
@@ -79,6 +94,12 @@ export class FleetHub {
    */
   noteQuestionAnswered(sessionId: string, requestId: string): void {
     this.apply(sessionId, { kind: 'question-answered', requestId })
+  }
+
+  /** A session was renamed, so the cached title is stale. */
+  noteRenamed(sessionId: string): void {
+    const session = this.registry.get(sessionId)
+    if (session) void this.learnMeta(session)
   }
 
   private attach(session: LiveSession): void {
@@ -103,7 +124,19 @@ export class FleetHub {
     })
 
     void this.learnMeta(session)
+    void this.learnProject(session)
     this.schedule()
+  }
+
+  /** Resolve which project owns this session's folder (git main worktree). */
+  private async learnProject(session: LiveSession): Promise<void> {
+    try {
+      const projectRoot = await this.resolveProject(session.workspacePath)
+      this.apply(session.sessionId, { kind: 'meta', projectRoot })
+    } catch {
+      // Not a repo, or git unavailable: the cwd is its own project.
+      this.apply(session.sessionId, { kind: 'meta', projectRoot: session.workspacePath })
+    }
   }
 
   /**
@@ -146,10 +179,13 @@ export class FleetHub {
     if (next === current) return
     this.sessions.set(sessionId, next)
 
-    // A session that has settled without a known path is one we asked about
-    // too early (pi answers get_state before it has flushed the file). Retry
-    // once it is at rest rather than polling.
-    if (!next.diskPath && (next.phase === 'idle' || next.phase === 'error')) {
+    // Re-ask once a session is at rest if we still lack its path or its name.
+    // Both arrive late: pi answers `get_state` before it has flushed the file,
+    // and pidex names a new session with `set_session_name` only after its
+    // first message. Without this the fleet reports "untitled" forever — to
+    // the home screen AND to the orchestrator's own `fleet_status`, which is
+    // why its report referred to sessions by id instead of by name.
+    if ((!next.diskPath || !next.title) && (next.phase === 'idle' || next.phase === 'error')) {
       const session = this.registry.get(sessionId)
       if (session) void this.learnMeta(session)
     }
