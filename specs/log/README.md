@@ -43,3 +43,4 @@ to collide with.
 | 2026-08-22 | [Auto-named sessions, unboxed activity, sub-agent rendering](2026-08-22-chat-polish-and-auto-naming.md)       |
 | 2026-08-22 | [What's in the context window, and what's left of the account](2026-08-22-context-and-account-visibility.md)  |
 | 2026-08-22 | [Chat images open on click and copy on right-click](2026-08-22-chat-image-open-copy.md)                       |
+| 2026-08-22 | [Worktree sessions that read the main checkout](2026-08-22-worktree-path-leak.md)                             |
