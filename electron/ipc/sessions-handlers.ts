@@ -1,7 +1,7 @@
-import { shell } from 'electron'
 import { handle } from './handle'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
 import { listSessions, readSessionTree, usageSummary, workspaceStats } from '../pi/session-scanner'
+import { deleteSession } from '../pi/session-deleter'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 
 /** On-disk session discovery, tree reading and history rewrites. */
@@ -21,7 +21,7 @@ export function registerSessionsHandlers(): void {
   })
 
   handle('sessions:delete', async (_event, sessionFilePath: string) => {
-    await shell.trashItem(sessionFilePath)
+    await deleteSession(sessionFilePath)
   })
 
   handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))

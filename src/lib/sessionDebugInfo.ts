@@ -40,12 +40,17 @@ export function piSessionDirName(cwd: string): string {
 }
 
 /**
- * The Claude Code CLI mangles the same cwd differently — every separator
- * becomes a dash, with no wrapping. `/home/u/proj` → `-home-u-proj`. Verified
- * against real directories under ~/.claude/projects.
+ * The Claude Code CLI mangles the same cwd differently — every character that
+ * is not a letter or digit becomes a dash, with no wrapping.
+ * `/home/u/proj/.claude/wt` → `-home-u-proj--claude-wt`.
+ *
+ * Mirrors `claudeProjectDirName` in `electron/pi/pi-paths.ts`, which is the
+ * source of truth and carries the full rule (including the length cap that
+ * only very deep paths reach). This copy is for display, so it stops at the
+ * character substitution.
  */
 export function claudeProjectDirName(cwd: string): string {
-  return cwd.replace(/[/\\]/g, '-')
+  return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
 /**
