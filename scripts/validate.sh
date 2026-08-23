@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Full validation, quiet by default: prints a short PASS/FAIL summary and
-# leaves full output in a log file. Playwright's reporter and the Electron
-# windows it spawns are the reason `npm run test:e2e` takes over the screen —
-# here e2e runs headless-ish in the background with the dot reporter, and all
-# chatter goes to the log.
+# leaves full output in a log file. The dot reporter keeps Playwright's
+# chatter out of the terminal; the Electron windows stay off your screen
+# because scripts/e2e.sh runs them under xvfb (or unmapped) — see that file.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
