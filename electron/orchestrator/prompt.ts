@@ -72,6 +72,26 @@ export function describeFleet(sessions: FleetSession[], now: number = Date.now()
     .join('\n')
 }
 
+/**
+ * The closing instruction on every sweep.
+ *
+ * Observed in a real run: told merely to "publish one digest" at the end of a
+ * paragraph, a capable model did all the analysis, wrote an excellent summary
+ * in chat, and never called the tool — so the home screen showed nothing and
+ * the sweep looked like it had failed. The requirement is now its own block,
+ * stated as the definition of success, because a sweep whose findings never
+ * reach the UI has not happened as far as the user is concerned.
+ */
+const REQUIRED_PUBLISH = [
+  'You MUST finish by calling publish_digest exactly once. That call is what',
+  'the user actually sees — a sweep that does not publish has failed, however',
+  'good your analysis was. Give it a one-line headline, plus one item for each',
+  'thing that needs the user (kind "attention"), each thing you recommend',
+  '(kind "suggestion"), and anything else worth noting (kind "note"). If',
+  'nothing needs them, say so plainly in the headline and publish few or no',
+  'items — publishing "all clear" is a real and useful result.',
+].join('\n')
+
 export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: number): string {
   const fleet = describeFleet(sessions, now)
   if (kind === 'brief') {
@@ -82,10 +102,9 @@ export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: num
       fleet,
       '',
       'Read your memory first. Look at anything that changed since you last',
-      'reported. Then publish one digest: a one-line headline, plus items for',
-      'anything that needs me (mark those "attention") and anything you suggest',
-      '(mark those "suggestion"). If nothing needs me, say so plainly in the',
-      'headline and publish few or no items. Do not steer or stop anything.',
+      'reported. Do not steer or stop anything.',
+      '',
+      REQUIRED_PUBLISH,
     ].join('\n')
   }
   return [
@@ -98,7 +117,9 @@ export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: num
     'state, and decide whether it is progressing, stuck, drifting from what it was',
     'started to do, or finished. A session whose work is merged is finished — say',
     'so and suggest archiving it. Update your memory with anything worth',
-    'remembering next time, then publish one digest with your findings.',
-    'Report; do not act, unless a rule in your instructions tells you to.',
+    'remembering next time. Report; do not act, unless a rule in your',
+    'instructions tells you to.',
+    '',
+    REQUIRED_PUBLISH,
   ].join('\n')
 }

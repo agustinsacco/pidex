@@ -65,8 +65,19 @@ describe('sweepPrompt', () => {
   it('brief asks for a digest and forbids acting', () => {
     const prompt = sweepPrompt('brief', fleet, NOW)
     expect(prompt).toContain('auth refactor')
-    expect(prompt).toContain('publish one digest')
     expect(prompt).toContain('Do not steer or stop anything.')
+  })
+
+  /**
+   * Regression from a real run: a capable model did the whole analysis, wrote
+   * a good summary in chat, and never called the tool — so the home screen
+   * stayed empty and the sweep looked broken. Both kinds must state the
+   * requirement as the definition of success, not as a trailing aside.
+   */
+  it.each(['brief', 'review'] as const)('%s demands publish_digest explicitly', (kind) => {
+    const prompt = sweepPrompt(kind, fleet, NOW)
+    expect(prompt).toContain('MUST finish by calling publish_digest exactly once')
+    expect(prompt).toContain('a sweep that does not publish has failed')
   })
 
   it('review asks for the finished-work judgement that motivated it', () => {

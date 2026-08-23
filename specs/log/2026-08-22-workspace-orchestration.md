@@ -106,6 +106,22 @@ which is the likely cause — untangling it is its own change.
 `hydrationScale.test.ts` also tripped twice under machine load (it asserts wall
 -clock budgets: 400ms and a linearity ratio) and passes unloaded.
 
+**Five bugs the green suite missed, found by driving the real app** (real pi,
+a local Qwen and Haiku). Recorded because they are the argument for doing this
+before shipping, not after: opening the orchestrator dropped the app to the
+workspace picker (main-spawned sessions were never adopted into the renderer's
+`live` map, which `useActiveWorkspace()` reads); the orchestrator was blind to
+worktree sessions, so a real sweep opened with "No sessions are running" while
+one plainly was; the home header said "Nothing running" above a running-now
+card; fleet cards read "Untitled session" beside a sidebar row with the real
+title; and a failing sweep was silent, leaving the button un-pressed and
+nothing ever appearing. Each is fixed with a regression test.
+
+A sixth was behavioural rather than a defect: a capable model did a full sweep,
+wrote an excellent summary in chat, and never called `publish_digest` — so the
+home screen stayed empty. The sweep prompt now states publishing as the
+definition of success rather than as a trailing clause.
+
 One real bug in the new e2e was found and fixed rather than retried: it clicked
 the session card's trailing button to open the session, but that button is
 **Stop** while the session is streaming, so it aborted the run instead of

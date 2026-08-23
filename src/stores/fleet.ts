@@ -6,6 +6,8 @@ import type {
   OrchestratorWorkspacePrefs,
 } from '@shared/models'
 import { DEFAULT_ORCHESTRATOR_PREFS } from '@shared/models'
+import { errorText } from '@shared/errors'
+import { drop } from './keyedSlice'
 
 /**
  * Projection of the main-process fleet hub.
@@ -26,6 +28,8 @@ interface FleetState {
   liveOrchestrators: Record<string, string>
   /** Sweeps in flight, so the UI can disable their buttons. */
   sweeping: string[]
+  /** Main-repo path → why the last sweep failed, if it did. */
+  sweepErrors: Record<string, string>
   hydrated: boolean
 
   hydrate: () => Promise<void>
@@ -43,6 +47,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   orchestratorSessions: {},
   liveOrchestrators: {},
   sweeping: [],
+  sweepErrors: {},
   hydrated: false,
 
   hydrate: async () => {
@@ -103,9 +108,20 @@ export const useFleetStore = create<FleetState>((set, get) => ({
 
   sweep: async (workspacePath, kind) => {
     if (get().sweeping.includes(workspacePath)) return
-    set((s) => ({ sweeping: [...s.sweeping, workspacePath] }))
+    set((s) => ({
+      sweeping: [...s.sweeping, workspacePath],
+      sweepErrors: drop(s.sweepErrors, workspacePath),
+    }))
     try {
       await window.pidex.invoke('orchestrator:sweep', workspacePath, kind)
+    } catch (error) {
+      // A sweep can fail for ordinary reasons — the model is unreachable, one
+      // is already running, the orchestrator would not spawn. Swallowing it
+      // left the button looking pressed and nothing ever happening, which is
+      // indistinguishable from a hung app. Say what went wrong.
+      set((s) => ({
+        sweepErrors: { ...s.sweepErrors, [workspacePath]: errorText(error) },
+      }))
     } finally {
       set((s) => ({ sweeping: s.sweeping.filter((p) => p !== workspacePath) }))
     }

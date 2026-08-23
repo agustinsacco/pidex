@@ -17,6 +17,7 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
   const sessions = useFleetStore((s) => s.sessions)
   const digests = useFleetStore((s) => s.digests)
   const sweeping = useFleetStore((s) => s.sweeping)
+  const sweepErrors = useFleetStore((s) => s.sweepErrors)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
   const live = useMemo(() => workSessionsFor(sessions, projectPaths), [sessions, projectPaths])
   const digest = digests[projectPath]
   const isSweeping = sweeping.includes(projectPath)
+  const sweepError = sweepErrors[projectPath]
 
   const inbox = useMemo(
     () => buildInbox({ sessions: live, digests: digest ? [digest] : [] }),
@@ -84,6 +86,9 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
               {isSweeping ? 'Briefing…' : 'Brief me'}
             </button>
           </div>
+          {/* A sweep that fails silently is indistinguishable from a hung app:
+              the button un-presses and nothing ever appears. */}
+          {sweepError && <p className="text-warning mb-1.5 text-xs">{sweepError}</p>}
           <div className="flex flex-col gap-2">
             {live.map((session) => (
               <SessionCard key={session.sessionId} session={session} />

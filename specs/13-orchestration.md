@@ -416,65 +416,135 @@ way — this only fixes what the live UI shows.
 
 ---
 
-## Build order (one PR, ordered commits)
+## What shipped
 
-Each commit leaves the app runnable, per TRACKER's standing rule.
+All three layers, in one PR. Code map:
 
-1. **Contracts.** Fleet/digest/prefs types in `shared/models.ts`, channels in
-   `shared/ipc.ts`, `SessionPush.injected`, `onFleetChanged` in `PidexApi`,
-   preload wiring, `mockPidex` cases.
-2. **The hub.** `registry` create/dispose events; `fleet.ts` + pure
-   `fleetReducer`; broadcast; `fleet:state`. **Unit tests on the reducer.**
-3. **The bridge.** Sentinel interception in `pi-session-handlers.ts`,
-   `bridge.ts` dispatch table. **Unit tests with a fake registry**, including
-   the authorization case (a non-orchestrator session's sentinel is forwarded,
-   not executed).
-4. **The manager.** Spawn, prefs pointer + name sentinel,
-   `isOrchestratorSession()` and every consumer it gates (sidebar, home stats,
-   usage), system-prompt composition, rules and memory resolution,
-   `orchestrator:ensure|sweep|rules`.
-5. **The extension.** `pi-ext/orchestrator.ts` — tools over the bridge, digest
-   publisher.
-6. **Renderer plumbing.** `src/stores/fleet.ts`, digest parser (garbage →
-   `null`), sidebar orchestrator row, `OrchestratorChat` chrome.
-7. **Mission control.** The home rebuild: inbox, group digests, session cards,
-   inline composer. Collision detection lands here (pure function + card).
-8. **Notifications.** Native notification on attention items while unfocused
-   (coalesced per sweep, never per event), app badge count, mute switch. Today
-   the app has **no** notification code at all — this is new ground, not polish.
-9. **Rules, autopilot, settings.** Rules editor, prefs surface, `propose_work`
-   gating, autopilot rails (depth cap, daily ceiling, no resume-on-launch).
-10. **Single-instance lock.** `requestSingleInstanceLock()` in `main.ts`. Two
-    pidex instances would mean two orchestrators writing one memory file.
-11. **Proof and docs.** e2e stub support + specs; this file finalized; a dated
-    `specs/log/` entry.
+| Area               | Files                                                                                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hub (no inference) | `electron/orchestrator/{fleet,fleetReducer,collisions,broadcast}.ts`, `SessionRegistry` events                                                                                                |
+| Control channel    | `electron/orchestrator/{protocol,bridge}.ts`, interception in `ipc/pi-session-handlers.ts`                                                                                                    |
+| Orchestrator       | `electron/orchestrator/{manager,prompt,files,instance}.ts`, `pi-ext/orchestrator.ts`                                                                                                          |
+| Notifications      | `electron/orchestrator/{notifications,notifier}.ts`, single-instance lock in `main.ts`                                                                                                        |
+| Identity           | `shared/orchestratorIdentity.ts` — the one predicate                                                                                                                                          |
+| Renderer           | `src/stores/fleet.ts`, `src/features/home/{FleetOverview,FleetInbox,SessionCard,inbox}.*`, `src/features/orchestrator/OrchestratorRow.tsx`, `src/features/settings/tabs/OrchestrationTab.tsx` |
+| IPC                | `fleet:state`, `orchestrator:{ensure,sweep,rules,writeRules,overview,setPrefs,acceptProposal}`, `app:setNotificationsMuted`                                                                   |
 
-**Minimum shippable core is 1–2 and 7.** If the PR has to be cut, the hub plus
-mission control delivers "surface the latest work and speak to each agent" with
-no model in the loop at all, and the orchestrator lands second.
+## Manual test plan
+
+Run `npm run dev` with `pi` on PATH. Everything in **A** costs nothing; **C**
+spends tokens and says so. A fresh install starts with no orchestrator
+anywhere, which is itself the first thing to check.
+
+### A · The free layer (no model runs)
+
+1. **Home with nothing running** — open a project with no live sessions. Home
+   shows the greeting; no fleet section, no digest. Stats are collapsed under
+   "Project stats".
+2. **A session appears as a card** — start a chat, then click **New** to go
+   home. Expect a card with the session's title, its latest line, a phase dot,
+   and an inline composer. While it streams the trailing button reads **Stop**;
+   once settled it reads **Open**.
+3. **Header counts** — the line above the cards reads "1 agent working" while
+   streaming and "1 idle" after. It must never say "Nothing running" while a
+   card is listed.
+4. **Steer from home** — type into a card's composer while the agent is
+   streaming and press Enter. The message reaches that session (open it and
+   see it in the transcript). Idle sessions take the same box as a prompt.
+5. **Sidebar separation** — each project group shows one **Orchestrator** row
+   above its sessions, with a ✳ mark and no branch subtitle. It must not
+   appear among the session rows.
+6. **Blocked session → inbox** — trigger a clarifying question (an extension
+   that calls `ctx.ui.select`). Home shows it under **Needs you** with its real
+   options as buttons; clicking one answers it without opening the session, and
+   the item disappears.
+7. **Worktree sessions belong to their project** — with the default "new
+   branch" setting on, sessions run in `.pidex/worktrees/`. They must still
+   appear under their main repo's group and in that project's fleet.
+
+### B · Orchestrator, no tokens spent
+
+8. **First click explains itself** — click the sidebar spark on a project that
+   has never had an orchestrator. It opens a chat; it must not silently start
+   a sweep.
+9. **It is a real session** — the model picker, `/compact`, and the context
+   meter all work in the orchestrator chat exactly as in any other.
+10. **It stays out of the numbers** — with an orchestrator thread present,
+    check Settings → Usage lists it as its own labelled line, and that the home
+    "Project stats" session count does **not** include it.
+11. **Settings → Orchestration** — autopilot off by default, cap of 2, brief-on-
+    open off, notifications on. The rules box shows `<repo>/.pidex/orchestrator.md`
+    and saving reports "Applies next session".
+
+### C · Sweeps (these spend tokens)
+
+12. **Brief me** — with at least one session listed, click **Brief me**. Within
+    a minute or two a headline appears under the cards with a ✳. Pick a model
+    that is good at tool calling; see "Known behaviours" below.
+13. **The prompt is visible** — open the orchestrator chat; the sweep request
+    appears as an ordinary user message. Nothing it was asked is hidden.
+14. **It can see the fleet** — the sweep prompt lists your sessions with phase,
+    idle time, last line and touched files. It must not say "No sessions are
+    running" while sessions are listed on the home screen.
+15. **Rate floor** — click Brief me twice quickly. The second is refused with a
+    visible message, not silently swallowed.
+16. **Failure is visible** — point the orchestrator at an unreachable model and
+    sweep. An error appears beside the button; the app must not look hung.
+17. **Review sweep** — ask the orchestrator directly to review the project. It
+    should read transcripts and git state and publish suggestions.
+
+### D · Acting on sessions (spends tokens)
+
+18. **Visible hand** — ask the orchestrator to send a message to a named
+    session. That session's transcript shows the message immediately, live,
+    attributed to the orchestrator.
+19. **It cannot drive itself or others' projects** — ask it to steer its own
+    session id: refused. Sessions in another project are not in its
+    `fleet_status` at all.
+20. **Autopilot gate** — with autopilot off, ask it to start new work. It may
+    only suggest. Turn autopilot on in Settings and confirm the cap holds.
+
+### E · Platform
+
+21. **Notifications** — with pidex in the background, cause a session to block
+    on a question. A desktop notification appears once (not per event) and the
+    dock/taskbar badge shows the count. Muting in Settings silences it.
+22. **Single instance** — launch pidex again while it is running. The existing
+    window focuses; no second instance starts.
+
+## Known behaviours
+
+- **Sweep quality is the model's.** A capable model is required for tool
+  calling. In real runs a local 27B produced a good report but took 2–3
+  minutes; Haiku was faster. The sweep prompt now states that publishing is the
+  definition of success, because a model that analysed well and never called
+  `publish_digest` left the home screen empty.
+- **Naming is best-effort.** pi never titles a session and pidex's one-shot
+  naming call can time out on slow models; cards and prompts fall back to the
+  first user message and the folder name.
+- **`.pidex/` is git-excluded** by pidex itself, so rules and memory are
+  personal, not team-shared.
 
 ## Verification
 
-`npm run validate` (typecheck, lint, prettier, unit, build, e2e) must be green.
-Specifically:
+`npm run validate` green: typecheck, lint, prettier, unit and e2e.
 
-- **Pure unit:** `fleetReducer` phase transitions and `filesTouched` bounding;
-  digest parser on malformed input; `isOrchestratorSession` across both the
-  prefs pointer and the name sentinel; sweep-prompt composition; bridge
-  dispatch + authorization; collision detection.
-- **DOM unit:** inbox renders a pending question's real options; a session card
-  routes to `steer` vs `follow_up` by phase.
-- **Filtering regression:** an orchestrator session is excluded from
-  `groupSessionsByProject` and from `workspaceStats()`, and labelled rather
-  than dropped in `usageSummary()`. This is the leak that would otherwise ship
-  silently.
-- **e2e:** (a) the spark opens an orchestrator chat and its digest renders in
-  the group header; (b) a stubbed clarifying question appears in the home
-  inbox and answering it clears it from both inbox and session.
-  `e2e/fixtures/pi-stub.cjs` needs to emit an extension-UI request on a magic
-  prompt and to answer sentinel `input` requests. Note the stub is spawned
-  **without** bundled extensions today, so orchestrator tool behavior under
-  e2e is simulated by the stub, not exercised for real — say so in the test.
+Unit coverage worth knowing about: the reducer's phase transitions (including
+that a pending question survives `agent_settled`, and that `message_update`
+returns state by reference), every bridge authorization refusal, worktree
+scoping, notification coalescing, inbox ranking, the identity predicate, and
+that both sweep prompts demand `publish_digest`.
+
+E2E covers the mechanical layer only — the stub runs without pidex's bundled
+extensions, so orchestrator tools cannot execute under Playwright. Tool
+behaviour is covered by unit tests over `handleFleetCommand` with a fake
+registry, and the e2e test says so in its own comment.
+
+Beyond the suite, the whole feature was driven against the real app with real
+models (a local Qwen and Haiku): sessions observed, orchestrator opened, tools
+called over the control channel, digest published and rendered. That pass found
+five bugs the green suite had missed; they are recorded in
+[log/2026-08-22-workspace-orchestration.md](log/2026-08-22-workspace-orchestration.md).
 
 ## Sharp edges
 
