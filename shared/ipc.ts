@@ -137,6 +137,16 @@ export interface IpcInvokeMap {
   'app:revealPath': { args: [string]; result: void }
   'app:openExternal': { args: [string]; result: void }
 
+  /**
+   * Put an image on the system clipboard (base64 payload).
+   *
+   * The renderer is sandboxed and cannot reach Electron's clipboard itself,
+   * and the web `ClipboardItem` API accepts png/jpeg only — pi's image set
+   * also carries gif/webp/bmp, so the write happens in main, where
+   * `nativeImage` sniffs the buffer and accepts all five.
+   */
+  'clipboard:writeImage': { args: [image: { data: string; mimeType: string }]; result: void }
+
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   /** Effective settings: global merged with the workspace override (pi semantics). */
   'pi:agentSettings': { args: [workspacePath?: string]; result: Record<string, unknown> }

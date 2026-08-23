@@ -1,5 +1,6 @@
 import { registerPiSessionHandlers } from './ipc/pi-session-handlers'
 import { registerAppHandlers } from './ipc/app-handlers'
+import { registerClipboardHandlers } from './ipc/clipboard-handlers'
 import { registerPiConfigHandlers } from './ipc/pi-config-handlers'
 import { registerSessionsHandlers } from './ipc/sessions-handlers'
 import { registerGitHandlers } from './ipc/git-handlers'
@@ -34,6 +35,7 @@ export function registerIpcHandlers(isDev: boolean): void {
 
   registerPiSessionHandlers()
   registerAppHandlers()
+  registerClipboardHandlers()
   registerPiConfigHandlers()
   registerSessionsHandlers()
   registerGitHandlers()

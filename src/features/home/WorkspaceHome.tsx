@@ -8,6 +8,7 @@ import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
+import { ChatImage } from '@/features/chat/ChatImage'
 import {
   composePrompt,
   formatFileSize,
@@ -161,8 +162,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 {images.map((attachment, index) => (
                   <div key={index} className="group/img relative">
                     {attachment.kind === 'image' ? (
-                      <img
-                        src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                      // Openable (click) and copyable (right-click) like the
+                      // same image once it lands in the transcript.
+                      <ChatImage
+                        image={{
+                          type: 'image',
+                          data: attachment.data,
+                          mimeType: attachment.mimeType,
+                        }}
                         className="border-border h-16 w-16 rounded-lg border object-cover"
                       />
                     ) : (

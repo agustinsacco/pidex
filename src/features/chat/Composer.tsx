@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { fuzzyFilter } from '@/lib/fuzzy'
+import { ChatImage } from './ChatImage'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
@@ -421,8 +422,15 @@ export function Composer({
               {images.map((attachment, index) => (
                 <div key={index} className="group/img relative">
                   {attachment.kind === 'image' ? (
-                    <img
-                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    // Openable (click) and copyable (right-click) like the
+                    // same image in the transcript; the ✕ above stays for
+                    // removing it before sending.
+                    <ChatImage
+                      image={{
+                        type: 'image',
+                        data: attachment.data,
+                        mimeType: attachment.mimeType,
+                      }}
                       className="border-border h-16 w-16 rounded-lg border object-cover"
                     />
                   ) : (
