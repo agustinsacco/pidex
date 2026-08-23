@@ -225,6 +225,7 @@ async function refreshStats(pidexId: string): Promise<void> {
         at: Date.now(),
         billed: input + output + cacheRead + cacheWrite,
         output,
+        cacheWrite,
       })
     }
   } catch {
