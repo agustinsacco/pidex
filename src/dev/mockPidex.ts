@@ -899,6 +899,8 @@ export function installMockPidex(): void {
         }
         case 'git:removeWorktree':
           return Promise.resolve({ removed: true, branchDeleted: false })
+        case 'git:renameBranch':
+          return Promise.resolve({ renamed: true, branch: args[2] as string })
         case 'git:pruneWorktrees':
           return Promise.resolve({ pruned: [] })
         case 'git:commitAll':

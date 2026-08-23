@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
+import { compareSessionsByCreation } from '@shared/session-order'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
@@ -13,6 +14,7 @@ import {
   ChevronDownIcon,
   ChevronIcon,
   GearIcon,
+  MoreIcon,
   PinIcon,
   PlusIcon,
   ResourcesIcon,
@@ -33,6 +35,7 @@ import {
   type GroupedSessions,
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { useNameTransition } from './nameTransition'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -68,6 +71,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
+  const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
+  const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
@@ -98,9 +103,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * entry in recents).
    */
   const knownWorkspaces = useMemo(() => {
-    const paths = new Set<string>([workspacePath])
+    // The persisted recents list is the user's sidebar order. Runtime-only
+    // paths are appended, so activating or creating a session cannot promote
+    // any existing workspace.
+    const paths = new Set(recents.map((workspace) => workspace.path))
+    paths.add(workspacePath)
     for (const entry of Object.values(live)) paths.add(entry.workspacePath)
-    for (const ws of recents) paths.add(ws.path)
     return [...paths].filter(Boolean)
   }, [workspacePath, live, recents])
 
@@ -158,7 +166,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       Object.values(disk)
         .flat()
         .filter((m) => pinnedSet.has(m.path))
-        .sort((a, b) => b.mtimeMs - a.mtimeMs),
+        .sort(compareSessionsByCreation),
     [disk, pinnedSet],
   )
 
@@ -289,6 +297,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     ])
   }
 
+  const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
+    // A merged worktree group is represented by its main-repo workspace path,
+    // which is the entry the user sees and orders in the sidebar.
+    useWorkspacesStore.getState().moveWorkspace(group.workspacePath, direction)
+    setWorkspaceMenuFor(null)
+  }
+
   const rowProps = (meta: SessionMeta) => {
     const livePidexId = liveByDisk.get(meta.path)
     const active = livePidexId === activeSessionId && activeSessionId !== null
@@ -356,7 +371,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
             <div key={group.workspacePath}>
               <div
                 onContextMenu={(event) => groupContextMenu(event, group)}
-                className="group/header flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
+                className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
               >
                 <button
                   onClick={() => toggleGroup(group, isCollapsed)}
@@ -383,6 +398,44 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     />
                   )}
                 </button>
+                <button
+                  ref={
+                    workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
+                  }
+                  onClick={() =>
+                    setWorkspaceMenuFor((current) =>
+                      current === group.workspacePath ? null : group.workspacePath,
+                    )
+                  }
+                  data-testid="workspace-group-menu"
+                  title="Workspace options"
+                  aria-label={`Workspace options for ${group.name}`}
+                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 focus-visible:opacity-100 group-hover/header:opacity-100"
+                >
+                  <MoreIcon size={14} />
+                </button>
+                {workspaceMenuFor === group.workspacePath && (
+                  <PopupMenu
+                    onClose={() => setWorkspaceMenuFor(null)}
+                    triggerRef={workspaceMenuTriggerRef}
+                    className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
+                  >
+                    <MenuRow
+                      active={false}
+                      disabled={groups.indexOf(group) === 0}
+                      onClick={() => moveGroup(group, 'up')}
+                    >
+                      Move up
+                    </MenuRow>
+                    <MenuRow
+                      active={false}
+                      disabled={groups.indexOf(group) === groups.length - 1}
+                      onClick={() => moveGroup(group, 'down')}
+                    >
+                      Move down
+                    </MenuRow>
+                  </PopupMenu>
+                )}
                 <button
                   onClick={() => {
                     useWorkspacesStore.getState().openWorkspace(group.workspacePath)
@@ -575,6 +628,7 @@ function SessionRow({
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
+  const naming = useNameTransition(livePidexId)
   const title =
     sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
@@ -651,12 +705,32 @@ function SessionRow({
       title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
       className={clsx(
         'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
+        // Active = the row on screen. The full-tint background disappears at
+        // a glance, so pair it with a 2px accent rail on the left edge: the
+        // border is the "this is open" signal, the fill is the "and it has
+        // visual weight". The hover wash is dropped to /40 so it doesn't
+        // compete with the active fill on adjacent rows.
+        active
+          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
       )}
     >
       <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-base leading-4">{title}</span>
+        <span
+          // Re-keyed on the title so the arrival of a generated name replays
+          // the entrance; without it React patches the text node in place and
+          // the name simply pops.
+          key={title}
+          title={naming.pending ? 'Naming this chat…' : undefined}
+          className={clsx(
+            'text-text block truncate text-base leading-4',
+            naming.pending && 'name-pending',
+            naming.settled && 'name-enter',
+          )}
+        >
+          {title}
+        </span>
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
@@ -734,6 +808,7 @@ function PendingSessionRow({
     (s) => s.sessions[pidexId]?.items.find((item) => item.kind === 'user')?.text,
   )
   const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
+  const naming = useNameTransition(pidexId)
   const title = sessionTitle({ explicitName, firstUserText }) ?? 'New session'
 
   return (
@@ -743,13 +818,27 @@ function PendingSessionRow({
       data-pending="true"
       className={clsx(
         'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
+        // Same active treatment as SessionRow — see comment there. Pending
+        // sessions are short-lived (no disk file yet) so the rail matters
+        // less, but it must still be visible while the row is on screen.
+        active
+          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-base leading-4">{title}</span>
-        <span className="text-text-tertiary block text-xs leading-3.5">starting…</span>
+        <span
+          className={clsx(
+            'text-text block truncate text-base leading-4',
+            naming.pending && 'name-pending',
+          )}
+        >
+          {title}
+        </span>
+        <span className="text-text-tertiary block text-xs leading-3.5">
+          {naming.pending ? 'naming…' : 'starting…'}
+        </span>
       </span>
     </button>
   )

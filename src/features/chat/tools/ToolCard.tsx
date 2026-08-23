@@ -1,10 +1,11 @@
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
 import { summarizeTool } from './toolSummaries'
 import { ChevronIcon } from '@/components/icons'
 import {
   BashDetail,
+  DiffStatBadges,
   EditDetail,
   GenericDetail,
   ListDetail,
@@ -12,16 +13,26 @@ import {
   WriteDetail,
 } from './toolDetails'
 import { ArtifactDetail } from './ArtifactDetail'
+import { useSessionsStore } from '@/stores/sessions'
 
 export const ToolCard = memo(function ToolCard({
   tool,
   sessionId,
+  expanded,
+  onToggle,
 }: {
   tool: ToolState
   sessionId: string
+  /** Owned by the row (ActivityGroup) so the detail can render full-width
+   *  below it instead of as a nested card inside this one. */
+  expanded: boolean
+  onToggle: () => void
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const summary = summarizeTool(tool)
+  // The session's own cwd, not the globally active workspace — transcripts
+  // outlive session switches. Used to strip long (worktree) path prefixes
+  // out of bash command labels; the expanded detail keeps the full command.
+  const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath ?? undefined)
+  const summary = summarizeTool(tool, workspacePath)
   const running = tool.status === 'starting' || tool.status === 'running'
   const failed = tool.status === 'error'
 
@@ -31,7 +42,7 @@ export const ToolCard = memo(function ToolCard({
     // by. Load-bearing: renaming it turns that test into a confusing red run.
     <div className="tool-card">
       <button
-        onClick={() => setExpanded((e) => !e)}
+        onClick={onToggle}
         className={clsx(
           'group flex w-full items-center gap-1.5 py-1 text-left text-lg transition-colors',
           failed ? 'text-danger' : 'text-text-secondary hover:text-text',
@@ -55,12 +66,7 @@ export const ToolCard = memo(function ToolCard({
             {summary.object}
           </span>
         )}
-        {summary.stats && (
-          <span className="shrink-0 font-mono text-base">
-            <span className="text-success">+{summary.stats.additions}</span>{' '}
-            <span className="text-danger">−{summary.stats.deletions}</span>
-          </span>
-        )}
+        {summary.stats && <DiffStatBadges stats={summary.stats} className="text-base" />}
         {summary.hint && (
           <span className="text-text-tertiary shrink-0 font-mono text-sm">{summary.hint}</span>
         )}
@@ -71,16 +77,11 @@ export const ToolCard = memo(function ToolCard({
         )}
         <ChevronIcon expanded={expanded} className="text-text-tertiary" />
       </button>
-      {expanded && (
-        <div className="border-border bg-surface expand-enter mt-1 mb-1 overflow-hidden rounded-lg border">
-          <ToolDetail tool={tool} sessionId={sessionId} />
-        </div>
-      )}
     </div>
   )
 })
 
-function ToolDetail({
+export function ToolDetail({
   tool,
   sessionId,
 }: {

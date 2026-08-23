@@ -63,7 +63,19 @@ describe('hydrateFromMessages', () => {
     expect(tool.result).toBe(tool.output)
   })
 
-  it('scales linearly, not quadratically, with transcript length', () => {
+  /*
+   * The two assertions below are wall-clock measurements taken inside a
+   * parallel test suite, so they compete with whatever else vitest is running
+   * in another worker. `retry` rather than a looser threshold: the numbers are
+   * chosen to separate linear from quadratic, and widening them to absorb load
+   * noise would blunt exactly that. A real O(n^2) fails all three attempts;
+   * contention does not.
+   *
+   * Observed: adding one unrelated test file to the suite was enough to push
+   * the ratio to 26.5 on a developer machine — noise, not a regression (a
+   * quadratic form measures ~64x), but over the threshold all the same.
+   */
+  it('scales linearly, not quadratically, with transcript length', { retry: 2 }, () => {
     // Warm up so JIT compilation is not attributed to the small sample.
     timeHydration(200)
 
@@ -76,7 +88,7 @@ describe('hydrateFromMessages', () => {
     expect(large / small).toBeLessThan(24)
   })
 
-  it('stays fast enough to open a very long session without a visible stall', () => {
+  it('stays fast enough to open a very long session without a visible stall', { retry: 2 }, () => {
     // 8k turns ≈ 16k items. The quadratic version took ~650ms here.
     expect(timeHydration(8_000)).toBeLessThan(400)
   })

@@ -19,6 +19,8 @@ interface WorkspacesState {
   openWorkspace: (path: string) => void
   /** Native folder picker; adds the chosen folder rather than replacing. */
   pickAndOpen: () => Promise<string | null>
+  /** Move a workspace in the user-defined sidebar/switcher order. */
+  moveWorkspace: (path: string, direction: 'up' | 'down') => void
   hydrate: () => Promise<void>
 }
 
@@ -32,7 +34,11 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       const entry = { path, name, lastOpenedAt: Date.now() }
       return {
         homePath: path,
-        recents: [entry, ...s.recents.filter((w) => w.path !== path)],
+        // Opening records recency for launch recovery, but never changes the
+        // user's explicit workspace order. New folders join at the end.
+        recents: s.recents.some((w) => w.path === path)
+          ? s.recents.map((w) => (w.path === path ? entry : w))
+          : [...s.recents, entry],
       }
     })
     // Persist immediately (recents + lastWorkspacePath) so the next launch
@@ -44,6 +50,19 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     const path = await window.pidex.invoke('app:selectFolder')
     if (path) get().openWorkspace(path)
     return path
+  },
+
+  moveWorkspace: (path, direction) => {
+    const recents = get().recents
+    const index = recents.findIndex((workspace) => workspace.path === path)
+    const target = index + (direction === 'up' ? -1 : 1)
+    if (index < 0 || target < 0 || target >= recents.length) return
+
+    const next = [...recents]
+    const [workspace] = next.splice(index, 1)
+    next.splice(target, 0, workspace!)
+    set({ recents: next })
+    void window.pidex.invoke('app:setRecentWorkspaces', next)
   },
 
   hydrate: async () => {

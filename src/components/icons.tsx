@@ -124,6 +124,15 @@ export function RewindIcon({ size = 13, className }: IconProps): React.JSX.Eleme
   )
 }
 
+/** Horizontal overflow menu (three dots). */
+export function MoreIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} strokeWidth={3} strokeLinecap="round" className={className}>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" />
+    </svg>
+  )
+}
+
 /** Plus, for "new" and "attach" affordances. */
 export function PlusIcon({
   size = 12,
