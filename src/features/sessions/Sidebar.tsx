@@ -654,7 +654,14 @@ function SessionRow({
       title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
       className={clsx(
         'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
+        // Active = the row on screen. The full-tint background disappears at
+        // a glance, so pair it with a 2px accent rail on the left edge: the
+        // border is the "this is open" signal, the fill is the "and it has
+        // visual weight". The hover wash is dropped to /40 so it doesn't
+        // compete with the active fill on adjacent rows.
+        active
+          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
       )}
     >
       <SessionIndicator state={indicatorState} />
@@ -746,7 +753,12 @@ function PendingSessionRow({
       data-pending="true"
       className={clsx(
         'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary/70',
+        // Same active treatment as SessionRow — see comment there. Pending
+        // sessions are short-lived (no disk file yet) so the rail matters
+        // less, but it must still be visible while the row is on screen.
+        active
+          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
