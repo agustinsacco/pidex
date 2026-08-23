@@ -62,6 +62,11 @@ interface WorktreesState {
     | { removed: true; branchDeleted: boolean; branchError?: string }
     | { removed: false; dirtyCount: number }
   >
+  /**
+   * Retitle a branch in place. Used once a chat's generated name arrives, to
+   * bring the branch cut at send time into agreement with it.
+   */
+  renameBranch: (repoPath: string, from: string, to: string) => Promise<string>
   prune: (repoPath: string) => Promise<string[]>
   /**
    * Fetch the remote, then reload branches so the new `behind` counts land.
@@ -155,6 +160,12 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
     const result = await window.pidex.invoke('git:removeWorktree', repoPath, worktreePath, options)
     if (result.removed) await get().refresh(repoPath)
     return result
+  },
+
+  renameBranch: async (repoPath, from, to) => {
+    const result = await window.pidex.invoke('git:renameBranch', repoPath, from, to)
+    if (result.renamed) await get().refresh(repoPath)
+    return result.branch
   },
 
   prune: async (repoPath) => {

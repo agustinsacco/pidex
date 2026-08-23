@@ -339,6 +339,16 @@ export interface IpcInvokeMap {
       | { removed: true; branchDeleted: boolean; branchError?: string }
       | { removed: false; dirtyCount: number }
   }
+  /**
+   * Retitle a branch after the fact, safe on one a worktree has checked out.
+   * A chat's branch is cut before the naming model answers, so this is how the
+   * branch and the session title end up agreeing. Never throws: reports
+   * `renamed: false` and the unchanged name when git refuses.
+   */
+  'git:renameBranch': {
+    args: [repoPath: string, from: string, to: string]
+    result: { renamed: boolean; branch: string }
+  }
   'git:pruneWorktrees': { args: [repoPath: string]; result: { pruned: string[] } }
   'git:commitAll': { args: [worktreePath: string, message: string]; result: { sha: string } }
   /** Merge into the main tree's current branch; aborts cleanly on conflict. */

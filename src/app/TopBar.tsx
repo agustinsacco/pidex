@@ -15,6 +15,7 @@ import { SessionMenu } from '@/features/chat/SessionMenu'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { useNameTransition } from '@/features/sessions/nameTransition'
 import { formatShortcut } from '@/lib/shortcuts'
 
 /**
@@ -48,12 +49,20 @@ export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.
       </IconButton>
 
       {/* Folder then branch: the two halves of "where am I working", both
-          clickable, in the order Claude Desktop puts them. */}
-      <WorkspaceChip workspacePath={workspacePath} compact />
-      <BranchControl workspacePath={workspacePath} />
+          clickable, in the order Claude Desktop puts them.
 
+          Session screens only. The home screen renders the same two controls
+          directly above its composer, where choosing them is the point of the
+          screen rather than window furniture — and rendering them in both
+          places at once would put two identical folder chips on one screen,
+          which is the "two answers to one question" problem the top bar was
+          meant to solve, reintroduced. One surface owns them per screen. */}
       {activeSessionId ? (
-        <ActiveSessionControls sessionId={activeSessionId} />
+        <>
+          <WorkspaceChip workspacePath={workspacePath} compact />
+          <BranchControl workspacePath={workspacePath} />
+          <ActiveSessionControls sessionId={activeSessionId} />
+        </>
       ) : (
         <div className="min-w-0 flex-1" />
       )}
@@ -74,12 +83,25 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
     return first?.kind === 'user' ? first.text : undefined
   })
   const title = sessionTitle({ explicitName: sessionName, firstUserText })
+  const naming = useNameTransition(sessionId)
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
 
   return (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="text-text truncate text-lg font-semibold">{title ?? 'New session'}</span>
+        <span
+          // See the sidebar row: re-keyed so the generated name animates in
+          // rather than replacing the placeholder text in place.
+          key={title ?? ''}
+          title={naming.pending ? 'Naming this chat…' : undefined}
+          className={clsx(
+            'text-text truncate text-lg font-semibold',
+            naming.pending && 'name-pending',
+            naming.settled && 'name-enter',
+          )}
+        >
+          {title ?? 'New session'}
+        </span>
       </div>
       {/* Reference order: terminal, files, changes, artifacts, kebab. */}
       <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />

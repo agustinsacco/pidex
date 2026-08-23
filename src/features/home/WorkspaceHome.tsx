@@ -10,6 +10,8 @@ import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { ChatImage } from '@/features/chat/ChatImage'
+import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
+import { BranchControl } from '@/features/worktrees/BranchControl'
 import {
   composePrompt,
   formatFileSize,
@@ -95,9 +97,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     // a second Enter would start a second session (and a second branch).
     setPhase('starting')
     try {
-      // Naming, branching and spawning are one operation (see startChat): the
-      // generated title is what the branch is named after, and the branch has
-      // to exist before pi spawns because a session is bound to its cwd.
+      // Resolves once the session is live and its first prompt is away (see
+      // startChat) — the branch is cut from the message slug first because a
+      // session is bound to the cwd it spawns in. The generated name arrives
+      // afterwards, on its own, and renames the branch to match; nothing here
+      // waits for it.
       await startChat({
         workspacePath,
         prompt: composePrompt(message, images),
@@ -146,14 +150,24 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           )}
         </div>
 
-        {/*
-          No folder/branch chips above the composer any more. Both now live in
-          the top bar, which is visible from every screen — previously the
-          branch control existed here AND in the chat header, so "which branch
-          will this run on?" had two answers that could disagree, and neither
-          was visible from the other screen.
-        */}
         <div className="mt-auto w-full max-w-2xl pb-8 pt-8">
+          {/*
+            Folder, branch and isolation, on one row above the composer.
+
+            This narrowly reverses the "no chips above the composer" decision
+            in WORKTREES.md, which moved both controls to the top bar so that
+            "which branch will this run on?" could not have two answers. The
+            top bar is still the one owner — these are the SAME controls, not
+            second copies — but on the home screen they are the subject of the
+            screen rather than window furniture: this is the moment you decide
+            where a chat will run, and the top bar's compact chips sit far from
+            the composer and get clipped behind the OS window controls.
+          */}
+          <div className="mb-2 flex items-center gap-1.5 px-0.5">
+            <WorkspaceChip workspacePath={workspacePath} />
+            {isRepo && <BranchControl workspacePath={workspacePath} />}
+            {isRepo && <IsolateToggle checked={isolate} disabled={starting} />}
+          </div>
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
           <div
@@ -238,7 +252,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                     for (const file of files) void addFile(file)
                   }}
                 />
-                {isRepo && <IsolateToggle checked={isolate} disabled={starting} />}
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
@@ -263,15 +276,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 /**
  * The submit button narrates the wait.
  *
- * Sending now takes a couple of seconds before anything appears, because the
- * name has to be generated and the branch created before pi can spawn in it.
- * An unlabelled spinner for that long reads as a hang, so each step says what
- * it is doing.
+ * There is much less to narrate than there was: naming no longer blocks the
+ * send (see startChat), so what is left is a bounded fetch and `git worktree
+ * add` — under a second on a warm repo. The labels stay because a cold fetch
+ * on a large repo can still take a beat, and an unlabelled spinner reads as a
+ * hang.
  */
 function startLabel(phase: StartChatPhase | null): string {
   switch (phase) {
-    case 'naming':
-      return 'Naming session…'
     case 'branching':
       return 'Creating branch…'
     case 'starting':

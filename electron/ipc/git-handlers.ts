@@ -10,6 +10,7 @@ import {
   mergeBranch,
   pruneWorktrees,
   removeWorktree,
+  renameBranch,
   startPoint,
 } from '../fs/git-worktrees'
 import { checkoutBranch, fetchRepo, pullFastForward, updateFromMain } from '../fs/git-sync'
@@ -51,6 +52,8 @@ export function registerGitHandlers(): void {
   handle('git:removeWorktree', (_event, repoPath, worktreePath, options) =>
     removeWorktree(repoPath, worktreePath, options),
   )
+
+  handle('git:renameBranch', (_event, repoPath, from, to) => renameBranch(repoPath, from, to))
 
   handle('git:pruneWorktrees', (_event, repoPath) => pruneWorktrees(repoPath))
 
