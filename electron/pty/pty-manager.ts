@@ -35,9 +35,24 @@ class PtyManager {
   private pollTimer: NodeJS.Timeout | null = null
   private helperChecked = false
 
-  create(workspacePath: string, cols: number, rows: number, sessionId?: string): { ptyId: string } {
+  create(
+    workspacePath: string,
+    cols: number,
+    rows: number,
+    sessionId?: string,
+    /**
+     * Run this instead of the user's shell. Used by the accounts tab to host
+     * pi's own interactive `/login`, which exists nowhere else — pi's RPC
+     * protocol has no auth command and `/login` is TUI-only. `env` is merged
+     * over the inherited environment, because pi needs the login shell's PATH
+     * to find node under a version manager.
+     */
+    command?: { file: string; args: string[]; env?: NodeJS.ProcessEnv },
+  ): { ptyId: string } {
     const ptyId = randomUUID()
     const shell = defaultShell()
+    const file = command?.file ?? shell.command
+    const args = command?.args ?? shell.args
 
     // Lazy + once: a few stats, and they only matter on the first spawn.
     if (!this.helperChecked) {
@@ -47,19 +62,19 @@ class PtyManager {
 
     let pty: IPty
     try {
-      pty = spawn(shell.command, shell.args, {
+      pty = spawn(file, args, {
         name: 'xterm-256color',
         cwd: workspacePath,
         cols,
         rows,
-        env: { ...process.env, TERM_PROGRAM: 'pidex' } as Record<string, string>,
+        env: { ...process.env, ...command?.env, TERM_PROGRAM: 'pidex' } as Record<string, string>,
       })
     } catch (error) {
       // node-pty throws bare strings like "posix_spawnp failed." with no hint
       // of which of the half-dozen causes applied. Re-throw with context so
       // the renderer can show something actionable instead of hanging on
       // "Starting shell…" forever.
-      throw new Error(describeSpawnFailure(error, shell.command, workspacePath), { cause: error })
+      throw new Error(describeSpawnFailure(error, file, workspacePath), { cause: error })
     }
 
     pty.onData((data) => {
@@ -82,7 +97,7 @@ class PtyManager {
       ptyId,
       pty,
       workspacePath,
-      shellName: basename(shell.command),
+      shellName: basename(file),
       busy: false,
       scrollback: '',
       sessionId,

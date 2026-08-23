@@ -981,6 +981,34 @@ export function installMockPidex(): void {
             prompts: ['fix-tests.md'],
             themes: ['gruvbox.json'],
           })
+        // One of each state, so the Accounts tab's three badges are all
+        // reachable in the browser harness without a pi install.
+        case 'pi:subscriptionAuth':
+          return Promise.resolve([
+            {
+              id: 'openai-codex',
+              name: 'ChatGPT (Codex)',
+              requires: 'ChatGPT Plus or Pro',
+              status: 'ready',
+            },
+            {
+              id: 'anthropic',
+              name: 'Claude Pro/Max',
+              requires: 'Claude Pro or Max',
+              caveat: 'Bills per token from extra usage, not against plan limits.',
+              status: 'not_ready',
+              reason: 'credentials_not_configured',
+            },
+            {
+              id: 'github-copilot',
+              name: 'GitHub Copilot',
+              requires: 'a Copilot subscription',
+              status: 'unknown',
+              error: 'pi is not available',
+            },
+          ])
+        case 'pi:loginTerminal':
+          return Promise.resolve({ ptyId: 'mock-login-pty' })
         case 'pi:agentSettingsScoped':
           return Promise.resolve({
             global: {

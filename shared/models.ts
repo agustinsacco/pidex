@@ -454,6 +454,39 @@ export interface ClaudeStatus {
   auth: ClaudeAuthStatus
 }
 
+// ---------- subscription accounts ----------
+
+/**
+ * A provider pi can sign into with a consumer subscription rather than an
+ * API key. The list is pidex's, not pi's: pi exposes no way to enumerate its
+ * OAuth providers over RPC or the CLI, so these are curated from pi's
+ * providers doc and each id is verified against `pi auth check`.
+ */
+export interface SubscriptionProvider {
+  /** pi's provider id — the key in `auth.json` and `pi auth check --provider`. */
+  id: string
+  name: string
+  /** What the user must already be paying for. */
+  requires: string
+  /** Anything the user should know before signing in. Rendered verbatim. */
+  caveat?: string
+}
+
+/**
+ * One provider's readiness, straight from `pi auth check --json`.
+ *
+ * `status` is pi's own word. `unknown` is pidex's: it means the check could
+ * not be run at all (pi missing, spawn failed, unparseable output), which is
+ * deliberately distinct from pi answering "not_ready".
+ */
+export interface SubscriptionProviderStatus extends SubscriptionProvider {
+  status: 'ready' | 'not_ready' | 'unknown'
+  /** pi's machine-readable reason, e.g. `credentials_not_configured`. */
+  reason?: string
+  /** Present only when the check itself failed. */
+  error?: string
+}
+
 // ---------- resource monitor ----------
 
 /** One process tree's cost. RSS is in kilobytes, matching `ps rss=`. */
