@@ -43,9 +43,13 @@
     }
 
     if (argv.includes('-p')) {
-      // Print mode: the Claude-provider test path. Echo the marker the tab
-      // asserts on, regardless of prompt wording.
-      process.stdout.write('pidex-provider-ok\n')
+      // Print mode has two callers. Session auto-naming sends a prompt that
+      // starts "You name coding sessions"; everything else is the
+      // Claude-provider probe, which asserts on a fixed marker. Answering the
+      // naming prompt deterministically is what lets the e2e assert on the
+      // branch a new chat creates, since the branch is derived from the title.
+      const naming = argv.some((a) => a.includes('You name coding sessions'))
+      process.stdout.write(naming ? 'Stub Session Title\n' : 'pidex-provider-ok\n')
       process.exit(0)
     }
 
@@ -107,6 +111,15 @@ process.stdin.on('data', (chunk) => {
 })
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
+
+/**
+ * Honour `-n <name>` the way real pi does, so a session pidex names up front
+ * reports that name back from `get_state`. Without this the stub insisted on
+ * its own title and the auto-naming path was untestable end to end.
+ */
+const NAME_FLAG = process.argv.indexOf('-n')
+const SESSION_NAME =
+  NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : 'E2E stub session'
 
 // A real session file on disk in the workspace, so the app's existence
 // check for the persisted resume target succeeds.
@@ -178,7 +191,7 @@ function handle(cmd) {
           steeringMode: 'all',
           followUpMode: 'one-at-a-time',
           sessionId: 'stub-session',
-          sessionName: 'E2E stub session',
+          sessionName: SESSION_NAME,
           // Real pi always reports the file it persists to. The app stores
           // this as the session's disk path and reopens it on relaunch.
           sessionFile: SESSION_FILE,

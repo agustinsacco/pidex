@@ -6,7 +6,7 @@ import {
   type Page,
 } from '@playwright/test'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -548,17 +548,66 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // Chip now targets the worktree.
     await expect(page.getByTestId('branch-chip')).toContainText('task-1', { timeout: 10_000 })
 
-    // Start a session — it runs in the worktree cwd, but the sidebar still
-    // shows one group for the project (not a second header split off by
-    // branch); the worktree is surfaced on the session row itself instead.
+    // Start a session from the home composer. It does NOT continue on task-1:
+    // a new chat is named from its first message and gets its own branch off
+    // trunk, so this lands in a second worktree named after the stub's title.
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // The branch the chat created: title "Stub Session Title" (the stub's
+    // deterministic answer to the naming prompt) → folder stub-session-title,
+    // branch pidex/stub-session-title.
+    await expect(page.getByTestId('branch-chip')).toContainText('pidex/stub-session-title', {
+      timeout: 15_000,
+    })
+    const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
+    expect(branches.stdout.split('\n').map((b) => b.trim())).toContain('pidex/stub-session-title')
+    expect(existsSync(join(workspace, '.pidex', 'worktrees', 'stub-session-title'))).toBe(true)
+
+    // The session carries the same name the branch was derived from.
+    await expect(page.getByText('Stub Session Title')).toBeVisible({ timeout: 15_000 })
+
+    // Still one sidebar group for the project (not a header per branch); the
+    // worktree is surfaced on the session row itself instead.
     await expect(page.getByTestId('workspace-group')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.getByTitle('Runs in a git worktree')).toBeVisible({ timeout: 15_000 })
 
     // The top bar's branch control marks the worktree.
     await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('new chat without isolation runs in the open workspace', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-nowt-'))
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const run = promisify(execFile)
+  await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
+  await run('git', ['init', '-b', 'main'], { cwd: workspace })
+  await run('git', ['config', 'user.email', 'e2e@pidex.dev'], { cwd: workspace })
+  await run('git', ['config', 'user.name', 'pidex e2e'], { cwd: workspace })
+  await run('git', ['add', '-A'], { cwd: workspace })
+  await run('git', ['commit', '-m', 'initial'], { cwd: workspace })
+
+  const harness = await launch({ workspace })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Untick the composer's "new branch" box: the chat should then run on the
+    // branch that is already checked out, creating nothing.
+    await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    await expect(page.getByTestId('branch-chip')).toContainText('main', { timeout: 15_000 })
+    const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
+    expect(branches.stdout.trim()).toBe('main')
+    expect(existsSync(join(workspace, '.pidex'))).toBe(false)
   } finally {
     await shutdown(harness)
   }

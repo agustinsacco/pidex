@@ -7,6 +7,7 @@ import type {
   UpdateFromMainResult,
   WorktreeInfo,
 } from '@shared/models'
+import { DEFAULT_WORKTREE_PREFS } from '@shared/models'
 import { keyedSlice } from './keyedSlice'
 
 interface RepoWorktrees {
@@ -38,14 +39,19 @@ const repos = keyedSlice(EMPTY_REPO)
 interface WorktreesState {
   byRepo: Record<string, RepoWorktrees>
   /**
-   * Whether picking a branch should give it its own worktree (checked) or
-   * check it out in place (unchecked). Global rather than per-repo: it tracks
-   * how the user likes to work, not a property of any one checkout. Defaults
-   * on, because isolation is the safe answer and the whole reason worktrees
-   * are wired into sessions at all.
+   * Whether work should be isolated in a worktree: picking a branch gives it
+   * its own checkout, and a new chat gets its own branch. Global rather than
+   * per-repo — it tracks how the user likes to work, not a property of any one
+   * checkout — and persisted, because a preference that reset to the default
+   * on every launch was one the user could not actually turn off.
    */
   preferWorktree: boolean
+  /** Prepended to auto-created session branches; `''` means no prefix. */
+  branchPrefix: string
+  /** Load the persisted worktree preferences. Called once at app boot. */
+  hydratePrefs: () => Promise<void>
   setPreferWorktree: (value: boolean) => void
+  setBranchPrefix: (value: string) => void
   refresh: (repoPath: string) => Promise<void>
   addWorktree: (repoPath: string, name: string, branch: AddWorktreeBranch) => Promise<WorktreeInfo>
   removeWorktree: (
@@ -84,8 +90,29 @@ function patchRepo(
 export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   byRepo: {},
 
-  preferWorktree: true,
-  setPreferWorktree: (value) => set({ preferWorktree: value }),
+  preferWorktree: DEFAULT_WORKTREE_PREFS.auto,
+  branchPrefix: DEFAULT_WORKTREE_PREFS.branchPrefix,
+
+  hydratePrefs: async () => {
+    const { worktrees } = await window.pidex.invoke('app:getPrefs')
+    set({ preferWorktree: worktrees.auto, branchPrefix: worktrees.branchPrefix })
+  },
+
+  setPreferWorktree: (value) => {
+    set({ preferWorktree: value })
+    void window.pidex.invoke('app:setWorktreePrefs', {
+      auto: value,
+      branchPrefix: get().branchPrefix,
+    })
+  },
+
+  setBranchPrefix: (value) => {
+    set({ branchPrefix: value })
+    void window.pidex.invoke('app:setWorktreePrefs', {
+      auto: get().preferWorktree,
+      branchPrefix: value,
+    })
+  },
 
   refresh: async (repoPath) => {
     try {
