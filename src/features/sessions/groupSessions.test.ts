@@ -98,16 +98,32 @@ describe('groupSessionsByProject', () => {
     expect(groups[0]?.workspacePath).toBe('/somewhere/wt')
   })
 
-  it('keeps two separate projects separate', () => {
+  it('keeps separate projects in the supplied workspace order', () => {
     const groups = groupSessionsByProject(
-      ['/repo-a', '/repo-b'],
+      ['/repo-b', '/repo-a'],
       { '/repo-a': [meta({ cwd: '/repo-a' })], '/repo-b': [meta({ cwd: '/repo-b' })] },
       {},
       notPinned,
       notLive,
       '/repo-a',
     )
-    expect(groups.map((g) => g.name).sort()).toEqual(['repo-a', 'repo-b'])
+    expect(groups.map((g) => g.name)).toEqual(['repo-b', 'repo-a'])
+  })
+
+  it('does not promote active, live, or recently changed workspaces', () => {
+    const groups = groupSessionsByProject(
+      ['/repo-a', '/repo-b', '/repo-c'],
+      {
+        '/repo-a': [meta({ cwd: '/repo-a', mtimeMs: 100 })],
+        '/repo-b': [meta({ cwd: '/repo-b', mtimeMs: 300 })],
+        '/repo-c': [meta({ cwd: '/repo-c', mtimeMs: 200 })],
+      },
+      {},
+      notPinned,
+      (session) => session.cwd === '/repo-b',
+      '/repo-c',
+    )
+    expect(groups.map((group) => group.workspacePath)).toEqual(['/repo-a', '/repo-b', '/repo-c'])
   })
 
   it('excludes pinned sessions and counts live sessions per merged group', () => {

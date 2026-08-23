@@ -45,3 +45,4 @@ to collide with.
 | 2026-08-22 | [Chat images open on click and copy on right-click](2026-08-22-chat-image-open-copy.md)                       |
 | 2026-08-22 | [Worktree sessions that read the main checkout](2026-08-22-worktree-path-leak.md)                             |
 | 2026-08-23 | [Signing into subscription providers without leaving the app](2026-08-23-subscription-accounts.md)            |
+| 2026-08-23 | [Workspace order belongs to the user](2026-08-23-user-controlled-workspace-order.md)                          |

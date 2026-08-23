@@ -13,6 +13,7 @@ import {
   ChevronDownIcon,
   ChevronIcon,
   GearIcon,
+  MoreIcon,
   PinIcon,
   PlusIcon,
   ResourcesIcon,
@@ -68,6 +69,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
+  const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
+  const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
@@ -98,9 +101,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * entry in recents).
    */
   const knownWorkspaces = useMemo(() => {
-    const paths = new Set<string>([workspacePath])
+    // The persisted recents list is the user's sidebar order. Runtime-only
+    // paths are appended, so activating or creating a session cannot promote
+    // any existing workspace.
+    const paths = new Set(recents.map((workspace) => workspace.path))
+    paths.add(workspacePath)
     for (const entry of Object.values(live)) paths.add(entry.workspacePath)
-    for (const ws of recents) paths.add(ws.path)
     return [...paths].filter(Boolean)
   }, [workspacePath, live, recents])
 
@@ -289,6 +295,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     ])
   }
 
+  const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
+    // A merged worktree group is represented by its main-repo workspace path,
+    // which is the entry the user sees and orders in the sidebar.
+    useWorkspacesStore.getState().moveWorkspace(group.workspacePath, direction)
+    setWorkspaceMenuFor(null)
+  }
+
   const rowProps = (meta: SessionMeta) => {
     const livePidexId = liveByDisk.get(meta.path)
     const active = livePidexId === activeSessionId && activeSessionId !== null
@@ -359,7 +372,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
             <div key={group.workspacePath}>
               <div
                 onContextMenu={(event) => groupContextMenu(event, group)}
-                className="group/header flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
+                className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
               >
                 <button
                   onClick={() => toggleGroup(group, isCollapsed)}
@@ -386,6 +399,44 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     />
                   )}
                 </button>
+                <button
+                  ref={
+                    workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
+                  }
+                  onClick={() =>
+                    setWorkspaceMenuFor((current) =>
+                      current === group.workspacePath ? null : group.workspacePath,
+                    )
+                  }
+                  data-testid="workspace-group-menu"
+                  title="Workspace options"
+                  aria-label={`Workspace options for ${group.name}`}
+                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 focus-visible:opacity-100 group-hover/header:opacity-100"
+                >
+                  <MoreIcon size={14} />
+                </button>
+                {workspaceMenuFor === group.workspacePath && (
+                  <PopupMenu
+                    onClose={() => setWorkspaceMenuFor(null)}
+                    triggerRef={workspaceMenuTriggerRef}
+                    className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
+                  >
+                    <MenuRow
+                      active={false}
+                      disabled={groups.indexOf(group) === 0}
+                      onClick={() => moveGroup(group, 'up')}
+                    >
+                      Move up
+                    </MenuRow>
+                    <MenuRow
+                      active={false}
+                      disabled={groups.indexOf(group) === groups.length - 1}
+                      onClick={() => moveGroup(group, 'down')}
+                    >
+                      Move down
+                    </MenuRow>
+                  </PopupMenu>
+                )}
                 <button
                   onClick={() => {
                     useWorkspacesStore.getState().openWorkspace(group.workspacePath)
