@@ -6,6 +6,8 @@ import { registry } from '../registry'
 import { handle } from './handle'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
+import { worktreePromptBlock } from '../pi/workspace-prompt'
+import { gitInfoBatch } from '../fs/git-info'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace } from '../store'
@@ -29,11 +31,17 @@ function bundledExtensionPath(file: string): string {
 
 /**
  * Extensions pidex loads into EVERY session, regardless of provider:
- * artifacts (tools the model can call) and context-breakdown (passive
- * reporting of what is filling the context window, which only pi can see).
+ * artifacts (tools the model can call), context-breakdown (passive reporting
+ * of what is filling the context window, which only pi can see), and
+ * worktree-paths (refuses a file read that has escaped into the main
+ * checkout of a worktree session).
  */
 function bundledExtensions(): string[] {
-  return [bundledExtensionPath('artifacts.ts'), bundledExtensionPath('context-breakdown.ts')]
+  return [
+    bundledExtensionPath('artifacts.ts'),
+    bundledExtensionPath('context-breakdown.ts'),
+    bundledExtensionPath('worktree-paths.ts'),
+  ]
 }
 
 /**
@@ -92,9 +100,23 @@ export function registerPiSessionHandlers(): void {
           PI_CLAUDE_CLI_SYSTEM_PROMPT: getPrefs().claudeSystemPrompt,
         }
 
+    // Worktree sessions get an explicit working-directory block: pi's own
+    // `Current working directory:` line is correct but has been observed to
+    // lose against a model rebuilding an absolute path from what it thinks
+    // the project root is. Skipped for the stub, which speaks a fixed script.
+    // The batched form for one path on purpose: it is the cached one, and the
+    // sidebar has almost always just resolved this cwd, so creating a session
+    // usually costs no git at all.
+    const gitByPath = stub ? {} : await gitInfoBatch([options.workspacePath])
+    const appendSystemPrompt = worktreePromptBlock(
+      options.workspacePath,
+      gitByPath[options.workspacePath] ?? { isRepo: false },
+    )
+
     const session = registry.create(options.workspacePath, {
       binaryPath,
       prefixArgs,
+      ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
       sessionPath: options.sessionPath,
       forkFrom: options.forkFrom,
       name: options.name,

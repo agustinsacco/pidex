@@ -96,6 +96,15 @@ you want to watch.
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
   read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
+- **`pi-ext/worktree-paths.ts` can refuse a tool call**, and it is the only
+  pidex code that runs inside pi's process. It blocks a `read`/`write`/`edit`/
+  `ls`/`grep`/`find` whose path escapes a worktree session into the repo's main
+  checkout (a different branch) when the same file exists in the worktree —
+  models were doing this silently and answering about the wrong branch. The
+  four conditions in that file are deliberately narrow; widening them blocks
+  legitimate reads, because pi's own prompt sends the model to absolute paths
+  outside the cwd for its docs. See
+  [specs/log/2026-08-22-worktree-path-leak.md](specs/log/2026-08-22-worktree-path-leak.md).
 - **Two UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session) and its plan-limits section from the Claude provider

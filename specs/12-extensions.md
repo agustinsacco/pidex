@@ -144,10 +144,22 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
 
-| File                   | Why it must run inside pi                                             |
-| ---------------------- | --------------------------------------------------------------------- |
-| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](07-artifacts.md)) |
-| `context-breakdown.ts` | measures context composition — the parts are only visible in-process  |
+| File                   | Why it must run inside pi                                              |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](07-artifacts.md))  |
+| `context-breakdown.ts` | measures context composition — the parts are only visible in-process   |
+| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout |
+
+`worktree-paths.ts` is the only pidex code that can refuse a tool call. A
+session in `.pidex/worktrees/<name>` was observed reading files out of the main
+checkout — a different branch — because the model rebuilds absolute paths from
+what it thinks the project root is, and the worktree's cwd contains the main
+checkout as a prefix. `tool_call` is the one hook that sees the path before the
+file is opened, which is why this runs in pi rather than in the main process.
+The rule is deliberately four-condition narrow (worktree session, path outside
+cwd, path inside the main checkout, counterpart exists in cwd) because pi's own
+system prompt sends the model to absolute paths outside the cwd for its docs.
+Full account: [log/2026-08-22-worktree-path-leak.md](log/2026-08-22-worktree-path-leak.md).
 
 `context-breakdown.ts` exists because pi reports context usage as one
 number. The composed system prompt and the active tool schemas are not
