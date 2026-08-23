@@ -16,7 +16,7 @@ files:
 extraResources:
   - from: pi-ext
     to: pi-ext
-    filter: ['**/*.ts']
+    filter: ['**/*.ts', '!**/*.test.ts']
 
 asarUnpack:
   - '**/node_modules/node-pty/**'
