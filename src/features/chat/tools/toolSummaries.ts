@@ -76,7 +76,31 @@ export function settledVerb(toolName: string | null): string {
   }
 }
 
-export function summarizeTool(tool: ToolState): ToolSummary {
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Strip the session's workspace path out of a bash command for the collapsed
+ * label. Models `cd` into the cwd explicitly, and in worktree sessions that
+ * path is a long `.pidex/worktrees/…` chain that drowns the actual command —
+ * while pi already runs the shell there, so the prefix carries no
+ * information. A leading `cd <ws> &&` is dropped entirely; later mentions
+ * collapse to the folder's basename. The expanded detail view keeps the full
+ * command, so nothing is lost.
+ */
+export function cleanCommandForDisplay(command: string, workspacePath?: string): string {
+  const flat = command.replace(/\s+/g, ' ').trim()
+  if (!workspacePath) return flat
+  const ws = workspacePath.replace(/[/\\]+$/, '')
+  const cdPrefix = new RegExp(
+    `^cd\\s+(?:"${escapeRegExp(ws)}"|'${escapeRegExp(ws)}'|${escapeRegExp(ws)})\\s*&&\\s*`,
+  )
+  const stripped = flat.replace(cdPrefix, '')
+  return stripped.split(ws).join(basename(ws))
+}
+
+export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSummary {
   const args = tool.args ?? tryParseArgs(tool.argsText)
   const running = tool.status === 'starting' || tool.status === 'running'
 
@@ -98,10 +122,11 @@ export function summarizeTool(tool: ToolState): ToolSummary {
     }
     case 'bash': {
       const command = typeof args?.command === 'string' ? args.command : undefined
+      const display = command ? cleanCommandForDisplay(command, workspacePath) : undefined
       return {
         label: running ? 'Running' : 'Ran',
-        object: command ? truncate(command, 64) : 'a command',
-        mono: !!command,
+        object: display ? truncate(display, 64) : 'a command',
+        mono: !!display,
       }
     }
     case 'edit': {
