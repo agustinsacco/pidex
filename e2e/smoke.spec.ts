@@ -549,24 +549,40 @@ test('worktree flow: create from the branch chip, session stays under the projec
     await expect(page.getByTestId('branch-chip')).toContainText('task-1', { timeout: 10_000 })
 
     // Start a session from the home composer. It does NOT continue on task-1:
-    // a new chat is named from its first message and gets its own branch off
-    // trunk, so this lands in a second worktree named after the stub's title.
+    // a new chat gets its own branch off trunk, so this lands in a second
+    // worktree.
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
-    // The branch the chat created: title "Stub Session Title" (the stub's
-    // deterministic answer to the naming prompt) → folder stub-session-title,
-    // branch pidex/stub-session-title.
-    await expect(page.getByTestId('branch-chip')).toContainText('pidex/stub-session-title', {
-      timeout: 15_000,
-    })
-    const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
-    expect(branches.stdout.split('\n').map((b) => b.trim())).toContain('pidex/stub-session-title')
-    expect(existsSync(join(workspace, '.pidex', 'worktrees', 'stub-session-title'))).toBe(true)
+    // The folder is slugged from the FIRST MESSAGE, not from the generated
+    // title, because the branch is now cut before the naming model is asked —
+    // that inversion is what keeps the send button from blocking on a ~13s
+    // subprocess. The folder never changes afterwards: it is a live session's
+    // cwd, and moving it would break the session's binding to its transcript.
+    expect(existsSync(join(workspace, '.pidex', 'worktrees', 'update-hello-ts'))).toBe(true)
 
-    // The session carries the same name the branch was derived from.
+    // ...and then the name lands and the BRANCH is renamed to match it, so the
+    // branch chip and the session title still agree. "Stub Session Title" is
+    // the stub's deterministic answer to the naming prompt.
+    await expect(page.getByTestId('branch-chip')).toContainText('pidex/stub-session-title', {
+      timeout: 30_000,
+    })
     await expect(page.getByText('Stub Session Title')).toBeVisible({ timeout: 15_000 })
+
+    const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
+    const names = branches.stdout.split('\n').map((b) => b.trim())
+    expect(names).toContain('pidex/stub-session-title')
+    // Renamed, not duplicated: the provisional slug branch is gone.
+    expect(names).not.toContain('pidex/update-hello-ts')
+
+    // The "still being named" treatment must CLEAR. Catching the shimmer while
+    // it is up would be racing a sub-second window, but a stuck one is the
+    // failure that actually matters: `.name-pending` paints its glyphs with a
+    // transparent fill over a moving gradient, so a flag that never resets
+    // leaves every session title permanently animated.
+    await expect(page.locator('.name-pending')).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.getByTestId('branch-chip')).not.toHaveAttribute('title', /provisional/)
 
     // Still one sidebar group for the project (not a header per branch); the
     // worktree is surfaced on the session row itself instead.
@@ -823,9 +839,10 @@ test('home composer: grey focus border, top-bar chip popovers, and model picker'
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
 
     // Every chip opens a popover. (The informational "Local" chip was removed —
-    // pidex only ever runs pi as a local subprocess. The folder and branch
-    // chips now live in the top bar rather than above the composer, so that
-    // "which folder / which branch" has one answer on every screen.)
+    // pidex only ever runs pi as a local subprocess. On the home screen the
+    // folder and branch chips sit above the composer and the top bar shows
+    // neither, so "which folder / which branch" still has exactly one answer.)
+    await expect(page.getByRole('banner').getByTestId('workspace-chip')).toHaveCount(0)
     await page.getByTestId('workspace-chip').click()
     await expect(page.getByText(/Open folder/)).toBeVisible()
     // PopupMenu dismisses on outside mousedown.

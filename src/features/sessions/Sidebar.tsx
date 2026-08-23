@@ -33,6 +33,7 @@ import {
   type GroupedSessions,
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { useNameTransition } from './nameTransition'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -578,6 +579,7 @@ function SessionRow({
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
+  const naming = useNameTransition(livePidexId)
   const title =
     sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
@@ -659,7 +661,20 @@ function SessionRow({
     >
       <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-base leading-4">{title}</span>
+        <span
+          // Re-keyed on the title so the arrival of a generated name replays
+          // the entrance; without it React patches the text node in place and
+          // the name simply pops.
+          key={title}
+          title={naming.pending ? 'Naming this chat…' : undefined}
+          className={clsx(
+            'text-text block truncate text-base leading-4',
+            naming.pending && 'name-pending',
+            naming.settled && 'name-enter',
+          )}
+        >
+          {title}
+        </span>
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
@@ -737,6 +752,7 @@ function PendingSessionRow({
     (s) => s.sessions[pidexId]?.items.find((item) => item.kind === 'user')?.text,
   )
   const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
+  const naming = useNameTransition(pidexId)
   const title = sessionTitle({ explicitName, firstUserText }) ?? 'New session'
 
   return (
@@ -751,8 +767,17 @@ function PendingSessionRow({
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
       <span className="min-w-0 flex-1">
-        <span className="text-text block truncate text-base leading-4">{title}</span>
-        <span className="text-text-tertiary block text-xs leading-3.5">starting…</span>
+        <span
+          className={clsx(
+            'text-text block truncate text-base leading-4',
+            naming.pending && 'name-pending',
+          )}
+        >
+          {title}
+        </span>
+        <span className="text-text-tertiary block text-xs leading-3.5">
+          {naming.pending ? 'naming…' : 'starting…'}
+        </span>
       </span>
     </button>
   )

@@ -13,6 +13,16 @@ the branch and the worktree folder are named after. Doing them separately
 would have meant two model calls and two unrelated names for one piece of
 work.
 
+> **Superseded in part, same day, by
+> [2026-08-22-fast-session-start.md](2026-08-22-fast-session-start.md).** The
+> ordering below — name first, then branch, with the send blocking on the
+> title — did not survive contact with the clock: `pi -p` measured ~13s against
+> the 12s cap this document describes, so the title lost its own race on every
+> run and the branch was always named after the message slug anyway. The branch
+> is now cut first and renamed once the title lands. Everything else here
+> (origin/trunk, `--no-track`, the name derivation, the one-flag-three-surfaces
+> preference) still holds.
+
 ## The sequence, and why it blocks
 
 `src/features/sessions/startChat.ts` owns the send path:
