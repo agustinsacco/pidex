@@ -58,3 +58,8 @@ the window. Structured keys are now excluded by name.
 The burn thresholds are calibrated against a single incident. If they prove
 noisy, the yield signal is the one to trust — it separated the pathological
 sessions from the healthy ones far more cleanly than rate did.
+
+> **Superseded 2026-08-23.** That last sentence was wrong. Yield measures
+> read-heaviness, not sickness, and a perfectly healthy session scored between
+> two bad ones on it. The gate is now cacheWrite acceleration; see
+> [The burn detector cried wolf](2026-08-23-burn-detector-cachewrite.md).
