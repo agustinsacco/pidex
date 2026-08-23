@@ -9,6 +9,12 @@ import { join } from 'node:path'
  *
  * Layout (verified against the local install):
  *   ~/.pi/agent/sessions/--<cwd segments joined by dashes>--/<ts>_<uuid>.jsonl
+ *
+ * The Claude Code CLI's layout lives here too. A session on the
+ * `pi-claude-cli` provider is written to disk TWICE — once by pi and once by
+ * the CLI it shells out to — and the two harnesses mangle the same cwd
+ * differently, so anything that has to find both ledgers needs both rules
+ * side by side.
  */
 
 /** pi's agent config directory, overridable for tests and alternate installs. */
@@ -44,15 +50,81 @@ export function sessionDirNameForCwd(cwd: string): string {
 }
 
 /**
- * Session directory for a workspace. pi mangles the REAL path — symlinks
- * resolved, so /var becomes /private/var — so resolve before mangling.
+ * Both harnesses mangle the REAL path — symlinks resolved, so /var becomes
+ * /private/var. pi resolves it itself; the CLI gets it for free because
+ * `process.cwd()` in a spawned child is already resolved. Mangling an
+ * unresolved path yields a directory name that simply does not exist.
  */
-export function sessionDirForCwd(cwd: string): string {
-  let resolved = cwd
+function realCwd(cwd: string): string {
   try {
-    resolved = realpathSync.native(cwd)
+    return realpathSync.native(cwd)
   } catch {
-    // Path may not exist yet; fall back to the given path.
+    // Path may not exist yet (or any more); fall back to the given path.
+    return cwd
   }
-  return join(piSessionsRoot(), sessionDirNameForCwd(resolved))
+}
+
+/** Session directory for a workspace. */
+export function sessionDirForCwd(cwd: string): string {
+  return join(piSessionsRoot(), sessionDirNameForCwd(realCwd(cwd)))
+}
+
+/**
+ * The Claude Code CLI's config directory — a separate program's tree, not
+ * part of pi's. `CLAUDE_CONFIG_DIR` is the CLI's own documented override and
+ * relocates the whole directory, `projects/` included.
+ */
+export function claudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+}
+
+/** Root holding one subdirectory of CLI transcripts per project cwd. */
+export function claudeProjectsRoot(): string {
+  return join(claudeConfigDir(), 'projects')
+}
+
+/** Longest project directory name the CLI writes before it truncates. */
+const CLAUDE_PROJECT_DIR_MAX_LENGTH = 200
+
+/**
+ * The CLI's own string hash — `h * 31 + c` folded to int32, base36 — used
+ * only to disambiguate truncated directory names.
+ */
+function claudeCwdHash(cwd: string): string {
+  let hash = 0
+  for (let i = 0; i < cwd.length; i++) {
+    hash = ((hash << 5) - hash + cwd.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
+/**
+ * `/home/u/proj/.claude/wt` → `-home-u-proj--claude-wt`.
+ *
+ * EVERY non-alphanumeric becomes a dash — not just the separators. The dots
+ * matter in practice: worktrees under `.claude/` are where these sessions
+ * actually run, and a separators-only rule misses them by one character.
+ * Names longer than 200 characters are truncated and given a hash suffix.
+ *
+ * Transcribed from the CLI's own implementation (2.1.238) and checked against
+ * every directory under a real ~/.claude/projects, truncated ones included.
+ * It is the CLI's rule, not ours — if a future version changes it, the worst
+ * case here is a lookup that misses, never one that hits the wrong file.
+ */
+export function claudeProjectDirName(cwd: string): string {
+  const mangled = cwd.replace(/[^a-zA-Z0-9]/g, '-')
+  if (mangled.length <= CLAUDE_PROJECT_DIR_MAX_LENGTH) return mangled
+  return `${mangled.slice(0, CLAUDE_PROJECT_DIR_MAX_LENGTH)}-${claudeCwdHash(cwd)}`
+}
+
+/**
+ * The CLI's parallel copy of one session's transcript. pi passes its own
+ * session id through to the CLI, so the two ledgers share an id and differ
+ * only in where they live.
+ *
+ * This is a derived path, not a discovered one: the caller must treat a
+ * missing file as normal.
+ */
+export function claudeSessionFileForCwd(cwd: string, sessionId: string): string {
+  return join(claudeProjectsRoot(), claudeProjectDirName(realCwd(cwd)), `${sessionId}.jsonl`)
 }

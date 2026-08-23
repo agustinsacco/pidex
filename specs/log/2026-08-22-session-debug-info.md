@@ -52,5 +52,10 @@ part that always exists.
   `electron/pi/pi-paths.ts` remains the source of truth on the main side and is
   the one that resolves symlinks. The copy here deliberately does not — it has
   no fs access, and the value is a pointer for a human rather than a lookup key.
+- **Correction (2026-08-22):** the CLI rule stated above is incomplete — it
+  dashes _every_ non-alphanumeric, dots included, and caps names at 200
+  characters. Both copies are fixed; see
+  [2026-08-22-delete-both-ledgers.md](2026-08-22-delete-both-ledgers.md) for the
+  exact rule and the evidence behind it.
 - Verified against real files: the derived paths for a known session resolve to
   the actual `.jsonl` on disk in both trees.

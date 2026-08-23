@@ -27,9 +27,20 @@ describe('directory mangling', () => {
     expect(claudeProjectDirName('/home/dev/proj')).not.toBe(piSessionDirName('/home/dev/proj'))
   })
 
+  it('dashes dots for the CLI but keeps them for pi', () => {
+    // Worktrees live under `.claude/`, so this is the common shape, not an
+    // edge case — the CLI turns the dot into a dash and pi does not.
+    expect(claudeProjectDirName('/home/dev/proj/.claude/worktrees/wt')).toBe(
+      '-home-dev-proj--claude-worktrees-wt',
+    )
+    expect(piSessionDirName('/home/dev/proj/.claude/worktrees/wt')).toBe(
+      '--home-dev-proj-.claude-worktrees-wt--',
+    )
+  })
+
   it('handles windows separators', () => {
     expect(piSessionDirName('C:\\Users\\dev\\proj')).toBe('--C:-Users-dev-proj--')
-    expect(claudeProjectDirName('C:\\Users\\dev\\proj')).toBe('C:-Users-dev-proj')
+    expect(claudeProjectDirName('C:\\Users\\dev\\proj')).toBe('C--Users-dev-proj')
   })
 })
 
