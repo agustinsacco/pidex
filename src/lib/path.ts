@@ -31,6 +31,19 @@ export function workspaceName(workspacePath: string): string {
 }
 
 /**
+ * True for a path inside a repo's internal worktree folder
+ * (`<repo>/.pidex/worktrees/<name>`).
+ *
+ * A worktree is a *branch* of an existing workspace, not a workspace of its
+ * own, so it must never be persisted as one — otherwise the sidebar and the
+ * workspace switcher fill with a header per chat instead of one header per
+ * project.
+ */
+export function isWorktreeFolder(path: string): boolean {
+  return /[/\\]\.pidex[/\\]worktrees[/\\]/.test(path)
+}
+
+/**
  * Display name that understands linked worktrees: `repoName (branch)` rather
  * than the worktree folder's own basename. Worktree folders are commonly
  * named after their branch (`.../worktrees/main`), which made the sidebar and
