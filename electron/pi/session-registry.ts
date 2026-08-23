@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { EventEmitter } from 'node:events'
 import { PiRpcClient, type PiSpawnOptions } from './rpc-client'
 import type { LiveSessionInfo } from '@shared/models'
 
@@ -8,12 +9,23 @@ export interface LiveSession {
   client: PiRpcClient
 }
 
+interface SessionRegistryEvents {
+  created: [LiveSession]
+  disposed: [{ sessionId: string }]
+}
+
 /**
  * Registry of live pi subprocesses, keyed by a pidex-side session id.
  * The single source of truth for what's running; renderer stores are
  * projections fed over IPC.
+ *
+ * It emits `created` / `disposed` so cross-session observers (the fleet hub)
+ * can attach without every creation path having to remember to tell them.
+ * Putting that here rather than in the IPC handler is what makes a future
+ * second creation path — an orchestrator spawning work, a CLI entry point —
+ * visible to the hub for free.
  */
-export class SessionRegistry {
+export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
   private readonly sessions = new Map<string, LiveSession>()
 
   create(workspacePath: string, spawnOptions: Omit<PiSpawnOptions, 'cwd'>): LiveSession {
@@ -26,6 +38,8 @@ export class SessionRegistry {
     // renderer can observe a crash and offer resume. dispose() removes it.
 
     client.spawn()
+    // After spawn, so a listener that immediately sends RPC has a live process.
+    this.emit('created', session)
     return session
   }
 
@@ -45,6 +59,7 @@ export class SessionRegistry {
     const session = this.sessions.get(sessionId)
     if (!session) return
     this.sessions.delete(sessionId)
+    this.emit('disposed', { sessionId })
     await session.client.dispose()
   }
 

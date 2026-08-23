@@ -93,19 +93,43 @@ function createWindow(): BrowserWindow {
   return window
 }
 
-app.whenReady().then(() => {
-  if (devIcon && process.platform === 'darwin') {
-    app.dock?.setIcon(devIcon)
-  }
-  registerIpcHandlers(isDev)
-  createWindow()
-  // No-op unless packaged: dev and E2E must never poll GitHub.
-  startUpdateChecks()
+/**
+ * One pidex per machine.
+ *
+ * Two instances would each own a copy of the session registry and a copy of
+ * every project's orchestrator, so they would run duplicate sweeps and race
+ * each other writing the same `.pidex/orchestrator-memory.md`. Focusing the
+ * existing window is also what a user expects from relaunching.
+ *
+ * E2E launches deliberately opt out: Playwright drives several app instances,
+ * and the lock would make the second one exit instead of starting.
+ */
+const singleInstance = process.env.PIDEX_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+if (!singleInstance) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const [existing] = BrowserWindow.getAllWindows()
+    if (!existing) return
+    if (existing.isMinimized()) existing.restore()
+    existing.focus()
   })
-})
+
+  app.whenReady().then(() => {
+    if (devIcon && process.platform === 'darwin') {
+      app.dock?.setIcon(devIcon)
+    }
+    registerIpcHandlers(isDev)
+    createWindow()
+    // No-op unless packaged: dev and E2E must never poll GitHub.
+    startUpdateChecks()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

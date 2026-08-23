@@ -5,6 +5,7 @@ import { CloseIcon } from '@/components/icons'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { AgentTab } from './tabs/AgentTab'
+import { OrchestrationTab } from './tabs/OrchestrationTab'
 import { ExtensionsTab } from './tabs/ExtensionsTab'
 import { ClaudeProviderTab } from './tabs/ClaudeProviderTab'
 import { WebAccessTab } from './tabs/WebAccessTab'
@@ -17,6 +18,7 @@ import { AboutTab } from './tabs/AboutTab'
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'agent', label: 'Agent' },
+  { id: 'orchestration', label: 'Orchestration' },
   { id: 'extensions', label: 'Extensions' },
   { id: 'mcp', label: 'MCP' },
   { id: 'workspaces', label: 'Workspaces' },
@@ -113,6 +115,7 @@ export function SettingsModal(): React.JSX.Element | null {
           </button>
           {effectiveTab === 'appearance' && <AppearanceTab />}
           {effectiveTab === 'agent' && <AgentTab />}
+          {effectiveTab === 'orchestration' && <OrchestrationTab />}
           {effectiveTab === 'extensions' && <ExtensionsTab />}
           {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
           {effectiveTab === 'web-access' && <WebAccessTab />}

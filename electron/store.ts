@@ -3,6 +3,8 @@ import { pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   type AppPrefs,
+  type OrchestratorDigest,
+  type OrchestratorWorkspacePrefs,
   type ThemePreference,
   type WorkspaceInfo,
 } from '@shared/models'
@@ -36,7 +38,40 @@ export function getPrefs(): AppPrefs {
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
+    orchestrator: s.get('orchestrator') ?? {},
+    orchestratorSessions: s.get('orchestratorSessions') ?? {},
+    orchestratorDigests: s.get('orchestratorDigests') ?? {},
+    notificationsMuted: s.get('notificationsMuted') ?? false,
   }
+}
+
+export function setOrchestratorPrefs(
+  workspacePath: string,
+  value: OrchestratorWorkspacePrefs,
+): void {
+  const s = prefs()
+  s.set('orchestrator', { ...(s.get('orchestrator') ?? {}), [workspacePath]: value })
+}
+
+/** Remember which session file is this project's orchestrator, for resume. */
+export function setOrchestratorSession(workspacePath: string, sessionPath: string): void {
+  const s = prefs()
+  s.set('orchestratorSessions', {
+    ...(s.get('orchestratorSessions') ?? {}),
+    [workspacePath]: sessionPath,
+  })
+}
+
+export function setOrchestratorDigest(digest: OrchestratorDigest): void {
+  const s = prefs()
+  s.set('orchestratorDigests', {
+    ...(s.get('orchestratorDigests') ?? {}),
+    [digest.workspacePath]: digest,
+  })
+}
+
+export function setNotificationsMuted(muted: boolean): void {
+  prefs().set('notificationsMuted', muted)
 }
 
 /** Record that the user has viewed a session's current state. */

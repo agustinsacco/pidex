@@ -32,7 +32,11 @@ import type {
   DirEntry,
   FetchResult,
   FileContent,
+  FleetSnapshot,
   FontPrefs,
+  OrchestratorDigest,
+  OrchestratorWorkspacePrefs,
+  SweepKind,
   PackageJobAction,
   PiPackageEntry,
   GhPullRequest,
@@ -123,6 +127,8 @@ export interface IpcInvokeMap {
    */
   'app:setClaudeSystemPrompt': { args: [ClaudeSystemPromptMode]; result: void }
   'app:setWorktreePrefs': { args: [WorktreePrefs]; result: void }
+  /** Suppress orchestrator desktop notifications (global, not per project). */
+  'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
   /**
@@ -262,6 +268,48 @@ export interface IpcInvokeMap {
   'mcp:writeFile': {
     args: [scope: McpScope, workspacePath: string | undefined, content: string]
     result: void
+  }
+
+  /**
+   * Orchestration (specs/13-orchestration.md). `fleet:state` is the mechanical
+   * picture of every live session — no model runs to produce it. Updates
+   * arrive on the `fleet:changed` push channel.
+   */
+  'fleet:state': { args: []; result: FleetSnapshot }
+  /**
+   * Spawn (or resume) this project's orchestrator and return its live session
+   * id. Idempotent: calling it while one is running returns the same id.
+   */
+  'orchestrator:ensure': { args: [workspacePath: string]; result: { sessionId: string } }
+  /**
+   * Run a sweep. This is the ONLY thing here that spends tokens, and it is
+   * always user-initiated or explicitly opted into.
+   */
+  'orchestrator:sweep': { args: [workspacePath: string, kind: SweepKind]; result: void }
+  /** Standing rules for this project, read from `<repo>/.pidex/orchestrator.md`. */
+  'orchestrator:rules': {
+    args: [workspacePath: string]
+    result: { path: string; content: string; exists: boolean }
+  }
+  'orchestrator:writeRules': { args: [workspacePath: string, content: string]; result: void }
+  /** Last published digest per project, plus prefs, for first paint. */
+  'orchestrator:overview': {
+    args: []
+    result: {
+      digests: Record<string, OrchestratorDigest>
+      prefs: Record<string, OrchestratorWorkspacePrefs>
+      /** Main-repo path → orchestrator session file path. */
+      sessions: Record<string, string>
+    }
+  }
+  'orchestrator:setPrefs': {
+    args: [workspacePath: string, prefs: OrchestratorWorkspacePrefs]
+    result: void
+  }
+  /** Accept a `propose_work` suggestion: starts the session it describes. */
+  'orchestrator:acceptProposal': {
+    args: [workspacePath: string, prompt: string]
+    result: { sessionId: string }
   }
 
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
@@ -433,6 +481,12 @@ export interface PidexApi {
 
   /** Session-dir change notifications (chokidar); returns unsubscribe. */
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
+
+  /** Fleet snapshot updates (debounced in main); returns unsubscribe. */
+  onFleetChanged(listener: (snapshot: FleetSnapshot) => void): () => void
+
+  /** A digest was published for a project; returns unsubscribe. */
+  onOrchestratorDigest(listener: (digest: OrchestratorDigest) => void): () => void
 
   /** Workspace file-change notifications; returns unsubscribe. */
   onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void

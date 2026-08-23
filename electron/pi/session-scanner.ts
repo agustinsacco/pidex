@@ -3,6 +3,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { SessionMeta, UsageSummary, UsageTotals, WorkspaceSessionStats } from '@shared/models'
+import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { piSessionsRoot, sessionDirForCwd } from './pi-paths'
 import { extractText } from './session-content'
 
@@ -262,9 +263,20 @@ export async function usageSummary(): Promise<UsageSummary> {
   return { workspaces, totals }
 }
 
-/** Aggregate stats for the workspace home screen (tiles + heatmap). */
-export async function workspaceStats(workspacePath: string): Promise<WorkspaceSessionStats> {
-  const sessions = await listSessions(workspacePath)
+/**
+ * Aggregate stats for the workspace home screen (tiles + heatmap).
+ *
+ * Orchestrator threads are excluded: they live in the project's own cwd, so
+ * without filtering they would count as work the user did — inflating the
+ * session count, the message count and the activity heatmap with the
+ * manager's own chatter. See shared/orchestratorIdentity.ts.
+ */
+export async function workspaceStats(
+  workspacePath: string,
+  orchestratorPaths: Iterable<string> = [],
+): Promise<WorkspaceSessionStats> {
+  const all = await listSessions(workspacePath)
+  const sessions = all.filter((meta) => !isOrchestratorSession(meta, orchestratorPaths))
   const activityByDay = new Map<string, number>()
   let messages = 0
   let tokens = 0

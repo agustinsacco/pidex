@@ -285,6 +285,13 @@ function attachSessionPushHandler(pidexId: string): void {
       case 'stderr':
         console.warn(`[pi stderr] ${push.text}`)
         break
+      case 'injected':
+        // The visible-hand rule: main sent this on the orchestrator's behalf,
+        // so the renderer never added it optimistically. pi persists it either
+        // way — without this the transcript of a session being steered stays
+        // silent until it is reopened. See specs/13-orchestration.md.
+        chatStore.addUserMessage(pidexId, push.text)
+        break
       case 'extension-ui':
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(pidexId, push.request),
