@@ -47,3 +47,4 @@ to collide with.
 | 2026-08-22 | [A new chat starts now, and gets named after](2026-08-22-fast-session-start.md)                               |
 | 2026-08-23 | [Signing into subscription providers without leaving the app](2026-08-23-subscription-accounts.md)            |
 | 2026-08-23 | [Workspace order belongs to the user](2026-08-23-user-controlled-workspace-order.md)                          |
+| 2026-08-23 | [The e2e suite was lying twice](2026-08-23-e2e-isolation-and-the-missing-regression-test.md)                  |

@@ -5,6 +5,7 @@ import { basename, join as joinPath } from 'node:path'
 import { fleetHub, registry } from '../registry'
 import { handle } from './handle'
 import { checkPiHealth } from '../pi/health'
+import { piStubPath } from '../pi/stub'
 import { piProcessEnv } from '../pi/shell-env'
 import { worktreePromptBlock } from '../pi/workspace-prompt'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
@@ -46,21 +47,6 @@ function bundledExtensions(): string[] {
     bundledExtensionPath('context-breakdown.ts'),
     bundledExtensionPath('worktree-paths.ts'),
   ]
-}
-
-/**
- * E2E hook: PIDEX_PI_STUB points at a script that speaks the RPC protocol in
- * place of the real pi binary, so CI can smoke-test without an API key.
- *
- * Gated on `!app.isPackaged`. The hook makes the main process execute an
- * arbitrary script as Node (`ELECTRON_RUN_AS_NODE`) while reporting pi as
- * healthy, so honoring it in a shipped app would turn an environment variable
- * into local code execution. Playwright drives an unpackaged build, so the
- * tests are unaffected.
- */
-function piStubPath(): string | undefined {
-  if (app.isPackaged) return undefined
-  return process.env.PIDEX_PI_STUB || undefined
 }
 
 /**
