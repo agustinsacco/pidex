@@ -87,14 +87,31 @@ export async function requestAvailableModels(
 
 /**
  * Spawn a session-less pi RPC process, ask `get_available_models`, dispose it.
- * cwd doesn't matter — nothing here touches the filesystem or git.
+ *
+ * `cwd` genuinely does not matter — no tool runs here — but the pi AGENT DIR
+ * very much does, and an earlier version of this comment claimed "nothing here
+ * touches the filesystem", which was wrong. Booting pi writes `auth.json` and
+ * `models-store.json`, and pi installs whatever `settings.json` declares. That
+ * mattered under e2e: this was the one pi spawn that ignored `PIDEX_PI_STUB`,
+ * so the suite quietly shelled out to the real binary, which reached the
+ * network to `npm install` a declared package into the sandboxed agent dir —
+ * and npm, owning `node_modules`, pruned the hand-written fixture package a
+ * test had just put there. `prefixArgs` keeps the stub on the same path as
+ * every other spawn.
  */
-export async function listModelsViaRpc(binaryPath: string): Promise<CatalogueModel[]> {
+export async function listModelsViaRpc(
+  binaryPath: string,
+  prefixArgs?: string[],
+): Promise<CatalogueModel[]> {
   const client = new PiRpcClient({
     cwd: process.cwd(),
     binaryPath,
+    ...(prefixArgs ? { prefixArgs } : {}),
     noSession: true,
-    env: await piProcessEnv(),
+    // Stub mode runs the script through Electron's own binary, which needs
+    // ELECTRON_RUN_AS_NODE to behave as plain Node — the same contract
+    // `pi:createSession` uses. The login-shell PATH only matters for a real pi.
+    env: prefixArgs ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv(),
   })
   client.spawn()
   try {

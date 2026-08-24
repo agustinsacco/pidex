@@ -11,8 +11,9 @@ import {
   readConfigFile,
   writeConfigFile,
 } from '../pi/agent-settings'
-import { resolveCatalogueModels } from '../pi/model-catalogue'
+import { listModelsViaRpc, resolveCatalogueModels } from '../pi/model-catalogue'
 import { checkPiHealth } from '../pi/health'
+import { piStubPath } from '../pi/stub'
 import { type ConfigFileHealth } from '@shared/models'
 
 /** Reading and patching pi's own agent settings files. */
@@ -27,12 +28,26 @@ export function registerPiConfigHandlers(): void {
   // models.json, with real display names and thinkingLevelMap — see
   // model-catalogue.ts), falling back to parsing models.json directly when
   // pi can't be run.
-  handle('pi:catalogueModels', () =>
-    resolveCatalogueModels(async () => {
-      const health = await checkPiHealth()
-      return health.ok ? (health.binaryPath ?? null) : null
-    }, listCatalogueModels),
-  )
+  //
+  // Honors PIDEX_PI_STUB like every other pi spawn. It did not, and that made
+  // it the one hole in the e2e harness: opening a model picker shelled out to
+  // the real binary, which boots pi against the sandboxed agent dir and
+  // installs whatever `settings.json` declares — a network install, mid-suite,
+  // that pruned a fixture package another test had written.
+  handle('pi:catalogueModels', () => {
+    const stub = piStubPath()
+    return resolveCatalogueModels(
+      async () => {
+        if (stub) return process.execPath
+        const health = await checkPiHealth()
+        return health.ok ? (health.binaryPath ?? null) : null
+      },
+      listCatalogueModels,
+      stub
+        ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
+        : (binaryPath) => listModelsViaRpc(binaryPath),
+    )
+  })
 
   handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
 

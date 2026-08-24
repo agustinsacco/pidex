@@ -119,8 +119,13 @@ violations, which is how it was caught.
   as `pidex/stub-session-title` after the rename, and `pidex/update-hello-ts` is
   **gone** — renamed, not duplicated.
 
-Full suite: 883 unit tests and 24 e2e pass. One e2e failure was seen once
-mid-work and did not reproduce — a different test each time, passing both in
-isolation and in clean full runs of baseline and branch alike. This machine has
-no `xvfb`, so the suite runs in the slow unmapped mode
-(`scripts/e2e.sh`), which is the documented condition for those intermittents.
+Full suite green at the time of writing.
+
+> **Follow-up, 2026-08-23** — two claims in this section did not survive review
+> and are corrected in
+> [2026-08-23-e2e-isolation-and-the-missing-regression-test.md](2026-08-23-e2e-isolation-and-the-missing-regression-test.md):
+> the run-wide e2e failure blamed on "intermittents" was a real, reproducible
+> shared-state bug, and the right-click fix above shipped with **no test that
+> reproduced it** — the e2e stub wrote its session file synchronously, which
+> made the bug unreachable from the suite. Both are now fixed. Test counts are
+> deliberately no longer quoted here; they age into being wrong within days.
