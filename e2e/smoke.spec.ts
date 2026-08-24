@@ -3,6 +3,7 @@ import {
   expect,
   _electron as electron,
   type ElectronApplication,
+  type Locator,
   type Page,
 } from '@playwright/test'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -32,6 +33,53 @@ interface Harness {
 const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
 
 /**
+ * A pi-agent dir of one test's own, for tests that seed `npm/node_modules`
+ * with a fixture package.
+ *
+ * The shared `agentDir` above cannot be used for those. Several surfaces run a
+ * REAL `npm install` into `<agentDir>/npm` — the MCP tab installs its adapter
+ * package, and pi installs whatever `settings.json` declares — and npm owns
+ * `node_modules` wholesale: it prunes anything absent from its own manifest,
+ * which is exactly what a hand-written fixture directory is. The result was a
+ * test that passed alone and failed in the suite, because the pruning install
+ * only wins the race once npm's cache is warm from an earlier test.
+ *
+ * Isolating the dir is the fix rather than ordering the tests: it makes the
+ * fixture unreachable by any other test's installer, in either direction.
+ */
+function privateAgentDir(): string {
+  return mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-solo-'))
+}
+
+/**
+ * Click a checkbox until it actually reaches `want`.
+ *
+ * For a checkbox that lives under a live-updating panel, one click is not
+ * reliable and no amount of polling afterwards fixes it. The resource monitor
+ * re-renders on every sampling tick, and the totals block above the checkbox
+ * grows as history accumulates — so the checkbox moves. Playwright resolves
+ * the element, waits for it to be stable, then dispatches at those
+ * coordinates; a sample landing in that gap shifts the target and the click is
+ * simply lost. No React `onChange` fires, the state never changes, and the
+ * assertion fails after burning its whole timeout.
+ *
+ * Retrying the click is the only thing that converges. Guarded on the current
+ * state so a click that did land is never undone by the next attempt.
+ */
+async function setCheckbox(box: Locator, want: boolean): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        if ((await box.isChecked()) === want) return want
+        await box.click({ timeout: 5_000 }).catch(() => undefined)
+        return box.isChecked()
+      },
+      { timeout: 20_000, intervals: [250, 500, 1000] },
+    )
+    .toBe(want)
+}
+
+/**
  * `process.env` minus electron-vite's dev markers.
  *
  * main.ts decides dev-vs-built purely from `ELECTRON_RENDERER_URL`, and that
@@ -50,7 +98,13 @@ function devServerEnvStripped(): NodeJS.ProcessEnv {
 }
 
 async function launch(
-  options: { workspace?: string; userDataDir?: string; env?: Record<string, string> } = {},
+  options: {
+    workspace?: string
+    userDataDir?: string
+    /** Override the run-wide agent dir; see `privateAgentDir`. */
+    agentDir?: string
+    env?: Record<string, string>
+  } = {},
 ): Promise<Harness> {
   const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'pidex-e2e-')))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
@@ -63,7 +117,7 @@ async function launch(
       PIDEX_PI_STUB: piStub,
       PIDEX_E2E_WORKSPACE: workspace,
       PIDEX_TEST_USER_DATA: options.userDataDir ?? '1',
-      PI_CODING_AGENT_DIR: agentDir,
+      PI_CODING_AGENT_DIR: options.agentDir ?? agentDir,
       ...options.env,
     },
   })
@@ -596,6 +650,45 @@ test('worktree flow: create from the branch chip, session stays under the projec
   }
 })
 
+test('a session whose file lands late still becomes a real, right-clickable row', async () => {
+  // The reported bug: right-click did nothing on a chat you had just started,
+  // and kept doing nothing until you clicked away to another session and back.
+  //
+  // The cause was never the menu. A live session with no row in `disk` yet
+  // renders as `PendingSessionRow`, which deliberately has no context menu at
+  // all (every SessionRow action is keyed on `meta.path`, which it lacks). It
+  // should be a flicker — except the directory watcher that promotes it was
+  // attached to a session directory that did not exist yet, and chokidar never
+  // revisits a missing target. So the promotion never came.
+  //
+  // The delay is what makes this a real test: with the stub writing its
+  // session file synchronously the directory is always there before pidex can
+  // attach, and this passes against the unfixed code too (confirmed).
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-late-'))
+  await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
+
+  const harness = await launch({
+    workspace,
+    env: { PIDEX_E2E_SESSION_WRITE_DELAY_MS: '2500' },
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const row = page.getByTestId('session-row').first()
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    // Promoted out of the placeholder WITHOUT switching session and back.
+    await expect(row).not.toHaveAttribute('data-pending', 'true', { timeout: 30_000 })
+
+    await row.click({ button: 'right' })
+    await expect(page.getByRole('button', { name: /Rename/ })).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('new chat without isolation runs in the open workspace', async () => {
   const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-nowt-'))
   const { execFile } = await import('node:child_process')
@@ -630,15 +723,21 @@ test('new chat without isolation runs in the open workspace', async () => {
 })
 
 test('MCP settings: chain rows, disable toggle, add project server', async () => {
-  // Seed a global server in the isolated agent dir (pi-global scope).
+  // Seed a global server in an agent dir of this test's own. Shared would leak:
+  // this `mcp.json` is never cleaned up, and every later test would inherit a
+  // global MCP server it did not ask for.
+  const soloAgentDir = privateAgentDir()
   await writeFile(
-    join(agentDir, 'mcp.json'),
+    join(soloAgentDir, 'mcp.json'),
     JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/sse' } } }),
   )
   // Dedicated prefs dir: project-scope writes target the ACTIVE workspace, so
   // a `lastSessionPath` left by an earlier test could restore a different
   // workspace and send the write there.
-  const harness = await launch({ userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-mcp-')) })
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-mcp-')),
+  })
   const { page, workspace } = harness
   try {
     await openWorkspace(page)
@@ -658,7 +757,7 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
     await page.getByRole('checkbox').first().click()
     await expect
       .poll(async () => {
-        const raw = await readFile(join(agentDir, 'mcp.json'), 'utf8')
+        const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
         return (JSON.parse(raw).mcpServers.linear as { disabled?: boolean }).disabled === true
       })
       .toBe(true)
@@ -683,6 +782,7 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
       .toBe('npx')
   } finally {
     await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 
@@ -1077,15 +1177,14 @@ test('resource monitor reports real per-session process usage', async () => {
     await expect(row).toContainText(/\d+(\.\d+)?\s*(KB|MB|GB)/, { timeout: 30_000 })
 
     // The terminals toggle must actually change what is charged to a session.
-    // The input is controlled (`checked={includeTerminals}`) and re-renders
-    // after the state store round-trips, so `uncheck()` — which carries its own
-    // fast internal verification — races the re-render on a slow (unmapped or
-    // loaded) run; same controlled-checkbox race the MCP settings test works
-    // around. Click first, then let the `expect` poll for the re-rendered state.
+    // Clicked through `setCheckbox`: this panel re-renders under a live
+    // sampler and the checkbox moves as the totals above it grow, so a lone
+    // click gets dropped outright rather than merely landing late — polling
+    // the assertion afterwards cannot rescue it (measured: 2 failures in 4
+    // runs with a 10s poll).
     const toggle = page.getByTestId('monitor-include-terminals')
     await expect(toggle).toBeChecked()
-    await toggle.click()
-    await expect(toggle).not.toBeChecked({ timeout: 10_000 })
+    await setCheckbox(toggle, false)
     await expect(row).toBeVisible()
   } finally {
     await shutdown(harness)
@@ -1118,10 +1217,14 @@ test('the updater stays dormant in an unpackaged run', async () => {
 })
 
 test('extensions tab lists pi packages and reveals per-extension tabs', async () => {
-  // Seed the sandboxed agent dir: one installed fixture package plus the
-  // Claude provider declared in settings (declared is enough to reveal its
-  // tab — installed-ness only changes the health row).
-  const pkgDir = join(agentDir, 'npm', 'node_modules', 'demo-pack')
+  // A dir of this test's own: the fixture below is a hand-written
+  // `node_modules` entry, and any real `npm install` into a shared agent dir
+  // prunes it (see `privateAgentDir`).
+  const soloAgentDir = privateAgentDir()
+  // Seed it: one installed fixture package plus the Claude provider declared
+  // in settings (declared is enough to reveal its tab — installed-ness only
+  // changes the health row).
+  const pkgDir = join(soloAgentDir, 'npm', 'node_modules', 'demo-pack')
   await mkdir(join(pkgDir, 'extensions'), { recursive: true })
   await writeFile(
     join(pkgDir, 'package.json'),
@@ -1134,11 +1237,11 @@ test('extensions tab lists pi packages and reveals per-extension tabs', async ()
   )
   await writeFile(join(pkgDir, 'extensions', 'main.ts'), '')
   await writeFile(
-    join(agentDir, 'settings.json'),
+    join(soloAgentDir, 'settings.json'),
     JSON.stringify({ packages: ['npm:demo-pack', 'npm:@saccolabs/pi-claude-cli'] }),
   )
 
-  const harness = await launch()
+  const harness = await launch({ agentDir: soloAgentDir })
   try {
     await openWorkspace(harness.page)
     const page = harness.page
@@ -1159,14 +1262,14 @@ test('extensions tab lists pi packages and reveals per-extension tabs', async ()
     await expect(page.getByText('Extension package')).toBeVisible()
   } finally {
     await shutdown(harness)
-    // The agent dir is shared by the whole suite — leave it as found.
-    await rm(join(agentDir, 'settings.json'), { force: true })
-    await rm(join(agentDir, 'npm'), { recursive: true, force: true })
+    // Nothing to leave as found — the whole dir was this test's.
+    await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 
 test('extensions tab installs and removes a package through pi CLI (stubbed)', async () => {
-  const harness = await launch()
+  const soloAgentDir = privateAgentDir()
+  const harness = await launch({ agentDir: soloAgentDir })
   try {
     await openWorkspace(harness.page)
     const page = harness.page
@@ -1188,17 +1291,17 @@ test('extensions tab installs and removes a package through pi CLI (stubbed)', a
     await expect(page.getByText('e2e-added-pack', { exact: true })).toHaveCount(0)
   } finally {
     await shutdown(harness)
-    await rm(join(agentDir, 'settings.json'), { force: true })
-    await rm(join(agentDir, 'npm'), { recursive: true, force: true })
+    await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 
 test('web access tab writes provider keys to web-search.json', async () => {
+  const soloAgentDir = privateAgentDir()
   await writeFile(
-    join(agentDir, 'settings.json'),
+    join(soloAgentDir, 'settings.json'),
     JSON.stringify({ packages: ['npm:pi-web-access'] }),
   )
-  const harness = await launch()
+  const harness = await launch({ agentDir: soloAgentDir })
   try {
     await openWorkspace(harness.page)
     const page = harness.page
@@ -1217,7 +1320,8 @@ test('web access tab writes provider keys to web-search.json', async () => {
     await expect
       .poll(async () => {
         try {
-          return JSON.parse(await readFile(join(agentDir, 'web-search.json'), 'utf8')).braveApiKey
+          return JSON.parse(await readFile(join(soloAgentDir, 'web-search.json'), 'utf8'))
+            .braveApiKey
         } catch {
           return undefined
         }
@@ -1225,8 +1329,7 @@ test('web access tab writes provider keys to web-search.json', async () => {
       .toBe('BSA_e2e_123')
   } finally {
     await shutdown(harness)
-    await rm(join(agentDir, 'settings.json'), { force: true })
-    await rm(join(agentDir, 'web-search.json'), { force: true })
+    await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 
@@ -1243,12 +1346,16 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
       'esac\n',
   )
   await chmod(join(claudeDir, 'claude'), 0o755)
+  const soloAgentDir = privateAgentDir()
   await writeFile(
-    join(agentDir, 'settings.json'),
+    join(soloAgentDir, 'settings.json'),
     JSON.stringify({ packages: ['npm:@saccolabs/pi-claude-cli'] }),
   )
 
-  const harness = await launch({ env: { PIDEX_CLAUDE_BIN: join(claudeDir, 'claude') } })
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    env: { PIDEX_CLAUDE_BIN: join(claudeDir, 'claude') },
+  })
   try {
     await openWorkspace(harness.page)
     const page = harness.page
@@ -1267,7 +1374,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
   } finally {
     await shutdown(harness)
     await rm(claudeDir, { recursive: true, force: true })
-    await rm(join(agentDir, 'settings.json'), { force: true })
+    await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 

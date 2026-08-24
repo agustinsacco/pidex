@@ -141,29 +141,59 @@ const SESSION_DIR = path.join(
   `--${fs.realpathSync.native(process.cwd()).split(path.sep).filter(Boolean).join('-')}--`,
 )
 const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
-try {
-  fs.mkdirSync(SESSION_DIR, { recursive: true })
-  fs.writeFileSync(
-    SESSION_FILE,
-    JSON.stringify({
-      type: 'session',
-      version: 3,
-      id: `stub-${process.pid}`,
-      timestamp: new Date().toISOString(),
-      cwd: process.cwd(),
-    }) +
-      '\n' +
+
+/**
+ * Create the session directory and file, optionally late.
+ *
+ * Writing it synchronously — as this stub always did — makes one real bug
+ * unreachable from e2e. pidex attaches a chokidar watcher to a session
+ * directory as soon as the session exists, and a watcher pointed at a
+ * directory that does not exist yet is born dead: chokidar never revisits a
+ * missing target, so the later `add` raises no event and the sidebar row stays
+ * a context-menu-less placeholder. A stub that has already created the
+ * directory before pidex can attach means the watcher always finds it there,
+ * and a regression test would pass against the broken code just as happily as
+ * the fixed one.
+ *
+ * PIDEX_E2E_SESSION_WRITE_DELAY_MS reopens that window on demand, so the test
+ * that covers it can actually fail when the fix is removed.
+ */
+function writeSessionFile() {
+  try {
+    fs.mkdirSync(SESSION_DIR, { recursive: true })
+    fs.writeFileSync(
+      SESSION_FILE,
       JSON.stringify({
-        type: 'message',
-        id: 'aaaa0001',
-        parentId: null,
+        type: 'session',
+        version: 3,
+        id: `stub-${process.pid}`,
         timestamp: new Date().toISOString(),
-        message: { role: 'user', content: process.env.PIDEX_STUB_SESSION_TITLE || 'stub session' },
+        cwd: process.cwd(),
       }) +
-      '\n',
-  )
-} catch {
-  /* best effort */
+        '\n' +
+        JSON.stringify({
+          type: 'message',
+          id: 'aaaa0001',
+          parentId: null,
+          timestamp: new Date().toISOString(),
+          message: {
+            role: 'user',
+            content: process.env.PIDEX_STUB_SESSION_TITLE || 'stub session',
+          },
+        }) +
+        '\n',
+    )
+  } catch {
+    /* best effort */
+  }
+}
+
+const SESSION_WRITE_DELAY_MS = Number(process.env.PIDEX_E2E_SESSION_WRITE_DELAY_MS || 0)
+if (SESSION_WRITE_DELAY_MS > 0) {
+  // unref: a pending timer must never be what keeps this process alive.
+  setTimeout(writeSessionFile, SESSION_WRITE_DELAY_MS).unref()
+} else {
+  writeSessionFile()
 }
 
 const MODEL = {
