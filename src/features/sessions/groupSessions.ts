@@ -1,4 +1,4 @@
-import type { GitInfo, SessionMeta } from '@shared/models'
+import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { workspaceName } from '@/lib/path'
@@ -18,6 +18,10 @@ export interface GroupedSessions {
   liveCount: number
   /** False until every folder in this group has been scanned. */
   scanned: boolean
+  /** False until every folder in this group has had at least one scan attempt. */
+  attempted: boolean
+  /** True when any folder's most recent scan threw. */
+  errored: boolean
 }
 
 /**
@@ -45,10 +49,19 @@ export function groupSessionsByProject(
    * chats — see `OrchestratorRow`, which gives them their own shape.
    */
   orchestratorPaths: Iterable<string> = [],
+  /** workspacePath → latest scan attempt; absence = never attempted. */
+  scanStatus: Record<string, SessionScanStatus> = {},
 ): GroupedSessions[] {
   const byProject = new Map<
     string,
-    { paths: string[]; metas: SessionMeta[]; liveCount: number; scanned: boolean }
+    {
+      paths: string[]
+      metas: SessionMeta[]
+      liveCount: number
+      scanned: boolean
+      attempted: boolean
+      errored: boolean
+    }
   >()
   for (const path of knownWorkspaces) {
     const git = gitByCwd[path]
@@ -58,14 +71,25 @@ export function groupSessionsByProject(
     )
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
+    const attempted = path in scanStatus
+    const errored = scanStatus[path] === 'error'
     const existing = byProject.get(projectKey)
     if (existing) {
       existing.paths.push(path)
       existing.metas.push(...metas)
       existing.liveCount += liveCount
       existing.scanned &&= scanned
+      existing.attempted &&= attempted
+      existing.errored ||= errored
     } else {
-      byProject.set(projectKey, { paths: [path], metas, liveCount, scanned })
+      byProject.set(projectKey, {
+        paths: [path],
+        metas,
+        liveCount,
+        scanned,
+        attempted,
+        errored,
+      })
     }
   }
   return (
@@ -82,6 +106,8 @@ export function groupSessionsByProject(
           metas: entry.metas.sort(compareSessionsByCreation),
           liveCount: entry.liveCount,
           scanned: entry.scanned,
+          attempted: entry.attempted,
+          errored: entry.errored,
         }
       })
       // Unscanned workspaces (beyond the boot-scan cap) still get a header —

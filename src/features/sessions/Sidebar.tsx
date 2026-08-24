@@ -56,6 +56,7 @@ function loadSidebarWidth(): number {
 
 export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const disk = useSessionsStore((s) => s.disk)
+  const scanStatus = useSessionsStore((s) => s.scanStatus)
   const live = useSessionsStore((s) => s.live)
   const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
@@ -253,8 +254,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         (m) => liveByDisk.has(m.path),
         workspacePath,
         orchestratorPaths,
+        scanStatus,
       ),
-    [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd, orchestratorPaths],
+    [
+      knownWorkspaces,
+      disk,
+      gitByCwd,
+      scanStatus,
+      pinnedSet,
+      liveByDisk,
+      workspacePath,
+      orchestratorPaths,
+    ],
   )
 
   /** Every session path currently visible in `disk`, across all workspaces. */
@@ -306,6 +317,14 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       const store = useSessionsStore.getState()
       for (const path of group.paths) void store.refreshDisk(path)
     }
+  }
+
+  // Re-run the scan for a group whose last attempt failed, across every
+  // folder merged into the project, so the sidebar recovers instead of
+  // pinning a permanent "Loading sessions…".
+  const retryGroup = (group: GroupedSessions): void => {
+    const store = useSessionsStore.getState()
+    for (const path of group.paths) void store.refreshDisk(path)
   }
 
   // Watch exactly the visible groups: expanded ⇒ watching, collapsed ⇒ not.
@@ -526,17 +545,26 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 group.metas.map((meta) => (
                   <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
                 ))}
-              {!isCollapsed && !group.scanned && (
-                <div className="text-text-tertiary px-2 py-2 text-sm">Loading sessions…</div>
-              )}
               {!isCollapsed &&
-                group.scanned &&
                 group.metas.length === 0 &&
-                !pendingByWorkspace.has(group.workspacePath) && (
+                !pendingByWorkspace.has(group.workspacePath) &&
+                (group.attempted && group.errored ? (
+                  <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
+                    <span>Couldn&apos;t load sessions</span>
+                    <button
+                      onClick={() => retryGroup(group)}
+                      className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : group.attempted ? (
                   <div className="text-text-tertiary px-2 py-2 text-sm">
                     Sessions you start will show up here
                   </div>
-                )}
+                ) : (
+                  <div className="text-text-tertiary px-2 py-2 text-sm">Loading sessions…</div>
+                ))}
             </div>
           )
         })}
