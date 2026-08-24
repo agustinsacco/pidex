@@ -170,6 +170,56 @@ describe('groupSessionsByProject', () => {
     expect(groups[0]?.metas.map((m) => m.path)).toEqual([live.path])
     expect(groups[0]?.liveCount).toBe(1)
   })
+
+  it('is attempted only once every folder in the group has had a scan', () => {
+    const gitByCwd: Record<string, GitInfo> = {
+      '/repo': { isRepo: true, branch: 'main' },
+      '/repo/.pidex/worktrees/test': {
+        isRepo: true,
+        branch: 'test',
+        isWorktree: true,
+        mainRepoPath: '/repo',
+      },
+    }
+    const groups = groupSessionsByProject(
+      ['/repo', '/repo/.pidex/worktrees/test'],
+      {},
+      gitByCwd,
+      notPinned,
+      notLive,
+      '/repo',
+      [],
+      { '/repo': 'ok' },
+    )
+    // The main repo scanned (empty) but the merged worktree has not — the
+    // group must still read as loading, not as definitively empty.
+    expect(groups[0]?.attempted).toBe(false)
+    expect(groups[0]?.errored).toBe(false)
+  })
+
+  it("flags a group once a merged folder's scan threw", () => {
+    const gitByCwd: Record<string, GitInfo> = {
+      '/repo': { isRepo: true, branch: 'main' },
+      '/repo/.pidex/worktrees/test': {
+        isRepo: true,
+        branch: 'test',
+        isWorktree: true,
+        mainRepoPath: '/repo',
+      },
+    }
+    const groups = groupSessionsByProject(
+      ['/repo', '/repo/.pidex/worktrees/test'],
+      {},
+      gitByCwd,
+      notPinned,
+      notLive,
+      '/repo',
+      [],
+      { '/repo': 'ok', '/repo/.pidex/worktrees/test': 'error' },
+    )
+    expect(groups[0]?.attempted).toBe(true)
+    expect(groups[0]?.errored).toBe(true)
+  })
 })
 
 describe('pendingSessionsByGroup', () => {
