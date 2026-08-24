@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { shouldRefreshStatsOn } from './sessions'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { shouldRefreshStatsOn, useSessionsStore } from './sessions'
+import { getActiveWorkspace } from './workspaces'
 
 describe('shouldRefreshStatsOn', () => {
   it('refreshes on message_end and tool_execution_end (live climb during a run)', () => {
@@ -23,5 +24,50 @@ describe('shouldRefreshStatsOn', () => {
     expect(shouldRefreshStatsOn('agent_start')).toBe(false)
     expect(shouldRefreshStatsOn('message_start')).toBe(false)
     expect(shouldRefreshStatsOn('tool_execution_start')).toBe(false)
+  })
+})
+
+/**
+ * Regression: a main-spawned session must enter `live`.
+ *
+ * Found by driving the real app, not by any test. The orchestrator is spawned
+ * in the main process, so the renderer had no `live` entry for it — and
+ * `useActiveWorkspace()` resolves the active session's folder through exactly
+ * that map. Activating the orchestrator therefore returned null and dropped
+ * the whole app to the workspace picker.
+ */
+describe('adoptSession', () => {
+  const invoke = vi.fn()
+  const piCommand = vi.fn()
+
+  beforeEach(() => {
+    invoke.mockReset().mockResolvedValue(undefined)
+    piCommand.mockReset().mockResolvedValue({ success: false })
+    vi.stubGlobal('window', {
+      pidex: {
+        invoke,
+        piCommand,
+        onSessionPush: () => () => {},
+      },
+    })
+    useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null })
+  })
+
+  it('registers the session so the active workspace resolves', async () => {
+    await useSessionsStore.getState().adoptSession('orc-1', '/repo')
+
+    expect(useSessionsStore.getState().live['orc-1']).toMatchObject({
+      pidexId: 'orc-1',
+      workspacePath: '/repo',
+    })
+    useSessionsStore.setState({ activeSessionId: 'orc-1' })
+    expect(getActiveWorkspace()).toBe('/repo')
+  })
+
+  it('is idempotent, so reopening does not re-subscribe', async () => {
+    await useSessionsStore.getState().adoptSession('orc-1', '/repo')
+    useSessionsStore.setState((s) => ({ unread: { ...s.unread, 'orc-1': 5 } }))
+    await useSessionsStore.getState().adoptSession('orc-1', '/repo')
+    expect(useSessionsStore.getState().unread['orc-1']).toBe(5)
   })
 })

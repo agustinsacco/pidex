@@ -40,6 +40,8 @@ import { cloneSession, exportSidebarSession, renameSidebarSession } from './side
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
+import { OrchestratorRow } from '@/features/orchestrator/OrchestratorRow'
+import { useFleetStore } from '@/stores/fleet'
 
 const SIDEBAR_WIDTH_KEY = 'pidex:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -213,6 +215,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
+  /** Orchestrator threads get their own row, so they never sort among work. */
+  const orchestratorSessions = useFleetStore((s) => s.orchestratorSessions)
+  const orchestratorPaths = useMemo(
+    () => Object.values(orchestratorSessions),
+    [orchestratorSessions],
+  )
+
   /** Pinned sessions across every workspace — this group deliberately mixes. */
   const pinnedMetas = useMemo(
     () =>
@@ -243,8 +252,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         (m) => pinnedSet.has(m.path),
         (m) => liveByDisk.has(m.path),
         workspacePath,
+        orchestratorPaths,
       ),
-    [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd],
+    [knownWorkspaces, disk, pinnedSet, liveByDisk, workspacePath, gitByCwd, orchestratorPaths],
   )
 
   /** Every session path currently visible in `disk`, across all workspaces. */
@@ -501,6 +511,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   <PlusIcon size={12} strokeWidth={2.5} />
                 </button>
               </div>
+              {!isCollapsed && (
+                <OrchestratorRow workspacePath={group.workspacePath} projectName={group.name} />
+              )}
               {!isCollapsed &&
                 (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
                   <PendingSessionRow

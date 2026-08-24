@@ -1270,3 +1270,71 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
     await rm(join(agentDir, 'settings.json'), { force: true })
   }
 })
+
+/**
+ * The fleet hub, end to end: a live session becomes a card on the home screen
+ * with a working inline composer, and the project shows an orchestrator row.
+ *
+ * Scope note — the stub is spawned WITHOUT pidex's bundled extensions (see
+ * `bundledExtensions` in pi-session-handlers), so the orchestrator's own tools
+ * cannot run here. What this proves is the mechanical layer that costs no
+ * tokens: main observing pi's event stream, pushing snapshots, and the home
+ * screen rendering them. Orchestrator tool behaviour is covered by unit tests
+ * over the bridge instead.
+ */
+test('home surfaces live sessions as fleet cards you can talk to', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-fleet-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    await page.getByPlaceholder('Describe a task or ask a question').fill('fleet card please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible({ timeout: 30_000 })
+
+    // Back to home with the session still live.
+    await page.getByRole('button', { name: /^New$/ }).click()
+
+    const card = page.getByTestId('fleet-session-card').first()
+    await expect(card).toBeVisible({ timeout: 20_000 })
+
+    // The card carries a real composer, and sending routes to the live session
+    // rather than starting a new one.
+    const box = card.getByRole('textbox')
+    await expect(box).toBeVisible()
+    await box.fill('steered from the home screen')
+    await box.press('Enter')
+    await expect(box).toHaveValue('', { timeout: 20_000 })
+
+    // The message went to the SESSION, not into a new one: open it from the
+    // sidebar (not the card's own button, which is "Stop" while streaming) and
+    // find it in that transcript.
+    await page.getByTestId('session-row').first().click()
+    await expect(page.getByText('steered from the home screen')).toBeVisible({ timeout: 20_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('each project offers an orchestrator row, distinct from its sessions', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // Present before anything is spawned: watching costs nothing, so the row
+    // is an invitation rather than a running process.
+    const row = page.getByTestId('orchestrator-row').first()
+    await expect(row).toBeVisible({ timeout: 20_000 })
+    await expect(row).toContainText('Orchestrator')
+
+    // It is NOT a session row — that separation is the whole point.
+    await expect(page.getByTestId('session-row')).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+  }
+})

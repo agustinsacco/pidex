@@ -1,4 +1,5 @@
 import type { GitInfo, SessionMeta } from '@shared/models'
+import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { workspaceName } from '@/lib/path'
 
@@ -38,6 +39,12 @@ export function groupSessionsByProject(
   isPinned: (meta: SessionMeta) => boolean,
   isLive: (meta: SessionMeta) => boolean,
   activeWorkspacePath: string,
+  /**
+   * Session file paths belonging to orchestrator threads. They run in the
+   * project's own cwd, so without this they sort into the list as ordinary
+   * chats — see `OrchestratorRow`, which gives them their own shape.
+   */
+  orchestratorPaths: Iterable<string> = [],
 ): GroupedSessions[] {
   const byProject = new Map<
     string,
@@ -46,7 +53,9 @@ export function groupSessionsByProject(
   for (const path of knownWorkspaces) {
     const git = gitByCwd[path]
     const projectKey = git?.isWorktree && git.mainRepoPath ? git.mainRepoPath : path
-    const metas = (disk[path] ?? []).filter((m) => !isPinned(m))
+    const metas = (disk[path] ?? []).filter(
+      (m) => !isPinned(m) && !isOrchestratorSession(m, orchestratorPaths),
+    )
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
     const existing = byProject.get(projectKey)

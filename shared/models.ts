@@ -48,6 +48,14 @@ export type SessionPush =
   | { kind: 'extension-ui'; request: ExtensionUIRequest }
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
+  /**
+   * A message main sent into this session on someone else's behalf (today:
+   * the orchestrator). pi persists it either way, but the renderer only paints
+   * messages it added itself — without this the transcript of a session being
+   * steered stays silent until it is reopened. See specs/13-orchestration.md,
+   * "the visible-hand rule".
+   */
+  | { kind: 'injected'; text: string; source: 'orchestrator' }
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
@@ -314,6 +322,124 @@ export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
   branchPrefix: 'pidex/',
 }
 
+// ---------- orchestration (specs/13-orchestration.md) ----------
+
+/**
+ * What a live session is doing, as observed mechanically in main. No model is
+ * involved in producing this — it is a projection of pi's own event stream.
+ */
+export type FleetPhase = 'streaming' | 'awaiting-input' | 'idle' | 'error' | 'exited'
+
+/** A clarifying question a session is blocked on, mirrored from extension UI. */
+export interface FleetQuestion {
+  requestId: string
+  method: 'select' | 'confirm' | 'input'
+  title: string
+  message?: string
+  options?: string[]
+  askedAt: number
+}
+
+export interface FleetSession {
+  /** pidex-side live session id. */
+  sessionId: string
+  workspacePath: string
+  /**
+   * The project this session belongs to: its repo's main working tree, or its
+   * own cwd when that is unknown.
+   *
+   * Load-bearing, not cosmetic. pidex gives most chats their own git worktree,
+   * so `workspacePath` is usually a folder under `.pidex/worktrees/` that
+   * matches no project path exactly — grouping on it made a project's own
+   * orchestrator report "no sessions are running" while several were.
+   */
+  projectRoot?: string
+  /** Session file, once `get_state` has reported it. */
+  diskPath?: string
+  title?: string
+  phase: FleetPhase
+  /** Last assistant prose line, truncated. */
+  lastLine?: string
+  /** Tool executing right now, if any. */
+  currentTool?: string
+  /**
+   * Paths this session's tools touched. Best-effort — harvested from tool
+   * arguments, so it is a signal and never a claim. Bounded; see FILES_TOUCHED_CAP.
+   */
+  filesTouched: string[]
+  pendingQuestion?: FleetQuestion
+  lastActivityAt: number
+  /** When the session went idle; powers "waiting 14 min". */
+  idleSince?: number
+  turns: number
+  isOrchestrator: boolean
+}
+
+export interface FleetSnapshot {
+  sessions: FleetSession[]
+  updatedAt: number
+}
+
+/** Upper bound on remembered paths per session, so the hub cannot grow forever. */
+export const FILES_TOUCHED_CAP = 50
+
+/** One line of a digest the orchestrator published. */
+export interface DigestItem {
+  kind: 'attention' | 'suggestion' | 'note'
+  /** Session file path this item is about, when it is about one. */
+  sessionPath?: string
+  text: string
+  action?: {
+    label: string
+    kind: 'open' | 'resume' | 'archive' | 'merge' | 'start'
+    payload?: string
+  }
+}
+
+/**
+ * The orchestrator's report on one project. Owned by main (not by the
+ * per-session status map) so it survives restarts and renders on the home
+ * screen before any orchestrator process exists.
+ */
+export interface OrchestratorDigest {
+  workspacePath: string
+  updatedAt: number
+  headline: string
+  items: DigestItem[]
+}
+
+/** Which kind of pass to run. `question` is an ordinary user prompt. */
+export type SweepKind = 'brief' | 'review'
+
+export interface OrchestratorWorkspacePrefs {
+  /** False until the user first opens the orchestrator for this project. */
+  enabled: boolean
+  /** May mutate sessions and start work without asking. */
+  autopilot: boolean
+  /** Cap on autopilot-started live sessions. */
+  maxConcurrent: number
+  /**
+   * Model for the FIRST spawn only. After that the orchestrator's own picker
+   * owns it: pi records `model_change` in the session file and restores the
+   * model on resume, so the choice persists with no pidex state.
+   */
+  model?: string
+}
+
+export const DEFAULT_ORCHESTRATOR_PREFS: OrchestratorWorkspacePrefs = {
+  enabled: false,
+  autopilot: false,
+  maxConcurrent: 2,
+}
+
+/**
+ * Session names carry this prefix so an orchestrator session stays
+ * identifiable when the prefs pointer is lost (fresh machine, cleared prefs).
+ * Deliberately a visible glyph rather than a hidden marker — a user browsing
+ * their pi sessions outside pidex should be able to tell what it is.
+ */
+export const ORCHESTRATOR_NAME_PREFIX = '✳ Orchestrator'
+
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
@@ -337,6 +463,17 @@ export interface AppPrefs {
   /** Whose system prompt Claude Code sessions run under. */
   claudeSystemPrompt: ClaudeSystemPromptMode
   worktrees: WorktreePrefs
+  /** Orchestrator settings per main-repo path. */
+  orchestrator: Record<string, OrchestratorWorkspacePrefs>
+  /**
+   * Main-repo path → the orchestrator's session FILE path. Doubles as the
+   * resume target, so the same thread comes back across restarts.
+   */
+  orchestratorSessions: Record<string, string>
+  /** Last digest per main-repo path, so home renders before anything spawns. */
+  orchestratorDigests: Record<string, OrchestratorDigest>
+  /** Suppress orchestrator desktop notifications. */
+  notificationsMuted: boolean
 }
 
 /**
@@ -362,6 +499,10 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   // user opts out of it.
   claudeSystemPrompt: 'claude',
   worktrees: DEFAULT_WORKTREE_PREFS,
+  orchestrator: {},
+  orchestratorSessions: {},
+  orchestratorDigests: {},
+  notificationsMuted: false,
 }
 
 /** Minimum pi version pidex is verified against. */

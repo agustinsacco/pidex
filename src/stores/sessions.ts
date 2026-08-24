@@ -86,6 +86,16 @@ interface SessionsState {
     },
   ) => Promise<string>
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
+  /**
+   * Take ownership of a session the MAIN process spawned (today: a project's
+   * orchestrator), so the renderer can show it like any other.
+   *
+   * Everything keyed on `live` breaks without this — most visibly
+   * `useActiveWorkspace()`, which resolves the active session's folder and
+   * returns null for a session it has never heard of, dropping the whole app
+   * to the workspace picker. Idempotent.
+   */
+  adoptSession: (sessionId: string, workspacePath: string) => Promise<void>
   activate: (sessionId: string | null) => void
   disposeSession: (sessionId: string) => Promise<void>
   /**
@@ -306,6 +316,13 @@ function attachSessionPushHandler(pidexId: string): void {
       case 'stderr':
         console.warn(`[pi stderr] ${push.text}`)
         break
+      case 'injected':
+        // The visible-hand rule: main sent this on the orchestrator's behalf,
+        // so the renderer never added it optimistically. pi persists it either
+        // way — without this the transcript of a session being steered stays
+        // silent until it is reopened. See specs/13-orchestration.md.
+        chatStore.addUserMessage(pidexId, push.text)
+        break
       case 'extension-ui':
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(pidexId, push.request),
@@ -481,6 +498,26 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } finally {
       set({ creating: false })
     }
+  },
+
+  adoptSession: async (sessionId, workspacePath) => {
+    if (get().live[sessionId]) return
+    useChatStore.getState().ensure(sessionId, { resuming: true })
+    attachSessionPushHandler(sessionId)
+    set((s) => ({
+      live: { ...s.live, [sessionId]: { pidexId: sessionId, workspacePath } },
+      unread: { ...s.unread, [sessionId]: 0 },
+    }))
+    try {
+      // Works for both cases: a resumed orchestrator replays its history, a
+      // freshly spawned one simply has none.
+      await rehydrateTranscript(sessionId)
+    } catch {
+      // non-fatal
+    } finally {
+      useChatStore.getState().doneResuming(sessionId)
+    }
+    await bootstrapSession(sessionId)
   },
 
   openDiskSession: async (workspacePath, meta) => {
