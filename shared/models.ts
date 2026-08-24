@@ -81,6 +81,15 @@ export interface SessionMeta {
   lastActivityAt: string
 }
 
+/**
+ * Latest attempt to scan a workspace's session directory.
+ *
+ * Absent = never attempted. `ok` = the newest `sessions:list` resolved
+ * (possibly to zero sessions); `error` = the newest attempt threw, so the
+ * sidebar must not claim the folder is empty.
+ */
+export type SessionScanStatus = 'ok' | 'error'
+
 /** Rollup of usage across sessions (per workspace and grand total). */
 export interface UsageTotals {
   cost: number

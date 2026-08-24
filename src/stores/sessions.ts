@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GitInfo, SessionMeta, SessionPush } from '@shared/models'
+import type { GitInfo, SessionMeta, SessionScanStatus, SessionPush } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { useNamingStore } from './naming'
@@ -45,6 +45,8 @@ interface SessionsState {
   live: Record<string, LiveSessionEntry>
   /** workspacePath → on-disk metas (sidebar). */
   disk: Record<string, SessionMeta[]>
+  /** workspacePath → latest scan attempt; absence = never attempted. */
+  scanStatus: Record<string, SessionScanStatus>
   /** pidexId → unread activity count for background sessions. */
   unread: Record<string, number>
   /** pidexId → git session baseline ref (null = not a repo). */
@@ -337,6 +339,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   activeSessionId: null,
   live: {},
   disk: {},
+  scanStatus: {},
   unread: {},
   baselines: {},
   pinned: [],
@@ -368,8 +371,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   refreshDisk: async (workspacePath) => {
-    const metas = await window.pidex.invoke('sessions:list', workspacePath)
-    set((s) => ({ disk: { ...s.disk, [workspacePath]: metas } }))
+    try {
+      const metas = await window.pidex.invoke('sessions:list', workspacePath)
+      set((s) => ({
+        disk: { ...s.disk, [workspacePath]: metas },
+        scanStatus: { ...s.scanStatus, [workspacePath]: 'ok' },
+      }))
+    } catch {
+      // Leave the previous `disk` intact and record the failure so the
+      // sidebar can show a retry instead of a permanent fake "Loading…".
+      set((s) => ({
+        scanStatus: { ...s.scanStatus, [workspacePath]: 'error' },
+      }))
+    }
   },
 
   /**
@@ -383,19 +397,35 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    */
   refreshAllDisk: async (workspacePaths, limit = 8) => {
     const targets = workspacePaths.slice(0, limit)
-    const results = await Promise.allSettled(
-      targets.map(async (path) => ({
-        path,
-        metas: await window.pidex.invoke('sessions:list', path),
-      })),
+    // Capture each `path` explicitly — a rejected inner promise would
+    // otherwise drop the `{ path, metas }` wrapper (allSettled's `reason` has
+    // no path), making per-workspace status impossible to record.
+    const results = await Promise.all(
+      targets.map(async (path) => {
+        try {
+          return {
+            path,
+            status: 'ok' as const,
+            metas: await window.pidex.invoke('sessions:list', path),
+          }
+        } catch {
+          return { path, status: 'error' as const }
+        }
+      }),
     )
     set((s) => {
       const disk = { ...s.disk }
+      const scanStatus = { ...s.scanStatus }
       for (const result of results) {
         // A workspace that has been deleted just yields no sessions.
-        if (result.status === 'fulfilled') disk[result.value.path] = result.value.metas
+        if (result.status === 'ok') {
+          disk[result.path] = result.metas
+          scanStatus[result.path] = 'ok'
+        } else {
+          scanStatus[result.path] = 'error'
+        }
       }
-      return { disk }
+      return { disk, scanStatus }
     })
   },
 
