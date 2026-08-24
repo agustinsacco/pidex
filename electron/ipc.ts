@@ -11,6 +11,7 @@ import { registerMcpHandlers } from './ipc/mcp-handlers'
 import { registerPackagesHandlers } from './ipc/packages-handlers'
 import { registerResourceHandlers } from './ipc/resources-handlers'
 import { registerUpdateHandlers } from './ipc/updates-handlers'
+import { registerOrchestratorHandlers } from './ipc/orchestrator-handlers'
 import { configureMonitor } from './resources/monitor'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
@@ -34,7 +35,10 @@ export function registerIpcHandlers(isDev: boolean): void {
     }))
   })
 
+  // First: it starts the fleet hub and teaches the orchestrator how to spawn,
+  // both of which the orchestrator handlers below assume are in place.
   registerPiSessionHandlers()
+  registerOrchestratorHandlers()
   registerAppHandlers()
   registerClipboardHandlers()
   registerPiConfigHandlers()

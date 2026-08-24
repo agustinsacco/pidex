@@ -16,6 +16,7 @@ import {
   setRecentWorkspaces,
   setTheme,
   setWorktreePrefs,
+  setNotificationsMuted,
 } from '../store'
 
 /**
@@ -117,6 +118,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setWorktreePrefs', (_event, worktrees) => {
     setWorktreePrefs(worktrees)
+  })
+
+  handle('app:setNotificationsMuted', (_event, muted: boolean) => {
+    setNotificationsMuted(muted)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {

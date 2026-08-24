@@ -15,6 +15,7 @@ import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
+import { OrchestratorChat, useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
@@ -173,6 +174,9 @@ function MainWithPanes({
   workspacePath: string
   activeSessionId: string
 }): React.JSX.Element {
+  // An orchestrator thread renders with its own chrome: it manages sessions
+  // rather than being one, and the two must not look identical once open.
+  const orchestratorFor = useIsOrchestrator(activeSessionId)
   const rightPane = useRightPane()
   const rightExpanded = useRightExpanded()
   const rightPanelRef = useRef<ImperativePanelHandle>(null)
@@ -188,7 +192,19 @@ function MainWithPanes({
   return (
     <PanelGroup direction="horizontal" autoSaveId={`pidex-main-${workspacePath}`}>
       <Panel id="chat" order={1} minSize={15}>
-        <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={workspacePath} />
+        {orchestratorFor ? (
+          <OrchestratorChat
+            key={activeSessionId}
+            sessionId={activeSessionId}
+            workspacePath={orchestratorFor}
+          />
+        ) : (
+          <ChatView
+            key={activeSessionId}
+            sessionId={activeSessionId}
+            workspacePath={workspacePath}
+          />
+        )}
       </Panel>
       {rightPane && (
         <>

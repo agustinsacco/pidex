@@ -6,6 +6,15 @@ pidex is a desktop coding-agent app: a clone of Anthropic's Claude Desktop "Code
 
 Coding-only. No "normal chat" mode, no routines, no cloud sync. The user opens workspaces (project folders), runs agent sessions against them, and works alongside the agent with a file explorer, code/diff viewer, full terminal, and an artifacts pane.
 
+**Many sessions at once is the normal case, not the edge case.** A project
+usually has several chats in flight, each on its own branch, and the product's
+job is to make that legible rather than to pretend one session is the unit of
+work. So the home screen is mission control — what every agent is doing, what
+is blocked on you, answerable in place — and each project can have an
+**orchestration agent** that watches its sessions and reports on them when
+asked. Watching costs nothing and is always on; the agent costs tokens and
+only runs when you ask it to. See [13-orchestration.md](13-orchestration.md).
+
 ## Non-negotiables
 
 1. **Coding first.** Every design decision optimizes for programming workflows.

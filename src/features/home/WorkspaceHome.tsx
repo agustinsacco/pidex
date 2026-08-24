@@ -5,6 +5,7 @@ import { useWorktreesStore } from '@/stores/worktrees'
 import { startChat, type StartChatPhase } from '@/features/sessions/startChat'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
+import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { workspaceName as workspaceDisplayName } from '@/lib/path'
@@ -125,9 +126,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
 
+          {/* Mission control: what every agent is doing, and what needs you.
+              Entirely mechanical — it renders with no orchestrator running and
+              costs nothing. See specs/13-orchestration.md. */}
+          <FleetOverview workspacePath={workspacePath} />
+
           {stats && stats.sessionCount > 0 && (
-            <div className="border-border bg-bg-secondary/60 mt-8 rounded-xl border p-4">
-              <div className="grid grid-cols-4 gap-2">
+            <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
+              <summary className="text-text-tertiary cursor-pointer text-sm">Project stats</summary>
+              <div className="mt-3 grid grid-cols-4 gap-2">
                 <StatTile label="Sessions" value={formatNumber(stats.sessionCount)} />
                 <StatTile label="Messages" value={formatNumber(stats.messages)} />
                 <StatTile label="Total tokens" value={formatTokens(stats.tokens)} />
@@ -139,7 +146,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                   You&apos;ve spent {formatCost(stats.cost)} thinking out loud in {workspaceName}.
                 </div>
               )}
-            </div>
+            </details>
           )}
 
           {stats && stats.sessionCount === 0 && (
