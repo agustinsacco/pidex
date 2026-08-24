@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { WorkspaceInfo } from '@shared/models'
+import { isWorktreeFolder } from '@/lib/path'
 import { useSessionsStore } from './sessions'
 
 /**
@@ -19,7 +20,15 @@ interface WorkspacesState {
   openWorkspace: (path: string) => void
   /** Native folder picker; adds the chosen folder rather than replacing. */
   pickAndOpen: () => Promise<string | null>
+  /** Move a workspace in the user-defined sidebar/switcher order. */
+  moveWorkspace: (path: string, direction: 'up' | 'down') => void
   hydrate: () => Promise<void>
+}
+
+/** A `WorkspaceInfo` for `path`, its name derived from the basename. */
+const entryFor = (path: string): WorkspaceInfo => {
+  const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path
+  return { path, name, lastOpenedAt: Date.now() }
 }
 
 export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
@@ -27,16 +36,26 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   recents: [],
 
   openWorkspace: (path) => {
-    set((s) => {
-      const name = path.split(/[/\\]/).filter(Boolean).pop() ?? path
-      const entry = { path, name, lastOpenedAt: Date.now() }
-      return {
-        homePath: path,
-        recents: [entry, ...s.recents.filter((w) => w.path !== path)],
-      }
-    })
-    // Persist immediately (recents + lastWorkspacePath) so the next launch
-    // lands here even if no session is ever created in this one.
+    // A worktree folder is a *branch* of a workspace, not a workspace of its
+    // own. The screen should still point at it (top bar, file tree, home
+    // target) — that's `homePath` plus the persisted `lastWorkspacePath` — but
+    // it must never enter `recents`, or the sidebar/switcher would list a
+    // header per chat instead of one per project.
+    set((s) =>
+      isWorktreeFolder(path)
+        ? { homePath: path, recents: s.recents }
+        : {
+            homePath: path,
+            // Opening records recency for launch recovery, but never changes the
+            // user's explicit workspace order. New folders join at the end.
+            recents: s.recents.some((w) => w.path === path)
+              ? s.recents.map((w) => (w.path === path ? entryFor(path) : w))
+              : [...s.recents, entryFor(path)],
+          },
+    )
+    // Persist immediately (recents + lastWorkspacePath). The main process
+    // prunes worktree folders from the persisted list; the in-memory list
+    // above has already excluded them.
     void window.pidex.invoke('app:recordWorkspace', path)
   },
 
@@ -44,6 +63,19 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     const path = await window.pidex.invoke('app:selectFolder')
     if (path) get().openWorkspace(path)
     return path
+  },
+
+  moveWorkspace: (path, direction) => {
+    const recents = get().recents
+    const index = recents.findIndex((workspace) => workspace.path === path)
+    const target = index + (direction === 'up' ? -1 : 1)
+    if (index < 0 || target < 0 || target >= recents.length) return
+
+    const next = [...recents]
+    const [workspace] = next.splice(index, 1)
+    next.splice(target, 0, workspace!)
+    set({ recents: next })
+    void window.pidex.invoke('app:setRecentWorkspaces', next)
   },
 
   hydrate: async () => {

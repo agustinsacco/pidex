@@ -6,13 +6,14 @@ import { fleetHub, registry } from '../registry'
 import { handle } from './handle'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
+import { worktreePromptBlock } from '../pi/workspace-prompt'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace } from '../store'
 import { broadcast } from '../orchestrator/broadcast'
 import { configureOrchestrator, orchestrator } from '../orchestrator/instance'
 import { startNotifier } from '../orchestrator/notifier'
-import { gitInfo } from '../fs/git-info'
+import { gitInfo, gitInfoBatch } from '../fs/git-info'
 import {
   MIN_PI_VERSION,
   type CreateSessionOptions,
@@ -34,11 +35,17 @@ function bundledExtensionPath(file: string): string {
 
 /**
  * Extensions pidex loads into EVERY session, regardless of provider:
- * artifacts (tools the model can call) and context-breakdown (passive
- * reporting of what is filling the context window, which only pi can see).
+ * artifacts (tools the model can call), context-breakdown (passive reporting
+ * of what is filling the context window, which only pi can see), and
+ * worktree-paths (refuses a file read that has escaped into the main
+ * checkout of a worktree session).
  */
 function bundledExtensions(): string[] {
-  return [bundledExtensionPath('artifacts.ts'), bundledExtensionPath('context-breakdown.ts')]
+  return [
+    bundledExtensionPath('artifacts.ts'),
+    bundledExtensionPath('context-breakdown.ts'),
+    bundledExtensionPath('worktree-paths.ts'),
+  ]
 }
 
 /**
@@ -99,6 +106,23 @@ async function spawnSession(
     ...(options.extraExtensions ?? []).map(bundledExtensionPath),
   ]
 
+  // Worktree sessions get an explicit working-directory block: pi's own
+  // `Current working directory:` line is correct but has been observed to
+  // lose against a model rebuilding an absolute path from what it thinks
+  // the project root is. Skipped for the stub, which speaks a fixed script.
+  // The batched form for one path on purpose: it is the cached one, and the
+  // sidebar has almost always just resolved this cwd, so creating a session
+  // usually costs no git at all.
+  const gitByPath = stub ? {} : await gitInfoBatch([options.workspacePath])
+  const worktreeBlock = worktreePromptBlock(
+    options.workspacePath,
+    gitByPath[options.workspacePath] ?? { isRepo: false },
+  )
+  // Both can apply: the orchestrator supplies its own preamble, and if it ever
+  // runs somewhere that needs the worktree block it must still get one.
+  const appendSystemPrompt =
+    [worktreeBlock, options.appendSystemPrompt].filter(Boolean).join('\n\n') || undefined
+
   const session = registry.create(options.workspacePath, {
     binaryPath,
     prefixArgs,
@@ -108,7 +132,7 @@ async function spawnSession(
     model: options.model,
     provider: options.provider,
     thinkingLevel: options.thinkingLevel,
-    ...(options.appendSystemPrompt ? { appendSystemPrompt: options.appendSystemPrompt } : {}),
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
     // The bundled artifacts extension rides along in every session.
     ...(stub ? {} : { extensions }),
     env: spawnEnv,

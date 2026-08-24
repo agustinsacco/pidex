@@ -11,14 +11,32 @@ sidebar group.
   `.git/info/exclude` (appended idempotently; tracked files never touched).
   In-repo keeps worktrees discoverable and the sidebar group name meaningful
   (groups key on cwd basename).
-- **A new chat gets its own branch, named after itself.** Sending the first
-  message from the home composer generates the session title, derives a branch
-  and folder from it, and starts pi there — one name in three places
-  (`src/features/sessions/startChat.ts`). This is why the send button waits a
-  couple of seconds: a pi session is bound to the cwd it spawned in, so the
-  worktree has to exist first. Every step degrades rather than aborting — a
-  naming timeout falls back to the message text, an unreachable remote to
-  local trunk, a git refusal to a plain session with the reason shown.
+- **A new chat gets its own branch, named after itself — but it is cut first
+  and named second.** Sending the first message derives a branch and folder
+  from a slug of that message, starts pi there immediately, and _then_ asks the
+  naming model for a title; when it lands it sets the session name and renames
+  the branch to match (`src/features/sessions/startChat.ts`). One name in three
+  places still, a few seconds in.
+
+  _This reverses the original order, in which naming blocked the send._ The
+  reason was sound — a pi session is bound to the cwd it spawned in, so the
+  worktree must exist first, and the branch was named after the title — but
+  `pi -p` is a whole agent boot: ~6s before the model is asked anything, ~13s
+  for a real naming prompt, against a 12s cap. The title lost its own race
+  every time, so in practice every auto-created branch was already named after
+  the message slug and the title arrived only via a second ~13s call. The send
+  button blocked for 12s to achieve nothing. Inverting the dependency keeps the
+  outcome and drops the wait.
+
+  The worktree **folder** keeps its slug when the branch is renamed: it is a
+  live session's cwd, and moving it would break that session's binding to its
+  transcript. `git branch -m` is safe on a branch a worktree has checked out —
+  git rewrites that worktree's HEAD.
+
+  Every step still degrades rather than aborting — an unreachable remote falls
+  back to local trunk, a git refusal to a plain session with the reason shown,
+  a failed naming leaves the slug standing.
+
 - **Auto-created branches start from `origin/<trunk>`, not local trunk.**
   "Branch off the latest main" is the intent, and a local `main` in a repo
   someone has been working in is routinely stale. Pulling it first would fail
@@ -66,11 +84,19 @@ sidebar group.
 
 ## Surfaces
 
-There is **one** branch control, in the window's top bar
-(`src/app/TopBar.tsx`). It replaced three overlapping ones — the home
-composer's chip, the chat header's git chip, and the sidebar group menu — which
-could each answer "which branch will this run on?" differently and none of
-which was visible from the others.
+There is **one** branch control visible at a time. It replaced three
+overlapping ones — the home composer's chip, the chat header's git chip, and
+the sidebar group menu — which could each answer "which branch will this run
+on?" differently and none of which was visible from the others.
+
+It lives in the window's top bar (`src/app/TopBar.tsx`) on session screens,
+and directly above the composer on the home screen, alongside the folder chip
+and the "new branch" checkbox. The top bar renders neither when no session is
+active, so the two are never on screen together: choosing where a chat will
+run is the _subject_ of the home screen rather than window furniture, and the
+top bar's compact chips sit far from the composer and get clipped behind the
+OS window controls. Same components, same state — one surface owns them per
+screen, which is the invariant that matters.
 
 | Operation                                         | Top-bar branch control      | Sidebar group menu     |
 | ------------------------------------------------- | --------------------------- | ---------------------- |
@@ -86,19 +112,20 @@ which was visible from the others.
 | Prune stale worktrees                             | ✓ (when any prunable)       |                        |
 | New session in worktree                           | ✓ (switch, then compose)    | ✓ ("New session here") |
 
-The home composer still does not pick a start _target_ — that is the top bar's
-job. Its one git control is a checkbox that opts the next message out of
-isolation, which is a different question ("does this chat need a branch at
-all?") and is worth answering per message: a quick question does not deserve
-one. Ticked (the default), a new chat branches off trunk even when the open
-workspace is itself a worktree, because a new chat means new work. Continuing
-on the branch you are looking at is the sidebar's "New session here".
+Beside them sits the "new branch" checkbox, which answers a different question
+("does this chat need a branch at all?") and is worth answering per message: a
+quick question does not deserve one. Ticked (the default), a new chat branches
+off trunk even when the open workspace is itself a worktree, because a new chat
+means new work. Continuing on the branch you are looking at is the sidebar's
+"New session here".
 
 ## Code map
 
-- `src/features/sessions/startChat.ts` — the home composer's send path: title
-  - fetch in parallel, branch/folder derivation, worktree creation, workspace
-    switch, session spawn. Every failure mode degrades to a running session.
+- `src/features/sessions/startChat.ts` — the home composer's send path:
+  bounded fetch, branch/folder derivation from the message slug, worktree
+  creation, workspace switch, session spawn — then, off the critical path,
+  naming and the branch rename. Every failure mode degrades to a running
+  session.
 - `src/lib/branchName.ts` — pure title → `{folder, branch}` derivation
   (slug, prefix normalization, collision suffixes). Its charset is narrower
   than git's ref rules on purpose, so no result needs re-validating.

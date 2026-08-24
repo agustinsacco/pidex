@@ -34,8 +34,8 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const percent = Math.min(100, Math.round(usage.percent))
   const warn = percent >= 75
   const critical = percent >= 90
-  // Spending fast while producing nothing is invisible in the percentage — a
-  // stuck tool loop can bill millions without the meter moving.
+  // A loop that re-sends context it already delivered is invisible in the
+  // percentage — it can bill millions without the meter moving.
   const burn = assessBurn(burnSamples(sessionId), Date.now())
   const burning = burn?.level === 'runaway' || burn?.level === 'elevated'
 
@@ -105,9 +105,12 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                   : 'border-warning/30 bg-warning/10 text-warning',
               )}
             >
-              Burning {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min with{' '}
-              {(burn.yield * 100).toFixed(1)}% going to output. The agent may be repeating itself —
-              worth stopping the turn and checking.
+              Burning {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min, and cache writes
+              are accelerating
+              {burn.acceleration != null && ` ${burn.acceleration.toFixed(1)}×`} across the window —
+              the signature of a loop re-sending context it already delivered. Only{' '}
+              {(burn.yield * 100).toFixed(1)}% of the spend is reaching output. Worth stopping the
+              turn and checking.
             </div>
           )}
           <div className="mt-2 space-y-1 text-base">

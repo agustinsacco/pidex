@@ -7,7 +7,7 @@ import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { stopMonitor } from './resources/monitor'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
-import { applyZoom, overlayFor } from './window-chrome'
+import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -66,10 +66,14 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Required whenever the window stays unmapped; see hideWindowsForE2E.
+      ...(hideWindowsForE2E() ? { backgroundThrottling: false } : {}),
     },
   })
 
-  window.on('ready-to-show', () => window.show())
+  window.on('ready-to-show', () => {
+    if (!hideWindowsForE2E()) window.show()
+  })
 
   // Chromium resets the zoom factor on every navigation, so the stored UI
   // scale has to be re-applied per load — not once at creation, or an HMR

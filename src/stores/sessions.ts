@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { GitInfo, SessionMeta, SessionPush } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
+import { useNamingStore } from './naming'
 import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -75,6 +76,13 @@ interface SessionsState {
       name?: string
       firstPrompt?: string
       firstImages?: ImageContent[]
+      /**
+       * Generate a title for this session once its first message exists.
+       * Defaults to true. `startChat` sets it false because it owns naming for
+       * the chats it creates — the title has to reach the branch as well as
+       * the session, and two naming passes would mean two different names.
+       */
+      autoName?: boolean
     },
   ) => Promise<string>
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
@@ -147,6 +155,16 @@ async function bootstrapSession(pidexId: string): Promise<void> {
         void window.pidex.invoke('app:setLastSession', diskPath)
         useSessionsStore.getState().markSeen(diskPath)
       }
+      // Re-scan the folder so the session gets a real sidebar row rather than
+      // the placeholder one. The dir watcher is the usual source of this, but
+      // it cannot be the only one: `ignoreInitial` means a file already written
+      // by the time the watcher attaches raises no event, which is the normal
+      // case for a brand-new worktree (the folder becomes watched only once
+      // the session that created it exists). Without this the row stayed a
+      // `PendingSessionRow` — no context menu, no right-click — until some
+      // unrelated re-render happened to re-scan.
+      const workspacePath = useSessionsStore.getState().live[pidexId]?.workspacePath
+      if (workspacePath) void useSessionsStore.getState().refreshDisk(workspacePath)
     }
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
@@ -208,9 +226,11 @@ async function autoNameSession(
   const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
     .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
     .filter((t): t is string => Boolean(t))
+  useNamingStore.getState().start(pidexId, workspacePath)
   const title = await window.pidex
     .invoke('pi:generateTitle', workspacePath, firstPrompt, existing)
     .catch(() => null)
+  useNamingStore.getState().finish(pidexId)
   if (!title) return
   if (useChatStore.getState().sessions[pidexId]?.meta?.sessionName) return
   if (!useSessionsStore.getState().live[pidexId]) return
@@ -235,6 +255,7 @@ async function refreshStats(pidexId: string): Promise<void> {
         at: Date.now(),
         billed: input + output + cacheRead + cacheWrite,
         output,
+        cacheWrite,
       })
     }
   } catch {
@@ -469,7 +490,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         // put a subprocess spawn (`pi -p`) in the middle of session startup,
         // competing with the get_state round-trip that "reopen my last
         // session" depends on.
-        if (!options.name && !options.sessionPath) {
+        if (options.autoName !== false && !options.name && !options.sessionPath) {
           void bootstrapped.then(() => autoNameSession(pidexId, workspacePath, firstPrompt))
         }
       }

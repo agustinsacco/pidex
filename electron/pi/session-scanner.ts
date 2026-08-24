@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { SessionMeta, UsageSummary, UsageTotals, WorkspaceSessionStats } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
+import { compareSessionsByCreation } from '@shared/session-order'
 import { piSessionsRoot, sessionDirForCwd } from './pi-paths'
 import { extractText } from './session-content'
 
@@ -58,7 +59,7 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
     }),
   )
 
-  return metas.filter((m): m is SessionMeta => m !== null).sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return metas.filter((m): m is SessionMeta => m !== null).sort(compareSessionsByCreation)
 }
 
 /** Single-pass parse: header, latest name, first user message, counts, tokens. */

@@ -10,6 +10,16 @@ import {
 } from '@shared/models'
 
 /**
+ * True for a path inside a repo's internal worktree folder
+ * (`<repo>/.pidex/worktrees/<name>`). A worktree is a branch of an existing
+ * workspace, not a workspace itself, so it must never persist as one.
+ */
+const WORKTREE_SEGMENT = /[/\\]\.pidex[/\\]worktrees[/\\]/
+function isWorktreeFolder(path: string): boolean {
+  return WORKTREE_SEGMENT.test(path)
+}
+
+/**
  * Constructed lazily, NOT at module scope.
  *
  * electron-store resolves `userData` the moment it is instantiated, and ES
@@ -29,7 +39,10 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
-    recentWorkspaces: s.get('recentWorkspaces'),
+    // Prune worktree folders on read too: a pre-fix install may have recorded
+    // one per session worktree, which used to flood the sidebar/switcher with
+    // a header per chat instead of one per project.
+    recentWorkspaces: (s.get('recentWorkspaces') ?? []).filter((ws) => !isWorktreeFolder(ws.path)),
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
@@ -123,8 +136,19 @@ export function setTheme(theme: ThemePreference): void {
 export function recordWorkspace(path: string, name: string): void {
   const s = prefs()
   const now = Date.now()
-  const existing = s.get('recentWorkspaces').filter((w: WorkspaceInfo) => w.path !== path)
-  const entry: WorkspaceInfo = { path, name, lastOpenedAt: now }
-  s.set('recentWorkspaces', [entry, ...existing].slice(0, 20))
+  const workspaces = s.get('recentWorkspaces')
+  // The last-opened workspace is always remembered (it drives launch resume),
+  // but only real workspaces enter the recents list the sidebar orders by.
+  if (!isWorktreeFolder(path)) {
+    const entry: WorkspaceInfo = { path, name, lastOpenedAt: now }
+    // Recency is metadata for launch recovery, not sidebar order. Preserve an
+    // existing workspace's position; only a newly opened folder is appended.
+    const index = workspaces.findIndex((workspace) => workspace.path === path)
+    const next =
+      index < 0
+        ? [...workspaces, entry].slice(-20)
+        : workspaces.map((workspace) => (workspace.path === path ? entry : workspace))
+    s.set('recentWorkspaces', next)
+  }
   s.set('lastWorkspacePath', path)
 }

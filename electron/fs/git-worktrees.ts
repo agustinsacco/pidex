@@ -364,6 +364,43 @@ export async function addWorktree(
   return created
 }
 
+/**
+ * Rename a branch, including one checked out in a linked worktree.
+ *
+ * This exists because a chat's branch is now cut before its name is known. The
+ * naming model costs ~13s, and waiting for it is what made "new chat" feel
+ * hung, so the branch is cut immediately from a slug of the first message and
+ * brought into agreement with the generated title afterwards.
+ *
+ * `git branch -m` is safe on a branch that a linked worktree has checked out —
+ * git rewrites that worktree's HEAD, so the live pi session running there is
+ * undisturbed (its cwd, which is what binds it to its transcript, never
+ * moves). The worktree *folder* keeps its original slug on purpose: moving it
+ * would move a live session's cwd out from under it.
+ *
+ * Never throws for the ordinary refusals — a rename is cosmetic, and a chat
+ * that is already running must not surface an error because its branch could
+ * not be retitled.
+ */
+export async function renameBranch(
+  repoPath: string,
+  from: string,
+  to: string,
+): Promise<{ renamed: boolean; branch: string }> {
+  if (from === to) return { renamed: false, branch: from }
+  if (!NAME_PATTERN.test(to) || to.includes('..')) {
+    return { renamed: false, branch: from }
+  }
+  try {
+    // No `-M`: a plain `-m` refuses to clobber an existing branch, which is
+    // the behaviour we want if the caller's dedupe raced another session.
+    await git(repoPath, ['branch', '-m', from, to])
+    return { renamed: true, branch: to }
+  } catch {
+    return { renamed: false, branch: from }
+  }
+}
+
 export async function removeWorktree(
   repoPath: string,
   worktreePath: string,

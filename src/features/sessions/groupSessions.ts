@@ -1,5 +1,6 @@
 import type { GitInfo, SessionMeta } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
+import { compareSessionsByCreation } from '@shared/session-order'
 import { workspaceName } from '@/lib/path'
 
 export interface GroupedSessions {
@@ -21,7 +22,7 @@ export interface GroupedSessions {
 
 /**
  * Group known workspace folders into one entry per *project*, live projects
- * first.
+ * in the caller's persisted workspace order.
  *
  * A linked worktree is a different folder from its main repo, so grouping
  * naively by folder gave every worktree its own sidebar header ("pidex",
@@ -78,20 +79,16 @@ export function groupSessionsByProject(
           workspacePath,
           paths: entry.paths,
           name: workspaceName(projectKey),
-          metas: entry.metas.sort((a, b) => b.mtimeMs - a.mtimeMs),
+          metas: entry.metas.sort(compareSessionsByCreation),
           liveCount: entry.liveCount,
           scanned: entry.scanned,
         }
       })
       // Unscanned workspaces (beyond the boot-scan cap) still get a header —
       // hiding them would make their sessions unreachable until restart.
+      // Map insertion order comes from `knownWorkspaces`, the persisted
+      // user-defined order. Do not sort by active/live/recent activity here.
       .filter((g) => g.metas.length > 0 || !g.scanned || g.paths.includes(activeWorkspacePath))
-      .sort((a, b) => {
-        if (a.liveCount !== b.liveCount) return b.liveCount - a.liveCount
-        if (a.paths.includes(activeWorkspacePath)) return -1
-        if (b.paths.includes(activeWorkspacePath)) return 1
-        return (b.metas[0]?.mtimeMs ?? 0) - (a.metas[0]?.mtimeMs ?? 0)
-      })
   )
 }
 

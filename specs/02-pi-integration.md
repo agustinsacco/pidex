@@ -89,7 +89,7 @@ Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUS
 - JSONL tree files: `~/.pi/agent/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`. Respect `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
 - Line 1 header: `{type:"session", version:3, id, timestamp, cwd, parentSession?}`. All other entries have `id`/`parentId` (8-char hex) forming a **tree**; the current position is the leaf.
 - Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).
-- Sidebar scan: parse header + last `session_info` + first user message + file mtime. Live-update via chokidar on the sessions dir.
+- Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir.
 - Sessions are deleted by trashing the `.jsonl` file.
 
 ## Config on disk

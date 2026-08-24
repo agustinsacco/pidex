@@ -13,6 +13,10 @@
      accent stays; only the neutrals were desaturated. */
   --px-bg: #f7f7f8;
   --px-bg-secondary: #efeff1;
+  /* Sidebar: a touch darker than the page so the column reads as a panel
+     without needing a border (which was producing a translucent "card"
+     edge — see Sidebar.tsx). */
+  --px-sidebar: #ededef;
   --px-surface: #ffffff;
   --px-surface-raised: #ffffff;
   --px-border: #e4e4e7;
@@ -62,6 +66,8 @@
      white on amber fails contrast (2.2:1). Always use the token pair. */
   --px-bg: #1e1c18;
   --px-bg-secondary: #26231e;
+  /* Sidebar: one step darker than the page so it sits flush (no border). */
+  --px-sidebar: #15130f;
   --px-surface: #2a2721;
   --px-surface-raised: #322e27;
   --px-border: #3a352c;
@@ -88,6 +94,7 @@
 @theme inline {
   --color-bg: var(--px-bg);
   --color-bg-secondary: var(--px-bg-secondary);
+  --color-sidebar: var(--px-sidebar);
   --color-surface: var(--px-surface);
   --color-surface-raised: var(--px-surface-raised);
   --color-border: var(--px-border);
@@ -669,6 +676,49 @@ select:focus:not(:focus-visible) {
 }
 
 /**
+ * A session whose real name is still being decided.
+ *
+ * A chat's branch is cut from a slug of its first message and pi starts
+ * immediately, so for a few seconds the title on screen is a placeholder that
+ * is about to be replaced (see specs/log/2026-08-22-fast-session-start.md).
+ * Shimmering the actual glyphs rather than swapping in a skeleton bar is the
+ * point: the provisional title is real, readable, useful text — it just is not
+ * final. A skeleton would hide information the user already has.
+ */
+.name-pending {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-tertiary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-tertiary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2s linear infinite;
+}
+
+/**
+ * ...and the arrival of the real one. Short and small: this fires on a name
+ * the user did not ask for, several seconds after they moved on, so it should
+ * register as "that settled" in peripheral vision, never pull focus back.
+ */
+@keyframes px-name-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.name-enter {
+  animation: px-name-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/**
  * PiSpark — the "working" mark. The ray group turns slowly while each ray
  * pulses on its own stagger, so the mark shimmers outward rather than
  * blinking as a whole.
@@ -729,11 +779,18 @@ select:focus:not(:focus-visible) {
   .activity-step-enter,
   .activity-response-enter,
   .expand-enter,
+  .name-enter,
   .tool-running-dot,
-  .tool-running-label {
+  .tool-running-label,
+  .name-pending {
     animation: none;
   }
-  .tool-running-label {
+  /* Both of these paint their glyphs with a transparent fill over a moving
+     gradient. Stopping the animation without restoring the fill would leave
+     the text invisible, not merely still — for .name-pending that is a
+     session's title, i.e. the only thing identifying the row. */
+  .tool-running-label,
+  .name-pending {
     -webkit-text-fill-color: currentColor;
   }
 }

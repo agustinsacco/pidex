@@ -25,9 +25,17 @@ change done; run e2e when touching IPC, session lifecycle, or visible UI flow.
 
 `npm run validate` (`scripts/validate.sh`) is the one to reach for when you
 just want a verdict: it prints one line per step and sends everything else to
-`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`), so the e2e run's
-reporter and its Electron windows don't take over the screen. `SKIP_E2E=1`
-stops before the slow part.
+`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`). `SKIP_E2E=1` stops
+before the slow part.
+
+**E2E windows never appear on your screen**, so a background agent running the
+suite can't steal focus mid-keystroke. `scripts/e2e.sh` prefers `xvfb-run`
+(real windows on a virtual display, full speed — install with
+`sudo apt install xvfb`) and otherwise leaves the windows unmapped
+(`hideWindowsForE2E` in `electron/window-chrome.ts`), which is ~2-3x slower
+because Chromium deprioritizes rendering for a window that was never shown.
+`PIDEX_E2E_SHOW=1 npm run test:e2e` puts them back on your real display when
+you want to watch.
 
 ## Architecture in five facts
 
@@ -88,6 +96,15 @@ stops before the slow part.
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
   read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
+- **`pi-ext/worktree-paths.ts` can refuse a tool call**, and it is the only
+  pidex code that runs inside pi's process. It blocks a `read`/`write`/`edit`/
+  `ls`/`grep`/`find` whose path escapes a worktree session into the repo's main
+  checkout (a different branch) when the same file exists in the worktree —
+  models were doing this silently and answering about the wrong branch. The
+  four conditions in that file are deliberately narrow; widening them blocks
+  legitimate reads, because pi's own prompt sends the model to absolute paths
+  outside the cwd for its docs. See
+  [specs/log/2026-08-22-worktree-path-leak.md](specs/log/2026-08-22-worktree-path-leak.md).
 - **Two UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session) and its plan-limits section from the Claude provider
@@ -106,6 +123,10 @@ stops before the slow part.
 - Modals use `ModalOverlay` from `src/components/Modal.tsx` — portalling,
   backdrop dismissal, and depth-aware Escape (innermost wins). Don't add
   window-level Escape listeners in modal content.
+- **Never call `window.prompt`** (or rely on it existing): Electron overrides
+  it to throw. Ask for text with `promptText` / show fallback text with
+  `presentText` from `src/stores/prompt.ts` (rendered by `PromptHost`).
+  ESLint (`no-restricted-syntax`) enforces this in `src/`.
 - Model-authored HTML renders **only** inside a sandboxed iframe under the
   strict CSP. Never widen this.
 - Renderer path aliases: `@/` → `src/`, `@shared/` → `shared/`.

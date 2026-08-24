@@ -1,6 +1,7 @@
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { piCall, piCallOk } from '@/lib/rpc'
+import { presentText, promptText } from '@/stores/prompt'
 import { formatSessionDebugInfo } from '@/lib/sessionDebugInfo'
 
 /**
@@ -39,7 +40,11 @@ export async function renameSession(
   sessionId: string,
   currentName?: string,
 ): Promise<string | undefined> {
-  const name = window.prompt('Session name', currentName ?? '')
+  const name = await promptText({
+    title: 'Rename session',
+    placeholder: 'Session name',
+    initialValue: currentName ?? '',
+  })
   if (!name) return undefined
 
   if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) return undefined
@@ -75,6 +80,6 @@ export async function copySessionDebugInfo(
   } catch {
     // Clipboard can be denied; the text is useless if it is neither copied nor
     // shown, so fall back to something the user can select by hand.
-    window.prompt('Copy session debug info', text)
+    await presentText({ title: 'Copy session debug info', text })
   }
 }

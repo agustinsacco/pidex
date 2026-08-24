@@ -23,6 +23,7 @@ import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
 import { useGlobalShortcuts } from './useGlobalShortcuts'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
+import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { UsageModal } from '@/features/usage/UsageModal'
@@ -156,6 +157,7 @@ export function App(): React.JSX.Element {
       <FuzzyFinder workspacePath={currentWorkspace} />
       <ContextMenuHost />
       <ExtensionDialogHost />
+      <PromptHost />
       <ToastHost />
       <CommandPalette workspacePath={currentWorkspace} />
       <SettingsModal />

@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { basename, dirname, splitPath, workspaceName, worktreeAwareName } from './path'
+import {
+  basename,
+  dirname,
+  isWorktreeFolder,
+  splitPath,
+  workspaceName,
+  worktreeAwareName,
+} from './path'
 
+describe('isWorktreeFolder', () => {
+  it('flags a path inside a repo worktree folder', () => {
+    expect(isWorktreeFolder('/home/u/pidex/.pidex/worktrees/some-task')).toBe(true)
+    expect(isWorktreeFolder('C:\\Users\\u\\pidex\\.pidex\\worktrees\\task')).toBe(true)
+  })
+
+  it('does not flag the main repo, another workspace, or a session dir', () => {
+    expect(isWorktreeFolder('/home/u/pidex')).toBe(false)
+    expect(isWorktreeFolder('/home/u/games')).toBe(false)
+    expect(isWorktreeFolder('/home/u/.pi/agent/sessions/--x--')).toBe(false)
+  })
+
+  it('requires the folder component, not just the substring', () => {
+    expect(isWorktreeFolder('/home/u/pidex/.pidex/worktrees2/x')).toBe(false)
+    expect(isWorktreeFolder('/home/u/pidexworktrees/x')).toBe(false)
+  })
+})
+
+// Existing suite below
 describe('basename', () => {
   it.each([
     ['src/lib/a.ts', 'a.ts'],

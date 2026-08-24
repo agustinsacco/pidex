@@ -4,6 +4,7 @@ export type SettingsTab =
   | 'appearance'
   | 'agent'
   | 'orchestration'
+  | 'accounts'
   | 'extensions'
   | 'claude-provider'
   | 'web-access'
