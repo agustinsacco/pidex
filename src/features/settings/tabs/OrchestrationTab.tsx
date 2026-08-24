@@ -84,13 +84,6 @@ export function OrchestrationTab(): React.JSX.Element {
       </Row>
 
       <Row
-        title="Brief when this project opens"
-        description="Runs one briefing sweep on open. That spends tokens, so it is off by default."
-      >
-        <Toggle on={prefs.sweepOnOpen} onChange={(sweepOnOpen) => update({ sweepOnOpen })} />
-      </Row>
-
-      <Row
         title="Desktop notifications"
         description="Tells you when a session is blocked while pidex is in the background. Applies to every project."
       >

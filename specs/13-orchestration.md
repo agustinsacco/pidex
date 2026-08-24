@@ -20,9 +20,13 @@ judgment, not for plumbing; Layer 3 is off by default.
 
 - **The hub never runs inference.** It is a projection of events pidex already
   receives. Nothing in Layer 1 spawns a process or spends a token.
-- **The orchestrator wakes on demand, not on events.** A sweep runs when the
-  user asks (or, opt-in, once when a workspace opens). There is no per-event
-  agent. See [Sweeps](#sweeps-the-only-inference-trigger).
+- **Nothing here runs a model unless the user asks, with no exceptions.**
+  There is no timer, no startup sweep, no event trigger. The orchestrator
+  process does not exist until the spark is clicked, and even then it is idle
+  until spoken to. Every path that spends tokens is a click: opening the
+  orchestrator chat, sending it a message, or pressing "Brief me". A workspace
+  that never touches those never runs inference for orchestration at all. See
+  [Sweeps](#sweeps-the-only-inference-trigger).
 - **No hidden hand.** Every action the orchestrator takes on a session appears
   in that session's transcript, live. See [The visible-hand rule](#the-visible-hand-rule).
 - **Autonomy is opt-in and capped.** Without autopilot the orchestrator may
@@ -320,8 +324,6 @@ export interface OrchestratorWorkspacePrefs {
   autopilot: boolean
   /** Cap on autopilot-spawned live sessions. */
   maxConcurrent: number
-  /** Run one `brief` sweep when this workspace opens. */
-  sweepOnOpen: boolean
   /**
    * Model for the FIRST spawn only. After that the orchestrator's own picker
    * owns it: pi records `model_change` in the session file and restores model
@@ -331,8 +333,14 @@ export interface OrchestratorWorkspacePrefs {
 }
 ```
 
-Defaults: `enabled false`, `autopilot false`, `maxConcurrent 2`,
-`sweepOnOpen false`. Stored per main-repo path in `AppPrefs`.
+Defaults: `enabled false`, `autopilot false`, `maxConcurrent 2`. Stored per
+main-repo path in `AppPrefs`.
+
+**There is no "sweep on open" setting.** One was specified and built as a
+toggle, then removed before shipping: nothing read it, so it was a control
+that promised to spend tokens and did not. More importantly, wiring it would
+have broken the guarantee below — that inference happens only when the user
+asks for it, with no exceptions to remember.
 
 ---
 
@@ -467,12 +475,15 @@ anywhere, which is itself the first thing to check.
 8. **First click explains itself** — click the sidebar spark on a project that
    has never had an orchestrator. It opens a chat; it must not silently start
    a sweep.
-9. **It is a real session** — the model picker, `/compact`, and the context
-   meter all work in the orchestrator chat exactly as in any other.
-10. **It stays out of the numbers** — with an orchestrator thread present,
+9. **The chat is unmistakable** — the orchestrator's view carries an accent
+   banner naming the project, how many sessions it is watching, and "manages
+   sessions · does not write code". It must never look like an ordinary chat.
+10. **It is a real session** — the model picker, `/compact`, and the context
+    meter all work in the orchestrator chat exactly as in any other.
+11. **It stays out of the numbers** — with an orchestrator thread present,
     check Settings → Usage lists it as its own labelled line, and that the home
     "Project stats" session count does **not** include it.
-11. **Settings → Orchestration** — autopilot off by default, cap of 2, brief-on-
+12. **Settings → Orchestration** — autopilot off by default, cap of 2, brief-on-
     open off, notifications on. The rules box shows `<repo>/.pidex/orchestrator.md`
     and saving reports "Applies next session".
 

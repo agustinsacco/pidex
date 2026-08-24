@@ -418,8 +418,6 @@ export interface OrchestratorWorkspacePrefs {
   autopilot: boolean
   /** Cap on autopilot-started live sessions. */
   maxConcurrent: number
-  /** Run one `brief` sweep when this workspace opens. */
-  sweepOnOpen: boolean
   /**
    * Model for the FIRST spawn only. After that the orchestrator's own picker
    * owns it: pi records `model_change` in the session file and restores the
@@ -432,7 +430,6 @@ export const DEFAULT_ORCHESTRATOR_PREFS: OrchestratorWorkspacePrefs = {
   enabled: false,
   autopilot: false,
   maxConcurrent: 2,
-  sweepOnOpen: false,
 }
 
 /**
