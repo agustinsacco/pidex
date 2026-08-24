@@ -3,7 +3,7 @@ import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import type { QueueMode } from '@shared/rpc'
 import { piCallOk } from '@/lib/rpc'
-import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
+import { exportSessionHtml } from '@/features/sessions/sessionActions'
 import { promptText } from '@/stores/prompt'
 
 /**
@@ -62,10 +62,6 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
   const exportHtml = (): Promise<void> =>
     exportSessionHtml(sessionId, meta?.sessionName ?? 'session')
 
-  const rename = async (): Promise<void> => {
-    await renameSession(sessionId, meta?.sessionName)
-  }
-
   return (
     <div className="relative">
       <button
@@ -87,9 +83,6 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
           triggerRef={triggerRef}
           className="absolute right-0 top-full mt-1.5 w-72 py-1.5"
         >
-          <MenuRow active={false} onClick={() => void command(rename)}>
-            <span className="flex-1">Rename session…</span>
-          </MenuRow>
           <MenuRow active={false} onClick={() => void command(exportHtml)}>
             <span className="flex-1">Export as HTML…</span>
           </MenuRow>

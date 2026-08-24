@@ -32,6 +32,20 @@ export async function exportSessionHtml(sessionId: string, defaultName = 'sessio
 }
 
 /**
+ * Apply a new session name without prompting. Returns true on success.
+ *
+ * Callers that collect the name themselves (e.g. an inline sidebar input)
+ * pass it straight through here and skip the modal.
+ */
+export async function applySessionRename(sessionId: string, name: string): Promise<boolean> {
+  const trimmed = name.trim()
+  if (!trimmed) return false
+  if (!(await piCallOk(sessionId, { type: 'set_session_name', name: trimmed }))) return false
+  useChatStore.getState().patchMeta(sessionId, { sessionName: trimmed })
+  return true
+}
+
+/**
  * Prompt for a new session name and apply it. Returns the new name on success
  * so callers can run their own follow-up (e.g. refreshing the disk listing),
  * or `undefined` when cancelled or failed.
@@ -47,8 +61,7 @@ export async function renameSession(
   })
   if (!name) return undefined
 
-  if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) return undefined
-  useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+  if (!(await applySessionRename(sessionId, name))) return undefined
   return name
 }
 

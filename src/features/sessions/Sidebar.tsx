@@ -726,6 +726,26 @@ function SessionRow({
   const title =
     sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
+
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+
+  const beginRename = (): void => {
+    setRenameValue(title)
+    setRenaming(true)
+  }
+
+  const applyRename = (): void => {
+    const name = renameValue.trim()
+    setRenaming(false)
+    if (!name || name === title) return
+    void renameSidebarSession(workspacePath, meta, name, livePidexId)
+  }
+
+  const cancelRename = (): void => {
+    setRenaming(false)
+    setRenameValue('')
+  }
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
   const rowWorkspaceName = worktreeAwareName(meta.cwd || workspacePath, git)
@@ -752,12 +772,8 @@ function SessionRow({
           ]
         : []),
       {
-        label: 'Rename…',
-        separatorAbove: true,
-        onClick: () => void renameSidebarSession(workspacePath, meta, livePidexId),
-      },
-      {
         label: 'Fork (new branch session)',
+        separatorAbove: true,
         onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
       },
       {
@@ -792,8 +808,9 @@ function SessionRow({
 
   return (
     <button
-      onClick={open}
-      onContextMenu={contextMenu}
+      onClick={renaming ? undefined : open}
+      onContextMenu={renaming ? undefined : contextMenu}
+      onDoubleClick={renaming ? undefined : beginRename}
       data-testid="session-row"
       data-workspace={rowWorkspaceName}
       title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
@@ -811,20 +828,37 @@ function SessionRow({
     >
       <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
-        <span
-          // Re-keyed on the title so the arrival of a generated name replays
-          // the entrance; without it React patches the text node in place and
-          // the name simply pops.
-          key={title}
-          title={naming.pending ? 'Naming this chat…' : undefined}
-          className={clsx(
-            'text-text block truncate text-base leading-4',
-            naming.pending && 'name-pending',
-            naming.settled && 'name-enter',
-          )}
-        >
-          {title}
-        </span>
+        {renaming ? (
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={applyRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') cancelRename()
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            aria-label="Session name"
+            className="block w-full min-w-0 rounded border border-border bg-transparent px-1 py-px text-base leading-4 outline-none focus:border-accent"
+          />
+        ) : (
+          <span
+            // Re-keyed on the title so the arrival of a generated name replays
+            // the entrance; without it React patches the text node in place and
+            // the name simply pops.
+            key={title}
+            title={naming.pending ? 'Naming this chat…' : undefined}
+            className={clsx(
+              'text-text block truncate text-base leading-4',
+              naming.pending && 'name-pending',
+              naming.settled && 'name-enter',
+            )}
+          >
+            {title}
+          </span>
+        )}
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
