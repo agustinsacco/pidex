@@ -89,7 +89,11 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
           {/* A sweep that fails silently is indistinguishable from a hung app:
               the button un-presses and nothing ever appears. */}
           {sweepError && <p className="text-warning mb-1.5 text-xs">{sweepError}</p>}
-          <div className="flex flex-col gap-2">
+          {/* Bounded and independently scrollable: a fleet with several
+              running sessions must not push the composer down the page or
+              force a scroll just to reach it. Past this height the list
+              scrolls in place. */}
+          <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
             {live.map((session) => (
               <SessionCard key={session.sessionId} session={session} />
             ))}

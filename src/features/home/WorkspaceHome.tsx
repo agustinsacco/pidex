@@ -119,8 +119,12 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
   return (
     <div className="flex h-full flex-col">
+      {/* Scrolls on its own: a busy fleet (many running sessions, a long
+          digest) must never push the composer below the fold or drag it
+          around as cards mount. The composer below is a sibling, not a
+          child of this scroll container, so it stays put. */}
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
-        <div className="w-full max-w-2xl pt-10">
+        <div className="w-full max-w-2xl pt-10 pb-6">
           <h1 className="text-center text-4xl font-semibold tracking-tight">
             <span className="text-accent mr-2">✳</span>
             What&apos;s up next{username ? `, ${username}` : ''}?
@@ -156,8 +160,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             </p>
           )}
         </div>
+      </div>
 
-        <div className="mt-auto w-full max-w-2xl pb-8 pt-8">
+      <div className="flex flex-col items-center px-8 pb-8 pt-4">
+        <div className="w-full max-w-2xl">
           {/*
             Folder, branch and isolation, on one row above the composer.
 
