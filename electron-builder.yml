@@ -23,10 +23,20 @@ asarUnpack:
 
 npmRebuild: true
 
+# Ad-hoc signs the macOS bundle when no Developer ID is configured. Runs after
+# the .app is assembled and BEFORE dmg/zip are cut, so both carry the fixed
+# signature. Electron's stock binary is `linker-signed` with no sealed
+# resources, and electron-builder skips signing outright without a certificate
+# — that combination shipped a bundle Finder called "damaged". See the script.
+afterPack: scripts/adhoc-sign-mac.mjs
+
 mac:
   category: public.app-category.developer-tools
   icon: build/icon.icns
-  hardenedRuntime: true
+  # Hardened runtime REQUIRES a real signing identity; with an ad-hoc signature
+  # the bundle is rejected at launch. CI turns this back on (and notarizes)
+  # when MAC_CERT_P12 is set — see release-continuous.yml.
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

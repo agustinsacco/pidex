@@ -207,11 +207,41 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
+          # `hardenedRuntime` is false in electron-builder.yml because it cannot
+          # be satisfied by the ad-hoc signature scripts/adhoc-sign-mac.mjs
+          # applies. With a real Developer ID it is required for notarization,
+          # so turn it back on for exactly that case.
+          HARDENED=()
+          if [ "${RUNNER_OS}" = "macOS" ] && [ "${SIGNED}" = "true" ]; then
+            HARDENED=(--config.mac.hardenedRuntime=true)
+          fi
           npx electron-builder ${{ matrix.args }} --publish always \
+            "${HARDENED[@]}" \
             --config.extraMetadata.version="${{ needs.guard.outputs.version }}" \
             --config.extraMetadata.pidexSigned="${SIGNED}" \
             --config.publish.provider=github \
             --config.publish.releaseType=release
+
+      # A malformed signature must fail the build that produced it. v0.1.90
+      # shipped a bundle whose signature claimed sealed resources it did not
+      # have, and nothing in CI noticed — the first report was a user seeing
+      # "damaged and can't be opened". `--verify` catches exactly that; it
+      # passes for both an ad-hoc and a Developer ID signature, so this guard
+      # holds whether or not the certificate secrets are configured.
+      - name: Verify the macOS bundle signature
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          FOUND=0
+          for APP in release/mac*/pidex.app; do
+            [ -d "$APP" ] || continue
+            FOUND=1
+            echo "== $APP"
+            codesign -dv --verbose=2 "$APP" 2>&1 | grep -E 'Identifier=|flags=|Sealed' || true
+            codesign --verify --deep --strict "$APP"
+            echo "   signature verified"
+          done
+          [ "$FOUND" -eq 1 ] || { echo "::error::no packaged .app found to verify"; exit 1; }
 
   finalize:
     name: Attach installer script and notes

@@ -149,3 +149,26 @@ still useful for shell/UI work. For pure renderer work, `npm run dev:web` in
 the browser uses the mock API (plain `vite` reads the root `vite.config.ts`,
 which mirrors the `renderer` block of `electron.vite.config.ts` — keep the two
 in sync). The `/run` and `/e2e` skills cover both flows.
+
+## Debugging a failing session
+
+`~/Library/Logs/pidex/pidex.log` (Linux: `~/.config/pidex/logs/`) is written by
+`electron/debug-log.ts` — always on, no flag, rotating at 5MB. It records pi's
+spawn argv, pi's stderr, unexpected exits, and main-process crashes, plus the
+inherited `PATH` (a GUI app gets launchd's, not your login shell's, so `pi` and
+`claude` can resolve to different binaries than in a terminal).
+
+**Three layers keep evidence, and the useful one is usually the deepest.** An
+assistant message with empty content and `totalTokens: 0` in pi's session JSONL
+means the model never ran — the provider failed before the API call, so read
+the provider's own transcript rather than pidex's error text. For
+`pi-claude-cli` that is `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`,
+whose `result` field holds the real API error. Its error template prints
+`subtype` while the check that fired is `is_error`, so a genuine failure can
+render as the self-contradictory `Error: Claude CLI returned success`.
+
+`cd /tmp && echo hi | pi -p` decides pidex-vs-pi in one command: if it fails
+there too, it is not a pidex bug. And check a plain session before blaming the
+orchestrator — the orchestrator spawns ordinary pi sessions, so any provider
+fault looks like an orchestration bug. The `/debug` skill has the full
+procedure, including how to shim a nested CLI to capture its real argv.

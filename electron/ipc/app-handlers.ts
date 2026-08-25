@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import { access } from 'node:fs/promises'
 import { handle } from './handle'
 import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
+import { debugLogPath } from '../debug-log'
 import { userInfo } from 'node:os'
 import {
   getPrefs,
@@ -185,5 +186,20 @@ export function registerAppHandlers(): void {
     }
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return
     await shell.openExternal(parsed.toString())
+  })
+}
+
+/**
+ * Debug-log access.
+ *
+ * Registered here rather than behind a dev flag: the log exists to explain a
+ * failure that already happened, so the path must be reachable from a shipped
+ * build without first turning something on.
+ */
+export function registerDebugLogHandlers(): void {
+  handle('app:debugLogPath', () => debugLogPath())
+  handle('app:revealDebugLog', () => {
+    const path = debugLogPath()
+    if (path) shell.showItemInFolder(path)
   })
 }
