@@ -9,6 +9,7 @@ import { stopMonitor } from './resources/monitor'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
+import { initDebugLog, log } from './debug-log'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -121,6 +122,9 @@ if (!singleInstance) {
   })
 
   app.whenReady().then(() => {
+    // First thing after ready: anything that throws below should land in the
+    // log rather than only in a terminal nobody was attached to.
+    initDebugLog()
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }
@@ -132,6 +136,15 @@ if (!singleInstance) {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
+  })
+
+  // A main-process throw with no listener prints to a terminal that a packaged
+  // app does not have. Record it, then leave the default behaviour alone.
+  process.on('uncaughtException', (error) => {
+    log('main', 'uncaughtException', { message: error.message, stack: error.stack })
+  })
+  process.on('unhandledRejection', (reason) => {
+    log('main', 'unhandledRejection', { reason: String(reason) })
   })
 }
 

@@ -9,6 +9,7 @@ import type {
   RpcResponse,
   RpcResponseDataMap,
 } from '@shared/rpc'
+import { log } from '../debug-log'
 
 export interface PiSpawnOptions {
   /** Workspace folder — becomes pi's cwd. */
@@ -113,6 +114,16 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     })
     this.child = child
 
+    // The exact argv, because reconstructing it once meant shimming the
+    // binary on PATH to capture what was really passed. Env is deliberately
+    // omitted — it carries API keys.
+    log('pi', 'spawn', {
+      bin: o.binaryPath ?? 'pi',
+      args,
+      cwd: o.cwd,
+      pid: child.pid,
+    })
+
     child.stdout.on('data', (chunk: Buffer) => {
       for (const line of this.stdoutDecoder.push(chunk)) this.handleLine(line)
     })
@@ -136,6 +147,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     child.on('error', (error) => {
       // Spawn failure (e.g. binary vanished): surface as an unexpected exit.
+      log('pi', 'spawn failed', { bin: o.binaryPath ?? 'pi', message: error.message })
       this.failAllPending(error)
       this.emit('exit', { code: null, signal: null, expected: false })
       this.child = null

@@ -1045,7 +1045,11 @@ export function installMockPidex(): void {
         case 'app:setRecentWorkspaces':
         case 'app:setCollapsedWorkspaces':
         case 'app:recordWorkspace':
+        case 'app:revealDebugLog':
           return Promise.resolve(undefined)
+        // The browser harness has no main process and so no log file.
+        case 'app:debugLogPath':
+          return Promise.resolve(null)
         default:
           return Promise.resolve(undefined)
       }

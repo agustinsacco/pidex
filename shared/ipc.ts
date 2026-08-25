@@ -131,6 +131,10 @@ export interface IpcInvokeMap {
   /** Suppress orchestrator desktop notifications (global, not per project). */
   'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
+  /** Absolute path of the main-process debug log, or null if it could not be opened. */
+  'app:debugLogPath': { args: []; result: string | null }
+  /** Reveal the debug log in the OS file manager. No-op when there is no log. */
+  'app:revealDebugLog': { args: []; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
   /**
    * Persist "this workspace is now the home target": bumps it in recents and
