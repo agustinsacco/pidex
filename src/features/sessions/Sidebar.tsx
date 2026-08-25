@@ -36,6 +36,7 @@ import {
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
+import { committedRename } from './inlineRename'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -726,6 +727,26 @@ function SessionRow({
   const title =
     sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
+
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+
+  const beginRename = (): void => {
+    setRenameValue(title)
+    setRenaming(true)
+  }
+
+  const applyRename = (): void => {
+    const name = committedRename(renameValue, title)
+    setRenaming(false)
+    if (!name) return
+    void renameSidebarSession(workspacePath, meta, name, livePidexId)
+  }
+
+  const cancelRename = (): void => {
+    setRenaming(false)
+    setRenameValue('')
+  }
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen.
   const rowWorkspaceName = worktreeAwareName(meta.cwd || workspacePath, git)
@@ -752,12 +773,8 @@ function SessionRow({
           ]
         : []),
       {
-        label: 'Rename…',
-        separatorAbove: true,
-        onClick: () => void renameSidebarSession(workspacePath, meta, livePidexId),
-      },
-      {
         label: 'Fork (new branch session)',
+        separatorAbove: true,
         onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
       },
       {
@@ -790,41 +807,54 @@ function SessionRow({
         ? 'live'
         : 'disk'
 
-  return (
-    <button
-      onClick={open}
-      onContextMenu={contextMenu}
-      data-testid="session-row"
-      data-workspace={rowWorkspaceName}
-      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
-      className={clsx(
-        'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        // Active = the row on screen. The full-tint background disappears at
-        // a glance, so pair it with a 2px accent rail on the left edge: the
-        // border is the "this is open" signal, the fill is the "and it has
-        // visual weight". The hover wash is dropped to /40 so it doesn't
-        // compete with the active fill on adjacent rows.
-        active
-          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
-          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
-      )}
-    >
+  const rowClassName = clsx(
+    'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
+    // Active = the row on screen. The full-tint background disappears at
+    // a glance, so pair it with a 2px accent rail on the left edge: the
+    // border is the "this is open" signal, the fill is the "and it has
+    // visual weight". The hover wash is dropped to /40 so it doesn't
+    // compete with the active fill on adjacent rows.
+    active
+      ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+      : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
+  )
+
+  const body = (
+    <>
       <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
-        <span
-          // Re-keyed on the title so the arrival of a generated name replays
-          // the entrance; without it React patches the text node in place and
-          // the name simply pops.
-          key={title}
-          title={naming.pending ? 'Naming this chat…' : undefined}
-          className={clsx(
-            'text-text block truncate text-base leading-4',
-            naming.pending && 'name-pending',
-            naming.settled && 'name-enter',
-          )}
-        >
-          {title}
-        </span>
+        {renaming ? (
+          <input
+            autoFocus
+            // Pre-selected: a double-click rename usually replaces the whole
+            // generated title rather than editing a word of it.
+            onFocus={(e) => e.target.select()}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={applyRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') cancelRename()
+            }}
+            aria-label="Session name"
+            className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
+          />
+        ) : (
+          <span
+            // Re-keyed on the title so the arrival of a generated name replays
+            // the entrance; without it React patches the text node in place and
+            // the name simply pops.
+            key={title}
+            title={naming.pending ? 'Naming this chat…' : undefined}
+            className={clsx(
+              'text-text block truncate text-base leading-4',
+              naming.pending && 'name-pending',
+              naming.settled && 'name-enter',
+            )}
+          >
+            {title}
+          </span>
+        )}
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
@@ -878,6 +908,34 @@ function SessionRow({
         </span>
       )}
       {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
+    </>
+  )
+
+  // While the inline editor is up the row is a <div>, not a <button>. A text
+  // field inside a button is invalid HTML (Chromium tolerates the caret, but
+  // the row is announced as one button containing an unlabelled field, and
+  // Enter/Space inside it are the button's to claim). Swapping the tag also
+  // means there are no row handlers to suppress while editing — no
+  // `renaming ? undefined : open` and no stopPropagation on the input.
+  if (renaming) {
+    return (
+      <div data-testid="session-row" data-workspace={rowWorkspaceName} className={rowClassName}>
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={open}
+      onContextMenu={contextMenu}
+      onDoubleClick={beginRename}
+      data-testid="session-row"
+      data-workspace={rowWorkspaceName}
+      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
+      className={rowClassName}
+    >
+      {body}
     </button>
   )
 }
