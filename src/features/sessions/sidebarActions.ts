@@ -2,7 +2,7 @@ import type { SessionMeta } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { piCall } from '@/lib/rpc'
-import { exportSessionHtml, renameSession } from './sessionActions'
+import { exportSessionHtml, applySessionRename } from './sessionActions'
 
 /**
  * Sidebar row actions. These wrap the shared session actions with the
@@ -13,11 +13,12 @@ import { exportSessionHtml, renameSession } from './sessionActions'
 export async function renameSidebarSession(
   workspacePath: string,
   meta: SessionMeta,
+  name: string,
   livePidexId?: string,
 ): Promise<void> {
   const store = useSessionsStore.getState()
   const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  if (await renameSession(pidexId, meta.name)) void store.refreshDisk(workspacePath)
+  if (await applySessionRename(pidexId, name)) void store.refreshDisk(workspacePath)
 }
 
 export async function cloneSession(

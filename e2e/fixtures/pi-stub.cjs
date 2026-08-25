@@ -306,6 +306,28 @@ function handle(cmd) {
       out({ id: cmd.id, type: 'response', command: 'abort', success: true })
       break
 
+    // Real pi records a rename as a `session_info` entry in the session file,
+    // and pidex's sidebar reads names from disk — so a stub that only answered
+    // `success: true` would make every rename appear to revert on the next
+    // directory refresh, and no rename could be asserted end to end.
+    case 'set_session_name':
+      try {
+        fs.appendFileSync(
+          SESSION_FILE,
+          JSON.stringify({
+            type: 'session_info',
+            id: `cccc${String(entrySeq).padStart(4, '0')}`,
+            parentId: null,
+            timestamp: new Date().toISOString(),
+            name: cmd.name,
+          }) + '\n',
+        )
+      } catch {
+        /* best effort */
+      }
+      out({ id: cmd.id, type: 'response', command: 'set_session_name', success: true })
+      break
+
     default:
       out({ id: cmd.id, type: 'response', command: cmd.type, success: true })
   }
