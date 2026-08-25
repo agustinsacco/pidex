@@ -23,6 +23,7 @@ import {
   type SessionPush,
 } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
+import { log } from '../debug-log'
 
 let cachedHealth: PiHealth | null = null
 
@@ -142,10 +143,22 @@ async function spawnSession(
     if (orchestrator()?.handleControlRequest(session.sessionId, request)) return
     push({ kind: 'extension-ui', request })
   })
-  session.client.on('stderr', (text) => push({ kind: 'stderr', text }))
-  session.client.on('exit', ({ code, signal, expected }) =>
-    push({ kind: 'exit', code, signal: signal ?? null, expected }),
-  )
+  session.client.on('stderr', (text) => {
+    // Persist as well as forward. pi's stderr is where a provider prints the
+    // reason a turn failed, and forwarding it to the renderer alone means it
+    // is gone the moment the view unmounts — which is exactly what made
+    // `Error: Claude CLI returned success` so expensive to diagnose.
+    log('pi', 'stderr', { sessionId: session.sessionId, text })
+    push({ kind: 'stderr', text })
+  })
+  session.client.on('exit', ({ code, signal, expected }) => {
+    // An unexpected exit is what the user sees as "pi crashed"; without this
+    // the code and signal behind that banner are never written down.
+    if (!expected) {
+      log('pi', 'exited unexpectedly', { sessionId: session.sessionId, code, signal })
+    }
+    push({ kind: 'exit', code, signal: signal ?? null, expected })
+  })
 
   recordWorkspace(options.workspacePath, basename(options.workspacePath))
   return {
