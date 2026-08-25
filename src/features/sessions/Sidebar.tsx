@@ -36,6 +36,7 @@ import {
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
+import { committedRename } from './inlineRename'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
@@ -736,9 +737,9 @@ function SessionRow({
   }
 
   const applyRename = (): void => {
-    const name = renameValue.trim()
+    const name = committedRename(renameValue, title)
     setRenaming(false)
-    if (!name || name === title) return
+    if (!name) return
     void renameSidebarSession(workspacePath, meta, name, livePidexId)
   }
 
@@ -806,31 +807,28 @@ function SessionRow({
         ? 'live'
         : 'disk'
 
-  return (
-    <button
-      onClick={renaming ? undefined : open}
-      onContextMenu={renaming ? undefined : contextMenu}
-      onDoubleClick={renaming ? undefined : beginRename}
-      data-testid="session-row"
-      data-workspace={rowWorkspaceName}
-      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
-      className={clsx(
-        'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        // Active = the row on screen. The full-tint background disappears at
-        // a glance, so pair it with a 2px accent rail on the left edge: the
-        // border is the "this is open" signal, the fill is the "and it has
-        // visual weight". The hover wash is dropped to /40 so it doesn't
-        // compete with the active fill on adjacent rows.
-        active
-          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
-          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
-      )}
-    >
+  const rowClassName = clsx(
+    'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
+    // Active = the row on screen. The full-tint background disappears at
+    // a glance, so pair it with a 2px accent rail on the left edge: the
+    // border is the "this is open" signal, the fill is the "and it has
+    // visual weight". The hover wash is dropped to /40 so it doesn't
+    // compete with the active fill on adjacent rows.
+    active
+      ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
+      : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
+  )
+
+  const body = (
+    <>
       <SessionIndicator state={indicatorState} />
       <span className="min-w-0 flex-1">
         {renaming ? (
           <input
             autoFocus
+            // Pre-selected: a double-click rename usually replaces the whole
+            // generated title rather than editing a word of it.
+            onFocus={(e) => e.target.select()}
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={applyRename}
@@ -838,10 +836,8 @@ function SessionRow({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               if (e.key === 'Escape') cancelRename()
             }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
             aria-label="Session name"
-            className="block w-full min-w-0 rounded border border-border bg-transparent px-1 py-px text-base leading-4 outline-none focus:border-accent"
+            className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
           />
         ) : (
           <span
@@ -912,6 +908,34 @@ function SessionRow({
         </span>
       )}
       {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
+    </>
+  )
+
+  // While the inline editor is up the row is a <div>, not a <button>. A text
+  // field inside a button is invalid HTML (Chromium tolerates the caret, but
+  // the row is announced as one button containing an unlabelled field, and
+  // Enter/Space inside it are the button's to claim). Swapping the tag also
+  // means there are no row handlers to suppress while editing — no
+  // `renaming ? undefined : open` and no stopPropagation on the input.
+  if (renaming) {
+    return (
+      <div data-testid="session-row" data-workspace={rowWorkspaceName} className={rowClassName}>
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={open}
+      onContextMenu={contextMenu}
+      onDoubleClick={beginRename}
+      data-testid="session-row"
+      data-workspace={rowWorkspaceName}
+      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
+      className={rowClassName}
+    >
+      {body}
     </button>
   )
 }

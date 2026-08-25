@@ -622,7 +622,16 @@ test('worktree flow: create from the branch chip, session stays under the projec
     await expect(page.getByTestId('branch-chip')).toContainText('pidex/stub-session-title', {
       timeout: 30_000,
     })
-    await expect(page.getByText('Stub Session Title')).toBeVisible({ timeout: 15_000 })
+    // The generated name reaches both surfaces. Two locators, not one
+    // `getByText`: the stub now persists a rename as `session_info` (as pi
+    // does), so the sidebar row reads the name off disk as well and a bare
+    // text match is ambiguous.
+    await expect(page.getByRole('banner').getByText('Stub Session Title')).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.getByTestId('session-row').first()).toContainText('Stub Session Title', {
+      timeout: 15_000,
+    })
 
     const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
     const names = branches.stdout.split('\n').map((b) => b.trim())
@@ -683,7 +692,63 @@ test('a session whose file lands late still becomes a real, right-clickable row'
     await expect(row).not.toHaveAttribute('data-pending', 'true', { timeout: 30_000 })
 
     await row.click({ button: 'right' })
-    await expect(page.getByRole('button', { name: /Rename/ })).toBeVisible({ timeout: 10_000 })
+    // Any SessionRow-only action proves the promotion: `PendingSessionRow` has
+    // no context menu at all. (Rename is not in this menu — it is an inline
+    // edit on the row, covered by the next test.)
+    await expect(page.getByRole('button', { name: /Fork \(new branch session\)/ })).toBeVisible({
+      timeout: 10_000,
+    })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('double-clicking a sidebar row renames the session inline', async () => {
+  // Rename used to be a modal behind two popovers. It is now an inline input
+  // on the row itself, which only works if three things hold: the field takes
+  // focus and real keystrokes, the commit reaches pi, and the sidebar re-reads
+  // the name afterwards — the row's title comes from the session file on disk,
+  // not from renderer state, so a rename that never persists appears to revert
+  // (verified: dropping the stub's `session_info` write fails this test).
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // Let auto-naming finish first: it lands seconds after the first reply and
+    // would otherwise overwrite the rename mid-test.
+    const row = page.getByTestId('session-row').first()
+    await expect(row).toContainText('Stub Session Title', { timeout: 30_000 })
+    await expect(page.locator('.name-pending')).toHaveCount(0, { timeout: 15_000 })
+
+    await row.dblclick()
+    const input = page.getByLabel('Session name')
+    await expect(input).toBeVisible({ timeout: 10_000 })
+    await expect(input).toBeFocused()
+
+    // Pre-filled with the current name and pre-selected, so typing replaces it.
+    await expect(input).toHaveValue('Stub Session Title')
+    // Real mouse click + real keystrokes, not `fill()`: `fill()` focuses the
+    // element itself and would pass even if the row swallowed the click.
+    await input.click()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type('Renamed inline')
+    await expect(input).toHaveValue('Renamed inline')
+    await page.keyboard.press('Enter')
+
+    // Committed through pi and read back from the session file, not just held
+    // in renderer state: the stub records the rename as `session_info`, which
+    // is what the sidebar scanner reads.
+    await expect(row).toContainText('Renamed inline', { timeout: 15_000 })
+    await expect(page.getByLabel('Session name')).toHaveCount(0)
+
+    // Escape abandons a second edit.
+    await row.dblclick()
+    await page.getByLabel('Session name').fill('Not this one')
+    await page.getByLabel('Session name').press('Escape')
+    await expect(row).toContainText('Renamed inline', { timeout: 10_000 })
   } finally {
     await shutdown(harness)
   }
