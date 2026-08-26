@@ -571,6 +571,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
     }))
+    // Opening an orchestrator is what "you have seen it" means for its badge.
+    if (sessionId) {
+      void (async () => {
+        try {
+          const { useFleetStore } = await import('./fleet')
+          const fleet = useFleetStore.getState()
+          const entry = Object.entries(fleet.liveOrchestrators).find(([, id]) => id === sessionId)
+          if (entry) fleet.clearUnread(entry[0])
+        } catch {
+          // A badge is never worth breaking activation for.
+        }
+      })()
+    }
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
     const live = sessionId ? get().live[sessionId] : undefined

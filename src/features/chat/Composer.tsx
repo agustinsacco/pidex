@@ -6,6 +6,8 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { ChatImage } from './ChatImage'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
+import { OrchestratorModePicker } from '@/features/orchestrator/OrchestratorModePicker'
+import { useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { ContextMeter } from './composer/ContextMeter'
 import {
   buildCommandEntries,
@@ -51,6 +53,9 @@ export function Composer({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
+  // Non-null only for an orchestrator thread: the mode picker is meaningless
+  // in a work session, and showing a disabled one would just raise questions.
+  const orchestratorWorkspace = useIsOrchestrator(sessionId)
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
@@ -492,6 +497,9 @@ export function Composer({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              {orchestratorWorkspace && (
+                <OrchestratorModePicker workspacePath={orchestratorWorkspace} />
+              )}
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               <div className="flex items-center gap-1.5">

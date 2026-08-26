@@ -1490,7 +1490,7 @@ test('home surfaces live sessions as fleet cards you can talk to', async () => {
   }
 })
 
-test('each project offers an orchestrator row, distinct from its sessions', async () => {
+test('the workspace header carries fixed settings / new / orchestrator controls', async () => {
   const harness = await launch({
     userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-')),
   })
@@ -1498,14 +1498,47 @@ test('each project offers an orchestrator row, distinct from its sessions', asyn
   try {
     await openWorkspace(page)
 
-    // Present before anything is spawned: watching costs nothing, so the row
-    // is an invitation rather than a running process.
-    const row = page.getByTestId('orchestrator-row').first()
-    await expect(row).toBeVisible({ timeout: 20_000 })
-    await expect(row).toContainText('Orchestrator')
+    // All three are permanent, not hover-revealed: a control you cannot see is
+    // a control you do not know exists.
+    const orchestrator = page.getByTestId('orchestrator-header-button').first()
+    await expect(orchestrator).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('workspace-group-new-session').first()).toBeVisible()
+    await expect(page.getByTestId('workspace-group-menu').first()).toBeVisible()
 
-    // It is NOT a session row — that separation is the whole point.
+    // The orchestrator is present before anything is spawned: watching costs
+    // nothing, so the control is an invitation rather than a running process.
+    await expect(orchestrator).toHaveAttribute('aria-label', /Orchestrator for/)
+
+    // It is NOT a session row — that separation is the whole point — and it no
+    // longer sits in the session list at all.
     await expect(page.getByTestId('session-row')).toHaveCount(0)
+    await expect(page.getByTestId('orchestrator-row')).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('opening the orchestrator shows its mode picker in the composer', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-mode-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    await page.getByTestId('orchestrator-header-button').first().click()
+
+    // The banner marks it as an orchestrator, and the composer offers the one
+    // decision that belongs there: how much it may do on its own.
+    await expect(page.getByTestId('orchestrator-banner')).toBeVisible({ timeout: 20_000 })
+    const picker = page.getByTestId('orchestrator-mode-picker')
+    await expect(picker).toBeVisible()
+    // Supervise is the default posture.
+    await expect(picker).toContainText('Supervise')
+
+    // A work session must NOT offer it.
+    await page.getByTestId('workspace-group-new-session').first().click()
+    await expect(page.getByTestId('orchestrator-mode-picker')).toHaveCount(0)
   } finally {
     await shutdown(harness)
   }

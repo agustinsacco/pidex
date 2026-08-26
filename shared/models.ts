@@ -420,11 +420,46 @@ export interface OrchestratorDigest {
 /** Which kind of pass to run. `question` is an ordinary user prompt. */
 export type SweepKind = 'brief' | 'review'
 
+/**
+ * How much the orchestrator may do on its own.
+ *
+ * A single axis, from "look but do not touch" to "act unattended". It replaces
+ * the old `autopilot` boolean, which conflated two different questions (may it
+ * message sessions? may it start them?) into one switch.
+ *
+ * Enforced in `electron/orchestrator/bridge.ts` at call time, so switching mode
+ * takes effect on the very next tool call — no respawn, no stale posture.
+ */
+export type OrchestratorMode = 'observe' | 'supervise' | 'autopilot'
+
+export const ORCHESTRATOR_MODES: readonly OrchestratorMode[] = ['observe', 'supervise', 'autopilot']
+
+export interface OrchestratorModeInfo {
+  label: string
+  /** One line, shown in the picker. */
+  summary: string
+}
+
+export const ORCHESTRATOR_MODE_INFO: Record<OrchestratorMode, OrchestratorModeInfo> = {
+  observe: {
+    label: 'Observe',
+    summary: 'Read and report only. Cannot message, stop or start sessions.',
+  },
+  supervise: {
+    label: 'Supervise',
+    summary: 'May message, stop and unblock sessions. Proposes new work; never starts it.',
+  },
+  autopilot: {
+    label: 'Autopilot',
+    summary: 'May also start new sessions unattended, up to the cap.',
+  },
+}
+
 export interface OrchestratorWorkspacePrefs {
   /** False until the user first opens the orchestrator for this project. */
   enabled: boolean
-  /** May mutate sessions and start work without asking. */
-  autopilot: boolean
+  /** How much it may do on its own. See OrchestratorMode. */
+  mode: OrchestratorMode
   /** Cap on autopilot-started live sessions. */
   maxConcurrent: number
   /**
@@ -437,8 +472,34 @@ export interface OrchestratorWorkspacePrefs {
 
 export const DEFAULT_ORCHESTRATOR_PREFS: OrchestratorWorkspacePrefs = {
   enabled: false,
-  autopilot: false,
+  mode: 'supervise',
   maxConcurrent: 2,
+}
+
+/**
+ * Read a mode off stored prefs, migrating the pre-modes `autopilot` boolean.
+ *
+ * Prefs are persisted electron-store JSON, so old installs carry
+ * `{ autopilot: true|false }` and no `mode`. Defaulting those to `supervise`
+ * silently would DOWNGRADE someone who had autopilot on, so the boolean maps
+ * across explicitly.
+ */
+export function orchestratorModeOf(
+  prefs: Partial<OrchestratorWorkspacePrefs> & { autopilot?: boolean },
+): OrchestratorMode {
+  if (prefs.mode && ORCHESTRATOR_MODES.includes(prefs.mode)) return prefs.mode
+  if (prefs.autopilot === true) return 'autopilot'
+  return DEFAULT_ORCHESTRATOR_PREFS.mode
+}
+
+/** May the orchestrator message, stop or answer sessions in this mode? */
+export function modeAllowsSessionControl(mode: OrchestratorMode): boolean {
+  return mode !== 'observe'
+}
+
+/** May the orchestrator start work itself in this mode? */
+export function modeAllowsStartingWork(mode: OrchestratorMode): boolean {
+  return mode === 'autopilot'
 }
 
 /**

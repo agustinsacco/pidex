@@ -51,6 +51,14 @@ export function registerOrchestratorHandlers(): void {
     }
   })
 
+  handle('orchestrator:reset', (_event, workspacePath: string) =>
+    requireManager().reset(workspacePath),
+  )
+
+  handle('orchestrator:restart', (_event, workspacePath: string) =>
+    requireManager().restart(workspacePath),
+  )
+
   handle('orchestrator:setPrefs', (_event, workspacePath: string, value) => {
     requireManager().setPrefs(workspacePath, value)
   })

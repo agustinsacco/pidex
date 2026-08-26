@@ -1,4 +1,11 @@
-import type { DigestItem, FleetSession, OrchestratorDigest } from '@shared/models'
+import {
+  ORCHESTRATOR_MODE_INFO,
+  modeAllowsSessionControl,
+  type DigestItem,
+  type FleetSession,
+  type OrchestratorDigest,
+  type OrchestratorMode,
+} from '@shared/models'
 import type { AgentMessage } from '@shared/rpc'
 import { type FleetCallResult, type FleetCommandName } from './protocol'
 
@@ -39,6 +46,15 @@ export interface BridgeDeps {
   readMemory: (workspacePath: string) => Promise<string>
   writeMemory: (workspacePath: string, content: string) => Promise<void>
   publishDigest: (digest: OrchestratorDigest) => void
+  /**
+   * The caller's current mode, read at CALL time.
+   *
+   * Deliberately a function, not a value: the preamble is fixed when the
+   * session spawns, but the user can change mode mid-thread. Enforcing here
+   * means a change takes effect on the very next tool call, with no respawn
+   * and no window where the prompt and the rules disagree.
+   */
+  modeFor: (workspacePath: string) => OrchestratorMode
   /** Record a proposal for the inbox; starts work only under autopilot. */
   proposeWork: (
     workspacePath: string,
@@ -48,6 +64,22 @@ export interface BridgeDeps {
 }
 
 const MAX_TRANSCRIPT_MESSAGES = 30
+
+/** Commands that change something outside the orchestrator's own thread. */
+const MUTATING_COMMANDS = new Set<FleetCommandName>([
+  'session_send',
+  'session_stop',
+  'session_answer',
+  'propose_work',
+])
+
+/** How each refusal reads, so the model is told what it may not do. */
+const MUTATION_VERBS: Partial<Record<FleetCommandName, string>> = {
+  session_send: 'message sessions',
+  session_stop: 'stop sessions',
+  session_answer: 'answer questions on a session',
+  propose_work: 'start or propose work',
+}
 
 function fail(error: string): FleetCallResult {
   return { ok: false, error }
@@ -135,6 +167,16 @@ export async function handleFleetCommand(
 
   const caller = deps.snapshot().find((s) => s.sessionId === callerSessionId)
   const callerWorkspace = caller?.workspacePath ?? ''
+  const mode = deps.modeFor(callerWorkspace)
+
+  // Observe mode is read-only. Refusing here rather than trusting the preamble
+  // is what makes the mode a guarantee instead of a request: the prompt is
+  // fixed at spawn, this is evaluated per call.
+  if (MUTATING_COMMANDS.has(command) && !modeAllowsSessionControl(mode)) {
+    return fail(
+      `refused: the orchestrator is in ${ORCHESTRATOR_MODE_INFO[mode].label} mode, which cannot ${MUTATION_VERBS[command] ?? 'act on sessions'}. Report what you found instead, or ask the user to switch modes.`,
+    )
+  }
 
   /** Resolve a target, refusing the orchestrator's own session. */
   const target = (id: unknown): FleetSession | { error: string } => {

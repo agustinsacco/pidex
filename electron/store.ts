@@ -75,6 +75,29 @@ export function setOrchestratorSession(workspacePath: string, sessionPath: strin
   })
 }
 
+/**
+ * Forget which session file is this project's orchestrator.
+ *
+ * The escape hatch for a thread that can no longer take a turn — a model that
+ * emitted a malformed tool call used to brick one permanently, because
+ * `ensure()` kept resuming the same poisoned file and nothing could clear the
+ * pointer. See `OrchestratorManager.reset`.
+ */
+export function clearOrchestratorSession(workspacePath: string): void {
+  const s = prefs()
+  const map = { ...(s.get('orchestratorSessions') ?? {}) }
+  delete map[workspacePath]
+  s.set('orchestratorSessions', map)
+}
+
+/** Drop a project's published digest (its findings are about a dead thread). */
+export function clearOrchestratorDigest(workspacePath: string): void {
+  const s = prefs()
+  const map = { ...(s.get('orchestratorDigests') ?? {}) }
+  delete map[workspacePath]
+  s.set('orchestratorDigests', map)
+}
+
 export function setOrchestratorDigest(digest: OrchestratorDigest): void {
   const s = prefs()
   s.set('orchestratorDigests', {

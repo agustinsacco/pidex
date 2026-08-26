@@ -5,7 +5,11 @@ import type {
   OrchestratorDigest,
   OrchestratorWorkspacePrefs,
 } from '@shared/models'
-import { DEFAULT_ORCHESTRATOR_PREFS } from '@shared/models'
+import {
+  DEFAULT_ORCHESTRATOR_PREFS,
+  orchestratorModeOf,
+  type OrchestratorMode,
+} from '@shared/models'
 import { errorText } from '@shared/errors'
 import { drop } from './keyedSlice'
 
@@ -30,6 +34,14 @@ interface FleetState {
   sweeping: string[]
   /** Main-repo path → why the last sweep failed, if it did. */
   sweepErrors: Record<string, string>
+  /**
+   * Main-repo path → count of orchestrator messages the user has not seen.
+   *
+   * The digest's attention count answers a different question ("what needs
+   * you?"); this one answers "has it said anything since you looked?", which
+   * is what a sidebar badge has to mean.
+   */
+  unread: Record<string, number>
   hydrated: boolean
 
   hydrate: () => Promise<void>
@@ -38,6 +50,14 @@ interface FleetState {
   setPrefs: (workspacePath: string, prefs: OrchestratorWorkspacePrefs) => Promise<void>
   openOrchestrator: (workspacePath: string) => Promise<string>
   sweep: (workspacePath: string, kind: 'brief' | 'review') => Promise<void>
+  modeFor: (workspacePath: string) => OrchestratorMode
+  setMode: (workspacePath: string, mode: OrchestratorMode) => Promise<void>
+  /** Abandon the thread and start clean. Returns the new session id. */
+  reset: (workspacePath: string) => Promise<string>
+  /** Stop the process, keep the thread. */
+  restart: (workspacePath: string) => Promise<void>
+  noteUnread: (workspacePath: string) => void
+  clearUnread: (workspacePath: string) => void
 }
 
 export const useFleetStore = create<FleetState>((set, get) => ({
@@ -48,6 +68,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   liveOrchestrators: {},
   sweeping: [],
   sweepErrors: {},
+  unread: {},
   hydrated: false,
 
   hydrate: async () => {
@@ -102,9 +123,48 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         ...s.prefs,
         [workspacePath]: { ...get().prefsFor(workspacePath), enabled: true },
       },
+      unread: drop(s.unread, workspacePath),
     }))
     return sessionId
   },
+
+  modeFor: (workspacePath) => orchestratorModeOf(get().prefsFor(workspacePath)),
+
+  setMode: async (workspacePath, mode) => {
+    // Enforcement is in main and reads prefs per call, so the new mode binds
+    // on the orchestrator's very next tool call — no restart needed.
+    await get().setPrefs(workspacePath, { ...get().prefsFor(workspacePath), mode })
+  },
+
+  reset: async (workspacePath) => {
+    const previous = get().liveOrchestrators[workspacePath]
+    const { sessionId } = await window.pidex.invoke('orchestrator:reset', workspacePath)
+    const { useSessionsStore } = await import('./sessions')
+    await useSessionsStore.getState().adoptSession(sessionId, workspacePath)
+    set((s) => ({
+      liveOrchestrators: { ...s.liveOrchestrators, [workspacePath]: sessionId },
+      digests: drop(s.digests, workspacePath),
+      orchestratorSessions: drop(s.orchestratorSessions, workspacePath),
+      sweepErrors: drop(s.sweepErrors, workspacePath),
+      unread: drop(s.unread, workspacePath),
+    }))
+    // The old live id is gone from main's registry; activating the new one is
+    // what the caller does next, so nothing else needs unwinding here.
+    void previous
+    return sessionId
+  },
+
+  restart: async (workspacePath) => {
+    await window.pidex.invoke('orchestrator:restart', workspacePath)
+    set((s) => ({ liveOrchestrators: drop(s.liveOrchestrators, workspacePath) }))
+  },
+
+  noteUnread: (workspacePath) =>
+    set((s) => ({
+      unread: { ...s.unread, [workspacePath]: (s.unread[workspacePath] ?? 0) + 1 },
+    })),
+
+  clearUnread: (workspacePath) => set((s) => ({ unread: drop(s.unread, workspacePath) })),
 
   sweep: async (workspacePath, kind) => {
     if (get().sweeping.includes(workspacePath)) return
