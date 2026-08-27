@@ -58,7 +58,6 @@ two live docs still called it "the visual quality bar". Deleted, and P10 closed.
 | `build/`     | the 4 never-revised requirement docs | no — historical    |
 | `backlog/`   | audits with open findings            | per-finding status |
 | `log/`       | dated write-ups                      | as history         |
-| `archive/`   | landed plans, finished audits        | no                 |
 
 Reference files lost their numeric prefixes, which stopped meaning anything once
 the set was split (`overview.md`, `architecture.md`, `orchestration.md`, …).
@@ -66,11 +65,40 @@ the set was split (`overview.md`, `architecture.md`, `orchestration.md`, …).
 record of what got promoted out. Both new folders carry a README naming the
 specific staleness in each file rather than a general warning.
 
-Deleted or moved: `IMPLEMENTATION_PROMPT.md` (a build prompt for a finished
-build), `specs/screenshots/`, and `TECH_DEBT_AUDIT.md` → `archive/` (landed
-2026-08-06; every item verified fixed, and its "largest remaining files" table
-was stale in all five rows — `reducer.ts` 620→704, `Composer.tsx` 456→622,
-`mockPidex.ts` 493→1229).
+Deleted: `IMPLEMENTATION_PROMPT.md` (a build prompt for a finished build),
+`specs/screenshots/`, `TECH_DEBT_AUDIT.md` (landed 2026-08-06; every item
+verified fixed, and its "largest remaining files" table was stale in all five
+rows — `reducer.ts` 620→704, `Composer.tsx` 456→622, `mockPidex.ts` 493→1229),
+and the whole of `specs/archive/`.
+
+### There is no archive any more
+
+`specs/archive/` held nine landed plans behind a README that opened "nothing
+here is a live contract". That is an accurate warning and also an admission: a
+folder whose own index tells you not to trust it is not documentation, it is
+sediment. Git already keeps every one of those files.
+
+Deleting it was not free, and the cost was worth naming rather than discovering
+later. Three live documents were leaning on it, and each was repaid in place
+instead of left dangling:
+
+- **`style-guide.md` deferred two live facts to `RESTYLE_PLAN.md`** — which
+  surfaces carry a mirrored copy of the palette, and the migrate-atomically
+  rule. Both are inlined now, as an actual table of the five satellite
+  surfaces and their files. Building that table turned up a small divergence
+  nobody had ruled on: `window-chrome.ts`'s light titlebar colour is `#f7f7f8`
+  where `--px-bg` light is `#f7f6f2`.
+- **`TRACKER.md`'s P0–P9 section was a pure pointer** at
+  `archive/TRACKER-P0-P9.md`. It now carries the `git show` incantation instead.
+- **P11's two open boxes referenced `CHAT_UX_PHASE0_PLAN.md` phases 2–5** and
+  would have become unactionable. Those four phases are inlined into
+  `TRACKER.md` with their intent preserved — and checking them against the code
+  showed the boxes were **already stale**: phase 2 shipped by a different route
+  (the 2026-08-20 type scale, without the `--px-fs-*` tokens the plan proposed),
+  phase 3 looks delivered by P13's `ActivityGroup`, phase 4's `MessageActions`
+  was never built because P13 shipped a hover pill instead, and phase 5's
+  `Notice` primitive is genuinely open. That reconciliation is flagged in
+  `TRACKER.md` as needing verification rather than silently re-ticked.
 
 ### Both backlogs now carry per-finding status
 

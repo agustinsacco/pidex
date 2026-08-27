@@ -8,7 +8,7 @@ protocol is hand-mirrored in `shared/rpc.ts`.
 **Two maps before you start.** [README.md](README.md#repo-layout) has the repo
 tree — the single copy, since three copies drifted. [specs/README.md](specs/README.md)
 says which spec folder is a live contract (`reference/`) and which is history
-(`build/`, `archive/`, `log/`); reading a `build/` doc as current is how the
+(`build/`, `log/`); reading a `build/` doc as current is how the
 terracotta-vs-Phosphor contradiction survived 20 days.
 
 ## Commands

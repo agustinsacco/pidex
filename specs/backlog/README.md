@@ -1,7 +1,7 @@
 # specs/backlog
 
-Audits with findings that are **not all resolved**. Unlike
-[../archive/](../archive/), these are still worth reading for work to do.
+Audits with findings that are **not all resolved** — so unlike a landed plan,
+these are still worth reading for work to do.
 
 | File                                 | Scope                                           | Open as of 2026-08-27 |
 | ------------------------------------ | ----------------------------------------------- | --------------------- |
@@ -20,4 +20,5 @@ Status values: `open` (reproduces today) · `fixed` (name the commit or the file
 that fixed it) · `moot` (the code it described no longer exists).
 
 When you fix a finding, update its row in the same PR. When a file reaches zero
-open findings, move it to `../archive/`.
+open findings, delete it — the findings are fixed, the code is the record, and
+git keeps the audit.

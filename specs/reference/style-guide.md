@@ -2,8 +2,7 @@
 
 > **Status: implemented 2026-08-07. This file is the authority on pidex's
 > visual identity** — where any other spec disagrees, this one wins.
-> Icon/brand assets and the full in-app migration
-> ([RESTYLE_PLAN.md](../archive/RESTYLE_PLAN.md) phases 1–4) are live;
+> Icon/brand assets and the full in-app migration are live;
 > `src/styles/index.css` carries these values.
 
 pidex started as a study of Claude Desktop and it shows: warm cream, terracotta,
@@ -40,9 +39,23 @@ glyph and tile in graphite `#1f1c18`, tile radius 228/1024.
 ## Color
 
 Tokens are the `--px-*` custom properties in `src/styles/index.css`, mapped to
-Tailwind via `@theme inline`. Components never hardcode hex values — the five
-satellite surfaces (xterm, Monaco, Mermaid, Chart.js, window background) each
-carry a themed copy of these values and are enumerated in archive/RESTYLE_PLAN.md.
+Tailwind via `@theme inline`. Components never hardcode hex values. Five satellite
+surfaces are the exception, because each takes a theme object rather than CSS —
+they carry a mirrored copy of these values and must be updated together:
+
+| Surface       | Themed copy in                                  |
+| ------------- | ----------------------------------------------- |
+| xterm         | `src/features/terminal/xtermTheme.ts`           |
+| Monaco        | `src/lib/monaco.ts`                             |
+| Mermaid       | `src/components/markdown/MermaidBlock.tsx`      |
+| Chart.js      | `src/components/markdown/ChartBlock.tsx`        |
+| Window chrome | `electron/window-chrome.ts`, `electron/main.ts` |
+
+The window-chrome copy is the one that drifts, because it is set before any CSS
+loads: `main.ts` pins `backgroundColor` to the dark `--px-bg` (`#1e1c18`), and
+`window-chrome.ts` carries the titlebar-overlay pair. Its light `color` is
+`#f7f7f8` where `--px-bg` light is `#f7f6f2` — close enough to be invisible,
+which is exactly why nobody has decided whether it is deliberate.
 
 ### Light — "paper"
 
@@ -170,5 +183,5 @@ scatter it as decoration.
   working-state glow. Backgrounds stay neutral.
 - Don't put white text on amber (dark mode) or amber text on paper below
   14px bold (light mode) — use the token pairs.
-- Don't mix the v1 and Phosphor palettes in one surface; migrate per-surface
-  atomically (see archive/RESTYLE_PLAN.md order).
+- Don't mix the v1 and Phosphor palettes in one surface; change a surface
+  atomically or not at all.

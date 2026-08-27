@@ -30,14 +30,22 @@ without a reason to batch work into a phase again.
 
 ## P0–P9 — Foundations through the tech-debt pass `✅`
 
-All ten shipped. Detail, deviations and per-phase logs live in
-[archive/TRACKER-P0-P9.md](archive/TRACKER-P0-P9.md).
+All ten shipped. The per-phase detail, deviations and logs lived in
+`specs/archive/TRACKER-P0-P9.md` until 2026-08-27, when `specs/archive/` was
+deleted — nothing in it was a live contract and it was drifting unread. Recover
+it from git if you ever need the archaeology:
+
+```bash
+git show 737f18e:specs/archive/TRACKER-P0-P9.md
+```
 
 ---
 
 ## P10 — Visual identity: Phosphor `✅`
 
-Specs: [STYLE_GUIDE.md](reference/style-guide.md) · [RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md)
+Specs: [style-guide.md](reference/style-guide.md). The execution plan
+(`specs/archive/RESTYLE_PLAN.md`) was deleted 2026-08-27 now that the migration
+it sequenced is done.
 
 - [x] Brand definition: Phosphor system (amber-phosphor accent, paper/graphite neutrals, mono structural voice) with contrast ratios verified at design time
 - [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
@@ -66,7 +74,10 @@ Specs: [STYLE_GUIDE.md](reference/style-guide.md) · [RESTYLE_PLAN.md](archive/R
 
 ## P11 — Chat UX correctness pass (Phase 0) `🟡`
 
-Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
+Plan: `specs/archive/CHAT_UX_PHASE0_PLAN.md`, deleted 2026-08-27
+(`git show 737f18e:specs/archive/CHAT_UX_PHASE0_PLAN.md`). Its still-relevant
+phases are inlined at the bottom of this section so the open boxes stay
+actionable without it.
 
 - [x] B1 Streaming tool identity: `toolIdentity.ts` (placeholder ids, `toolName: null`, adoption on `tool_execution_*` / later partials) — no more "Running unknown", no more output routed to an orphan key
 - [x] B2 Autoscroll: `items/autoscroll.ts` intent-based pinning + a synchronous pin ref + self-scroll suppression — reading back during a stream survives (e2e measures `scrollTop` holding while the stream grows the scroll range)
@@ -77,7 +88,22 @@ Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
 - [x] B5 Pane scrolling: `PaneShell` content slot is a flex column, so `flex-1` bodies constrain their scrollers
 - [x] Artifact tool UX: `ArtifactDetail` card (glyph/title/type/version, "Open in panel"), artifact-aware labels, live byte counter while content streams
 - [ ] B6 Cost honesty: `—` for all-zero `ModelCost`, per-component cost rows in the usage popover
-- [ ] Phases 2–5 of the plan (type scale, further ink-based grouping, unified CTA rows, `Notice` primitive)
+- [ ] Phases 2–5 of the plan — **status stale, re-verify before picking any of these up.** Parts appear to have shipped by other routes; see the inlined list below.
+
+### Phases 2–5, inlined from the deleted plan
+
+Recorded verbatim in intent so the boxes above survive the plan's deletion. The
+**status column is what needs checking** — the surrounding work (the 2026-08-20
+type scale, P13's activity grouping, the ContextMeter pricing text) delivered
+some of this by different means than the plan proposed, and nobody reconciled
+the boxes.
+
+| Phase | Intent                                                                                                                                     | Apparent state (2026-08-27, unverified)                                                                                                                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2     | One type scale replacing hardcoded sizes; larger body text in less vertical space. Plan proposed `--px-fs-*` tokens.                       | **Delivered differently** — [the type scale](log/2026-08-20-type-scale.md) replaced 424 sizes without those tokens.                                              |
+| 3     | Consecutive tool rows of one turn render as one block (gray label + emphasized object), grouping by ink rather than whitespace.            | **Likely delivered** by P13's turn-level `ActivityGroup`.                                                                                                        |
+| 4     | One `MessageActions` used by both user and assistant messages, always rendered, so turn rhythm stops alternating. Plus B3 session title.   | B3 is done. `MessageActions` was never built; P13 shipped a zero-height floating hover pill instead.                                                             |
+| 5     | A `<Notice tone level actions>` primitive replacing `CrashBanner` / `NoModelsBanner` / `RetryStrip` / the inline assistant error. Plus B6. | **Open.** `RetryStrip.tsx` and `banners.tsx` are still separate. B6's "no pricing configured" text exists in `ContextMeter`; the per-component cost rows do not. |
 
 **Done when:** the plan's Phase 0 exit criteria hold in e2e and Phases 1–5 are either landed or explicitly deferred here.
 

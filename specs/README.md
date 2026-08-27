@@ -1,6 +1,6 @@
 # specs
 
-Five kinds of document live here, and they are **not** interchangeable. Before
+Four kinds of document live here, and they are **not** interchangeable. Before
 you trust a file, check which folder it is in.
 
 | Folder                   | Genre                                                           | Trust it?                                   |
@@ -9,13 +9,12 @@ you trust a file, check which folder it is in.
 | [build/](build/)         | Original pre-implementation requirements, kept for intent.      | **No** — historical. Reference wins.        |
 | [backlog/](backlog/)     | Audits with open findings. Each finding carries its own status. | Only per-finding; check the status column.  |
 | [log/](log/)             | One dated write-up per shipped change. Says what broke and why. | As history, yes. Not as current-state docs. |
-| [archive/](archive/)     | Landed plans and finished audits.                               | **No** — nothing here is a live contract.   |
 | [TRACKER.md](TRACKER.md) | Phase state and the few remaining open boxes.                   | Yes, for status. Not for behaviour.         |
 
 Two rules that keep this workable:
 
 1. **One fact, one home.** If `reference/` and anything else disagree,
-   `reference/` is right and the other file gets fixed or moved to `archive/`.
+   `reference/` is right and the other file gets fixed or deleted.
    The exception is visual identity, where
    [reference/style-guide.md](reference/style-guide.md) is the authority even
    over other reference docs.
@@ -61,5 +60,9 @@ path). Both are per-finding status tables now, not prose backlogs. See
   it makes wrong. That is the common case.
 - Changed how a subsystem behaves? The matching `reference/` file is part of the
   diff, not a follow-up.
-- Wrote a plan? Keep it out of here until it lands, then either fold it into
-  `reference/` or drop it in `archive/` with an Outcome section.
+- Wrote a plan? Keep it out of here until it lands, then fold what is still
+  true into `reference/` and delete the plan. **There is no archive.** There was
+  one until 2026-08-27, holding nine landed plans that nothing read and that
+  quietly contradicted the live docs; git already keeps history, and a folder of
+  documents nobody trusts is worse than no folder. Write the durable part into
+  `reference/`, the story into `log/`, and let the plan go.
