@@ -9,7 +9,9 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import {
   CONTEXT_BREAKDOWN_STATUS_KEY,
   breakdownSlices,
+  mcpServerRows,
   parseContextBreakdown,
+  type ContextBreakdown,
 } from './contextBreakdown'
 import {
   RATE_LIMIT_STATUS_KEY,
@@ -222,6 +224,42 @@ function ContextComposition({
           Component sizes are estimates; the total is pi&apos;s own figure.
         </div>
       )}
+      <McpServers breakdown={breakdown} total={total} />
+    </div>
+  )
+}
+
+/**
+ * Which connector is costing what.
+ *
+ * Six connected servers with promoted tools can occupy more of the window than
+ * the conversation does, and the single "MCP tools" slice cannot say which one
+ * to disable. Absent until the adapter reports its servers, and hidden when
+ * only one server exists — the slice above already answers that case.
+ */
+function McpServers({
+  breakdown,
+  total,
+}: {
+  breakdown: ContextBreakdown
+  total: number
+}): React.JSX.Element | null {
+  const rows = mcpServerRows(breakdown, total)
+  if (rows.length < 2) return null
+  return (
+    <div className="border-border/60 mt-2 border-t pt-1.5">
+      <SectionLabel>MCP servers</SectionLabel>
+      {rows.map((row) => (
+        <div key={row.name} className="flex items-center gap-2">
+          <span className="text-text-tertiary flex-1 truncate font-mono text-sm" title={row.name}>
+            {row.name}
+            <span className="text-text-tertiary/70"> · {row.count}</span>
+          </span>
+          <span className="text-text-secondary font-mono text-sm tabular-nums">
+            {formatTokens(row.tokens)}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }

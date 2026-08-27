@@ -813,6 +813,44 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
   }
 })
 
+test('Connectors: adding a catalog connector writes a verified OAuth endpoint', async () => {
+  // Own agent dir: this writes a global mcp.json, which nothing cleans up.
+  const soloAgentDir = privateAgentDir()
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-connectors-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Datadog is the interesting row: its endpoint is per site, so the choice
+    // has to reach the written config rather than defaulting silently.
+    const datadog = page.getByTestId('connector-datadog')
+    await datadog.getByRole('combobox').selectOption('eu1')
+    await datadog.getByRole('button', { name: 'Add', exact: true }).click()
+
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
+          return JSON.parse(raw).mcpServers.datadog as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .toEqual({ url: 'https://mcp.datadoghq.eu/v1/mcp', auth: 'oauth' })
+  } finally {
+    await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
+
 test('reopens the last session on relaunch instead of the picker', async () => {
   // Both launches share a userData dir so prefs survive the restart, while
   // staying isolated from the developer's real config.
