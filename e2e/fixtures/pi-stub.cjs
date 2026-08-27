@@ -181,7 +181,26 @@ function writeSessionFile() {
             content: process.env.PIDEX_STUB_SESSION_TITLE || 'stub session',
           },
         }) +
-        '\n',
+        '\n' +
+        /*
+         * A `-n` name belongs ON DISK, not just in `get_state`. Real pi records
+         * it as a `session_info` entry, and pidex's sidebar reads names from the
+         * file — so a stub that only answered the RPC left every named session
+         * showing its first user message instead.
+         *
+         * That gap hid a real bug class: `isOrchestratorSession` recognises an
+         * orchestrator by its name sentinel, so under the stub an orchestrator
+         * thread sorted into the sidebar as an ordinary session.
+         */
+        (SESSION_NAME
+          ? JSON.stringify({
+              type: 'session_info',
+              id: 'aaaa0000',
+              parentId: null,
+              timestamp: new Date().toISOString(),
+              name: SESSION_NAME,
+            }) + '\n'
+          : ''),
     )
   } catch {
     /* best effort */

@@ -428,8 +428,10 @@ fleet is the point.
 ### Sidebar
 
 The workspace group header (name + caret + plus, in
-`src/features/sessions/Sidebar.tsx`) gains a third control: a spark that opens
-that project's orchestrator chat. Its state doubles
+`src/features/sessions/Sidebar.tsx`) gains a third control: a hub-and-spoke
+mark (`OrchestratorIcon`) that opens that project's orchestrator chat. Not a
+spark — `✳` is the "pi is working" mark, so using it here made the
+orchestrator's identity and every session's busy state the same glyph. Its state doubles
 as a light — quiet when idle, filled with a count when the digest holds
 attention items. `WorkspaceSwitcher` carries the same control for the active
 project.
@@ -437,9 +439,21 @@ project.
 ### The orchestrator chat
 
 `src/features/orchestrator/OrchestratorChat.tsx` wraps the ordinary `ChatView`
-with a distinct header: scope (sessions under watch), its own cost, an
-autopilot switch, and a rules editor. Sweep prompts appear in the transcript as
-ordinary user messages, which is honest — they _are_ what was sent.
+with a distinct header: scope (sessions under watch), its own cost, the mode
+picker, **Brief me**, and a menu carrying review, rules and settings, restart
+and reset. Sweep prompts appear in the transcript as ordinary user messages,
+which is honest — they _are_ what was sent.
+
+Those controls live here rather than only on the sidebar icon because of how
+they were first shipped: right-click on a 20px target, and nothing at all on
+the chat itself. A thread that had bricked itself therefore showed several
+identical fatal errors and offered no way out on the screen the user was
+actually looking at.
+
+When the thread is in exactly that state, a **stuck bar** sits under the banner
+naming the cause and offering the reset — see Recovery below.
+`features/orchestrator/threadHealth.ts` decides, and is deliberately narrow: a
+transient failure must never suggest throwing away a working thread.
 
 ### The visible-hand rule
 
@@ -603,6 +617,14 @@ Two mechanisms, because prevention and recovery are different problems:
 
 Without the second, `ensure()` kept resuming the poisoned file and the only
 escape was deleting it by hand.
+
+Recovery is only useful if it is reachable. `isPoisonedThreadError` matches the
+provider's rejection (a tool-name field _and_ a pattern-constraint failure,
+never one alone) and puts the reset in the banner the moment it applies.
+`modelRisksMalformedToolNames` names the models observed causing it, and the
+orchestrator's model is now selectable in settings — it had a `prefs.model`
+that `ensure()` honoured but no UI ever set, so every orchestrator silently
+inherited pi's global default, including the model that causes this.
 
 ## Sharp edges
 

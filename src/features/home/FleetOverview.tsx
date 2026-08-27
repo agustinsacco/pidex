@@ -4,6 +4,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { buildInbox } from './inbox'
 import { FleetInbox, SectionLabel } from './FleetInbox'
 import { SessionCard } from './SessionCard'
+import { OrchestratorIcon } from '@/components/icons'
 
 /**
  * The fleet, on the home screen.
@@ -104,7 +105,7 @@ export function FleetOverview({ workspacePath }: { workspacePath: string }): Rea
       {digest && (
         <section className="mt-3">
           <p className="text-text-tertiary text-sm">
-            <span className="text-accent mr-1">✳</span>
+            <OrchestratorIcon size={11} className="text-accent mr-1 inline-block align-[-1px]" />
             {digest.headline}
           </p>
           {/* Suggestions live here rather than in the inbox: asking for advice

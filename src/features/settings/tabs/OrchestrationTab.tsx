@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { ORCHESTRATOR_MODES, ORCHESTRATOR_MODE_INFO, orchestratorModeOf } from '@shared/models'
+import {
+  DEFAULT_ORCHESTRATOR_PREFS,
+  ORCHESTRATOR_MODES,
+  ORCHESTRATOR_MODE_INFO,
+  orchestratorModeOf,
+} from '@shared/models'
+import { useChatStore } from '@/stores/chat'
 import { useFleetStore } from '@/stores/fleet'
+import { modelRisksMalformedToolNames } from '@/features/orchestrator/threadHealth'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { Button, NumberField, Row, SectionTitle, Toggle } from '@/components/form'
@@ -21,8 +28,19 @@ export function OrchestrationTab(): React.JSX.Element {
     ? (gitByCwd[activeWorkspace]?.mainRepoPath ?? activeWorkspace)
     : ''
 
-  const prefs = useFleetStore((s) => s.prefsFor(projectPath))
+  /*
+   * Select the STORED prefs, then merge defaults outside the selector.
+   *
+   * `prefsFor` builds a fresh object on every call, so using it as a selector
+   * returns a new reference each time `useSyncExternalStore` samples the
+   * store. React treats that as "changed" on every render, warns that the
+   * snapshot is not cached, and then tears the whole app down with "Maximum
+   * update depth exceeded" — this settings tab rendered a blank window.
+   */
+  const storedPrefs = useFleetStore((s) => s.prefs[projectPath])
+  const prefs = useMemo(() => ({ ...DEFAULT_ORCHESTRATOR_PREFS, ...storedPrefs }), [storedPrefs])
   const enabled = useFleetStore((s) => s.prefs[projectPath]?.enabled ?? false)
+  const [models, setModels] = useState<{ id: string; name: string; provider: string }[]>([])
   const [rules, setRules] = useState('')
   const [rulesPath, setRulesPath] = useState('')
   const [saved, setSaved] = useState(false)
@@ -30,6 +48,7 @@ export function OrchestrationTab(): React.JSX.Element {
 
   useEffect(() => {
     void window.pidex.invoke('app:getPrefs').then((p) => setMuted(p.notificationsMuted))
+    void window.pidex.invoke('pi:catalogueModels').then(setModels)
   }, [])
 
   useEffect(() => {
@@ -40,6 +59,16 @@ export function OrchestrationTab(): React.JSX.Element {
       setRulesPath(result.path)
     })
   }, [projectPath])
+
+  // What the orchestrator will actually run: an explicit choice, else whatever
+  // the live thread was spawned with — pi's own default, which prefs cannot
+  // see. Both hooks stay above the early return below; calling them after it
+  // would change hook order between renders.
+  const liveOrchestratorId = useFleetStore((s) => s.liveOrchestrators[projectPath])
+  const liveModel = useChatStore((s) =>
+    liveOrchestratorId ? s.sessions[liveOrchestratorId]?.meta?.model?.id : undefined,
+  )
+  const effectiveModel = prefs.model ?? liveModel ?? null
 
   if (!projectPath) {
     return (
@@ -67,7 +96,7 @@ export function OrchestrationTab(): React.JSX.Element {
 
       <Row
         title="Mode"
-        description="How much it may do on its own. You can also switch this from the orchestrator's composer, and it takes effect on its next action."
+        description="How much it may do on its own. You can also switch this from the orchestrator's own banner, and it takes effect on its next action."
       >
         <div className="flex flex-wrap justify-end gap-1">
           {ORCHESTRATOR_MODES.map((option) => {
@@ -92,6 +121,33 @@ export function OrchestrationTab(): React.JSX.Element {
           })}
         </div>
       </Row>
+
+      <Row
+        title="Model"
+        description="Which model runs the orchestrator. It calls tools on nearly every turn, so a model that emits malformed tool calls bricks the thread outright."
+      >
+        <select
+          value={prefs.model ?? ''}
+          onChange={(e) => update({ model: e.target.value || undefined })}
+          aria-label="Orchestrator model"
+          className="border-border bg-surface text-text max-w-[18rem] rounded-lg border px-2.5 py-1.5 text-base outline-none"
+        >
+          <option value="">Use pi&apos;s default</option>
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name} · {m.provider}
+            </option>
+          ))}
+        </select>
+      </Row>
+
+      {modelRisksMalformedToolNames(effectiveModel) && (
+        <p className="text-warning -mt-1 mb-3 text-sm leading-snug">
+          {effectiveModel} is known to emit tool calls whose name the provider rejects. Once one is
+          saved to the session file every later turn fails and the thread has to be reset. Pick a
+          different model here.
+        </p>
+      )}
 
       <Row
         title="Concurrent session cap"

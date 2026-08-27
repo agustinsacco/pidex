@@ -137,11 +137,20 @@ interface LiveEntry {
  * awaitWriteFinish-plus-debounce picking it up. Gating on "unknown" alone
  * reopens the gap this exists to close — a session can sit with a known
  * `diskPath` but no sidebar row for the length of a slow first turn.
+ *
+ * `orchestratorIds` is not an optimisation — without it an orchestrator is a
+ * **permanent** placeholder row. That gate can never fire for one, because
+ * `session-scanner.ts` deliberately keeps orchestrator sessions out of `disk`,
+ * so their path is never in `diskPaths`. The result was the one thread that
+ * manages work sitting in the sidebar forever, styled as work still starting
+ * up. Matched by session id rather than path because the row appears the
+ * instant the session is adopted, long before any path is known.
  */
 export function pendingSessionsByGroup(
   live: LiveEntry[],
   diskPaths: ReadonlySet<string>,
   groups: Pick<GroupedSessions, 'workspacePath' | 'paths'>[],
+  orchestratorIds: ReadonlySet<string> = new Set(),
 ): Map<string, string[]> {
   const groupKeyByPath = new Map<string, string>()
   for (const g of groups) {
@@ -150,6 +159,7 @@ export function pendingSessionsByGroup(
 
   const map = new Map<string, string[]>()
   for (const entry of live) {
+    if (orchestratorIds.has(entry.pidexId)) continue
     if (entry.diskPath && diskPaths.has(entry.diskPath)) continue
     const key = groupKeyByPath.get(entry.workspacePath) ?? entry.workspacePath
     const list = map.get(key)

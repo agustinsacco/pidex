@@ -1518,7 +1518,7 @@ test('the workspace header carries fixed settings / new / orchestrator controls'
   }
 })
 
-test('opening the orchestrator shows its mode picker in the composer', async () => {
+test('opening the orchestrator gives it controls, and never a session row', async () => {
   const harness = await launch({
     userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-mode-')),
   })
@@ -1527,16 +1527,25 @@ test('opening the orchestrator shows its mode picker in the composer', async () 
     await openWorkspace(page)
 
     await page.getByTestId('orchestrator-header-button').first().click()
-
-    // The banner marks it as an orchestrator, and the composer offers the one
-    // decision that belongs there: how much it may do on its own.
     await expect(page.getByTestId('orchestrator-banner')).toBeVisible({ timeout: 20_000 })
+
+    // The banner carries the thread's own controls. They used to live only
+    // behind a right-click on the sidebar icon, so a thread that could no
+    // longer take a turn offered nothing on the screen you were looking at.
     const picker = page.getByTestId('orchestrator-mode-picker')
     await expect(picker).toBeVisible()
-    // Supervise is the default posture.
     await expect(picker).toContainText('Supervise')
+    await expect(page.getByTestId('orchestrator-menu')).toBeVisible()
 
-    // A work session must NOT offer it.
+    /*
+     * The regression this guards: an orchestrator is a live session whose file
+     * the scanner deliberately keeps out of `disk`, so the sidebar's
+     * placeholder logic saw a live session that never "arrived" and rendered
+     * it as a session row for the entire life of the process.
+     */
+    await expect(page.getByTestId('session-row')).toHaveCount(0)
+
+    // A work session must NOT offer the mode picker.
     await page.getByTestId('workspace-group-new-session').first().click()
     await expect(page.getByTestId('orchestrator-mode-picker')).toHaveCount(0)
   } finally {
