@@ -241,6 +241,16 @@ function respond(command: RpcCommand): RpcResponse {
   }
 }
 
+/**
+ * Sessions the harness pretends are on disk, one entry per folder the mock
+ * claims to know about (`app:getPrefs` recents + `git:listWorktrees`).
+ *
+ * `cwd` is load-bearing: `sessions:list` filters on it, because the real
+ * handler reads one session directory per workspace folder. Returning every
+ * session for every folder duplicated each row inside the pidex group — the
+ * worktree folder folds into its main repo, so the same `path` was keyed
+ * twice and React logged "two children with the same key".
+ */
 const MOCK_DISK_SESSIONS = [
   {
     path: '/mock/sessions/a.jsonl',
@@ -282,6 +292,53 @@ const MOCK_DISK_SESSIONS = [
     branchCount: 0,
     mtimeMs: Date.now() - 86_400_000 * 2,
     lastActivityAt: '2026-08-01T12:00:00.000Z',
+  },
+  {
+    // Lives in the mock worktree from `git:listWorktrees`, so the sidebar
+    // still exercises the worktree-folds-into-its-repo group and the "wt"
+    // subtitle chip.
+    path: '/mock/sessions/c.jsonl',
+    sessionId: 'c',
+    cwd: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+    createdAt: '2026-08-02T08:00:00.000Z',
+    name: 'Fix the auth redirect loop',
+    firstUserText: 'The login redirect loops on expired tokens',
+    userMessages: 6,
+    assistantMessages: 7,
+    toolCalls: 15,
+    totalTokens: 240_000,
+    inputTokens: 38_000,
+    outputTokens: 12_000,
+    cacheReadTokens: 182_000,
+    cacheWriteTokens: 8_000,
+    cost: 0.52,
+    entryCount: 31,
+    branchCount: 1,
+    mtimeMs: Date.now() - 7200_000,
+    lastActivityAt: '2026-08-02T11:30:00.000Z',
+  },
+  {
+    // Second project group in the sidebar; without a session of its own the
+    // "other" header is filtered out for having no rows.
+    path: '/mock/sessions/d.jsonl',
+    sessionId: 'd',
+    cwd: '/Users/dev/projects/other',
+    createdAt: '2026-07-20T09:00:00.000Z',
+    name: 'Bump the CI image',
+    firstUserText: 'Update the CI base image to node 22',
+    userMessages: 2,
+    assistantMessages: 2,
+    toolCalls: 4,
+    totalTokens: 46_000,
+    inputTokens: 9_000,
+    outputTokens: 3_000,
+    cacheReadTokens: 33_000,
+    cacheWriteTokens: 1_000,
+    cost: 0.09,
+    entryCount: 9,
+    branchCount: 0,
+    mtimeMs: Date.now() - 86_400_000 * 9,
+    lastActivityAt: '2026-07-20T10:00:00.000Z',
   },
 ]
 
@@ -944,8 +1001,10 @@ export function installMockPidex(): void {
         case 'app:resumeTarget':
           // Browser harness always starts at the picker.
           return Promise.resolve({ kind: 'none' })
-        case 'sessions:list':
-          return Promise.resolve(MOCK_DISK_SESSIONS)
+        case 'sessions:list': {
+          const workspacePath = args[0] as string
+          return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))
+        }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'app:openExternal':
