@@ -437,6 +437,32 @@ function runTurn() {
       statusText: '[38;2;138;190;183mMCP: 2 servers enabled[39m',
     }),
   )
+  // The lane loop, on the same channel the real `pi-ext/lane-loop.ts` uses.
+  // The stub cannot run the ladder (there is no project to run it against),
+  // so it publishes a fixed payload — enough to prove the wire contract, the
+  // parser and both mount points, which is the part that can regress.
+  push(() =>
+    out({
+      type: 'extension_ui_request',
+      id: 'ext-status-lane',
+      method: 'setStatus',
+      statusKey: 'pidex-lane-loop',
+      statusText: JSON.stringify({
+        rungs: [
+          { key: 'tsc', state: 'pass', command: 'npm run typecheck', exitCode: 0 },
+          { key: 'test', state: 'fail', exitCode: 1, detail: '2 failing in auth/ttl.test.ts' },
+          { key: 'lint', state: 'pass', command: 'npm run lint', exitCode: 0 },
+          { key: 'diff', state: 'pass' },
+          { key: 'merge', state: 'pass' },
+          { key: 'pr', state: 'stale' },
+        ],
+        diff: { added: 118, removed: 22, files: 4 },
+        diffBudget: { lines: 400, files: 20 },
+        branch: 'pidex/stub-lane',
+        updatedAt: Date.now(),
+      }),
+    }),
+  )
   // Third consecutive call: makes this a 3-tool run (grouping) and stays
   // "running" for several ticks so the in-flight animation is observable.
   push(() =>

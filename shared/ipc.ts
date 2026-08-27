@@ -28,6 +28,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  AgentDirectivePrefs,
   ClaudeSystemPromptMode,
   CreateSessionOptions,
   DirEntry,
@@ -130,6 +131,14 @@ export interface IpcInvokeMap {
    */
   'app:setClaudeSystemPrompt': { args: [ClaudeSystemPromptMode]; result: void }
   'app:setWorktreePrefs': { args: [WorktreePrefs]; result: void }
+  /**
+   * Layer 2 of the directive stack. `projectPath` undefined sets the global
+   * default; a path sets that project's override, and `null` prefs clear it.
+   */
+  'app:setAgentDirectives': {
+    args: [prefs: AgentDirectivePrefs | null, projectPath?: string]
+    result: void
+  }
   /** Suppress orchestrator desktop notifications (global, not per project). */
   'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }

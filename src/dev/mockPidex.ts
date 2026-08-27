@@ -576,6 +576,8 @@ export function installMockPidex(): void {
           return Promise.resolve(undefined)
         case 'app:setWorktreePrefs':
           return Promise.resolve(undefined)
+        case 'app:setAgentDirectives':
+          return Promise.resolve(undefined)
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
         case 'pi:createSession':

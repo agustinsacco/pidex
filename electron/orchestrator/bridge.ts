@@ -6,6 +6,7 @@ import {
   type OrchestratorDigest,
   type OrchestratorMode,
 } from '@shared/models'
+import { envelope, newNonce, scrubInvisible, untrustedPreamble } from './untrusted'
 import type { AgentMessage } from '@shared/rpc'
 import { type FleetCallResult, type FleetCommandName } from './protocol'
 
@@ -93,13 +94,50 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-/** Compact a transcript down to what a manager needs to judge progress. */
-function summarizeMessages(messages: AgentMessage[], limit: number): unknown[] {
+const YES = new Set(['yes', 'y', 'true', '1', 'confirm', 'confirmed', 'ok', 'approve'])
+const NO = new Set(['no', 'n', 'false', '0', 'cancel', 'deny', 'reject'])
+
+/**
+ * A confirmation answer, or `null` when it is not one.
+ *
+ * Deliberately a closed set with an explicit unknown, not a truthiness test.
+ * The version this replaces was `value === true || value === 'true' || value
+ * === 'yes'`, which turns every unrecognised answer into a silent **no** on a
+ * dialog whose whole purpose is guarding something destructive. Returning null
+ * lets the caller refuse and let the model try again, which is recoverable;
+ * answering "no" to "delete the branch?" when the model meant "affirmative"
+ * is not.
+ */
+export function parseConfirm(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  if (YES.has(normalized)) return true
+  if (NO.has(normalized)) return false
+  return null
+}
+
+/**
+ * Compact a transcript down to what a manager needs to judge progress.
+ *
+ * Every free-text field here was written by another lane's agent, which may
+ * have been reading a hostile issue, log or web page. It reaches a thread
+ * holding `session_send` and `session_stop` over that same lane, so it is
+ * enveloped under a per-call nonce rather than returned verbatim. The
+ * structural fields (role, tool name, error flag, stop reason) are facts the
+ * runtime produced and stay plain.
+ */
+function summarizeMessages(messages: AgentMessage[], limit: number, nonce: string): unknown[] {
+  const frame = (text: string, kind: string): string =>
+    text ? envelope(nonce, text, { kind }) : text
   return messages.slice(-limit).map((message) => {
     if (message.role === 'user') {
       return {
         role: 'user',
-        text: typeof message.content === 'string' ? message.content : '[blocks]',
+        text:
+          typeof message.content === 'string'
+            ? frame(message.content, 'lane-user-message')
+            : '[blocks]',
       }
     }
     if (message.role === 'assistant') {
@@ -110,7 +148,12 @@ function summarizeMessages(messages: AgentMessage[], limit: number): unknown[] {
       const tools = message.content
         .filter((b): b is Extract<typeof b, { type: 'toolCall' }> => b.type === 'toolCall')
         .map((b) => b.name)
-      return { role: 'assistant', text, tools, stopReason: message.stopReason }
+      return {
+        role: 'assistant',
+        text: frame(text, 'lane-output'),
+        tools,
+        stopReason: message.stopReason,
+      }
     }
     if (message.role === 'toolResult') {
       return { role: 'toolResult', tool: message.toolName, isError: message.isError }
@@ -205,11 +248,16 @@ export async function handleFleetCommand(
       const response = await deps.requestOn(found.sessionId, { type: 'get_messages' })
       if (!response.success) return fail(response.error ?? 'get_messages failed')
       const data = response.data as { messages?: AgentMessage[] } | undefined
+      const nonce = newNonce()
       return ok({
         sessionId: found.sessionId,
-        title: found.title,
+        title: found.title === undefined ? undefined : scrubInvisible(found.title),
         phase: found.phase,
-        messages: summarizeMessages(data?.messages ?? [], limit),
+        // Stated in the payload, not left to the system prompt: this result
+        // may arrive long after the preamble and may survive a compaction
+        // that the preamble did not.
+        readMe: untrustedPreamble(nonce),
+        messages: summarizeMessages(data?.messages ?? [], limit, nonce),
       })
     }
 
@@ -252,7 +300,18 @@ export async function handleFleetCommand(
       if (requestId !== question.requestId) return fail('that question is no longer pending')
       const value = asString(args.value)
       if (question.method === 'confirm') {
-        const confirmed = args.value === true || value === 'true' || value === 'yes'
+        const confirmed = parseConfirm(args.value)
+        if (confirmed === null) {
+          // Never coerce an unrecognised answer to `false`. The old code read
+          // truthiness (`=== true || 'true' || 'yes'`), so a model replying
+          // "affirmative" or "y" silently answered NO to a destructive
+          // confirmation — and the transcript honestly recorded that it had.
+          // A refusal the model can see and retry is the only safe default.
+          return fail(
+            `"${String(args.value)}" is not a yes/no answer. ` +
+              `Reply with one of: yes, no, true, false, y, n.`,
+          )
+        }
         deps.answerQuestion(found.sessionId, requestId, { confirmed })
         deps.announceInjection(
           found.sessionId,
