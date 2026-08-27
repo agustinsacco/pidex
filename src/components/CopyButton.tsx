@@ -6,12 +6,20 @@ export function CopyButton({
   text,
   label,
   size = 'md',
+  title = 'Copy',
   className,
 }: {
   text: string
   label?: string
-  /** 'sm' matches the compact hover-popover rows (message meta rows). */
-  size?: 'sm' | 'md'
+  /**
+   * 'sm' matches the compact hover-popover rows (message meta rows).
+   * 'icon' is a square hit target for a lone, label-less button — the message
+   * hover affordance, which has to be small enough to sit in the transcript's
+   * side gutter rather than on top of the prose.
+   */
+  size?: 'sm' | 'md' | 'icon'
+  /** Overrides the tooltip, e.g. to carry a timestamp with no visible chrome. */
+  title?: string
   className?: string
 }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
@@ -23,15 +31,17 @@ export function CopyButton({
     })
   }
 
-  const iconSize = size === 'sm' ? 11 : 13
+  const iconSize = size === 'md' ? 13 : 11
 
   return (
     <button
       onClick={copy}
-      title="Copy"
+      title={title}
       className={clsx(
         'text-text-tertiary hover:text-text flex items-center gap-1 transition-colors',
-        size === 'sm' ? 'h-4 text-sm' : 'hover:bg-bg-secondary h-6 rounded-md px-1.5 text-sm',
+        size === 'sm' && 'h-4 text-sm',
+        size === 'md' && 'hover:bg-bg-secondary h-6 rounded-md px-1.5 text-sm',
+        size === 'icon' && 'hover:bg-bg-secondary hover:text-text h-5 w-5 justify-center rounded',
         className,
       )}
     >

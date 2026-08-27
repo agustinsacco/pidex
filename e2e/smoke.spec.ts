@@ -533,7 +533,10 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     const transcript = await page.locator('.md-content').allInnerTexts()
     expect(transcript.join('\n')).not.toContain('**')
 
-    // Spacing: messages are separated by more than the gap inside a message.
+    // Spacing: ONE step (`STREAM_GAP`, 8px), owned by the row wrapper and
+    // nothing else. Every row either leads with that step or, being the
+    // first, leads with nothing — a row carrying some third value means a
+    // second owner of vertical space came back.
     const gaps = await page.evaluate(() => {
       const nodes = [...document.querySelectorAll('[data-index]')] as HTMLElement[]
       return nodes.slice(0, 4).map((n) => {
@@ -541,7 +544,8 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
         return inner ? parseFloat(getComputedStyle(inner).paddingTop) : 0
       })
     })
-    expect(Math.max(...gaps)).toBeGreaterThanOrEqual(12)
+    expect(gaps.some((gap) => gap === 8)).toBe(true)
+    expect(gaps.filter((gap) => gap !== 0 && gap !== 8)).toEqual([])
 
     // Extension status line arrived styled with ANSI SGR codes; the strip
     // must show clean (optionally colored) text, never raw escape bytes.

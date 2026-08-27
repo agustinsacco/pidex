@@ -48,12 +48,6 @@ export const ToolCard = memo(function ToolCard({
           failed ? 'text-danger' : 'text-text-secondary hover:text-text',
         )}
       >
-        {running && (
-          <span
-            aria-hidden
-            className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full"
-          />
-        )}
         <span className={clsx('shrink-0', running && 'tool-running-label')}>{summary.label}</span>
         {summary.object && (
           <span
@@ -74,6 +68,19 @@ export const ToolCard = memo(function ToolCard({
           <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
             failed
           </span>
+        )}
+        {/*
+         * The in-flight dot TRAILS the label. Leading it made every row jump
+         * 12px sideways the moment the tool settled and the dot went away —
+         * and the rows are now aligned tightly enough for that to read as a
+         * glitch. It stays (rather than leaving the shimmer to carry it alone)
+         * because prefers-reduced-motion turns the shimmer off.
+         */}
+        {running && (
+          <span
+            aria-hidden
+            className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full"
+          />
         )}
         <ChevronIcon expanded={expanded} className="text-text-tertiary" />
       </button>

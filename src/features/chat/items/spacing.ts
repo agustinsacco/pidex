@@ -26,8 +26,16 @@ import type { TranscriptRow } from './transcriptRows'
  * rounds into one row made the in-turn step redundant anyway.
  */
 
-/** The one vertical step (pt-3 = 12px). The literal IS the single source. */
-export const STREAM_GAP = 'pt-3'
+/**
+ * The one vertical step (pt-2 = 8px). The literal IS the single source.
+ *
+ * It was 12px, which measured fine in isolation and read as loose in a real
+ * transcript: prose sets its own 1.65 line-height, so ~4px of half-leading
+ * sits above the first line and below the last one, and the eye adds that to
+ * whatever this returns. 8px of margin plus that leading lands on the ~16px
+ * the reference actually shows between a paragraph and the group under it.
+ */
+export const STREAM_GAP = 'pt-2'
 
 /**
  * Leading class for a boundary: no gap before the first row, one step

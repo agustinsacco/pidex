@@ -171,7 +171,7 @@ function UserMessage({
        * picker), then the relative timestamp — zero layout height at rest,
        * so hover can never nudge the transcript.
        */}
-      <div className="flex h-4 items-center gap-2 pr-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex h-4 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
         {item.text && !item.optimistic && (
           <button
             onClick={() => void rewind()}
@@ -232,20 +232,31 @@ function AssistantText({
       </div>
 
       {/*
-       * Hover affordances float above the row's top-right corner as an
-       * absolutely-positioned pill: zero layout height, so hover can never
-       * reflow the virtualized transcript (measured heights stay stable).
+       * Copy sits in the transcript's right GUTTER, not over the prose.
+       *
+       * It used to be a bordered pill ("⧉ Copy · 8/3/2026") at `-top-2 right-0`,
+       * which landed squarely on the first line of every answer it belonged
+       * to. The scroller's column carries 24px of padding on each side
+       * (`px-6` in MessageList, with rows inset to the content box), so a 20px
+       * button offset by 22px sits entirely inside that padding: it can never
+       * cover a word, and it still cannot reflow the virtualized transcript
+       * because it stays absolutely positioned.
+       *
+       * The timestamp moved into the tooltip. Shown inline it was the widest
+       * thing in the affordance, and the user message it answers carries the
+       * turn's time already.
        */}
       {!item.streaming && fullText && (
-        <div className="pointer-events-none absolute -top-2 right-0 z-10 opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100">
-          <div className="border-border bg-surface-raised flex items-center gap-1 rounded-md border px-1.5 py-0.5 shadow-sm">
-            <CopyButton text={fullText} label="Copy" />
-            {item.timestamp != null && (
-              <span className="text-text-tertiary text-sm" title={absoluteTime(item.timestamp)}>
-                {relativeTime(item.timestamp)}
-              </span>
-            )}
-          </div>
+        <div className="pointer-events-none absolute -right-[22px] top-0 z-10 opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100">
+          <CopyButton
+            text={fullText}
+            size="icon"
+            title={
+              item.timestamp != null
+                ? `Copy message · ${absoluteTime(item.timestamp)}`
+                : 'Copy message'
+            }
+          />
         </div>
       )}
     </div>

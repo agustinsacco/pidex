@@ -28,7 +28,25 @@ import { ChevronIcon } from '@/components/icons'
  *   accented so you can watch work happen; once it settles it auto-collapses
  *   to the summary line — unless the user opened it themselves, which always
  *   wins.
+ *
+ * The group is *title-anchored*: the summary text, the card's left edge and
+ * the prose above it all start at the same x. Everything that indents does so
+ * INSIDE the card. Before this, the card overhung the summary text by 6px on
+ * the left while the rows sat 6px further right than it — three different
+ * left edges in one unit, which is what made it read as loose.
  */
+
+/**
+ * Left inset shared by every row inside the card — tool rows, CLI-side tool
+ * rows, sub-agent launches, reasoning-only rows. One constant because the
+ * moment two of them disagree the card stops reading as a single column, and
+ * Claude-provider sessions mix all four shapes in one run.
+ *
+ * 16px also happens to be the width the reasoning mark needs, so the mark
+ * floats in this inset instead of reserving a column in rows that have no
+ * reasoning to show.
+ */
+export const ROW_INSET = 'pl-4 pr-2'
 export const ActivityGroup = memo(function ActivityGroup({
   steps,
   tools,
@@ -100,22 +118,19 @@ export const ActivityGroup = memo(function ActivityGroup({
           if (!activeRun) setUserOpen(!open)
         }}
         aria-expanded={open}
-        className="hover:bg-bg-secondary/60 flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors"
+        /*
+         * Padding pulled back out with a negative margin so the label starts
+         * at x=0 — flush with the prose above and the card below — while the
+         * hover surface still has room to breathe around the text.
+         */
+        className="hover:bg-bg-secondary/60 -ml-1.5 flex w-[calc(100%+0.375rem)] items-center rounded-md px-1.5 py-0.5 text-left transition-colors"
       >
-        {activeRun ? (
-          <span
-            aria-hidden
-            className="bg-accent tool-running-dot h-1.5 w-1.5 shrink-0 rounded-full"
-          />
-        ) : (
-          <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
-        )}
         {activeRun ? (
           // One flat span while live: the shimmer clips a gradient to the
           // text, which needs a single run of same-colored glyphs.
-          <span className="thinking-shimmer min-w-0 flex-1 truncate text-base">{liveLabel}</span>
+          <span className="thinking-shimmer min-w-0 truncate text-base">{liveLabel}</span>
         ) : (
-          <span className="text-text-secondary min-w-0 flex-1 truncate text-base">
+          <span className="text-text-secondary min-w-0 truncate text-base">
             <span className="text-text font-medium">{summary.stepLabel}</span>
             {summary.detail && ` · ${summary.detail}`}
             {summary.thinkingCount > 0 && (
@@ -126,8 +141,26 @@ export const ActivityGroup = memo(function ActivityGroup({
             )}
           </span>
         )}
+        {/*
+         * The status slot TRAILS the label, and the live dot and the settled
+         * caret share it. Leading them would move the label 14px sideways at
+         * the moment a run settles — the one moment the eye is already on it.
+         */}
+        {activeRun ? (
+          <span
+            aria-hidden
+            className="bg-accent tool-running-dot ml-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+          />
+        ) : (
+          <ChevronIcon
+            expanded={open}
+            size={9}
+            strokeWidth={3}
+            className="text-text-tertiary ml-1.5"
+          />
+        )}
         {summary.failedCount > 0 && (
-          <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
+          <span className="bg-danger-soft text-danger ml-auto shrink-0 rounded px-1.5 py-px text-xs font-medium">
             {summary.failedCount} failed
           </span>
         )}
@@ -141,7 +174,14 @@ export const ActivityGroup = memo(function ActivityGroup({
         {/* overflow-hidden moved here from the old outer frame — the grid
             track collapse needs a clipping child to actually hide the card. */}
         <div className="min-h-0 overflow-hidden">
-          <div className="border-border bg-surface divide-border/50 mt-1 divide-y overflow-hidden rounded-lg border">
+          {/*
+           * Border only, no fill. A white card on the grey page plus a border
+           * is two containment signals for one group; the hairline alone is
+           * enough and keeps the run visually subordinate to the prose.
+           * `rounded-lg` is 14px in this theme (--px-radius-lg), which was far
+           * too round for a 26px row — hence the explicit 7.
+           */}
+          <div className="border-border divide-border/50 mt-1 divide-y overflow-hidden rounded-[7px] border">
             {rows.map(({ step, thought }) => (
               <div
                 className="activity-step-enter"
@@ -184,16 +224,21 @@ function ActivityRow({
       return <SubagentRow headline={info.headline} detail={info.detail} />
     }
     return (
-      <div className="flex items-start px-2" data-testid="external-tool-row">
-        <span className="flex w-5 shrink-0 justify-center pt-1" />
-        <span
-          className="text-text-secondary min-w-0 flex-1 truncate text-base"
-          title={args && `${name} ${args}`}
-        >
-          <span className="text-text-tertiary">Claude Code</span>{' '}
-          <span className="text-text">{name}</span>
-          {info.headline && <span className="text-text-tertiary ml-1.5">{info.headline}</span>}
-        </span>
+      // Typed like a ToolCard row on purpose (same inset, same text-lg, same
+      // secondary/primary split): a Claude-provider run interleaves these with
+      // real pi tool calls, and a second type scale made the same run look
+      // like two different transcripts stitched together.
+      <div
+        className={clsx('flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
+        data-testid="external-tool-row"
+      >
+        <span className="text-text-tertiary shrink-0">Claude Code</span>
+        <span className="text-text shrink-0 font-medium">{name}</span>
+        {info.headline && (
+          <span className="text-text-secondary min-w-0 truncate" title={args && `${name} ${args}`}>
+            {info.headline}
+          </span>
+        )}
       </div>
     )
   }
@@ -206,38 +251,37 @@ function ActivityRow({
 
   return (
     <div>
-      <div className="flex items-start px-2">
-        <span className="flex w-5 shrink-0 justify-center pt-1">
-          {thought && (
-            <button
-              onClick={() => setPinned((p) => !p)}
-              onPointerEnter={() => setHovered(true)}
-              onPointerLeave={() => setHovered(false)}
-              onFocus={() => setHovered(true)}
-              onBlur={() => setHovered(false)}
-              title="Reasoning before this step"
-              aria-label="Show reasoning before this step"
-              aria-expanded={pinned}
-              data-testid="thought-mark"
-              className={clsx(
-                'flex h-4 w-4 items-center justify-center rounded text-2xs transition-colors',
-                pinned
-                  ? 'bg-accent-soft text-accent'
-                  : 'text-text-tertiary hover:bg-accent-soft hover:text-accent',
-              )}
-            >
-              ✳
-            </button>
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <ToolCard
-            tool={tool}
-            sessionId={sessionId}
-            expanded={expanded}
-            onToggle={() => setExpanded((e) => !e)}
-          />
-        </span>
+      {/* The mark floats in the row's own inset rather than reserving a column
+          in front of every row. Reserving it pushed all four row types 20px
+          right of the card edge for the sake of the few that have reasoning. */}
+      <div className={clsx('relative', ROW_INSET)}>
+        {thought && (
+          <button
+            onClick={() => setPinned((p) => !p)}
+            onPointerEnter={() => setHovered(true)}
+            onPointerLeave={() => setHovered(false)}
+            onFocus={() => setHovered(true)}
+            onBlur={() => setHovered(false)}
+            title="Reasoning before this step"
+            aria-label="Show reasoning before this step"
+            aria-expanded={pinned}
+            data-testid="thought-mark"
+            className={clsx(
+              'absolute left-px top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded text-2xs transition-colors',
+              pinned
+                ? 'bg-accent-soft text-accent'
+                : 'text-text-tertiary hover:bg-accent-soft hover:text-accent',
+            )}
+          >
+            ✳
+          </button>
+        )}
+        <ToolCard
+          tool={tool}
+          sessionId={sessionId}
+          expanded={expanded}
+          onToggle={() => setExpanded((e) => !e)}
+        />
       </div>
       {expanded && (
         // Not a second card: the detail is a full-width section of the
@@ -250,7 +294,7 @@ function ActivityRow({
       {showThought && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-7 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-4 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={thought} />
         </div>
@@ -285,14 +329,15 @@ function SubagentRow({
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(
-          'flex w-full items-center gap-1.5 px-2 py-1 text-left transition-colors',
+          'flex w-full items-center gap-1.5 py-1 text-left text-lg transition-colors',
+          ROW_INSET,
           expandable && 'hover:bg-bg-secondary/60',
         )}
       >
         <span className="bg-accent-soft text-accent shrink-0 rounded px-1.5 py-px text-xs font-semibold uppercase tracking-wide">
           agent
         </span>
-        <span className="text-text min-w-0 flex-1 truncate text-base">
+        <span className="text-text min-w-0 truncate font-medium">
           {headline ?? 'Sub-agent task'}
         </span>
         {expandable && (
@@ -302,7 +347,7 @@ function SubagentRow({
       {open && detail && (
         <div
           data-testid="subagent-prompt"
-          className="border-accent/30 text-text-secondary mb-1.5 ml-2 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
+          className="border-accent/30 text-text-secondary mb-1.5 ml-4 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
         >
           {detail}
         </div>
@@ -320,15 +365,17 @@ function ThoughtOnlyRow({ text }: { text: string }): React.JSX.Element {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         data-testid="thought-mark"
-        className="text-text-tertiary hover:text-text-secondary flex w-full items-center gap-1.5 px-2 py-1 text-left text-base italic transition-colors"
+        className="text-text-tertiary hover:text-text-secondary relative flex w-full items-center py-1 pl-4 pr-2 text-left text-base italic transition-colors"
       >
-        <span className="text-2xs flex w-5 justify-center">✳</span>
+        {/* Same column the paired mark floats in, so a reasoning-only row and
+            a tool row with reasoning put their ✳ in exactly one place. */}
+        <span className="text-2xs absolute left-px flex w-3.5 justify-center">✳</span>
         <span>Reasoning</span>
       </button>
       {open && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-7 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-4 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={text} />
         </div>
