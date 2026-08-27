@@ -237,6 +237,8 @@ async function autoNameSession(
   if (useChatStore.getState().sessions[pidexId]?.meta?.sessionName) return
   if (!useSessionsStore.getState().live[pidexId]) return
   if (await piCallOk(pidexId, { type: 'set_session_name', name: title })) {
+    // The visible rename; the disk scan may not carry it for a while yet.
+    // See the same call in features/sessions/startChat.ts.
     useChatStore.getState().patchMeta(pidexId, { sessionName: title })
     void useSessionsStore.getState().refreshDisk(workspacePath)
   }
