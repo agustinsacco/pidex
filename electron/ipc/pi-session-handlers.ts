@@ -1,11 +1,10 @@
 import { app } from 'electron'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { basename, join as joinPath } from 'node:path'
 import { fleetHub, registry } from '../registry'
 import { handle } from './handle'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
+import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { worktreePromptBlock } from '../pi/workspace-prompt'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
@@ -282,19 +281,26 @@ export function registerPiSessionHandlers(): void {
         env = { ...process.env, ...(await piProcessEnv()) }
       }
 
-      try {
-        // `--no-session` keeps this run out of the sidebar; `--no-tools`
-        // keeps a title request from being able to touch anything.
-        const { stdout } = await promisify(execFile)(
-          binaryPath,
-          [...prefixArgs, '-p', '--no-session', '--no-tools', titlePrompt(message, existingNames)],
-          { cwd: workspacePath, env, timeout: 30_000, maxBuffer: 1024 * 1024 },
-        )
-        const title = sanitizeTitle(stdout)
-        return title ? dedupeTitle(title, existingNames) : null
-      } catch {
-        return null
-      }
+      // `--no-session` keeps this run out of the sidebar; `--no-tools`
+      // keeps a title request from being able to touch anything. Spawned
+      // through runPrintMode because `pi -p` blocks until stdin hits EOF —
+      // see electron/pi/print-mode.ts, and never reintroduce execFile here.
+      const started = Date.now()
+      const { stdout, error } = await runPrintMode(
+        binaryPath,
+        [...prefixArgs, '-p', '--no-session', '--no-tools', titlePrompt(message, existingNames)],
+        { cwd: workspacePath, env },
+      )
+      const title = stdout ? sanitizeTitle(stdout) : null
+      // Logged either way: this failing produced no symptom at all for weeks
+      // beyond "sessions are never named", which named no cause. One line per
+      // new chat is a price worth paying for that never happening again.
+      log('naming', title ? 'generated a session name' : 'no session name', {
+        ms: Date.now() - started,
+        title,
+        ...(error ? { error } : {}),
+      })
+      return title ? dedupeTitle(title, existingNames) : null
     },
   )
 }

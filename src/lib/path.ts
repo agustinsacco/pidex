@@ -53,9 +53,25 @@ export function worktreeAwareName(
   workspacePath: string,
   git?: { isWorktree?: boolean; mainRepoPath?: string; branch?: string },
 ): string {
-  if (git?.isWorktree && git.mainRepoPath) {
-    const repo = workspaceName(git.mainRepoPath)
-    return git.branch ? `${repo} (${git.branch})` : repo
-  }
+  const repo = projectName(workspacePath, git)
+  if (git?.isWorktree && git.mainRepoPath && git.branch) return `${repo} (${git.branch})`
+  return repo
+}
+
+/**
+ * Just the project, with no branch: `pidex` for every folder of the pidex
+ * repo, worktrees included.
+ *
+ * Separate from `worktreeAwareName` because the two answer different
+ * questions, and surfaces that show both were saying the same thing twice.
+ * The window title has nowhere else to put the branch, so it keeps the long
+ * form; the sidebar sits directly under a top bar whose chips already name
+ * the folder and the branch, so it uses this.
+ */
+export function projectName(
+  workspacePath: string,
+  git?: { isWorktree?: boolean; mainRepoPath?: string },
+): string {
+  if (git?.isWorktree && git.mainRepoPath) return workspaceName(git.mainRepoPath)
   return workspaceName(workspacePath)
 }
