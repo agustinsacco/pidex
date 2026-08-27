@@ -46,7 +46,8 @@ export function groupSessionsByProject(
   /**
    * Session file paths belonging to orchestrator threads. They run in the
    * project's own cwd, so without this they sort into the list as ordinary
-   * chats — see `OrchestratorRow`, which gives them their own shape.
+   * chats — see `OrchestratorHeaderButton`, which gives it its own shape in the
+   * workspace header rather than a row among sessions.
    */
   orchestratorPaths: Iterable<string> = [],
   /** workspacePath → latest scan attempt; absence = never attempted. */

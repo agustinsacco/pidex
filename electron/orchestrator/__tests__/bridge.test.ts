@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type { FleetSession } from '@shared/models'
+import type { FleetSession, OrchestratorMode } from '@shared/models'
 import { emptySession } from '../fleetReducer'
 import { handleFleetCommand, type BridgeDeps } from '../bridge'
 import { decodeResult, encodeResult, parseRequestTitle, requestTitle } from '../protocol'
@@ -26,6 +26,8 @@ function deps(overrides: Partial<BridgeDeps> = {}): BridgeDeps {
     writeMemory: vi.fn(async () => {}),
     publishDigest: vi.fn(),
     proposeWork: vi.fn(async () => ({ started: false })),
+    // Supervise is the default posture: may act on sessions, may not start them.
+    modeFor: () => 'supervise' as OrchestratorMode,
     ...overrides,
   }
 }
@@ -321,5 +323,70 @@ describe('worktree sessions belong to their project', () => {
       mode: 'steer',
     })
     expect(result).toEqual({ ok: true, data: { delivered: 'steer' } })
+  })
+})
+
+describe('mode enforcement (evaluated per call, not baked into the prompt)', () => {
+  const observing = () => deps({ modeFor: () => 'observe' as OrchestratorMode })
+
+  it.each(['session_send', 'session_stop', 'session_answer', 'propose_work'] as const)(
+    'refuses %s in Observe mode',
+    async (cmd) => {
+      const result = await call(observing(), ORCHESTRATOR, cmd, {
+        sessionId: WORKER,
+        text: 'hi',
+        value: 'yes',
+        title: 't',
+        prompt: 'p',
+      })
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toContain('Observe mode')
+        // The refusal must say what to do instead, or the model just retries.
+        expect(result.error).toMatch(/Report what you found|switch modes/)
+      }
+    },
+  )
+
+  it('still allows read-only commands in Observe mode', async () => {
+    const d = observing()
+    expect((await call(d, ORCHESTRATOR, 'fleet_status')).ok).toBe(true)
+    expect((await call(d, ORCHESTRATOR, 'session_read', { sessionId: WORKER })).ok).toBe(true)
+    expect((await call(d, ORCHESTRATOR, 'git_status')).ok).toBe(true)
+    expect((await call(d, ORCHESTRATOR, 'memory_read')).ok).toBe(true)
+  })
+
+  it('never touches the session when a mutation is refused', async () => {
+    const d = observing()
+    await call(d, ORCHESTRATOR, 'session_send', { sessionId: WORKER, text: 'stop' })
+    expect(d.requestOn).not.toHaveBeenCalled()
+    expect(d.announceInjection).not.toHaveBeenCalled()
+  })
+
+  it('allows mutations in Supervise mode', async () => {
+    const d = deps()
+    const result = await call(d, ORCHESTRATOR, 'session_send', {
+      sessionId: WORKER,
+      text: 'try the other branch',
+    })
+    expect(result.ok).toBe(true)
+    expect(d.requestOn).toHaveBeenCalled()
+  })
+
+  it('reads the mode at call time, so a change applies to the next call', async () => {
+    let mode: OrchestratorMode = 'observe'
+    const d = deps({ modeFor: () => mode })
+    const before = await call(d, ORCHESTRATOR, 'session_send', {
+      sessionId: WORKER,
+      text: 'hi',
+    })
+    expect(before.ok).toBe(false)
+
+    mode = 'supervise'
+    const after = await call(d, ORCHESTRATOR, 'session_send', {
+      sessionId: WORKER,
+      text: 'hi',
+    })
+    expect(after.ok).toBe(true)
   })
 })

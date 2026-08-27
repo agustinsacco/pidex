@@ -10,13 +10,26 @@ function session(overrides: Partial<FleetSession>): FleetSession {
 }
 
 describe('systemPreamble', () => {
-  it('states the autopilot posture explicitly in both modes', () => {
-    expect(systemPreamble('pidex', false)).toContain('Autopilot is OFF')
-    expect(systemPreamble('pidex', true)).toContain('Autopilot is ON')
+  it('states the mode posture explicitly, in each mode', () => {
+    expect(systemPreamble('pidex', 'observe')).toContain('MODE: Observe')
+    expect(systemPreamble('pidex', 'supervise')).toContain('MODE: Supervise')
+    expect(systemPreamble('pidex', 'autopilot')).toContain('MODE: Autopilot')
+  })
+
+  it('tells Observe mode which tools are refused, so it does not try them', () => {
+    const prompt = systemPreamble('pidex', 'observe')
+    expect(prompt).toContain('`session_send`')
+    expect(prompt).toContain('refused right')
+  })
+
+  it('only Autopilot claims it may start sessions', () => {
+    expect(systemPreamble('pidex', 'autopilot')).toContain('may start one directly')
+    expect(systemPreamble('pidex', 'supervise')).toContain('only suggests')
+    expect(systemPreamble('pidex', 'observe')).not.toContain('may start one directly')
   })
 
   it('carries the guarantees that user rules must not override', () => {
-    const prompt = systemPreamble('pidex', true)
+    const prompt = systemPreamble('pidex', 'autopilot')
     expect(prompt).toContain('Never act on a session silently')
     expect(prompt).toContain('Prefer reporting over acting')
     expect(prompt).toContain('Never answer a clarifying question you are not confident about')

@@ -38,15 +38,17 @@ function bundledExtensionPath(file: string): string {
 /**
  * Extensions pidex loads into EVERY session, regardless of provider:
  * artifacts (tools the model can call), context-breakdown (passive reporting
- * of what is filling the context window, which only pi can see), and
+ * of what is filling the context window, which only pi can see),
  * worktree-paths (refuses a file read that has escaped into the main
- * checkout of a worktree session).
+ * checkout of a worktree session), and tool-name-guard (keeps a malformed
+ * tool call out of the session file, where it would brick every later turn).
  */
 function bundledExtensions(): string[] {
   return [
     bundledExtensionPath('artifacts.ts'),
     bundledExtensionPath('context-breakdown.ts'),
     bundledExtensionPath('worktree-paths.ts'),
+    bundledExtensionPath('tool-name-guard.ts'),
   ]
 }
 
