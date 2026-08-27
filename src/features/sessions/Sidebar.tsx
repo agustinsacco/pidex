@@ -41,7 +41,7 @@ import { cloneSession, exportSidebarSession, renameSidebarSession } from './side
 import { copySessionDebugInfo } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
-import { OrchestratorRow } from '@/features/orchestrator/OrchestratorRow'
+import { OrchestratorHeaderButton } from '@/features/orchestrator/OrchestratorHeaderButton'
 import { useFleetStore } from '@/stores/fleet'
 
 const SIDEBAR_WIDTH_KEY = 'pidex:sidebarWidth'
@@ -493,7 +493,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   data-testid="workspace-group-menu"
                   title="Workspace options"
                   aria-label={`Workspace options for ${group.name}`}
-                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 focus-visible:opacity-100 group-hover/header:opacity-100"
+                  // Permanent, not hover-revealed: these three controls are the
+                  // workspace's fixed toolbar, and a control you cannot see is
+                  // a control you do not know exists.
+                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
                 >
                   <MoreIcon size={14} />
                 </button>
@@ -526,14 +529,15 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   }}
                   data-testid="workspace-group-new-session"
                   title="New session here"
-                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 focus-visible:opacity-100 group-hover/header:opacity-100 active:scale-90"
+                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
                 >
                   <PlusIcon size={12} strokeWidth={2.5} />
                 </button>
+                <OrchestratorHeaderButton
+                  workspacePath={group.workspacePath}
+                  projectName={group.name}
+                />
               </div>
-              {!isCollapsed && (
-                <OrchestratorRow workspacePath={group.workspacePath} projectName={group.name} />
-              )}
               {!isCollapsed &&
                 (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
                   <PendingSessionRow

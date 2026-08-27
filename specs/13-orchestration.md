@@ -29,9 +29,10 @@ judgment, not for plumbing; Layer 3 is off by default.
   [Sweeps](#sweeps-the-only-inference-trigger).
 - **No hidden hand.** Every action the orchestrator takes on a session appears
   in that session's transcript, live. See [The visible-hand rule](#the-visible-hand-rule).
-- **Autonomy is opt-in and capped.** Without autopilot the orchestrator may
-  _propose_ work; only with autopilot may it start a session, and never more
-  than `maxConcurrent` at once.
+- **Autonomy is opt-in and capped.** One axis — `observe` / `supervise` /
+  `autopilot` (see [Modes](#modes)). Only `autopilot` may start a session, and
+  never more than `maxConcurrent` at once. Enforced in `bridge.ts` at call
+  time, so a mode change binds on the next tool call.
 - **The orchestrator is a session like any other.** It is spawned through
   `SessionRegistry`, speaks the same RPC, renders in `ChatView`. It is not a
   second agent runtime.
@@ -320,8 +321,8 @@ uncommitted work, tell me"; "never steer a session that is mid-refactor";
 export interface OrchestratorWorkspacePrefs {
   /** False until the user first opens the orchestrator for this project. */
   enabled: boolean
-  /** May mutate sessions and spawn work without asking. */
-  autopilot: boolean
+  /** How much it may do on its own: observe | supervise | autopilot. */
+  mode: OrchestratorMode
   /** Cap on autopilot-spawned live sessions. */
   maxConcurrent: number
   /**
@@ -333,8 +334,28 @@ export interface OrchestratorWorkspacePrefs {
 }
 ```
 
-Defaults: `enabled false`, `autopilot false`, `maxConcurrent 2`. Stored per
-main-repo path in `AppPrefs`.
+Defaults: `enabled false`, `mode 'supervise'`, `maxConcurrent 2`. Stored per
+main-repo path in `AppPrefs`. Installs from before modes carry `autopilot`;
+`orchestratorModeOf()` migrates `true` to `autopilot` rather than silently
+downgrading.
+
+### Modes
+
+| mode                  | reads fleet | messages / stops / unblocks | starts work                |
+| --------------------- | ----------- | --------------------------- | -------------------------- |
+| `observe`             | yes         | no                          | no                         |
+| `supervise` (default) | yes         | yes                         | proposes only              |
+| `autopilot`           | yes         | yes                         | yes, up to `maxConcurrent` |
+
+The mode is **enforced in `electron/orchestrator/bridge.ts` at call time**, not
+in the prompt — `BridgeDeps.modeFor` is a function so a switch takes effect on
+the orchestrator's very next tool call, with no respawn and no window where the
+prompt and the rules disagree. The preamble still states the posture so the
+model does not waste turns attempting things it will be refused for, and a
+sweep re-states the current mode because the preamble was fixed at spawn.
+
+Switchable from the orchestrator's composer (next to the model picker) and from
+Settings → Orchestration.
 
 **There is no "sweep on open" setting.** One was specified and built as a
 toggle, then removed before shipping: nothing read it, so it was a control
@@ -349,12 +370,18 @@ asks for it, with no exceptions to remember.
 An orchestration thread manages work; a normal session _is_ work. They must
 never be mistaken for each other, in either direction.
 
-**The orchestrator, in the sidebar.** It does not sort among work sessions.
-It renders as a single distinct row pinned above its group's list: spark glyph
-instead of a status dot, the label "Orchestrator", no branch/worktree subtitle
-(it always runs on the main repo), and an attention count when its digest holds
-unresolved items. Visible enough to be discoverable, shaped differently enough
-that it never reads as a task.
+**The orchestrator, in the sidebar.** It is not in the session list at all. It
+is a fixed control in the workspace group's header, beside the group's other
+permanent controls — options (`⋯`), new session (`+`), orchestrator (`✳`) —
+so it is reachable whether or not the group is expanded, and never reads as a
+task. Right-clicking it opens the actions that keep it debuggable: open, brief,
+review, orchestration settings, restart the process (keeps the thread), and
+reset the thread (starts fresh).
+
+Its badge counts **orchestrator turns the user has not seen** — incremented
+when a turn ends while the thread is not active, cleared on opening it. That is
+a different question from the digest's attention count ("what needs you?"), and
+a sidebar badge has to answer the first one.
 
 **The orchestrator, when open.** `OrchestratorChat` keeps `ChatView` but changes
 its chrome: an accent rail, a header naming the project it manages and the
@@ -556,6 +583,26 @@ models (a local Qwen and Haiku): sessions observed, orchestrator opened, tools
 called over the control channel, digest published and rendered. That pass found
 five bugs the green suite had missed; they are recorded in
 [log/2026-08-22-workspace-orchestration.md](log/2026-08-22-workspace-orchestration.md).
+
+## Recovery
+
+A thread can reach a state where it cannot take another turn at all. A model
+that emits a malformed tool call gets it persisted into the session file, and
+every later turn replays it: Bedrock validates tool names against
+`[a-zA-Z0-9_-]+` and rejects the whole request. Observed in production from
+MiniMax M2, whose raw tool-call syntax leaked into the name field.
+
+Two mechanisms, because prevention and recovery are different problems:
+
+- `pi-ext/tool-name-guard.ts` (bundled into every session) rewrites the
+  finalized assistant message at `message_end`, turning a malformed call into
+  plain text before pi persists it.
+- `orchestrator:reset` abandons the thread and starts clean, clearing the prefs
+  pointer, digest and sweep state. `orchestrator:restart` stops the process but
+  keeps the thread, for picking up spawn-time changes.
+
+Without the second, `ensure()` kept resuming the poisoned file and the only
+escape was deleting it by hand.
 
 ## Sharp edges
 

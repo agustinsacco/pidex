@@ -319,6 +319,18 @@ export interface IpcInvokeMap {
       sessions: Record<string, string>
     }
   }
+  /**
+   * Abandon this project's orchestrator thread and start a clean one.
+   *
+   * The escape hatch for a thread that can no longer take a turn — see
+   * `OrchestratorManager.reset`. Returns the new session id.
+   */
+  'orchestrator:reset': { args: [workspacePath: string]; result: { sessionId: string } }
+  /**
+   * Stop the orchestrator process, keeping its thread. The next open resumes
+   * it, picking up spawn-time changes (rules, model, mode wording).
+   */
+  'orchestrator:restart': { args: [workspacePath: string]; result: void }
   'orchestrator:setPrefs': {
     args: [workspacePath: string, prefs: OrchestratorWorkspacePrefs]
     result: void

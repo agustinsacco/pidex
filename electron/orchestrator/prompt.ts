@@ -1,4 +1,9 @@
-import type { FleetSession, SweepKind } from '@shared/models'
+import {
+  ORCHESTRATOR_MODE_INFO,
+  type FleetSession,
+  type OrchestratorMode,
+  type SweepKind,
+} from '@shared/models'
 
 /**
  * What the orchestrator is told about itself, and what a sweep asks for.
@@ -13,7 +18,7 @@ import type { FleetSession, SweepKind } from '@shared/models'
  * The rules encoded here are the ones the product guarantees rather than the
  * ones a user configures: they must survive whatever `orchestrator.md` says.
  */
-export function systemPreamble(projectName: string, autopilot: boolean): string {
+export function systemPreamble(projectName: string, mode: OrchestratorMode): string {
   return [
     `You are the orchestration agent for the "${projectName}" project in pidex.`,
     '',
@@ -40,12 +45,44 @@ export function systemPreamble(projectName: string, autopilot: boolean): string 
     '  is worse than saying nothing.',
     '- Never answer a clarifying question you are not confident about. Leave it',
     '  for the user; that is the default and it is not a failure.',
-    autopilot
-      ? '- Autopilot is ON: `propose_work` may start a session directly, within the configured cap.'
-      : '- Autopilot is OFF: `propose_work` only suggests. You cannot start sessions.',
+    // The posture is ALSO enforced in bridge.ts at call time, so a mode change
+    // takes effect immediately; this text only keeps the model from trying
+    // things it will be refused for. Never rely on the prompt alone.
+    ...modeRules(mode),
     '- You manage sessions; you do not do their work. Do not start editing the',
     '  project yourself unless the user explicitly asks you to.',
   ].join('\n')
+}
+
+/**
+ * The mode's rules, in the model's own second person.
+ *
+ * Kept separate from the rest of the preamble so it can also be re-stated on a
+ * sweep: the preamble is fixed at spawn, but mode can change mid-thread.
+ */
+export function modeRules(mode: OrchestratorMode): string[] {
+  if (mode === 'observe') {
+    return [
+      '- MODE: Observe. You may read and report only. `session_send`,',
+      '  `session_stop`, `session_answer` and `propose_work` are refused right',
+      '  now — do not attempt them. If something needs doing, say so.',
+    ]
+  }
+  if (mode === 'autopilot') {
+    return [
+      '- MODE: Autopilot. You may message, stop and unblock sessions, and',
+      '  `propose_work` may start one directly, within the configured cap.',
+    ]
+  }
+  return [
+    '- MODE: Supervise. You may message, stop and unblock sessions.',
+    '  `propose_work` only suggests — you cannot start sessions yourself.',
+  ]
+}
+
+/** One line telling a sweep which mode it is running under. */
+export function modeReminder(mode: OrchestratorMode): string {
+  return `You are currently in ${ORCHESTRATOR_MODE_INFO[mode].label} mode. ${ORCHESTRATOR_MODE_INFO[mode].summary}`
 }
 
 /** Compact fleet view embedded in a sweep prompt, so the model starts informed. */
@@ -92,8 +129,17 @@ const REQUIRED_PUBLISH = [
   'items — publishing "all clear" is a real and useful result.',
 ].join('\n')
 
-export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: number): string {
+export function sweepPrompt(
+  kind: SweepKind,
+  sessions: FleetSession[],
+  now?: number,
+  // Optional so existing callers and tests keep working; when given, the sweep
+  // states the CURRENT mode. The preamble was fixed at spawn, so without this
+  // a mode changed mid-thread would leave the model believing the old posture.
+  mode?: OrchestratorMode,
+): string {
   const fleet = describeFleet(sessions, now)
+  const modeLine = mode ? ['', modeReminder(mode)] : []
   if (kind === 'brief') {
     return [
       'Brief me on this project.',
@@ -103,6 +149,7 @@ export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: num
       '',
       'Read your memory first. Look at anything that changed since you last',
       'reported. Do not steer or stop anything.',
+      ...modeLine,
       '',
       REQUIRED_PUBLISH,
     ].join('\n')
@@ -119,6 +166,7 @@ export function sweepPrompt(kind: SweepKind, sessions: FleetSession[], now?: num
     'so and suggest archiving it. Update your memory with anything worth',
     'remembering next time. Report; do not act, unless a rule in your',
     'instructions tells you to.',
+    ...modeLine,
     '',
     REQUIRED_PUBLISH,
   ].join('\n')

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import clsx from 'clsx'
+import { ORCHESTRATOR_MODES, ORCHESTRATOR_MODE_INFO, orchestratorModeOf } from '@shared/models'
 import { useFleetStore } from '@/stores/fleet'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
@@ -64,15 +66,36 @@ export function OrchestrationTab(): React.JSX.Element {
       </p>
 
       <Row
-        title="Autopilot"
-        description="Lets it start sessions on its own. Off by default — without it, it can only suggest work for you to accept."
+        title="Mode"
+        description="How much it may do on its own. You can also switch this from the orchestrator's composer, and it takes effect on its next action."
       >
-        <Toggle on={prefs.autopilot} onChange={(autopilot) => update({ autopilot })} />
+        <div className="flex flex-wrap justify-end gap-1">
+          {ORCHESTRATOR_MODES.map((option) => {
+            const info = ORCHESTRATOR_MODE_INFO[option]
+            const selected = orchestratorModeOf(prefs) === option
+            return (
+              <button
+                key={option}
+                onClick={() => update({ mode: option })}
+                title={info.summary}
+                aria-pressed={selected}
+                className={clsx(
+                  'rounded-md border px-2 py-1 text-xs transition-colors',
+                  selected
+                    ? 'border-accent bg-accent-soft text-text'
+                    : 'border-border text-text-tertiary hover:text-text',
+                )}
+              >
+                {info.label}
+              </button>
+            )
+          })}
+        </div>
       </Row>
 
       <Row
         title="Concurrent session cap"
-        description="The most sessions autopilot may have running at once. Sessions you start yourself are never capped."
+        description="The most sessions Autopilot mode may have running at once. Sessions you start yourself are never capped."
       >
         <NumberField
           value={prefs.maxConcurrent}

@@ -2,6 +2,8 @@ import { basename } from 'node:path'
 import { existsSync } from 'node:fs'
 import {
   DEFAULT_ORCHESTRATOR_PREFS,
+  modeAllowsStartingWork,
+  orchestratorModeOf,
   type OrchestratorDigest,
   type OrchestratorWorkspacePrefs,
   type SweepKind,
@@ -9,6 +11,8 @@ import {
 import { orchestratorSessionName } from '@shared/orchestratorIdentity'
 import type { SessionRegistry } from '../pi/session-registry'
 import {
+  clearOrchestratorDigest,
+  clearOrchestratorSession,
   getPrefs,
   setOrchestratorDigest,
   setOrchestratorPrefs,
@@ -111,7 +115,7 @@ export class OrchestratorManager {
       // Naming only applies to a fresh session; a resumed one keeps its name.
       ...(resumePath ? {} : { name: orchestratorSessionName(projectName) }),
       ...(prefs.model ? { model: prefs.model } : {}),
-      appendSystemPrompt: `${systemPreamble(projectName, prefs.autopilot)}\n\n${effectiveRules}`,
+      appendSystemPrompt: `${systemPreamble(projectName, orchestratorModeOf(prefs))}\n\n${effectiveRules}`,
       extraExtension: 'orchestrator.ts',
     })
 
@@ -119,6 +123,45 @@ export class OrchestratorManager {
     this.hub.markOrchestrator(sessionId)
     void this.rememberSessionPath(workspacePath, sessionId)
     return { sessionId }
+  }
+
+  /**
+   * Stop this project's orchestrator process, keeping its thread.
+   *
+   * The next `ensure()` resumes the same session file, so this is how a
+   * spawn-time change (mode wording in the preamble, edited rules, a new
+   * model) is picked up without losing the conversation.
+   */
+  async restart(workspacePath: string): Promise<void> {
+    const live = this.live.get(workspacePath)
+    if (!live) return
+    this.live.delete(workspacePath)
+    await this.registry.dispose(live)
+  }
+
+  /**
+   * Abandon this project's orchestrator thread and start clean.
+   *
+   * The escape hatch. A thread can reach a state where it cannot take another
+   * turn at all — a model that emits a malformed tool call gets it persisted
+   * into the session file, and every later turn replays it and is rejected by
+   * the provider ("Member must satisfy regular expression pattern:
+   * [a-zA-Z0-9_-]+"). Before this existed the only way out was deleting the
+   * session file by hand, because `ensure()` kept resuming the poisoned one
+   * and nothing cleared the pointer.
+   *
+   * The old session file is left on disk — it is pi's record and may be worth
+   * reading — but it is no longer this project's orchestrator. Its digest goes
+   * too: those findings describe a thread that no longer exists.
+   */
+  async reset(workspacePath: string): Promise<{ sessionId: string }> {
+    await this.restart(workspacePath)
+    clearOrchestratorSession(workspacePath)
+    clearOrchestratorDigest(workspacePath)
+    this.lastSweep.delete(workspacePath)
+    this.sweeping.delete(workspacePath)
+    broadcast('orchestrator:digest', { workspacePath, digest: null })
+    return this.ensure(workspacePath)
   }
 
   /**
@@ -161,8 +204,9 @@ export class OrchestratorManager {
     this.sweeping.add(workspacePath)
     this.lastSweep.set(workspacePath, Date.now())
     try {
+      const prefsNow = this.prefsFor(workspacePath)
       const fleet = this.hub.forWorkspace(workspacePath).filter((s) => !s.isOrchestrator)
-      const message = sweepPrompt(kind, fleet)
+      const message = sweepPrompt(kind, fleet, undefined, orchestratorModeOf(prefsNow))
       // The sweep prompt is an ordinary user message, so it shows in the
       // orchestrator's own transcript — what it was asked is never hidden.
       broadcast(`pi:event:${sessionId}`, {
@@ -274,10 +318,14 @@ export class OrchestratorManager {
         broadcast('orchestrator:digest', digest)
         notifyDigest(digest)
       },
+      modeFor: (workspacePath) => orchestratorModeOf(this.prefsFor(workspacePath)),
       proposeWork: async (workspacePath, title, prompt) => {
         const prefs = this.prefsFor(workspacePath)
-        if (!prefs.autopilot) {
-          return { started: false, reason: 'autopilot is off; this was suggested to the user' }
+        if (!modeAllowsStartingWork(orchestratorModeOf(prefs))) {
+          return {
+            started: false,
+            reason: 'not in Autopilot mode; this was suggested to the user instead',
+          }
         }
         const running = this.hub
           .forWorkspace(workspacePath)
