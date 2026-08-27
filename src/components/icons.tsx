@@ -259,6 +259,32 @@ export function PinIcon({ size = 11, className }: IconProps): React.JSX.Element 
   )
 }
 
+/**
+ * Star toggle for the model picker. Filled means starred; the outline is the
+ * off state, and both occupy the same box so the row does not shift on toggle.
+ */
+export function StarIcon({
+  size = 13,
+  className,
+  filled = false,
+}: IconProps & { filled?: boolean }): React.JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={filled ? 0 : 2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="m12 2.8 2.9 5.87 6.48.95-4.69 4.57 1.11 6.45L12 17.6l-5.8 3.05 1.11-6.45-4.69-4.57 6.48-.95L12 2.8z" />
+    </svg>
+  )
+}
+
 /** Tray with a down arrow, for "save to disk". */
 export function DownloadIcon({ size = 12, className }: IconProps): React.JSX.Element {
   return (

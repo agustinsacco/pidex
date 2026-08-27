@@ -2,6 +2,7 @@ import Store from 'electron-store'
 import { pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
+  DEFAULT_MODEL_PICKS,
   type AppPrefs,
   type OrchestratorDigest,
   type OrchestratorWorkspacePrefs,
@@ -46,6 +47,7 @@ export function getPrefs(): AppPrefs {
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
+    modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
@@ -135,6 +137,10 @@ export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): v
 
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
+}
+
+export function setModelPicks(picks: AppPrefs['modelPicks']): void {
+  prefs().set('modelPicks', picks)
 }
 
 export function setCollapsedWorkspaces(paths: string[]): void {

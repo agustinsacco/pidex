@@ -1,6 +1,6 @@
 import { PiRpcClient } from './rpc-client'
 import { piProcessEnv } from './shell-env'
-import type { Model, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
+import type { Model, ModelCost, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 
 /** One selectable model, for pickers that have no live pi process to ask. */
 export interface CatalogueModel {
@@ -10,6 +10,16 @@ export interface CatalogueModel {
   reasoning: boolean
   /** Per-model thinking-level overrides (see shared/thinking.ts). */
   thinkingLevelMap?: Model['thinkingLevelMap']
+  /**
+   * Comparison metadata the picker shows on each row. Optional because the
+   * `models.json` fallback (pi unavailable) has no authority on any of it, and
+   * a fabricated context window is worse than a blank one.
+   */
+  contextWindow?: number
+  maxTokens?: number
+  cost?: ModelCost
+  /** Input modalities, e.g. `['text', 'image']`. */
+  input?: string[]
 }
 
 /**
@@ -56,7 +66,13 @@ export async function resolveCatalogueModels(
   return fromConfig()
 }
 
-/** Narrow the RPC's full Model to what pickers actually need. */
+/**
+ * Narrow the RPC's full Model to what pickers actually need.
+ *
+ * Deliberately not a passthrough: `Model` carries an index signature, so
+ * forwarding it whole would ship whatever pi adds next over IPC and into the
+ * renderer unreviewed. Each field here is one the picker renders.
+ */
 export function toCatalogueModels(models: Model[]): CatalogueModel[] {
   return models.map((model) => ({
     id: model.id,
@@ -64,6 +80,10 @@ export function toCatalogueModels(models: Model[]): CatalogueModel[] {
     provider: model.provider,
     reasoning: model.reasoning,
     thinkingLevelMap: model.thinkingLevelMap,
+    ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
+    ...(typeof model.maxTokens === 'number' ? { maxTokens: model.maxTokens } : {}),
+    ...(model.cost ? { cost: model.cost } : {}),
+    ...(Array.isArray(model.input) ? { input: model.input } : {}),
   }))
 }
 

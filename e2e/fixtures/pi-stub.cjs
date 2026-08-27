@@ -227,6 +227,53 @@ const MODEL = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 }
 
+/**
+ * What `get_available_models` answers with.
+ *
+ * MODEL stays first and is what a session actually runs on. The rest exist so
+ * the suite can drive the model picker's real problem: one model reachable
+ * through several providers, plus a bare Bedrock foundation id that is only
+ * invocable as an inference profile.
+ */
+const CATALOGUE = [
+  MODEL,
+  {
+    ...MODEL,
+    id: 'claude-opus-5',
+    name: 'Claude Opus 5',
+    provider: 'anthropic',
+    reasoning: true,
+  },
+  {
+    ...MODEL,
+    id: 'claude-opus-5',
+    name: 'Claude Opus 5',
+    provider: 'pi-claude-cli',
+    reasoning: true,
+  },
+  {
+    ...MODEL,
+    id: 'anthropic.claude-opus-5',
+    name: 'Claude Opus 5',
+    provider: 'amazon-bedrock',
+    reasoning: true,
+  },
+  {
+    ...MODEL,
+    id: 'us.anthropic.claude-opus-5',
+    name: 'Claude Opus 5 (US)',
+    provider: 'amazon-bedrock',
+    reasoning: true,
+  },
+  {
+    ...MODEL,
+    id: 'gpt-5',
+    name: 'GPT-5',
+    provider: 'openai',
+    reasoning: true,
+  },
+]
+
 const DIFF = ' 1 export function hello() {\n-2   return "old"\n+2   return "new"\n 3 }'
 const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function hello() {\n-  return "old"\n+  return "new"\n }`
 
@@ -263,7 +310,7 @@ function handle(cmd) {
         type: 'response',
         command: 'get_available_models',
         success: true,
-        data: { models: [MODEL] },
+        data: { models: CATALOGUE },
       })
       break
 

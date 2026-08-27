@@ -66,6 +66,8 @@ export function MenuRow({
   onClick,
   onHover,
   title,
+  trailing,
+  testId,
   children,
 }: {
   active: boolean
@@ -78,6 +80,17 @@ export function MenuRow({
   onClick: () => void
   onHover?: () => void
   title?: string
+  /**
+   * A secondary control for the row (the model picker's pin toggle).
+   *
+   * It renders as a SIBLING overlaying the row's right edge, never as a child:
+   * the row itself is a `<button>`, and a nested button is invalid HTML that
+   * browsers recover from by hoisting it out — which silently breaks both
+   * controls. The row gets extra right padding so its content clears it.
+   */
+  trailing?: React.ReactNode
+  /** `data-testid` on the row button, so a suite can select rows and not their controls. */
+  testId?: string
   children: React.ReactNode
 }): React.JSX.Element {
   const ref = useRef<HTMLButtonElement>(null)
@@ -85,14 +98,17 @@ export function MenuRow({
     if (active) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  return (
+  const row = (
     <button
       ref={ref}
       onMouseMove={disabled ? undefined : onHover}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       title={title}
-      className={`flex w-full items-center gap-2.5 px-3 py-1 text-left text-lg transition-colors ${
+      data-testid={testId}
+      className={`flex w-full items-center gap-2.5 py-1 pl-3 text-left text-lg transition-colors ${
+        trailing ? 'pr-9' : 'pr-3'
+      } ${
         disabled
           ? 'cursor-not-allowed opacity-45'
           : `cursor-pointer ${active ? 'bg-bg-secondary' : 'hover:bg-bg-secondary'}`
@@ -100,5 +116,17 @@ export function MenuRow({
     >
       {children}
     </button>
+  )
+
+  if (!trailing) return row
+  return (
+    // `group/row` lets a trailing control fade in on row hover — it is a
+    // sibling of the row, so it cannot use the row's own :hover.
+    <div className="group/row relative">
+      {row}
+      <span className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center">
+        {trailing}
+      </span>
+    </div>
   )
 }
