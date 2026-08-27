@@ -1441,14 +1441,25 @@ test('web access tab writes provider keys to web-search.json', async () => {
 
 test('claude provider tab proves the chain end to end (stubbed claude + pi)', async () => {
   // A fake claude via the gated PIDEX_CLAUDE_BIN override — PATH games are
-  // machine-dependent (a developer's real install shadows the fake).
+  // machine-dependent (a developer's real install shadows the fake). It answers
+  // `auth status` and `auth login`, the two the tab drives; the login branch
+  // reproduces the real CLI's shape (URL on stdout, code read from stdin).
   const claudeDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-claude-'))
   await writeFile(
     join(claudeDir, 'claude'),
     '#!/bin/sh\n' +
-      'case "$1" in\n' +
-      '  --version) echo "2.1.219 (stub)";;\n' +
-      '  auth) echo \'{"loggedIn": true, "authMethod": "claude.ai", "email": "e2e@test"}\';;\n' +
+      'case "$1 $2" in\n' +
+      '  "auth login")\n' +
+      '    echo "Opening browser to sign in..."\n' +
+      '    echo "If the browser didn\'t open, visit: https://claude.com/cai/oauth/authorize?state=e2e"\n' +
+      '    printf "Paste code here if prompted > "\n' +
+      '    read code\n' +
+      '    echo "Login successful."\n' +
+      '    ;;\n' +
+      '  *) case "$1" in\n' +
+      '       --version) echo "2.1.219 (stub)";;\n' +
+      '       auth) echo \'{"loggedIn": true, "authMethod": "claude.ai", "email": "e2e@test", "subscriptionType": "max"}\';;\n' +
+      '     esac;;\n' +
       'esac\n',
   )
   await chmod(join(claudeDir, 'claude'), 0o755)
@@ -1471,7 +1482,18 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
     // Health card sees the fake binary and its auth state.
     await expect(page.getByText(/v2\.1\.219 at /)).toBeVisible()
-    await expect(page.getByText('e2e@test (claude.ai)')).toBeVisible()
+    await expect(page.getByText('e2e@test · max')).toBeVisible()
+
+    // Switching accounts is in-app: the CLI's sign-in runs with piped stdio, so
+    // the paste-code box is the whole UI it needs — no terminal, no pty.
+    await page.getByRole('button', { name: 'Switch account' }).click()
+    await expect(page.getByPlaceholder('Paste code')).toBeVisible()
+    await page.getByPlaceholder('Paste code').fill('e2e-code')
+    await page.getByRole('button', { name: 'Continue' }).click()
+    // Back to a settled row — completion is read from `auth status`, never from
+    // the CLI's "Login successful." prose.
+    await expect(page.getByRole('button', { name: 'Switch account' })).toBeVisible()
+    await expect(page.getByText('e2e@test · max')).toBeVisible()
 
     // The one-click proof runs through the (stubbed) pi print mode.
     await page.getByRole('button', { name: 'Test provider' }).click()

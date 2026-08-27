@@ -49,7 +49,7 @@ you want to watch.
 2. **IPC is a typed contract.** A new channel = an entry in
    `shared/ipc.ts` `IpcInvokeMap` + a handler in
    `electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix
-   — 13 of them, listed in [README.md](README.md#repo-layout)) + a case in
+   — 14 of them, listed in [README.md](README.md#repo-layout)) + a case in
    `src/dev/mockPidex.ts` if the browser harness should exercise it.
    `electron/ipc.ts` is only the composition root; the session registry lives
    in `electron/registry.ts` so handlers never import their composition root.

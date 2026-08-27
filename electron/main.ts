@@ -4,6 +4,7 @@ import { registerIpcHandlers } from './ipc'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { cancelAllLogins } from './pi/login-flow'
+import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
@@ -163,6 +164,7 @@ app.on('before-quit', (event) => {
   // Before killAll: a login flow polls its own pty on a timer, and killing the
   // pty out from under it would leave that timer running against a dead id.
   cancelAllLogins()
+  cancelAllClaudeLogins()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

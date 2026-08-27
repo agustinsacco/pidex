@@ -7,6 +7,7 @@ import type {
   SessionPush,
   UpdateState,
   LoginFlowState,
+  ClaudeLoginState,
 } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 
@@ -62,6 +63,8 @@ const api: PidexApi = {
   onUpdateEvent: (listener) => subscribe<[UpdateState]>('updates:event', listener),
 
   onPiLoginState: (listener) => subscribe<[LoginFlowState]>('pi:loginState', listener),
+
+  onClaudeLoginState: (listener) => subscribe<[ClaudeLoginState]>('claude:loginState', listener),
 
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 

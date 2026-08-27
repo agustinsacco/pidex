@@ -116,6 +116,22 @@ function emitLoginState(state: never): void {
   mockLoginListeners.forEach((listener) => listener(state))
 }
 
+/**
+ * Claude CLI sign-in, mocked so the provider tab's whole flow — paste-code box,
+ * rejected code, the row flipping to a new account — is developable without a
+ * `claude` install.
+ */
+let mockClaudeAuth: { loggedIn: boolean; email?: string } = {
+  loggedIn: true,
+  email: 'dev@example.com',
+}
+const mockClaudeLoginListeners = new Set<(state: never) => void>()
+let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
+
+function emitClaudeLoginState(state: never): void {
+  mockClaudeLoginListeners.forEach((listener) => listener(state))
+}
+
 const MOCK_MODELS = [
   {
     id: 'qwen-3.5-122b',
@@ -691,8 +707,53 @@ export function installMockPidex(): void {
         case 'packages:claudeStatus':
           return Promise.resolve({
             binary: { found: true, path: '/usr/local/bin/claude', version: '2.1.219' },
-            auth: { ok: true, loggedIn: true, method: 'claude.ai', email: 'dev@example.com' },
-          })
+            auth: {
+              ok: true,
+              loggedIn: mockClaudeAuth.loggedIn,
+              method: mockClaudeAuth.loggedIn ? 'claude.ai' : undefined,
+              email: mockClaudeAuth.email,
+              plan: mockClaudeAuth.loggedIn ? 'max' : undefined,
+            },
+          } as never)
+        case 'claude:startLogin':
+          clearTimeout(mockClaudeLoginTimer)
+          emitClaudeLoginState({ phase: 'starting' } as never)
+          mockClaudeLoginTimer = setTimeout(
+            () =>
+              emitClaudeLoginState({
+                phase: 'awaiting-code',
+                url: 'https://claude.com/cai/oauth/authorize?code=true',
+              } as never),
+            600,
+          )
+          return Promise.resolve(undefined as never)
+        case 'claude:submitCode': {
+          const code = String(args[0] ?? '')
+          emitClaudeLoginState({ phase: 'finishing' } as never)
+          clearTimeout(mockClaudeLoginTimer)
+          // "bad" reproduces the CLI's retry: a rejected code re-prompts with a
+          // fresh URL rather than ending the flow.
+          mockClaudeLoginTimer = setTimeout(() => {
+            if (code === 'bad') {
+              emitClaudeLoginState({
+                phase: 'awaiting-code',
+                url: 'https://claude.com/cai/oauth/authorize?code=true&retry=1',
+                invalidCode: true,
+              } as never)
+            } else {
+              mockClaudeAuth = { loggedIn: true, email: 'switched@example.com' }
+              emitClaudeLoginState({ phase: 'signed-in', email: mockClaudeAuth.email } as never)
+            }
+          }, 900)
+          return Promise.resolve(undefined as never)
+        }
+        case 'claude:cancelLogin':
+          clearTimeout(mockClaudeLoginTimer)
+          emitClaudeLoginState({ phase: 'cancelled' } as never)
+          return Promise.resolve(undefined as never)
+        case 'claude:logout':
+          mockClaudeAuth = { loggedIn: false }
+          return Promise.resolve(undefined as never)
         case 'pi:webSearchConfig':
           return Promise.resolve({
             path: '/Users/dev/.pi/web-search.json',
@@ -1199,6 +1260,11 @@ export function installMockPidex(): void {
     onPiLoginState: (listener) => {
       mockLoginListeners.add(listener)
       return () => mockLoginListeners.delete(listener)
+    },
+
+    onClaudeLoginState: (listener) => {
+      mockClaudeLoginListeners.add(listener)
+      return () => mockClaudeLoginListeners.delete(listener)
     },
 
     // Replay a full update lifecycle so the pill is developable in the

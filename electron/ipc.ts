@@ -3,6 +3,7 @@ import { registerAppHandlers, registerDebugLogHandlers } from './ipc/app-handler
 import { registerClipboardHandlers } from './ipc/clipboard-handlers'
 import { registerPiConfigHandlers } from './ipc/pi-config-handlers'
 import { registerPiAuthHandlers } from './ipc/pi-auth-handlers'
+import { registerClaudeAuthHandlers } from './ipc/claude-auth-handlers'
 import { registerSessionsHandlers } from './ipc/sessions-handlers'
 import { registerGitHandlers } from './ipc/git-handlers'
 import { registerFsHandlers } from './ipc/fs-handlers'
@@ -28,6 +29,7 @@ export function registerIpcHandlers(): void {
   registerClipboardHandlers()
   registerPiConfigHandlers()
   registerPiAuthHandlers()
+  registerClaudeAuthHandlers()
   registerSessionsHandlers()
   registerGitHandlers()
   registerFsHandlers()

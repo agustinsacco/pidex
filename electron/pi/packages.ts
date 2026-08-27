@@ -270,7 +270,7 @@ function startJob(
 }
 
 /** Resolve a binary on the login-shell PATH (GUI launches lack it). */
-async function resolveBinary(name: string): Promise<string | null> {
+export async function resolveBinary(name: string): Promise<string | null> {
   if (process.platform === 'win32') {
     try {
       const { stdout } = await execFileAsync('where', [name], { timeout: 15_000 })
@@ -432,10 +432,14 @@ export function parseClaudeAuthStatus(stdout: string): ClaudeAuthStatus {
       loggedIn?: unknown
       authMethod?: unknown
       email?: unknown
+      subscriptionType?: unknown
+      orgName?: unknown
     }
     return {
       ok: true,
       loggedIn: parsed.loggedIn === true,
+      plan: typeof parsed.subscriptionType === 'string' ? parsed.subscriptionType : undefined,
+      organization: typeof parsed.orgName === 'string' ? parsed.orgName : undefined,
       method: typeof parsed.authMethod === 'string' ? parsed.authMethod : undefined,
       email: typeof parsed.email === 'string' ? parsed.email : undefined,
     }
