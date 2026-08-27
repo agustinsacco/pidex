@@ -2,7 +2,7 @@
   <!--
     pidex mark — "prompt bubble".
     A chat bubble carrying a terminal prompt (>_): the two things the app
-    fuses. Phosphor amber on warm graphite (see specs/STYLE_GUIDE.md).
+    fuses. Phosphor amber on warm graphite (see specs/reference/style-guide.md).
     Regenerate platform assets with: node scripts/generate-icons.mjs
   -->
   <defs>

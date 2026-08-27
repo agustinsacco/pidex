@@ -15,7 +15,7 @@ import { type FleetCallResult, type FleetCommandName } from './protocol'
  * Deliberately free of Electron and of the registry's concrete type: it takes
  * a small `BridgeDeps` port, so the whole dispatch table — including the
  * authorization rule that keeps this from being a covert channel — is
- * testable with fakes (`__tests__/bridge.test.ts`).
+ * testable with fakes (`bridge.test.ts`).
  */
 
 export interface BridgeDeps {

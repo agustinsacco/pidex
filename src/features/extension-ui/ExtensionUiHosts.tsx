@@ -5,7 +5,7 @@ import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/ex
 import { CloseIcon } from '@/components/icons'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
-import { ansiToSpans, stripAnsi } from '@/lib/ansi'
+import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 

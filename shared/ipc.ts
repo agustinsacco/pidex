@@ -311,7 +311,7 @@ export interface IpcInvokeMap {
   }
 
   /**
-   * Orchestration (specs/13-orchestration.md). `fleet:state` is the mechanical
+   * Orchestration (specs/reference/orchestration.md). `fleet:state` is the mechanical
    * picture of every live session — no model runs to produce it. Updates
    * arrive on the `fleet:changed` push channel.
    */

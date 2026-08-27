@@ -37,7 +37,7 @@ divergence CLAUDE.md warns about, in its most expensive form: a green test for a
 feature that has never once run.
 
 The fix is `electron/pi/print-mode.ts` — a `spawn` with `stdio[0] = 'ignore'`,
-which is the entire difference. `__tests__/print-mode.test.ts` drives it with a
+which is the entire difference. `print-mode.test.ts` drives it with a
 fixture that blocks on stdin the way pi does; that fixture times out under
 `execFile` and passes under the new spawn, so it is a real regression guard
 rather than a restatement. The handler now also logs the outcome of every
@@ -159,7 +159,7 @@ always meant.
 
 ## Tests
 
-- `electron/pi/__tests__/print-mode.test.ts` (new) — stdin-EOF fixture,
+- `electron/pi/print-mode.test.ts` (new) — stdin-EOF fixture,
   non-zero exit, spawn failure. The first fails against `execFile`.
 - `src/stores/startingChat.test.ts` (new) — the stand-in lifecycle, and the
   draft handed back on failure (including that a new send supersedes it).

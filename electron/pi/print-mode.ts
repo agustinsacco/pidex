@@ -13,7 +13,7 @@
  * Nothing here may go back to `execFile`/`exec`. Both leave stdin open.
  *
  * The e2e stub cannot catch a regression: it prints and exits without ever
- * reading stdin, so it is happy either way. `__tests__/print-mode.test.ts`
+ * reading stdin, so it is happy either way. `print-mode.test.ts`
  * uses a fixture that blocks on stdin the way real pi does.
  */
 import { spawn } from 'node:child_process'

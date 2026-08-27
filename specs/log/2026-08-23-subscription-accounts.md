@@ -56,4 +56,4 @@ without it the tab quietly recommends the more expensive path.
 
 Full background, including why Codex needs no CLI bridge at all and what
 Anthropic's third-party OAuth ban does and does not cover, is in
-[14-cli-providers.md](../14-cli-providers.md).
+[14-cli-providers.md](../reference/cli-providers.md).

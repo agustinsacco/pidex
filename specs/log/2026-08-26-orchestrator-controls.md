@@ -103,7 +103,7 @@ fixed header controls and the composer mode picker (and that a _work_ session
 does not offer one).
 
 One pre-existing failure on `main` is untouched by this change:
-`electron/fs/__tests__/git-worktrees.test.ts > renameBranch (real git)`.
+`electron/fs/git-worktrees.test.ts > renameBranch (real git)`.
 
 Verified by hand in the browser harness: three workspace headers each render
 one always-visible orchestrator control, the right-click menu opens with

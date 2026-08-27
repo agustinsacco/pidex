@@ -10,7 +10,7 @@ import clsx from 'clsx'
 /**
  * The three button roles. `danger` keeps `text-white` rather than
  * `text-accent-text`: the danger token is dark enough for white ink in both
- * themes, which is not true of the amber accent (see specs/STYLE_GUIDE.md).
+ * themes, which is not true of the amber accent (see specs/reference/style-guide.md).
  */
 const BUTTON_VARIANTS = {
   primary: 'bg-accent hover:bg-accent-hover text-accent-text',

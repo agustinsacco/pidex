@@ -3,9 +3,13 @@
 pidex is an Electron desktop app that wraps the **pi coding agent**
 (`@earendil-works/pi-coding-agent`) — one `pi --mode rpc` subprocess per live
 session, spoken to over JSONL on stdio. pidex never imports pi's code; the
-protocol is hand-mirrored in `shared/rpc.ts`. Product/domain specs live in
-`specs/` (per-domain specs, `TRACKER.md` for phase status, `specs/log/` for
-dated write-ups of individual changes, `specs/archive/` for landed plans).
+protocol is hand-mirrored in `shared/rpc.ts`.
+
+**Two maps before you start.** [README.md](README.md#repo-layout) has the repo
+tree — the single copy, since three copies drifted. [specs/README.md](specs/README.md)
+says which spec folder is a live contract (`reference/`) and which is history
+(`build/`, `log/`); reading a `build/` doc as current is how the
+terracotta-vs-Phosphor contradiction survived 20 days.
 
 ## Commands
 
@@ -44,8 +48,8 @@ you want to watch.
    needs disk/network/subprocess, it goes in `electron/`, not `src/`.
 2. **IPC is a typed contract.** A new channel = an entry in
    `shared/ipc.ts` `IpcInvokeMap` + a handler in
-   `electron/ipc/<prefix>-handlers.ts` (module matches the channel prefix:
-   `pi:`, `app:`, `sessions:`, `git:`, `fs:`, `pty:`) + a case in
+   `electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix
+   — 13 of them, listed in [README.md](README.md#repo-layout)) + a case in
    `src/dev/mockPidex.ts` if the browser harness should exercise it.
    `electron/ipc.ts` is only the composition root; the session registry lives
    in `electron/registry.ts` so handlers never import their composition root.
@@ -65,7 +69,7 @@ you want to watch.
    its **mode** (`observe` / `supervise` / `autopilot`) is enforced in
    `bridge.ts` at CALL time — never trusted from the system prompt, which is
    fixed at spawn and goes stale the moment the user switches. Full design in
-   [specs/13-orchestration.md](specs/13-orchestration.md).
+   [specs/reference/orchestration.md](specs/reference/orchestration.md).
 6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
@@ -78,7 +82,7 @@ you want to watch.
 - **`electron/pi/session-writer.ts` appends to pi's own session files**
   (bookmarks, branch jumps, forks). It is only safe while no pi process owns
   the file — call sites enforce this by convention. It depends on pi's on-disk
-  format staying stable. Tests: `electron/pi/__tests__/session-writer.test.ts`.
+  format staying stable. Tests: `electron/pi/session-writer.test.ts`.
 - **JSONL framing is strict LF via `JsonlDecoder`, never `readline`** —
   U+2028/U+2029 are legal inside JSON strings and readline splits on them.
 - **`electron/pi/pi-paths.ts` is the single source of truth** for pi's session
@@ -92,7 +96,7 @@ you want to watch.
   ever named and no branch was ever renamed. Spawn print-mode runs through
   `electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
   catch a regression — it prints and exits without reading stdin — so the guard
-  is `electron/pi/__tests__/print-mode.test.ts`. See
+  is `electron/pi/print-mode.test.ts`. See
   [specs/log/2026-08-26-session-start-ux.md](specs/log/2026-08-26-session-start-ux.md).
 - **pi writes a session's file only when a turn ENDS**, not incrementally. A
   name set mid-turn does not reach the disk scan until the reply lands, so
@@ -118,7 +122,7 @@ you want to watch.
   marker text blocks (a wire contract — `parseExternalToolMarker` turns them
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
-  read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
+  read [specs/reference/extensions.md](specs/reference/extensions.md#how-provider-transcripts-render).
 - **Claude sessions run through a SEPARATELY VERSIONED package**, and
   pidex pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
   (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
@@ -163,15 +167,19 @@ you want to watch.
   package — both over `ctx.ui.setStatus` into `stores/extensionUi.ts`. The
   second crosses a repo boundary, so nothing here fails to compile when it
   changes; the keys and their rules are in
-  [specs/12-extensions.md](specs/12-extensions.md#the-status-channel-is-a-wire-contract).
+  [specs/reference/extensions.md](specs/reference/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
 
 ## Conventions
 
-- Tests live beside their subject as `*.test.ts`; DOM suites opt in per file
-  with `// @vitest-environment jsdom`. Prefer testing pure logic extracted
-  into `src/lib/` / plain modules over component tests.
+- Tests live beside their subject as `*.test.ts` — **everywhere**, `electron/`
+  and `shared/` and `pi-ext/` included. There is no `__tests__/` directory in
+  this repo; there used to be eight of them, holding 40 of the suites, while
+  this line claimed otherwise. Shared inputs go in a sibling `__fixtures__/`.
+  DOM suites opt in per file with `// @vitest-environment jsdom`. Prefer
+  testing pure logic extracted into `src/lib/` / plain modules over component
+  tests.
 - Modals use `ModalOverlay` from `src/components/Modal.tsx` — portalling,
   backdrop dismissal, and depth-aware Escape (innermost wins). Don't add
   window-level Escape listeners in modal content.
@@ -189,9 +197,10 @@ you want to watch.
   phase, add a dated note to that phase's Log in `specs/TRACKER.md`; otherwise
   write it up as its own `specs/log/YYYY-MM-DD-slug.md` (the existing files
   show the convention). Never append a new section to `TRACKER.md` — a shared
-  append point is what used to make unrelated PRs conflict. Also update any
-  plan doc in `specs/` you implemented or deviated from. The specs drifting
-  from the code is a recurring failure mode here.
+  append point is what used to make unrelated PRs conflict. **If the change
+  makes a `specs/reference/` file wrong, that file is part of the same diff,
+  not a follow-up** — the specs drifting from the code is the recurring failure
+  mode here. Also update any plan doc you implemented or deviated from.
 
 ## Running the app
 

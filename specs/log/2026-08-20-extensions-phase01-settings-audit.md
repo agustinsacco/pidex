@@ -1,7 +1,9 @@
 # 2026-08-20 — Extensions management + first-run onboarding (Phase 0+1 of EXTENSIONS_PLAN)
 
 pidex now manages pi packages and can bootstrap a machine that has no pi at
-all. Full plan and architecture: `specs/EXTENSIONS_PLAN.md` (this entry is
+all. Full plan and architecture: `specs/archive/EXTENSIONS_PLAN.md`, deleted
+2026-08-27 (`git show 737f18e:specs/archive/EXTENSIONS_PLAN.md`) — its durable
+half is [reference/extensions.md](../reference/extensions.md). (This entry is
 its Phase 0+1 landing).
 
 **Settings → Extensions tab.** Lists every entry of both scopes' `packages`

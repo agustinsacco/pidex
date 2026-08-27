@@ -239,7 +239,7 @@ export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): s
  * This is marker counting, not live tracking: the provider today neither
  * streams sub-agent progress nor keeps the CLI alive past the turn's result,
  * so pidex cannot know whether these agents finished (see
- * specs/12-extensions.md). The strip fed by this says "launched", never
+ * specs/reference/extensions.md). The strip fed by this says "launched", never
  * "running".
  */
 export function trailingAgentLaunches(rows: TranscriptRow[]): number {

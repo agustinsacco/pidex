@@ -318,7 +318,7 @@ function ActivityRow({
  * Rendered as its own labeled step — an agent spinning up is the headline of
  * a turn, not an anonymous tool. Only the invocation is knowable: the
  * provider neither streams the agent's transcript nor keeps the CLI alive
- * past the turn (specs/12-extensions.md), so this row makes no claims about
+ * past the turn (specs/reference/extensions.md), so this row makes no claims about
  * progress or completion. The prompt expands on click when it survived the
  * provider's argument-preview cap.
  */

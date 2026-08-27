@@ -70,7 +70,7 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
           # A git trailer, not a marker in prose — see
-          # scripts/__tests__/should-skip-release.test.ts. Two prose-matching
+          # scripts/should-skip-release.test.ts. Two prose-matching
           # attempts each suppressed their OWN release by talking about the
           # marker: whole-message lost v0.1.37, subject-only lost v0.1.38.
           if sh scripts/should-skip-release.sh "${HEAD_MESSAGE:-}"; then

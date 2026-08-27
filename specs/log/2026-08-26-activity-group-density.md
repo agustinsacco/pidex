@@ -49,7 +49,7 @@ thing there, and the user message it answers already carries the turn's time.
 
 One group renders four row shapes, and two of them exist only under
 `@saccolabs/pi-claude-cli`: CLI-side tool markers and sub-agent launches
-(see [12-extensions.md](../12-extensions.md#how-provider-transcripts-render)).
+(see [12-extensions.md](../reference/extensions.md#how-provider-transcripts-render)).
 They are authored in four different places in `ActivityGroup.tsx`, so the
 failure mode is drift — one inset changes and a mixed run shows two left
 edges inside one card. `ROW_INSET` is now a single exported constant, the
