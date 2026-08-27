@@ -94,7 +94,7 @@ an orphaned panel.
 | ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Claude Code | `@saccolabs/pi-claude-cli` | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
 | Web access  | `pi-web-access`            | seven common search-provider keys (password fields, `$ENV_VAR` support), raw JSON editor                                       |
-| MCP         | `pi-mcp-adapter`           | see [11-mcp.md](11-mcp.md)                                                                                                     |
+| MCP         | `pi-mcp-adapter`           | see [11-mcp.md](mcp.md)                                                                                                        |
 
 `pi-subagents` deliberately has **no tab**: it is zero-config by design, so
 a catalogue card is the whole story.
@@ -144,11 +144,11 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
 
-| File                   | Why it must run inside pi                                              |
-| ---------------------- | ---------------------------------------------------------------------- |
-| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](07-artifacts.md))  |
-| `context-breakdown.ts` | measures context composition — the parts are only visible in-process   |
-| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout |
+| File                   | Why it must run inside pi                                                      |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](../build/07-artifacts.md)) |
+| `context-breakdown.ts` | measures context composition — the parts are only visible in-process           |
+| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout         |
 
 `worktree-paths.ts` is the only pidex code that can refuse a tool call. A
 session in `.pidex/worktrees/<name>` was observed reading files out of the main
@@ -159,7 +159,7 @@ file is opened, which is why this runs in pi rather than in the main process.
 The rule is deliberately four-condition narrow (worktree session, path outside
 cwd, path inside the main checkout, counterpart exists in cwd) because pi's own
 system prompt sends the model to absolute paths outside the cwd for its docs.
-Full account: [log/2026-08-22-worktree-path-leak.md](log/2026-08-22-worktree-path-leak.md).
+Full account: [log/2026-08-22-worktree-path-leak.md](../log/2026-08-22-worktree-path-leak.md).
 
 `context-breakdown.ts` exists because pi reports context usage as one
 number. The composed system prompt and the active tool schemas are not
@@ -196,7 +196,7 @@ emitters swallow their own errors for that reason.
 The Claude Code provider is the first package whose sessions contain block
 shapes pi itself never emits, so the transcript layer has provider-specific
 handling (`items/transcriptRows.ts`, contract table in
-[04-chat.md](04-chat.md#blocks-from-the-claude-code-provider)):
+[04-chat.md](chat.md#blocks-from-the-claude-code-provider)):
 
 - **CLI-side tools** — WebSearch, WebFetch, ToolSearch, the user's own MCP
   servers, and Claude Code sub-agents run _inside_ the CLI, so pi never sees
@@ -254,4 +254,4 @@ package — the abstraction holds, and `shared/rpc.ts` needed no changes.
 
 Its internals, and the compatibility fixes we shipped, are documented in
 that repo's `docs/ARCHITECTURE.md`. Landing log:
-[log/2026-08-21-claude-cli-provider-fixes.md](log/2026-08-21-claude-cli-provider-fixes.md).
+[log/2026-08-21-claude-cli-provider-fixes.md](../log/2026-08-21-claude-cli-provider-fixes.md).

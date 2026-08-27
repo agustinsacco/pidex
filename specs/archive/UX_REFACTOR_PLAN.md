@@ -1,8 +1,11 @@
 # pidex — UX Refactor & Upgrade Plan
 
-Derived from a close re-read of every reference screenshot in
-[screenshots/](../screenshots/) against the shipped implementation.
-Ordered by severity. Each item names the file(s) to touch.
+Derived from a close re-read of every reference screenshot in the former
+`specs/screenshots/` against the shipped implementation. Those captures were
+of Claude Desktop, not of pidex, and were deleted on 2026-08-27 once Phosphor
+made the resemblance a non-goal — so the "vs reference" comparisons below can
+no longer be re-checked. Ordered by severity. Each item names the file(s) to
+touch.
 
 Legend: **P0** broken/misleading · **P1** clearly wrong vs reference ·
 **P2** polish · **P3** nice-to-have.

@@ -6,7 +6,7 @@
 - This file tracks the long-term plan only: the phase table, phase checklists, and each phase's own **Log**. Update it as you go — flip task checkboxes the moment a task is done, set phase status (⬜ todo → 🟡 in progress → ✅ done), add a dated note to a phase's Log when it completes or its plan changes.
 - Work that isn't advancing a numbered phase (most day-to-day fixes and features) gets its own file: `log/YYYY-MM-DD-slug.md`, one dated write-up per change. Don't append it here — entries used to pile up at the end of this file, all landing at the same spot, so two PRs in flight at once conflicted here even when their code never overlapped. A new file per change has nothing to collide with.
 - If you deviate from a spec, write the deviation + reason in the phase Log, or in the change's own `log/` file when it isn't phase work. Specs are the contract; this file is the state.
-- Before implementing anything pi-related, re-read [02-pi-integration.md](02-pi-integration.md) and verify against the local pi docs it lists.
+- Before implementing anything pi-related, re-read [02-pi-integration.md](reference/pi-integration.md) and verify against the local pi docs it lists.
 
 | Phase | Title                                        | Status |
 | ----- | -------------------------------------------- | ------ |
@@ -38,7 +38,7 @@ All ten shipped. Detail, deviations and per-phase logs live in
 
 ## P10 — Visual identity: Phosphor `🟡`
 
-Specs: [STYLE_GUIDE.md](STYLE_GUIDE.md) · [RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md)
+Specs: [STYLE_GUIDE.md](reference/style-guide.md) · [RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md)
 
 - [x] Brand definition: Phosphor system (amber-phosphor accent, paper/graphite neutrals, mono structural voice) with contrast ratios verified at design time
 - [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
@@ -81,7 +81,7 @@ Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
 
 ## P12 — UI refinements + platform features (10-item pass) `✅`
 
-Specs: [WORKTREES.md](WORKTREES.md) · [11-mcp.md](11-mcp.md)
+Specs: [WORKTREES.md](reference/worktrees.md) · [11-mcp.md](reference/mcp.md)
 
 - [x] Removed the informational "Local" chip from the home composer
 - [x] ANSI-safe extension UI: `src/lib/ansi.ts` (stripAnsi + ansiToSpans); status strip and composer widgets render SGR colors, toasts/dialogs strip — fixes raw `[38;2;…m` bytes in the bottom bar

@@ -8,7 +8,7 @@ and deviations recorded in each phase's **Log**.
 
 ## P0 — Scaffold + RPC client + minimal streaming chat `✅`
 
-Specs: [01-architecture.md](../01-architecture.md) · [02-pi-integration.md](../02-pi-integration.md)
+Specs: [01-architecture.md](../reference/architecture.md) · [02-pi-integration.md](../reference/pi-integration.md)
 
 - [x] Repo scaffold per §Repo layout: Electron main + preload + Vite/React/Tailwind renderer, TS strict, shared types package, lint/format, `npm run dev` with HMR
 - [x] Zustand store skeletons (workspaces/sessions/chat/layout/settings)
@@ -28,7 +28,7 @@ Specs: [01-architecture.md](../01-architecture.md) · [02-pi-integration.md](../
 
 ## P1 — Full chat rendering `✅`
 
-Specs: [04-chat.md](../04-chat.md) · [02-pi-integration.md](../02-pi-integration.md)
+Specs: [04-chat.md](../reference/chat.md) · [02-pi-integration.md](../reference/pi-integration.md)
 
 - [x] Message view-model reducer for all events (agent/turn/message/tool/queue/compaction/retry) with incremental delta application
 - [x] Virtualized message list; autoscroll + jump-to-bottom pill
@@ -53,7 +53,7 @@ Specs: [04-chat.md](../04-chat.md) · [02-pi-integration.md](../02-pi-integratio
 
 ## P2 — Workspaces, sessions, sidebar, resume, tree `✅`
 
-Specs: [03-ui-shell.md](../03-ui-shell.md) · [08-sessions.md](../08-sessions.md)
+Specs: [03-ui-shell.md](../reference/ui-shell.md) · [08-sessions.md](../build/08-sessions.md)
 
 - [x] Workspace switcher + native folder picker + recents (app prefs)
 - [x] Session-dir scanner (JSONL header/name/first-message/mtime) + chokidar live updates + metadata cache
@@ -75,7 +75,7 @@ Specs: [03-ui-shell.md](../03-ui-shell.md) · [08-sessions.md](../08-sessions.md
 
 ## P3 — Files pane, editor, diffs `✅`
 
-Specs: [05-files-editor.md](../05-files-editor.md) · [03-ui-shell.md](../03-ui-shell.md)
+Specs: [05-files-editor.md](../build/05-files-editor.md) · [03-ui-shell.md](../reference/ui-shell.md)
 
 - [x] Resizable pane system (drag handles, persisted per-workspace layout, close/reopen, 60fps)
 - [x] File explorer: lazy tree, gitignore/hidden toggles, git status dots, chokidar refresh, context menu (reveal/copy/new/rename/trash)
@@ -95,7 +95,7 @@ Specs: [05-files-editor.md](../05-files-editor.md) · [03-ui-shell.md](../03-ui-
 
 ## P4 — Terminal `✅`
 
-Specs: [06-terminal.md](../06-terminal.md)
+Specs: [06-terminal.md](../reference/terminal.md)
 
 - [x] node-pty service (per-OS shells) + xterm renderer, fit/links/search/clipboard addons
 - [x] Tabs, rename, close, scrollback setting, live theme/font switching
@@ -112,7 +112,7 @@ Specs: [06-terminal.md](../06-terminal.md)
 
 ## P5 — Artifacts `✅`
 
-Specs: [07-artifacts.md](../07-artifacts.md)
+Specs: [07-artifacts.md](../build/07-artifacts.md)
 
 - [x] `pi-ext/artifacts.ts`: `artifact_create` / `artifact_update` tools (payload in `details`), version counter, system-prompt note; loaded via `-e` for every session
 - [x] Artifacts pane: gallery, viewer (Code/Preview via chat renderers), auto-open on first artifact
@@ -131,7 +131,7 @@ Specs: [07-artifacts.md](../07-artifacts.md)
 
 ## P6 — Settings, extension UI, theming, polish `✅`
 
-Specs: [09-settings.md](../09-settings.md) · [02-pi-integration.md](../02-pi-integration.md) §Extension-UI · [00-overview.md](../00-overview.md)
+Specs: [09-settings.md](../reference/settings.md) · [02-pi-integration.md](../reference/pi-integration.md) §Extension-UI · [00-overview.md](../reference/overview.md)
 
 - [x] Extension-UI protocol complete: select/confirm/input/editor modal sheets (with cancel), notify toasts, setStatus strip, setWidget composer slots, setTitle, set_editor_text — tested against `examples/extensions/rpc-demo.ts` and the user-installed pi packages
 - [x] Settings window: Appearance / Agent (writes pi settings.json + project override) / Workspaces / Advanced (raw JSON editors, pi health) / Keybindings
@@ -150,7 +150,7 @@ Specs: [09-settings.md](../09-settings.md) · [02-pi-integration.md](../02-pi-in
 
 ## P7 — Packaging, installer, CI `✅`
 
-Specs: [10-packaging.md](../10-packaging.md)
+Specs: [10-packaging.md](../build/10-packaging.md)
 
 - [x] electron-builder config for mac/linux/windows incl. node-pty rebuilds; icons/branding
 - [x] `scripts/install.sh` (OS/arch detect, checksum verify, install) + README one-liner
@@ -186,13 +186,13 @@ Specs: [MULTI_WORKSPACE_PLAN.md](MULTI_WORKSPACE_PLAN.md) (see its **Outcome** s
 
 ## P9 — Tech-debt reduction pass `✅`
 
-Record: `TECH_DEBT_AUDIT.md` (deleted after the pass; see commit `cb5fb86`)
+Record: `specs/archive/TECH_DEBT_AUDIT.md` (deleted after the pass; see commit `cb5fb86`)
 
 - [x] 6 bug fixes (formatTokens M-tier, nested-modal Escape, FilesChangedPane streaming details, watcher leak at quit, silent RPC failures → `piCall`/`piCallOk`, E2E env hooks gated on `!app.isPackaged`)
 - [x] `electron/ipc.ts` split into 7 per-domain registrars (channel list diff-verified); dead `RpcCommandType` repurposed as compile-time response-map drift guard
 - [x] Test suite 70 → 296 cases; renderer test typechecking fixed (`.test.tsx` now covered)
 
-**Done when:** audit findings either fixed or explicitly declined with reasons in TECH_DEBT_AUDIT.md.
+**Done when:** audit findings either fixed or explicitly declined with reasons in specs/archive/TECH_DEBT_AUDIT.md.
 
 **Log:**
 

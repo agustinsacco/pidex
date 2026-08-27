@@ -65,7 +65,7 @@ you want to watch.
    its **mode** (`observe` / `supervise` / `autopilot`) is enforced in
    `bridge.ts` at CALL time — never trusted from the system prompt, which is
    fixed at spawn and goes stale the moment the user switches. Full design in
-   [specs/13-orchestration.md](specs/13-orchestration.md).
+   [specs/reference/orchestration.md](specs/reference/orchestration.md).
 6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
@@ -118,7 +118,7 @@ you want to watch.
   marker text blocks (a wire contract — `parseExternalToolMarker` turns them
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
-  read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
+  read [specs/reference/extensions.md](specs/reference/extensions.md#how-provider-transcripts-render).
 - **Claude sessions run through a SEPARATELY VERSIONED package**, and
   pidex pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
   (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
@@ -163,7 +163,7 @@ you want to watch.
   package — both over `ctx.ui.setStatus` into `stores/extensionUi.ts`. The
   second crosses a repo boundary, so nothing here fails to compile when it
   changes; the keys and their rules are in
-  [specs/12-extensions.md](specs/12-extensions.md#the-status-channel-is-a-wire-contract).
+  [specs/reference/extensions.md](specs/reference/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
 

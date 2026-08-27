@@ -22,10 +22,10 @@
 
 ## Sidebar data (no processes needed)
 
-- Scan `~/.pi/agent/sessions/--<mangled cwd>--/*.jsonl` per [02-pi-integration.md](02-pi-integration.md): header + last `session_info` + first user message + mtime; chokidar keeps it live. Cache parsed metadata (mtime-keyed) for fast startup.
+- Scan `~/.pi/agent/sessions/--<mangled cwd>--/*.jsonl` per [02-pi-integration.md](../reference/pi-integration.md): header + last `session_info` + first user message + mtime; chokidar keeps it live. Cache parsed metadata (mtime-keyed) for fast startup.
 
 ## Onboarding & health
 
 - **pi missing or < min version**: full-screen setup state with the install command (`npm i -g @earendil-works/pi-coding-agent`), re-check button, docs link.
-- **No models available** (`get_available_models` empty): guide to authenticate — one-click "open terminal running `pi`" (built-in terminal, [06-terminal.md](06-terminal.md)) for `/login` OAuth flows, or point at env vars / `models.json` for API keys and local endpoints. Never handle or display secrets in pidex UI.
+- **No models available** (`get_available_models` empty): guide to authenticate — one-click "open terminal running `pi`" (built-in terminal, [06-terminal.md](../reference/terminal.md)) for `/login` OAuth flows, or point at env vars / `models.json` for API keys and local endpoints. Never handle or display secrets in pidex UI.
 - Version drift note: warn (non-blocking) if pi minor version is newer than the last tested version.

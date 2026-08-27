@@ -13,7 +13,7 @@ author happened to type, so nothing could be audited and every new component
 was a fresh guess.
 
 Nine steps now cover everything, defined in `@theme` in `src/styles/index.css`
-and documented in [../STYLE_GUIDE.md](../STYLE_GUIDE.md):
+and documented in [../STYLE_GUIDE.md](../reference/style-guide.md):
 
 | Utility     | Size   | Absorbed                    |
 | ----------- | ------ | --------------------------- |

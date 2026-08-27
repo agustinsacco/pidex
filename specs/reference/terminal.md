@@ -24,4 +24,4 @@ Full PTY terminal pane, independent from the agent (agent `bash` tool calls rend
   pane shows the spawn error with a retry. (See `electron/pty/spawn-helper.ts`
   for the node-pty `spawn-helper` trap that made this necessary.)
 - **"Run in terminal"** affordance on chat code blocks pipes the command into the active terminal tab (focus + paste, do not auto-execute — leave the newline to the user).
-- Used by onboarding: "open a terminal running `pi` to log in" ([08-sessions.md](08-sessions.md)).
+- Used by onboarding: "open a terminal running `pi` to log in" ([08-sessions.md](../build/08-sessions.md)).

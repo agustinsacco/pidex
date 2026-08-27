@@ -269,7 +269,7 @@ sweep cannot trigger itself.
 ### The digest wire contract
 
 The orchestrator publishes through `ctx.ui.setStatus` — the **same channel**
-the context meter already uses ([12-extensions.md](12-extensions.md#the-status-channel-is-a-wire-contract)),
+the context meter already uses ([12-extensions.md](extensions.md#the-status-channel-is-a-wire-contract)),
 so no new plumbing. Key: `pidex-orchestrator`.
 
 ```ts
@@ -593,7 +593,7 @@ Beyond the suite, the whole feature was driven against the real app with real
 models (a local Qwen and Haiku): sessions observed, orchestrator opened, tools
 called over the control channel, digest published and rendered. That pass found
 five bugs the green suite had missed; they are recorded in
-[log/2026-08-22-workspace-orchestration.md](log/2026-08-22-workspace-orchestration.md).
+[log/2026-08-22-workspace-orchestration.md](../log/2026-08-22-workspace-orchestration.md).
 
 ## Recovery
 
@@ -654,7 +654,7 @@ inherited pi's global default, including the model that causes this.
   exist; it must not add per-file or per-repo watching.
 - **`.pidex/` is git-excluded** by pidex itself — rules and memory are personal
   by default. Do not describe them as shared.
-- **YOLO still holds.** [00-overview.md](00-overview.md) forbids approval
+- **YOLO still holds.** [00-overview.md](overview.md) forbids approval
   gates on tool calls. Autonomy is tuned through rules and the autopilot
   switch, never by adding per-action confirmation dialogs.
 

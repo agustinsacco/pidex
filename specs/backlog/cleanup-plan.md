@@ -13,6 +13,30 @@ added by a different feature, plus a handful of genuinely dead symbols.
 Nothing here changes behavior. Every phase is independently landable and
 independently revertable.
 
+## Status
+
+**Re-verified 2026-08-27** against the tree at `4c02e13`, by checking for each
+phase's artifacts in the code rather than trusting this document. **Phases 1–5
+have landed; only phase 6 and one loose end remain.**
+
+| Phase                           | Status       | Evidence                                                                                                                                                       |
+| ------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Dead code and free wins     | **landed**   | `shared/errors.ts`, the `subscribe()` helper in `electron/preload.ts` · [log](../log/2026-08-21-cleanup-foundations-and-git-layer.md)                          |
+| 2 — Main-process git and config | **landed**   | `electron/fs/git-exec.ts` (`git`, `dirtyCount`, `abortMergeAndCollectConflicts`), `electron/pi/json-config.ts` · same log                                      |
+| 3 — Store slice pattern         | **landed**   | `src/stores/keyedSlice.ts` + test, commit `95dea43` (#40)                                                                                                      |
+| 4 — Enforce the `piCall` rule   | **landed\*** | The 9 remaining raw `piCommand` sites are exactly this plan's "leave, with a comment" set; commit `95dea43` (#40)                                              |
+| 5 — Renderer presentation layer | **landed**   | `components/form.tsx`, `icons.tsx`, `useAsyncAction.ts` · [log](../log/2026-08-21-presentation-primitives.md)                                                  |
+| 6 — Over-exported symbols       | **open**     | Deliberately opportunistic. `PiAgentSettings`, `JobSender`, `canToggleRightPane`, `usePaletteStore`, `MCP_SCOPES` are all still exported and still single-file |
+
+\* One loose end in phase 4: `src/features/chat/rewind.ts:43`
+(`entryIdForUserMessageOrdinal`) still returns `null` on RPC failure with no
+comment saying the silence is intended. The plan asked for a decision there and
+it never got one. Everything else in the triage list was either converted or
+carries its exemption comment — `Composer.tsx` names CLAUDE.md fact 3 explicitly.
+
+Phase 6 needs no separate tracking beyond this row: it is by design something
+you do while already inside a file for another reason.
+
 ---
 
 ## Summary of findings
@@ -352,7 +376,7 @@ Highest line-count reduction, lowest individual risk. Purely visual, so e2e +
 a manual pass through the app is the check.
 
 > **Landed 2026-08-21** — write-up:
-> [log/2026-08-21-presentation-primitives.md](log/2026-08-21-presentation-primitives.md).
+> [log/2026-08-21-presentation-primitives.md](../log/2026-08-21-presentation-primitives.md).
 > 5.1–5.4, 5.6 and 5.7 are done; 5.5 (Composer) shipped separately. Deviations
 > from what is written below:
 >

@@ -503,6 +503,6 @@ install, not from docs.
   **not** this pattern: it delegates tasks to Codex as a tool, it does not
   route pi's own LLM calls through it
 
-Related: [12-extensions.md](12-extensions.md) for the extension and status-key
-contracts, [04-chat.md](04-chat.md) for how provider-specific block shapes
+Related: [12-extensions.md](extensions.md) for the extension and status-key
+contracts, [04-chat.md](chat.md) for how provider-specific block shapes
 render.

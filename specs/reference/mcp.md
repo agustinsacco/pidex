@@ -36,7 +36,7 @@ There is no structured per-server liveness source. The tab shows:
 1. **Installed** — read from `packages:list` (per-scope; pi loads both, so
    the merged settings view would misreport). One-click install runs
    `packages:run` — pi's own package manager, streamed — with a "restart
-   sessions to apply" note. Full package management: [12-extensions.md](12-extensions.md).
+   sessions to apply" note. Full package management: [12-extensions.md](extensions.md).
 2. **Session line** — the adapter's `setStatus` footer text for the active
    session, ANSI-cleaned, labeled as adapter-reported.
 3. **Cached tools** — `~/.pi/agent/mcp-cache.json`, parsed tolerantly,

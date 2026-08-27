@@ -14,7 +14,7 @@ pi has no built-in artifacts (community packages `pi-artifacts` / `@jakeryderv/p
 ## Renderer — Artifacts pane
 
 - Artifact tool events populate the pane: **gallery list** per session (icon by type, title, version count, updated time) + **viewer**.
-- Viewer: Code/Preview toggle using the same renderers as chat ([04-chat.md](04-chat.md)) — sandboxed iframe for html/svg, Mermaid, chart spec renderer, markdown, highlighted code.
+- Viewer: Code/Preview toggle using the same renderers as chat ([04-chat.md](../reference/chat.md)) — sandboxed iframe for html/svg, Mermaid, chart spec renderer, markdown, highlighted code.
 - **Version history** per artifact id: version picker, Monaco diff between any two versions.
 - Actions: copy content, save to file (dialog), export preview (PNG/SVG where applicable), open in Files pane as a real file.
 - Pane opens automatically on a session's first artifact; badge on new versions.

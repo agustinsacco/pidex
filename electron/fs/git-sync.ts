@@ -154,7 +154,7 @@ export async function updateFromMain(
 /**
  * Check `branch` out in the working tree at `repoPath`.
  *
- * This reverses a standing rule — `specs/WORKTREES.md` used to say the main
+ * This reverses a standing rule — `specs/reference/worktrees.md` used to say the main
  * tree's checkout is never changed by pidex — so the guards carry the weight
  * the rule used to. A checkout is refused outright when the tree is dirty
  * (git would either fail or carry changes across, and neither is something a

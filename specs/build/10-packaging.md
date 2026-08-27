@@ -7,7 +7,7 @@
   - Linux: AppImage + deb, x64 + arm64.
   - Windows: nsis x64.
 - Native deps to handle in build config: node-pty (electron-rebuild / prebuilds per platform).
-- App icon + branding assets per [00-overview.md](00-overview.md).
+- App icon + branding assets per [00-overview.md](../reference/overview.md).
 
 ## Install via curl
 

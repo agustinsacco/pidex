@@ -183,7 +183,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
           {/* Mission control: what every agent is doing, and what needs you.
               Entirely mechanical — it renders with no orchestrator running and
-              costs nothing. See specs/13-orchestration.md. */}
+              costs nothing. See specs/reference/orchestration.md. */}
           <FleetOverview workspacePath={workspacePath} />
 
           {stats && stats.sessionCount > 0 && (

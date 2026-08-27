@@ -29,7 +29,7 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
         Chart.register(...registerables)
         if (disposed || !canvasRef.current) return
 
-        // Phosphor text-secondary / border (specs/STYLE_GUIDE.md).
+        // Phosphor text-secondary / border (specs/reference/style-guide.md).
         const textColor = resolvedTheme === 'dark' ? '#aca496' : '#6b675d'
         const gridColor = resolvedTheme === 'dark' ? '#3a352c' : '#e2dfd6'
         Chart.defaults.color = textColor

@@ -2,7 +2,7 @@
 @import 'katex/dist/katex.min.css';
 
 /* ---------------------------------------------------------------------------
- * pidex design tokens — the "Phosphor" system (specs/STYLE_GUIDE.md).
+ * pidex design tokens — the "Phosphor" system (specs/reference/style-guide.md).
  * Paper light theme / graphite dark theme, amber-phosphor accent.
  * Every surface in the app (Monaco, xterm, Shiki, Mermaid) reads these vars.
  * ------------------------------------------------------------------------- */

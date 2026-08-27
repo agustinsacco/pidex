@@ -7,7 +7,7 @@ import { ORCHESTRATOR_NAME_PREFIX, type SessionMeta } from './models'
  * own cwd, so without this it is indistinguishable from work: it would sort
  * into the sidebar as an ordinary chat, inflate the home screen's session and
  * message counts, and quietly pad that project's usage rollup. Every consumer
- * asks here — see specs/13-orchestration.md, "Differentiation".
+ * asks here — see specs/reference/orchestration.md, "Differentiation".
  *
  * Two independent signals, because either alone can go missing:
  *

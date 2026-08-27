@@ -29,14 +29,14 @@
 
 ## Tool renderers
 
-| Tool               | Treatment                                                                                                                                                                                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                        |
-| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                          |
-| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](05-files-editor.md)) |
-| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                           |
-| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                   |
-| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                       |
+| Tool               | Treatment                                                                                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                                 |
+| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                                   |
+| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](../build/05-files-editor.md)) |
+| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                                    |
+| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                            |
+| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                                |
 
 ### Blocks from the Claude Code provider
 
@@ -58,7 +58,7 @@ headline — `Agent`/`Task` markers additionally render as sub-agent rows and
 feed the composer's sub-agent strip (`trailingAgentLaunches`). **A Claude
 Code sub-agent never returns its results to pidex** — it dies when the
 per-turn CLI exits, so no surface may imply one is still running; see
-[log/2026-08-22-claude-subagents-never-return.md](log/2026-08-22-claude-subagents-never-return.md).
+[log/2026-08-22-claude-subagents-never-return.md](../log/2026-08-22-claude-subagents-never-return.md).
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
 

@@ -1,7 +1,7 @@
 # Phosphor restyle — implementation plan
 
 Migrates the app from the v1 terracotta theme to the **Phosphor** system
-defined in [STYLE_GUIDE.md](../STYLE_GUIDE.md). The guide is the source of truth
+defined in [STYLE_GUIDE.md](../reference/style-guide.md). The guide is the source of truth
 for every value; this plan is the execution order.
 
 The good news mirrors the multi-workspace plan: the theming architecture is
