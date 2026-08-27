@@ -80,6 +80,32 @@ unreadable still renders as a plain named step.
 - Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
 - Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
 
+### Streaming text is paced, not rendered per delta
+
+Delta granularity is a provider property, and the Claude Code provider's is
+coarse: measured 2026-08-27, prose arrives in ~93-character chunks ~550ms
+apart (the CLI batches the API's SSE stream), where pi-native providers send
+token-sized deltas tens of milliseconds apart. Rendering each chunk on
+arrival made Claude-provider turns land in harsh slabs.
+
+So the visible text is a paced slice of the store's exact text:
+`useSmoothedText` (leaf-local state, per prose block) drains the backlog at a
+rate proportional to its size, aiming to empty it in about one upstream gap —
+`src/lib/textReveal.ts` holds the pure pacing math, unit-tested against the
+recorded cadence. Rules that matter:
+
+- **The store is never touched.** Pacing lives in the one streaming block's
+  component; `buildTranscriptRows` does not re-run per tick, and commits are
+  capped at ~30Hz because each one re-parses that block's markdown.
+- **Mount shows everything already present.** Hydrated history and
+  virtualizer re-mounts must never replay a typewriter.
+- **Settling drains fast instead of snapping**, so a turn doesn't end with
+  one final pop of text.
+- **rAF has a timeout backstop.** Hidden windows (background tabs, the e2e
+  suite's never-shown windows) starve rAF; throttled timers still tick, so
+  the text always completes even where nobody is watching.
+- `prefers-reduced-motion` disables the reveal entirely.
+
 ### What the context meter's popover shows
 
 Three sources, three different confidence levels — and the UI is required to
