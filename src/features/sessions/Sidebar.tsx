@@ -7,7 +7,7 @@ import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
-import { sessionSubtitle } from './sessionSubtitle'
+import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import {
   ArtifactsIcon,
@@ -28,7 +28,7 @@ import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { worktreeAwareName, isWorktreeFolder } from '@/lib/path'
+import { worktreeAwareName, isWorktreeFolder, projectName } from '@/lib/path'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -223,6 +223,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     () => Object.values(orchestratorSessions),
     [orchestratorSessions],
   )
+  /**
+   * Live orchestrator session ids. Needed as well as the paths above: a
+   * placeholder row is keyed by session id and appears before any path is
+   * known, so the path list cannot suppress it.
+   */
+  const liveOrchestrators = useFleetStore((s) => s.liveOrchestrators)
+  const orchestratorIds = useMemo(
+    () => new Set(Object.values(liveOrchestrators)),
+    [liveOrchestrators],
+  )
 
   /** Pinned sessions across every workspace — this group deliberately mixes. */
   const pinnedMetas = useMemo(
@@ -288,8 +298,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * scan catches up, which reads as a dropped message.
    */
   const pendingByWorkspace = useMemo(
-    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups),
-    [live, diskPaths, groups],
+    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups, orchestratorIds),
+    [live, diskPaths, groups, orchestratorIds],
   )
 
   /**
@@ -544,6 +554,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     key={pidexId}
                     pidexId={pidexId}
                     active={pidexId === activeSessionId}
+                    git={gitByCwd[live[pidexId]?.workspacePath ?? '']}
                   />
                 ))}
               {!isCollapsed &&
@@ -627,7 +638,10 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const git = useSessionsStore((s) => (currentPath ? s.gitByCwd[currentPath] : undefined))
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const name = currentPath ? worktreeAwareName(currentPath, git) : 'Workspace'
+  // Project only, no branch: the top bar's folder and branch chips sit a row
+  // above this and already answer "where am I". Showing `pidex (pidex/hey-2)`
+  // here as well put the branch on screen twice and the folder twice.
+  const name = currentPath ? projectName(currentPath, git) : 'Workspace'
 
   return (
     // Draggable: on Windows/Linux this row sits flush against the top of the
@@ -728,8 +742,15 @@ function SessionRow({
   )
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
   const naming = useNameTransition(livePidexId)
+  // A live session's own name beats the scanned one. pi writes its session
+  // file only when a turn ENDS (measured), so a name set mid-turn does not
+  // reach `meta.name` until the reply lands — sometimes minutes later. The
+  // top bar reads the live store and would rename while this row did not.
+  const liveName = useChatStore((s) =>
+    livePidexId ? s.sessions[livePidexId]?.meta?.sessionName : undefined,
+  )
   const title =
-    sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ??
+    sessionTitle({ explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText }) ??
     'Untitled session'
 
   const [renaming, setRenaming] = useState(false)
@@ -852,7 +873,10 @@ function SessionRow({
             title={naming.pending ? 'Naming this chat…' : undefined}
             className={clsx(
               'text-text block truncate text-base leading-4',
-              naming.pending && 'name-pending',
+              // No shimmer here, only the arrival. The top bar's title is the
+              // one surface that shimmers while a name is being decided —
+              // three of them running at once (this row, the top bar and the
+              // branch chip) is what made starting a chat read as busy.
               naming.settled && 'name-enter',
             )}
           >
@@ -868,38 +892,7 @@ function SessionRow({
               suspended
             </span>
           )}
-          {subtitle.map((segment, i) => (
-            <span
-              key={segment.key}
-              className={clsx(
-                'flex items-center',
-                // The branch is the only segment allowed to give up space.
-                // Both classes set flex-shrink, so they must be exclusive:
-                // emitting `shrink-0 shrink` let source order decide and
-                // `shrink-0` won, which is what pushed long branch names past
-                // the sidebar edge and produced a horizontal scrollbar.
-                segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
-              )}
-            >
-              {i > 0 && <span className="pr-1">·</span>}
-              {segment.key === 'worktree' ? (
-                <span
-                  className="bg-bg-secondary text-text-tertiary rounded px-1 font-medium"
-                  title="Runs in a git worktree"
-                >
-                  wt
-                </span>
-              ) : segment.key === 'branch' ? (
-                <span className="truncate" title={segment.text}>
-                  ⎇ {segment.text}
-                </span>
-              ) : (
-                <span className={clsx(segment.key === 'dirty' && 'text-warning')}>
-                  {segment.text}
-                </span>
-              )}
-            </span>
-          ))}
+          <SubtitleSegments segments={subtitle} />
         </span>
       </span>
       {showWorkspace && rowWorkspaceName && (
@@ -951,13 +944,23 @@ function SessionRow({
  * `meta.path` (rename, fork, clone, export, delete, open-from-disk), and this
  * session has no path to act on. It only needs to say "this exists and it is
  * yours", and clicking it activates the already-live session.
+ *
+ * **Not short-lived.** pi writes a session's file only when a turn ENDS
+ * (measured), so this row stands in for the entire first turn — minutes, for
+ * real work — and is then replaced by a `SessionRow`. That swap has to be
+ * invisible, which is why the subtitle below is the same `time · wt · branch`
+ * shape the disk-backed row uses rather than the "naming…" / "starting…" text
+ * it used to show. Two different subtitles on one row within a few seconds
+ * read as the row being replaced, which is exactly what was happening.
  */
 function PendingSessionRow({
   pidexId,
   active,
+  git,
 }: {
   pidexId: string
   active: boolean
+  git?: GitInfo
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) => s.sessions[pidexId]?.isStreaming ?? false)
   const firstUserText = useChatStore(
@@ -966,6 +969,9 @@ function PendingSessionRow({
   const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
   const naming = useNameTransition(pidexId)
   const title = sessionTitle({ explicitName, firstUserText }) ?? 'New session'
+  // Synthesised meta so this row and the disk-backed one format their
+  // subtitle through the same function. Created now, nothing spent yet.
+  const subtitle = sessionSubtitle({ mtimeMs: Date.now(), cost: 0 }, git)
 
   return (
     <button
@@ -985,18 +991,65 @@ function PendingSessionRow({
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
       <span className="min-w-0 flex-1">
         <span
+          key={title}
+          title={naming.pending ? 'Naming this chat…' : undefined}
           className={clsx(
             'text-text block truncate text-base leading-4',
-            naming.pending && 'name-pending',
+            // See SessionRow: arrival only, no shimmer.
+            naming.settled && 'name-enter',
           )}
         >
           {title}
         </span>
-        <span className="text-text-tertiary block text-xs leading-3.5">
-          {naming.pending ? 'naming…' : 'starting…'}
+        <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
+          <SubtitleSegments segments={subtitle} />
         </span>
       </span>
     </button>
+  )
+}
+
+/**
+ * The `2m · wt · ⎇ branch · ±3 · $1.24` run under a session's title.
+ *
+ * Shared by `SessionRow` and `PendingSessionRow` rather than duplicated,
+ * because a live session swaps from the second to the first mid-turn and the
+ * swap has to be invisible. They had drifted into two different subtitles.
+ */
+function SubtitleSegments({ segments }: { segments: SubtitleSegment[] }): React.JSX.Element {
+  return (
+    <>
+      {segments.map((segment, i) => (
+        <span
+          key={segment.key}
+          className={clsx(
+            'flex items-center',
+            // The branch is the only segment allowed to give up space.
+            // Both classes set flex-shrink, so they must be exclusive:
+            // emitting `shrink-0 shrink` let source order decide and
+            // `shrink-0` won, which is what pushed long branch names past
+            // the sidebar edge and produced a horizontal scrollbar.
+            segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
+          )}
+        >
+          {i > 0 && <span className="pr-1">·</span>}
+          {segment.key === 'worktree' ? (
+            <span
+              className="bg-bg-secondary text-text-tertiary rounded px-1 font-medium"
+              title="Runs in a git worktree"
+            >
+              wt
+            </span>
+          ) : segment.key === 'branch' ? (
+            <span className="truncate" title={segment.text}>
+              ⎇ {segment.text}
+            </span>
+          ) : (
+            <span className={clsx(segment.key === 'dirty' && 'text-warning')}>{segment.text}</span>
+          )}
+        </span>
+      ))}
+    </>
   )
 }
 

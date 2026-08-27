@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -259,8 +259,15 @@ describe('renameBranch (real git)', () => {
     expect(await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).toBe('pidex/tsx-file-survey')
     // The folder deliberately does NOT move: it is a live session's cwd.
     expect(existsSync(path)).toBe(true)
-    const { worktrees } = { worktrees: await listWorktrees(repo) }
-    expect(worktrees.find((w) => w.path === path)?.branch).toBe('pidex/tsx-file-survey')
+    // Matched on `realPath` as well as `path`, the way every production
+    // lookup does (see `addWorktree` / `removeWorktree`): on macOS the temp
+    // dir is a symlink, so git reports `/private/var/...` where `path` says
+    // `/var/...` and a path-only match never found the row.
+    const worktrees = await listWorktrees(repo)
+    const created = worktrees.find(
+      (w) => w.path === path || w.realPath === realpathSync.native(path),
+    )
+    expect(created?.branch).toBe('pidex/tsx-file-survey')
   })
 
   it('reports failure instead of throwing when the target name is taken', async () => {

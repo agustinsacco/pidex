@@ -799,6 +799,16 @@ export function installMockPidex(): void {
               provider: 'local-stark',
               reasoning: false,
             },
+            // Present so the harness can exercise the orchestrator's
+            // malformed-tool-name warning: this is the model observed bricking
+            // real threads (see features/orchestrator/threadHealth.ts).
+            {
+              id: 'minimax-m2',
+              name: 'MiniMax M2',
+              provider: 'amazon-bedrock',
+              reasoning: false,
+              thinkingLevelMap: null,
+            },
             // Bedrock's real shape: a bare foundation id that cannot be invoked
             // on-demand, alongside the region-prefixed inference profiles that
             // can. Present so the harness exercises the disabled-row path in

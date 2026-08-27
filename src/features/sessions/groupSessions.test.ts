@@ -255,4 +255,32 @@ describe('pendingSessionsByGroup', () => {
     const pending = pendingSessionsByGroup(live, new Set(), foldedGroups)
     expect(pending.get('/repo')).toEqual(['p1'])
   })
+
+  /**
+   * The orchestrator is a live session that the scanner deliberately keeps out
+   * of `disk`, so the "it landed on disk" gate can never retire its
+   * placeholder. Before this it sat in the sidebar for the whole life of the
+   * process, styled as work still starting up — the one thread that *manages*
+   * work, rendered as work.
+   */
+  it('never shows a placeholder for an orchestrator, before its path is known', () => {
+    const live = [{ pidexId: 'orch-1', workspacePath: '/repo' }]
+    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
+    expect(pending.has('/repo')).toBe(false)
+  })
+
+  it('nor after, since an orchestrator path is never in the disk scan', () => {
+    const live = [{ pidexId: 'orch-1', workspacePath: '/repo', diskPath: '/repo/orch.jsonl' }]
+    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
+    expect(pending.has('/repo')).toBe(false)
+  })
+
+  it('still shows work sessions running alongside an orchestrator', () => {
+    const live = [
+      { pidexId: 'orch-1', workspacePath: '/repo' },
+      { pidexId: 'p1', workspacePath: '/repo' },
+    ]
+    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
+    expect(pending.get('/repo')).toEqual(['p1'])
+  })
 })

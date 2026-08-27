@@ -10,7 +10,9 @@ import { isNaming, isNamingInWorkspace, useNamingStore } from '@/stores/naming'
  * moments worth showing rather than hiding:
  *
  * - `pending`: the title on screen is provisional. Shimmered, not skeletoned —
- *   it is real readable text, just not final.
+ *   it is real readable text, just not final. Only ONE surface shimmers (the
+ *   top bar's title); every other consumer uses `pending` for its tooltip and
+ *   leaves the motion alone. See `.name-pending` in index.css.
  * - `settled`: for one short beat after the real name lands, so the swap reads
  *   as an arrival instead of a glitch. The user is several seconds past having
  *   asked for anything by then, so this is deliberately brief and small.

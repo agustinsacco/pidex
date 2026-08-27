@@ -6,6 +6,7 @@ import {
   splitPath,
   workspaceName,
   worktreeAwareName,
+  projectName,
 } from './path'
 
 describe('isWorktreeFolder', () => {
@@ -90,6 +91,22 @@ describe('workspaceName', () => {
 
   it('falls back to the input when there are no real segments', () => {
     expect(workspaceName('/')).toBe('/')
+  })
+})
+
+describe('projectName', () => {
+  it('names the project, never the worktree folder or its branch', () => {
+    expect(
+      projectName('/Users/u/pidex/.pidex/worktrees/main', {
+        isWorktree: true,
+        mainRepoPath: '/Users/u/pidex',
+      }),
+    ).toBe('pidex')
+  })
+
+  it('falls back to the folder basename outside a worktree', () => {
+    expect(projectName('/Users/u/pidex', { isWorktree: false })).toBe('pidex')
+    expect(projectName('/Users/u/pidex')).toBe('pidex')
   })
 })
 
