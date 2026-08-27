@@ -6,9 +6,11 @@ import {
   isActivityLive,
   summarizeActivity,
   type ActivityStep,
+  type ExternalToolInfo,
 } from './transcriptRows'
 import { ToolCard, ToolDetail } from '../tools/ToolCard'
-import { settledVerb } from '../tools/toolSummaries'
+import { settledVerb, summarizeExternalTool } from '../tools/toolSummaries'
+import { useSessionsStore } from '@/stores/sessions'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
 import { useChatUiStore } from '../uiState'
@@ -232,24 +234,7 @@ function ActivityRow({
     if (info.isAgent) {
       return <SubagentRow headline={info.headline} detail={info.detail} />
     }
-    return (
-      // Typed like a ToolCard row on purpose (same inset, same text-lg, same
-      // secondary/primary split): a Claude-provider run interleaves these with
-      // real pi tool calls, and a second type scale made the same run look
-      // like two different transcripts stitched together.
-      <div
-        className={clsx('flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
-        data-testid="external-tool-row"
-      >
-        <span className="text-text-tertiary shrink-0">Claude Code</span>
-        <span className="text-text shrink-0 font-medium">{name}</span>
-        {info.headline && (
-          <span className="text-text-secondary min-w-0 truncate" title={args && `${name} ${args}`}>
-            {info.headline}
-          </span>
-        )}
-      </div>
-    )
+    return <ExternalToolRow name={name} args={args} info={info} sessionId={sessionId} />
   }
 
   if (step.block.type !== 'tool') return null
@@ -307,6 +292,70 @@ function ActivityRow({
         >
           <Markdown text={thought} />
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A tool Claude Code ran inside its own process, rendered as a pi tool row.
+ *
+ * Same inset, same type scale, same verb vocabulary and the same monospace
+ * treatment for commands and patterns — because a Claude-provider run
+ * interleaves these with pi's own tool calls, and two vocabularies for the
+ * same act made one turn read like two transcripts stitched together.
+ * `summarizeExternalTool` owns the mapping.
+ *
+ * Two things stay deliberately different, and both are honest rather than
+ * cosmetic. There is no chevron: the provider forwards the invocation and no
+ * `tool_result`, so there is nothing to expand into and a disclosure control
+ * would promise output that does not exist. And the row is always settled —
+ * no running dot, no failure state — because the marker arrives after the
+ * fact and carries no status. The `cc` badge keeps the provenance visible:
+ * pi never saw these calls, so they are absent from its own accounting.
+ */
+function ExternalToolRow({
+  name,
+  args,
+  info,
+  sessionId,
+}: {
+  name: string
+  args?: string
+  info: ExternalToolInfo
+  sessionId: string
+}): React.JSX.Element {
+  const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath ?? undefined)
+  const summary = summarizeExternalTool(name, info.fields, workspacePath)
+
+  return (
+    <div
+      className={clsx('flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
+      data-testid="external-tool-row"
+      // The full untruncated preview, for the case the cap cut the label.
+      title={args ? `Claude Code · ${name} ${args}` : `Claude Code · ${name}`}
+    >
+      <span
+        className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1 py-px font-mono text-2xs uppercase tracking-wide"
+        aria-label="Ran by Claude Code"
+      >
+        cc
+      </span>
+      <span className="text-text-secondary shrink-0">{summary.label}</span>
+      {summary.object && (
+        <span
+          className={clsx(
+            'text-text min-w-0 truncate font-medium',
+            summary.mono && 'font-mono text-base',
+          )}
+        >
+          {summary.object}
+        </span>
+      )}
+      {summary.hint && (
+        <span className="text-text-tertiary min-w-0 truncate font-mono text-sm">
+          {summary.hint}
+        </span>
       )}
     </div>
   )

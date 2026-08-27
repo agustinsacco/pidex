@@ -8,7 +8,7 @@ import {
   trailingAgentLaunches,
   type ActivityStep,
 } from './transcriptRows'
-import { settledVerb } from '../tools/toolSummaries'
+import { settledVerb, summarizeExternalTool } from '../tools/toolSummaries'
 import type { AgentMessage } from '@shared/rpc'
 import fixture from '../__fixtures__/claude-cli-blocks.json'
 
@@ -176,6 +176,85 @@ describe('externalToolInfo', () => {
     expect(externalToolInfo('WebSearch', '{"query":"pygame docs"}').headline).toBe('pygame docs')
     expect(externalToolInfo('ListAgents').headline).toBeUndefined()
     expect(externalToolInfo('ListAgents').isAgent).toBe(false)
+  })
+
+  /**
+   * Real captures from a live lane, where 6 of 9 rows rendered as a bare
+   * "Claude Code Bash" with no command. `Bash` carries ONE argument, so when
+   * the provider's cap lands inside it there is no complete `"key":"value"`
+   * pair left for the pair scan and the row loses its entire content.
+   */
+  describe('a value the preview cap cut through', () => {
+    it('recovers the partial command when nothing else survived', () => {
+      const info = externalToolInfo(
+        'Bash',
+        '{"command":"grep -n \\"bundledExtensions\\" -A 30 electron/ipc/pi-session-handlers.ts | head -60; echo ---; grep -rn \\"isO\u2026',
+      )
+      expect(info.fields['command']).toContain('bundledExtensions')
+      expect(info.fields['command']).toContain('head -60')
+      // Escapes inside the surviving part still read naturally.
+      expect(info.fields['command']).not.toContain('\\"')
+      expect(info.headline).toBe(info.fields['command'])
+    })
+
+    it('does not let a partial value overwrite a complete one', () => {
+      const info = externalToolInfo(
+        'Task',
+        '{"description":"Find rename code","prompt":"In this Electron app (pide\u2026',
+      )
+      expect(info.headline).toBe('Find rename code')
+      expect(info.fields['prompt']).toContain('In this Electron app')
+    })
+
+    it('survives a cut mid-escape rather than throwing', () => {
+      // A lone trailing backslash, and a half-written \\uXXXX.
+      expect(externalToolInfo('Bash', '{"command":"echo hi \\').fields['command']).toBe('echo hi ')
+      expect(externalToolInfo('Bash', '{"command":"echo \\u26').fields['command']).toBe('echo ')
+      // An EVEN number of trailing backslashes is a complete escape: keep it.
+      expect(externalToolInfo('Bash', '{"command":"cd a\\\\').fields['command']).toBe('cd a\\')
+    })
+  })
+})
+
+describe('summarizeExternalTool', () => {
+  it('speaks pi\u2019s vocabulary for the tools pi also has', () => {
+    expect(summarizeExternalTool('Bash', { command: 'npm test' })).toMatchObject({
+      label: 'Ran',
+      object: 'npm test',
+      mono: true,
+    })
+    expect(summarizeExternalTool('Read', { file_path: '/a/b/ChatView.tsx' })).toMatchObject({
+      label: 'Read',
+      object: 'ChatView.tsx',
+    })
+    expect(summarizeExternalTool('Grep', { pattern: 'TODO' })).toMatchObject({
+      label: 'Searched for',
+      object: 'TODO',
+      mono: true,
+    })
+    expect(summarizeExternalTool('Write', { file_path: '/a/b/new.ts' })).toMatchObject({
+      label: 'Created',
+      object: 'new.ts',
+    })
+  })
+
+  it('strips the worktree prefix out of a command, exactly as pi rows do', () => {
+    const summary = summarizeExternalTool(
+      'Bash',
+      { command: 'cd /w/.pidex/worktrees/lane && npm test' },
+      '/w/.pidex/worktrees/lane',
+    )
+    expect(summary.object).toBe('npm test')
+  })
+
+  it('keeps the NAME as the emphasis for a tool pi has no verb for', () => {
+    const summary = summarizeExternalTool('mcp__linear__save_issue', { description: 'ship it' })
+    expect(summary.object).toBe('mcp__linear__save_issue')
+    expect(summary.hint).toBe('ship it')
+  })
+
+  it('says a command ran even when the cap left nothing of it', () => {
+    expect(summarizeExternalTool('Bash', {})).toMatchObject({ label: 'Ran', object: 'a command' })
   })
 })
 

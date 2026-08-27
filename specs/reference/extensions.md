@@ -221,6 +221,33 @@ handling (`items/transcriptRows.ts`, contract table in
   `[Claude Code · Name {args}]` marker text block; pidex parses it into an
   `externalTool` activity step. Left as prose it wrapped raw JSON across
   paragraphs and markdown-linkified any URL inside it.
+
+  **They render in pi's vocabulary, not Claude Code's.**
+  `summarizeExternalTool` maps the marker's tool name onto the same verbs
+  `summarizeTool` gives pi's own tools — `Bash` → `Ran`, `Grep` →
+  `Searched for`, `Read` → `Read` — with the same monospace treatment and the
+  same `cleanCommandForDisplay` path stripping. A Claude-provider turn
+  interleaves these rows with pi's, and showing `Claude Code | Bash | <raw
+arg>` next to `Ran npm test` made one turn read as two transcripts.
+  Provenance survives as a `cc` badge plus the full marker in the row's
+  `title`, because pi genuinely never saw these calls.
+
+  Two things are deliberately NOT borrowed, and both are honesty rather than
+  polish: no chevron (there is no `tool_result`, so nothing to expand into)
+  and no status (the marker arrives after the fact, so the row is always
+  settled). An unrecognised tool keeps its NAME as the emphasis —
+  `mcp__linear__save_issue` says more than any verb pidex could invent.
+
+  **The argument preview is capped at 142 characters**, and the cap lands
+  inside the value often enough to matter: `Bash` carries a single `command`,
+  so a complete-`"key":"value"`-pair scan recovered nothing and 26 of 47 rows
+  in one real turn rendered as a bare row with no command at all.
+  `externalToolInfo` therefore also recovers the final UNTERMINATED value,
+  unescaping defensively (a cut can land mid-`\uXXXX` or after a lone
+  backslash). Guarded by `items/externalToolRealMarkers.test.ts`, which
+  replays all 47 markers from that turn — synthetic fixtures kept missing
+  this, because hand-written markers are short enough to survive the cap.
+
 - **Encrypted thinking** — a signature with no plaintext, which rendered as a
   "thought" that expands to nothing. Skipped on settled items.
 
