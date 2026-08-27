@@ -12,7 +12,7 @@ import { modelRisksMalformedToolNames } from '@/features/orchestrator/threadHeal
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { Button, NumberField, Row, SectionTitle, Toggle } from '@/components/form'
-import { workspaceName } from '@/lib/path'
+import { projectPathFor, workspaceName } from '@/lib/path'
 
 /**
  * Orchestration settings for the project currently open.
@@ -24,8 +24,10 @@ import { workspaceName } from '@/lib/path'
 export function OrchestrationTab(): React.JSX.Element {
   const activeWorkspace = useActiveWorkspace()
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
+  // Prefs, rules and memory are per PROJECT, so a worktree session must
+  // resolve to its repo root — including before `git:infoBatch` has answered.
   const projectPath = activeWorkspace
-    ? (gitByCwd[activeWorkspace]?.mainRepoPath ?? activeWorkspace)
+    ? projectPathFor(activeWorkspace, gitByCwd[activeWorkspace])
     : ''
 
   /*

@@ -7,7 +7,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { ChatView } from '@/features/chat/ChatView'
 import { formatCost } from '@/lib/format'
-import { workspaceName } from '@/lib/path'
+import { projectName } from '@/lib/path'
 import { OrchestratorModePicker } from './OrchestratorModePicker'
 import { isPoisonedThreadError, modelRisksMalformedToolNames } from './threadHealth'
 
@@ -94,7 +94,7 @@ export function OrchestratorChat({
       >
         <OrchestratorIcon size={13} className="text-accent shrink-0" />
         <span className="text-text shrink-0 text-sm font-medium">
-          Orchestrator · {workspaceName(workspacePath)}
+          Orchestrator · {projectName(workspacePath)}
         </span>
         <span className="text-text-tertiary shrink-0 text-xs">
           {inScope.length === 0

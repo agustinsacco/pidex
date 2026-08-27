@@ -4,7 +4,6 @@ import { sessionEventChannel } from '@shared/ipc'
 import type {
   FleetSnapshot,
   OrchestratorDigest,
-  ResourceSnapshot,
   SessionPush,
   UpdateState,
   LoginFlowState,
@@ -59,8 +58,6 @@ const api: PidexApi = {
   onPtyData: (ptyId, listener) => subscribe<[string]>(`pty:data:${ptyId}`, listener),
 
   onPtyExit: (ptyId, listener) => subscribe<[number]>(`pty:exit:${ptyId}`, listener),
-
-  onResourceSample: (listener) => subscribe<[ResourceSnapshot]>('resources:sample', listener),
 
   onUpdateEvent: (listener) => subscribe<[UpdateState]>('updates:event', listener),
 

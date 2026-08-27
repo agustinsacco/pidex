@@ -395,9 +395,7 @@ injected carries an explicit badge in that session's transcript, per
 always be able to tell which messages they wrote and which the manager did.
 
 **Everywhere else, one predicate.** `isOrchestratorSession()` gates the sidebar
-list, `groupSessionsByProject`, `workspaceStats()` (home tiles + heatmap) and
-`usageSummary()`. In Usage the orchestrator is shown as its own labelled line
-rather than filtered out — hiding what it costs would be worse than showing it.
+list, `groupSessionsByProject` and `workspaceStats()` (home tiles + heatmap).
 
 ---
 
@@ -522,8 +520,7 @@ anywhere, which is itself the first thing to check.
 10. **It is a real session** — the model picker, `/compact`, and the context
     meter all work in the orchestrator chat exactly as in any other.
 11. **It stays out of the numbers** — with an orchestrator thread present,
-    check Settings → Usage lists it as its own labelled line, and that the home
-    "Project stats" session count does **not** include it.
+    check that the home "Project stats" session count does **not** include it.
 12. **Settings → Orchestration** — autopilot off by default, cap of 2, brief-on-
     open off, notifications on. The rules box shows `<repo>/.pidex/orchestrator.md`
     and saving reports "Applies next session".

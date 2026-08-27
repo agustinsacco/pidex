@@ -50,7 +50,6 @@ import type {
   SubscriptionProviderStatus,
   PiResources,
   PullResult,
-  ResourceSnapshot,
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
@@ -58,7 +57,6 @@ import type {
   UpdateFromMainResult,
   UpdateState,
   ThemePreference,
-  UsageSummary,
   WorkspaceInfo,
   WorkspaceSessionStats,
   WorktreeInfo,
@@ -101,7 +99,6 @@ export interface IpcInvokeMap {
     result: void
   }
   'pi:disposeSession': { args: [sessionId: string]; result: void }
-  'pi:listLiveSessions': { args: []; result: LiveSessionInfo[] }
   /** One-shot `pi -p` completion that names a session after its first message. */
   'pi:generateTitle': {
     args: [workspacePath: string, message: string, existingNames: string[]]
@@ -111,7 +108,6 @@ export interface IpcInvokeMap {
   'app:getPrefs': { args: []; result: AppPrefs }
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
-  'app:getPathForDisplay': { args: [string]; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Model picker memory (pinned + recent), keyed `provider/id`. */
   'app:setModelPicks': { args: [ModelPicks]; result: void }
@@ -369,8 +365,6 @@ export interface IpcInvokeMap {
   }
 
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
-  /** Usage rollup across all workspaces (Usage view; user-initiated). */
-  'sessions:usage': { args: []; result: UsageSummary }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }
@@ -500,16 +494,6 @@ export interface IpcInvokeMap {
   'pty:kill': { args: [ptyId: string]; result: void }
 
   /**
-   * Resource monitor. Sampling is reference-counted and OFF until something
-   * subscribes — a monitor that polls when nobody is watching would be its own
-   * resource bug. Samples arrive on the `resources:sample` push channel.
-   */
-  'resources:subscribe': { args: []; result: ResourceSnapshot | null }
-  'resources:unsubscribe': { args: []; result: void }
-  'resources:openWindow': { args: []; result: void }
-  'resources:closeWindow': { args: []; result: void }
-
-  /**
    * Auto-update. Checks are driven by main on a timer; the renderer only reads
    * state and asks for the install. Installing is ALWAYS user-initiated.
    */
@@ -568,8 +552,6 @@ export interface PidexApi {
   onPtyExit(ptyId: string, listener: (exitCode: number) => void): () => void
   /** Busy map broadcast (ptyId → foreground process running); unsubscribe. */
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
-  /** Resource monitor ticks; only fires while something is subscribed. */
-  onResourceSample(listener: (snapshot: ResourceSnapshot) => void): () => void
   /** Update lifecycle changes (checking / downloading / ready to install). */
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
   /** Progress of a background `pi:startLogin`; returns unsubscribe. */

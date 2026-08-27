@@ -78,14 +78,6 @@ describe('PtyManager.create — spawn failures', () => {
     })
     expect(() => ptyManager.create('/missing/dir', 80, 24)).toThrow(/\/missing\/dir/)
   })
-
-  it('registers nothing when the spawn throws', () => {
-    ptySpawn.mockImplementationOnce(() => {
-      throw new Error('posix_spawnp failed.')
-    })
-    expect(() => ptyManager.create('/repo', 80, 24)).toThrow()
-    expect(ptyManager.pidsBySession().size).toBe(0)
-  })
 })
 
 describe('PtyManager.attach — scrollback replay', () => {

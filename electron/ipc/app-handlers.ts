@@ -163,8 +163,6 @@ export function registerAppHandlers(): void {
     return result.filePaths[0] ?? null
   })
 
-  handle('app:getPathForDisplay', (_event, path: string) => basename(path))
-
   handle('app:saveDialog', async (event, options) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const result = await dialog.showSaveDialog(window!, {

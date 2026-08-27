@@ -259,8 +259,6 @@ export function registerPiSessionHandlers(): void {
     await registry.dispose(sessionId)
   })
 
-  handle('pi:listLiveSessions', () => registry.list())
-
   // Best-effort: naming is a nicety, so every failure path returns null and
   // the session keeps its first-message-derived title.
   handle(

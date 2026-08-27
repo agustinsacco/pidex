@@ -13,6 +13,12 @@ Two claims made by comments in the codebase turned out to be **false**
 (F5, F6) and one turned out to be **true but obsolete** (F5's upstream
 counterpart). Those are listed first among the high-severity items.
 
+> **2026-08-26** — the Usage view and the resource monitor were deleted (see
+> [log/2026-08-26-remove-usage-and-resources.md](log/2026-08-26-remove-usage-and-resources.md)).
+> Findings below that rest on them are moot: F15's floating-monitor clause,
+> F17's `usageSummary()` sizing note, and the monitor entry under "What is
+> already correct". Everything else stands.
+
 ---
 
 ## Summary

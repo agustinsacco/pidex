@@ -120,20 +120,6 @@ class PtyManager {
     return { scrollback: this.sessions.get(ptyId)?.scrollback ?? '' }
   }
 
-  /** Live shell pids grouped by owning session, for the resource monitor. */
-  pidsBySession(): Map<string, number[]> {
-    const map = new Map<string, number[]>()
-    for (const session of this.sessions.values()) {
-      if (!session.sessionId) continue
-      const pid = session.pty.pid
-      if (pid === undefined) continue
-      const pids = map.get(session.sessionId)
-      if (pids) pids.push(pid)
-      else map.set(session.sessionId, [pid])
-    }
-    return map
-  }
-
   write(ptyId: string, data: string): void {
     this.sessions.get(ptyId)?.pty.write(data)
   }

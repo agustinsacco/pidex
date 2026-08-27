@@ -80,6 +80,32 @@ describe('groupSessionsByProject', () => {
     expect(groups[0]?.metas.map((m) => m.cwd)).toEqual(['/repo/.pidex/worktrees/test', '/repo'])
   })
 
+  it('folds a worktree in before its git info arrives', () => {
+    // `git:infoBatch` is a round trip, so every surface renders at least once
+    // with `gitByCwd` empty for a freshly created worktree. Keying on git info
+    // alone opened a second group headed by the branch slug, which then
+    // collapsed into the project group a moment later.
+    const groups = groupSessionsByProject(
+      ['/repo', '/repo/.pidex/worktrees/hey-2'],
+      {
+        '/repo': [meta({ path: '/repo/a.jsonl', cwd: '/repo' })],
+        '/repo/.pidex/worktrees/hey-2': [
+          meta({
+            path: '/repo/.pidex/worktrees/hey-2/b.jsonl',
+            cwd: '/repo/.pidex/worktrees/hey-2',
+          }),
+        ],
+      },
+      {},
+      notPinned,
+      notLive,
+      '/repo',
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.name).toBe('repo')
+    expect(groups[0]?.workspacePath).toBe('/repo')
+  })
+
   it('falls back to the worktree path when the main repo folder is unknown', () => {
     const gitByCwd: Record<string, GitInfo> = {
       '/somewhere/wt': { isRepo: true, branch: 'test', isWorktree: true, mainRepoPath: '/repo' },
