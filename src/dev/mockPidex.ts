@@ -554,6 +554,11 @@ export function installMockPidex(): void {
               },
             ],
             pinnedSessions: [],
+            modelPicks: {
+              starred: ['anthropic/claude-opus-5'],
+              recent: ['anthropic/claude-sonnet-5'],
+              groupMode: 'family' as const,
+            },
             collapsedWorkspaces: [],
             // Session "b" has activity newer than its marker → unseen pill.
             seenSessions: { '/mock/sessions/b.jsonl': Date.parse('2026-08-01T00:00:00.000Z') },
@@ -567,6 +572,8 @@ export function installMockPidex(): void {
             claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
             worktrees: DEFAULT_APP_PREFS.worktrees,
           })
+        case 'app:setModelPicks':
+          return Promise.resolve(undefined)
         case 'app:setWorktreePrefs':
           return Promise.resolve(undefined)
         case 'app:selectFolder':
@@ -784,6 +791,22 @@ export function installMockPidex(): void {
               provider: 'anthropic',
               reasoning: true,
               thinkingLevelMap: { xhigh: 'high-boost', max: null },
+              contextWindow: 200_000,
+              maxTokens: 64_000,
+              cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+              input: ['text', 'image'],
+            },
+            // The same model reached a second way. This pair is the whole
+            // reason ModelMenu groups by family: two rows that read
+            // identically until you look at the provider.
+            {
+              id: 'claude-opus-5',
+              name: 'Opus 5',
+              provider: 'pi-claude-cli',
+              reasoning: true,
+              thinkingLevelMap: { xhigh: 'high-boost', max: null },
+              contextWindow: 200_000,
+              input: ['text', 'image'],
             },
             {
               id: 'claude-sonnet-5',
@@ -792,12 +815,18 @@ export function installMockPidex(): void {
               provider: 'anthropic',
               reasoning: true,
               thinkingLevelMap: null,
+              contextWindow: 200_000,
+              maxTokens: 64_000,
+              cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+              input: ['text', 'image'],
             },
             {
               id: 'Qwen 3.5 122b',
               name: 'Qwen 3.5 122b',
               provider: 'local-stark',
               reasoning: false,
+              contextWindow: 128_000,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             },
             // Present so the harness can exercise the orchestrator's
             // malformed-tool-name warning: this is the model observed bricking

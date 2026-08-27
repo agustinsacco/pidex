@@ -50,8 +50,43 @@ describe('toCatalogueModels', () => {
         provider: 'amazon-bedrock',
         reasoning: true,
         thinkingLevelMap: { xhigh: 'xhigh', max: 'max' },
+        input: ['text', 'image'],
+        contextWindow: 1_000_000,
+        maxTokens: 128_000,
+        cost: { input: 5, output: 25, cacheRead: 0, cacheWrite: 0 },
       },
     ])
+  })
+
+  it('omits metadata the catalogue did not supply, rather than defaulting it', () => {
+    // The models.json fallback knows an id, a name and a provider. A zero
+    // context window or a $0 price would render as fact in the picker.
+    const sparse = {
+      id: 'my-model',
+      name: 'My Model',
+      provider: 'local-thing',
+      reasoning: false,
+    } as unknown as Model
+    expect(toCatalogueModels([sparse])[0]).toEqual({
+      id: 'my-model',
+      name: 'My Model',
+      provider: 'local-thing',
+      reasoning: false,
+      thinkingLevelMap: undefined,
+    })
+  })
+
+  it('does not forward unknown fields pi may add to Model', () => {
+    // `Model` carries an index signature; a passthrough would ship whatever
+    // pi adds next straight into the renderer.
+    const extra = {
+      id: 'm',
+      name: 'M',
+      provider: 'p',
+      reasoning: false,
+      secretInternalField: 'nope',
+    } as unknown as Model
+    expect(toCatalogueModels([extra])[0]).not.toHaveProperty('secretInternalField')
   })
 })
 

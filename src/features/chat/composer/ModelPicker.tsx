@@ -139,7 +139,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           }}
           onClose={() => setOpen(null)}
           emptyText="No models configured — sign in via the terminal (`pi /login`) or add API keys."
-          className="absolute bottom-full right-0 mb-2 w-72"
+          className="absolute bottom-full right-0 mb-2 w-[30rem] max-w-[90vw]"
         />
       )}
 

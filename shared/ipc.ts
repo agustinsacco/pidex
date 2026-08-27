@@ -11,6 +11,7 @@ import type {
   ExtensionUIResponse,
   RpcResponseDataMap,
   ThinkingLevelMap,
+  ModelCost,
 } from './rpc'
 import type {
   McpCacheEntry,
@@ -45,6 +46,7 @@ import type {
   PiHealth,
   LoginFlowState,
   LoginProviderId,
+  ModelPicks,
   SubscriptionProviderStatus,
   PiResources,
   PullResult,
@@ -111,6 +113,8 @@ export interface IpcInvokeMap {
   'app:selectFolder': { args: []; result: string | null }
   'app:getPathForDisplay': { args: [string]; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  /** Model picker memory (pinned + recent), keyed `provider/id`. */
+  'app:setModelPicks': { args: [ModelPicks]; result: void }
   'app:setLastSession': { args: [sessionPath: string | undefined]; result: void }
   /**
    * Where to land on launch, with existence already validated in main so the
@@ -180,6 +184,11 @@ export interface IpcInvokeMap {
       provider: string
       reasoning: boolean
       thinkingLevelMap?: ThinkingLevelMap | null
+      /** Absent when the models.json fallback answered — never guessed at. */
+      contextWindow?: number
+      maxTokens?: number
+      cost?: ModelCost
+      input?: string[]
     }[]
   }
   'pi:readConfigFile': {
