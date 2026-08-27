@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# pidex installer — detects OS/arch, downloads the matching artifact from the
+# pidex installer - detects OS/arch, downloads the matching artifact from the
 # latest GitHub Release, verifies its checksum, and installs it.
 #
 #   curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
@@ -31,7 +31,7 @@ ARCH="$(uname -m)"
 
 # electron-builder expands `${arch}` per TARGET, not per machine: the same x64
 # build ships as -x64.dmg, -x86_64.AppImage and -amd64.deb. One normalized name
-# here therefore cannot address every artifact — asking for -x64.AppImage 404s.
+# here therefore cannot address every artifact - asking for -x64.AppImage 404s.
 case "$ARCH" in
   x86_64|amd64) ARCH="x64";   APPIMAGE_ARCH="x86_64" ;;
   arm64|aarch64) ARCH="arm64"; APPIMAGE_ARCH="arm64" ;;
@@ -52,7 +52,7 @@ esac
 if [ -n "${PIDEX_VERSION:-}" ]; then
   TAG="$PIDEX_VERSION"
 else
-  info "Resolving latest release of $REPO…"
+  info "Resolving latest release of $REPO..."
   TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
     | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)"
   [ -n "$TAG" ] || die "could not determine the latest release tag"
@@ -70,9 +70,9 @@ TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 
-info "Downloading $ASSET ($TAG)…"
+info "Downloading $ASSET ($TAG)..."
 curl -fSL --progress-bar "$BASE/$ASSET" -o "$TMP/$ASSET" \
-  || die "download failed — check https://github.com/$REPO/releases/tag/$TAG for available assets"
+  || die "download failed - check https://github.com/$REPO/releases/tag/$TAG for available assets"
 
 # ---------- checksum ----------
 
@@ -85,23 +85,23 @@ if curl -fsSL "$BASE/checksums.txt" -o "$TMP/checksums.txt" 2>/dev/null; then
       ACTUAL="$(shasum -a 256 "$TMP/$ASSET" | awk '{print $1}')"
     else
       ACTUAL=""
-      warn "no sha256 tool found — skipping checksum verification"
+      warn "no sha256 tool found - skipping checksum verification"
     fi
     if [ -n "$ACTUAL" ]; then
       [ "$ACTUAL" = "$EXPECTED" ] || die "checksum mismatch for $ASSET (expected $EXPECTED, got $ACTUAL)"
       info "Checksum verified."
     fi
   else
-    warn "no checksum entry for $ASSET — continuing without verification"
+    warn "no checksum entry for $ASSET - continuing without verification"
   fi
 else
-  warn "checksums.txt not published for $TAG — continuing without verification"
+  warn "checksums.txt not published for $TAG - continuing without verification"
 fi
 
 # ---------- install ----------
 
 if [ "$PLATFORM" = "mac" ]; then
-  info "Mounting $ASSET…"
+  info "Mounting $ASSET..."
   MOUNT="$(hdiutil attach -nobrowse -readonly "$TMP/$ASSET" | grep -o '/Volumes/.*' | tail -n1)"
   [ -n "$MOUNT" ] || die "failed to mount the disk image"
   APP="$(find "$MOUNT" -maxdepth 1 -name '*.app' | head -n1)"
@@ -109,7 +109,7 @@ if [ "$PLATFORM" = "mac" ]; then
     hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
     die "no .app bundle found inside the disk image"
   fi
-  info "Installing to /Applications…"
+  info "Installing to /Applications..."
   rm -rf "/Applications/pidex.app"
   cp -R "$APP" /Applications/ || {
     hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
@@ -139,11 +139,11 @@ DESKTOP
   INSTALLED="$PREFIX/bin/pidex"
   case ":$PATH:" in
     *":$PREFIX/bin:"*) ;;
-    *) warn "$PREFIX/bin is not on your PATH — add it to your shell profile" ;;
+    *) warn "$PREFIX/bin is not on your PATH - add it to your shell profile" ;;
   esac
 fi
 
-info "Installed pidex $VERSION → $INSTALLED"
+info "Installed pidex $VERSION -> $INSTALLED"
 
 # ---------- prerequisite check (advisory) ----------
 
