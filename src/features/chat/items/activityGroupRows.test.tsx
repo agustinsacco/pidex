@@ -129,15 +129,102 @@ describe('ActivityGroup row shapes', () => {
     }
   })
 
-  it('renders a CLI-side tool as a labelled step, not raw marker text', () => {
+  it('renders a CLI-side tool with pi own verb, not the raw tool name', () => {
     renderMixed()
     const external = document.querySelector('[data-testid="external-tool-row"]')
     expect(external).not.toBeNull()
-    expect(external!.textContent).toContain('Claude Code')
-    expect(external!.textContent).toContain('WebSearch')
+
+    // pi's vocabulary, not Claude Code's: a `WebSearch` marker reads the way
+    // a pi search does. The tool's own name is provenance, not the headline.
+    expect(external!.textContent).toContain('Searched the web for')
     expect(external!.textContent).toContain('pygame docs')
+    expect(external!.textContent).not.toContain('WebSearch')
+
+    // Provenance survives, compactly: a badge in the row, the full marker in
+    // the title so a capped preview is still readable on hover.
+    expect(external!.textContent).toContain('cc')
+    expect(external!.getAttribute('title')).toContain('Claude Code · WebSearch')
+
     // The marker syntax itself must never reach the reader.
     expect(external!.textContent).not.toContain('[Claude Code ·')
+  })
+
+  /**
+   * The complaint this pins: a Claude-provider turn showed
+   * `Claude Code | Bash | <raw arg>` directly above pi's `Ran <command>`, in
+   * a different type scale, with the command missing whenever the provider's
+   * preview cap cut through it. Same act, two vocabularies, one card.
+   */
+  it('gives a CLI-side bash call the same shape as a pi bash call', () => {
+    const piBash: ToolState = {
+      toolCallId: 'b1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+      argsText: '',
+      status: 'done',
+      output: null,
+    }
+    render(
+      <ActivityGroup
+        steps={[
+          step({ type: 'tool', index: 0, toolCallId: 'b1' }),
+          step({
+            type: 'externalTool',
+            index: 1,
+            name: 'Bash',
+            args: '{"command":"npm run lint"}',
+          }),
+        ]}
+        tools={{ b1: piBash }}
+        hideThinking={false}
+        sessionId="s1"
+        active={false}
+      />,
+    )
+
+    const rows = rowContainers()
+    expect(rows).toHaveLength(2)
+    const [pi, cli] = rows.map((r) => r.textContent ?? '')
+
+    // Same verb for the same act.
+    expect(pi).toContain('Ran')
+    expect(cli).toContain('Ran')
+    expect(pi).toContain('npm test')
+    expect(cli).toContain('npm run lint')
+
+    // Same monospace treatment for the command itself, so the two rows line
+    // up rather than reading as two different transcripts.
+    const mono = (row: HTMLElement): boolean =>
+      [...row.querySelectorAll('span')].some(
+        (el) => el.className.includes('font-mono') && el.textContent?.includes('npm'),
+      )
+    expect(mono(rows[0]!)).toBe(true)
+    expect(mono(rows[1]!)).toBe(true)
+  })
+
+  it('shows the command even when the preview cap cut through it', () => {
+    render(
+      <ActivityGroup
+        steps={[
+          step({
+            type: 'externalTool',
+            index: 0,
+            // Exactly the shape the provider emits at its 142-char cap: one
+            // `command` argument, sliced mid-value, no closing quote.
+            name: 'Bash',
+            args: '{"command":"grep -rn \\"bundledExtensions\\" electron/ipc/pi-session-han\u2026',
+          }),
+        ]}
+        tools={{}}
+        hideThinking={false}
+        sessionId="s1"
+        active={false}
+      />,
+    )
+    const row = document.querySelector('[data-testid="external-tool-row"]')!
+    expect(row.textContent).toContain('Ran')
+    expect(row.textContent).toContain('bundledExtensions')
+    expect(row.textContent).not.toContain('a command')
   })
 
   it('renders a sub-agent launch with its own badge and headline', () => {
