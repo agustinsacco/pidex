@@ -24,6 +24,14 @@ export interface GitOptions {
    * output usually filters empties itself.
    */
   trim?: boolean
+  /**
+   * Extra environment for this call only, merged over the inherited env.
+   *
+   * The reason this exists is `GIT_INDEX_FILE`: the only way to stage into a
+   * throwaway index is to point git at one, and it has to be per-call because
+   * every other git call in the process must keep using the real index.
+   */
+  env?: Record<string, string>
 }
 
 const TIMEOUT_MS = 30_000
@@ -35,6 +43,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
       cwd,
       timeout: TIMEOUT_MS,
       maxBuffer: MAX_BUFFER,
+      ...(options.env ? { env: { ...process.env, ...options.env } } : {}),
     })
     return options.trim ? stdout.trim() : stdout
   } catch (error) {

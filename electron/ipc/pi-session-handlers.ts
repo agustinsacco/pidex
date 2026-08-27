@@ -14,6 +14,7 @@ import { broadcast } from '../orchestrator/broadcast'
 import { configureOrchestrator, orchestrator } from '../orchestrator/instance'
 import { startNotifier } from '../orchestrator/notifier'
 import { gitInfo, gitInfoBatch } from '../fs/git-info'
+import { createLaneWorkspace } from '../fs/lane-workspace'
 import {
   MIN_PI_VERSION,
   type CreateSessionOptions,
@@ -205,11 +206,31 @@ export function registerPiSessionHandlers(): void {
         },
         'broadcast',
       ),
+    // Every lane gets its own branch and worktree, including the ones the
+    // orchestrator starts. This used to spawn straight into `workspacePath`,
+    // so an autopilot lane landed in the main checkout on whatever branch was
+    // out — the exact collision the worktree design exists to prevent, live
+    // again in the layer meant to prevent it.
     startWork: async (workspacePath, prompt, name) => {
-      const info = await spawnSession({ workspacePath, name }, 'broadcast')
+      const lane = await createLaneWorkspace({
+        workspacePath,
+        title: name,
+        branchPrefix: getPrefs().worktrees.branchPrefix,
+      })
+      const info = await spawnSession({ workspacePath: lane.workspacePath, name }, 'broadcast')
+      if (lane.warning) {
+        // Never silent: an un-isolated lane is a fact the operator has to know,
+        // and it lands in the lane's own transcript rather than a log file.
+        // Same channel the visible-hand rule uses for orchestrator injections.
+        broadcast(`pi:event:${info.sessionId}`, {
+          kind: 'injected',
+          text: lane.warning,
+          source: 'orchestrator',
+        })
+      }
       const session = registry.get(info.sessionId)
       await session?.client.request({ type: 'prompt', message: prompt })
-      return { sessionId: info.sessionId }
+      return { sessionId: info.sessionId, workspacePath: lane.workspacePath, branch: lane.branch }
     },
     gitStatus: async (workspacePath) => gitInfo(workspacePath),
   })
