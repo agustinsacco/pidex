@@ -324,6 +324,89 @@ export interface FleetQuestion {
   askedAt: number
 }
 
+/**
+ * The lane loop: the fixed ladder of oracles a lane climbs on its way to a PR.
+ *
+ * A lane is one unit of work — one charter, one branch, one worktree, one
+ * agent process, one exit. The ladder is its *state*, as distinct from the
+ * transcript, which is its history. It renders in exactly two places and they
+ * are the same component: the right-hand end of a lane row on the fleet
+ * surface, and directly above the composer inside the lane.
+ *
+ * The rung set is fixed per project and its ORDER is fixed too. A ladder whose
+ * rungs move is one you have to read; a ladder that never moves is one you can
+ * glance at. Same reason a service map never re-lays-out on refresh.
+ *
+ * **A rung is never filled by anything an agent said.** Only the harness
+ * executing the command may set a result, which is the whole point: a model
+ * that writes code printing PASS is a documented behaviour, not a hypothesis.
+ */
+export type LaneRungState =
+  /** Not run since the lane's last edit. The honest default. */
+  | 'stale'
+  /** Ran, exit code matched. */
+  | 'pass'
+  /** Ran, exit code did not match. */
+  | 'fail'
+  /** Running right now. */
+  | 'running'
+  /** No command configured for this rung in this project. */
+  | 'unconfigured'
+
+export interface LaneRung {
+  /** Stable key: `tsc`, `test`, `lint`, `diff`, `merge`, `pr`. */
+  key: string
+  /** Short uppercase label for the ladder. */
+  label: string
+  state: LaneRungState
+  /** Exactly what ran, so the state is checkable rather than assertable. */
+  command?: string
+  exitCode?: number
+  /** First line of failure output, for the hint. Never the whole log. */
+  detail?: string
+  /** When this result was produced. */
+  at?: number
+  /** Wall-clock of the run, for the ones that get slow. */
+  durationMs?: number
+}
+
+export interface LaneLoop {
+  rungs: LaneRung[]
+  /** Lines changed since the lane's baseline, for the diff rung and the header. */
+  diff?: { added: number; removed: number; files: number }
+  /** Budget the diff rung is measured against. */
+  diffBudget?: { lines: number; files: number }
+  /** Branch this lane is on, when it has one. */
+  branch?: string
+  updatedAt: number
+}
+
+/**
+ * Default ladder. Six rungs, and two of them are oracles nothing else in this
+ * market computes:
+ *
+ * - `diff` fails above the size where measured review effectiveness collapses
+ *   (SmartBear/Cisco: detection 87% under 100 lines, 28% over 1,000; useful
+ *   comments degrade past ~20 files). An unreviewable change is a failed
+ *   acceptance test and the surface should say so before you open it.
+ * - `merge` is a `git merge-tree` dry run against the current base, which is
+ *   the same replay that measured 27.67% of agent PRs conflicting.
+ *
+ * `pr` is present from turn one, unfilled. An empty rung is a better standing
+ * instruction than a paragraph, because it does not compact away.
+ */
+export const DEFAULT_LANE_RUNGS: readonly { key: string; label: string }[] = [
+  { key: 'tsc', label: 'tsc' },
+  { key: 'test', label: 'test' },
+  { key: 'lint', label: 'lint' },
+  { key: 'diff', label: 'diff' },
+  { key: 'merge', label: 'merge' },
+  { key: 'pr', label: 'pr' },
+]
+
+/** Review-capacity bounds for the `diff` rung. See DEFAULT_LANE_RUNGS. */
+export const DEFAULT_DIFF_BUDGET = { lines: 400, files: 20 }
+
 export interface FleetSession {
   /** pidex-side live session id. */
   sessionId: string
@@ -512,6 +595,10 @@ export interface AppPrefs {
   fonts: FontPrefs
   /** Whose system prompt Claude Code sessions run under. */
   claudeSystemPrompt: ClaudeSystemPromptMode
+  /** What pidex appends to every lane's system prompt. */
+  agentDirectives: AgentDirectivePrefs
+  /** Per-project override of the above, keyed by main-repo path. */
+  agentDirectivesByProject: Record<string, AgentDirectivePrefs>
   worktrees: WorktreePrefs
   /** Orchestrator settings per main-repo path. */
   orchestrator: Record<string, OrchestratorWorkspacePrefs>
@@ -536,6 +623,36 @@ export interface AppPrefs {
  * 12k tokens of context per call but leaves the model working from pi's
  * instructions plus the raw tool schemas.
  */
+/**
+ * Layer 2 of the directive stack: what pidex appends to a lane's system
+ * prompt. See `electron/pi/directives.ts` for the full stack and why this is
+ * a setting rather than a constant.
+ *
+ * Global by default with a per-project override, because the right contents
+ * depend on the repo AND on which model the lane runs: Anthropic's frontier
+ * models now ship a system prompt roughly 70-80% shorter than the previous
+ * generation, and a mixed fleet needs a lean profile and a fuller one.
+ */
+export interface AgentDirectivePrefs {
+  /**
+   * The worktree working-directory block. On by default and worth keeping:
+   * it is the reason a whole class of confident wrong-branch answers stopped
+   * (session 01a02ca0 read a copy 19 commits behind main and recommended
+   * building a feature that already existed in its own worktree).
+   */
+  worktreeGuard: boolean
+  /** The lane charter: this is a lane, it owns a branch, it ends in a PR. */
+  laneCharter: boolean
+  /** Free text appended last, so it can qualify either block above. */
+  custom: string
+}
+
+export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
+  worktreeGuard: true,
+  laneCharter: true,
+  custom: '',
+}
+
 export type ClaudeSystemPromptMode = 'claude' | 'pi'
 
 /** Starred and recently used models, keyed `provider/id`, plus how to group them. */
@@ -572,6 +689,8 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   // Matches the extension's own default: keep Claude Code's prompt unless the
   // user opts out of it.
   claudeSystemPrompt: 'claude',
+  agentDirectives: DEFAULT_AGENT_DIRECTIVES,
+  agentDirectivesByProject: {},
   worktrees: DEFAULT_WORKTREE_PREFS,
   orchestrator: {},
   orchestratorSessions: {},

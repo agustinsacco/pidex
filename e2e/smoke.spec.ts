@@ -1493,6 +1493,51 @@ test('home surfaces live sessions as fleet cards you can talk to', async () => {
   }
 })
 
+test('the lane loop renders above the composer and on the fleet card', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-lane-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    await page.getByPlaceholder('Describe a task or ask a question').fill('lane loop please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible({ timeout: 30_000 })
+
+    // MOUNT 1 — inside the lane, directly above the composer. This is the
+    // mount that is missing from every tool in this category: the transcript
+    // is history, and without this there is no state.
+    const banner = page.getByTestId('lane-banner')
+    await expect(banner).toBeVisible({ timeout: 30_000 })
+
+    const ladder = banner.getByTestId('lane-ladder')
+    // The full fixed ladder, in order, regardless of what was reported.
+    await expect(ladder.locator('[data-rung]')).toHaveCount(6)
+    await expect(ladder.locator('[data-rung="tsc"]')).toHaveAttribute('data-state', 'pass')
+    await expect(ladder.locator('[data-rung="test"]')).toHaveAttribute('data-state', 'fail')
+    // `pr` is present and unfilled from turn one, by design.
+    await expect(ladder.locator('[data-rung="pr"]')).toHaveAttribute('data-state', 'stale')
+
+    // The hint names the failure, and it is generated from rung state rather
+    // than from anything the agent said.
+    await expect(banner.getByText(/test failed/i)).toBeVisible()
+    await expect(banner.getByText(/auth\/ttl\.test\.ts/)).toBeVisible()
+    await expect(banner.getByText(/pidex\/stub-lane/)).toBeVisible()
+
+    // MOUNT 2 — the same component on the fleet card, so the two surfaces
+    // cannot disagree about where the work is.
+    await page.getByRole('button', { name: /^New$/ }).click()
+    const card = page.getByTestId('fleet-session-card').first()
+    await expect(card).toBeVisible({ timeout: 20_000 })
+    const cardLadder = card.getByTestId('lane-ladder')
+    await expect(cardLadder.locator('[data-rung]')).toHaveCount(6)
+    await expect(cardLadder.locator('[data-rung="test"]')).toHaveAttribute('data-state', 'fail')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('the workspace header carries fixed settings / new / orchestrator controls', async () => {
   const harness = await launch({
     userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-')),

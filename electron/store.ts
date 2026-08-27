@@ -3,6 +3,7 @@ import { pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
+  type AgentDirectivePrefs,
   type AppPrefs,
   type OrchestratorDigest,
   type OrchestratorWorkspacePrefs,
@@ -52,6 +53,11 @@ export function getPrefs(): AppPrefs {
     seenSessions: s.get('seenSessions') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
+    agentDirectives: {
+      ...DEFAULT_APP_PREFS.agentDirectives,
+      ...s.get('agentDirectives'),
+    },
+    agentDirectivesByProject: s.get('agentDirectivesByProject') ?? {},
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     orchestrator: s.get('orchestrator') ?? {},
     orchestratorSessions: s.get('orchestratorSessions') ?? {},
@@ -129,6 +135,30 @@ export function setClaudeSystemPrompt(mode: AppPrefs['claudeSystemPrompt']): voi
 
 export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {
   prefs().set('worktrees', worktrees)
+}
+
+/**
+ * Set the directive stack, globally or for one project.
+ *
+ * `null` for a project clears its override so it inherits the global default
+ * again. Deleting the key rather than storing a copy keeps "inherits" and
+ * "happens to match" distinguishable in the settings UI.
+ */
+export function setAgentDirectives(
+  directives: AgentDirectivePrefs | null,
+  projectPath?: string,
+): void {
+  if (!projectPath) {
+    if (directives) prefs().set('agentDirectives', directives)
+    return
+  }
+  const byProject = { ...(prefs().get('agentDirectivesByProject') ?? {}) }
+  if (directives) {
+    byProject[projectPath] = directives
+  } else {
+    delete byProject[projectPath]
+  }
+  prefs().set('agentDirectivesByProject', byProject)
 }
 
 export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): void {
