@@ -875,11 +875,18 @@ test('reopens the last session on relaunch instead of the picker', async () => {
       // …but "live" is not "persisted": the session file path arrives with
       // get_state, after the composer renders. Closing before that lands
       // leaves no lastSessionPath and the relaunch falls back to home —
-      // which is exactly how this test failed on (slower) Linux CI. Wait for
-      // the sidebar row, which only appears once the session is on disk.
-      await expect(first.page.getByTestId('session-row').first()).toBeVisible({
-        timeout: 20_000,
-      })
+      // which is exactly how this test failed on (slower) Linux CI.
+      //
+      // `:not([data-pending])` is load-bearing. A live session gets a
+      // PLACEHOLDER row (`PendingSessionRow`) the moment it is created, and
+      // that row carries the same `session-row` testid — so a bare match was
+      // satisfied before the session file existed, and the guard proved
+      // nothing. It only held because starting a chat used to be slow enough
+      // that the disk write won the race anyway; taking ~0.9s of git off the
+      // send path made it lose. The disk-backed row is the actual signal.
+      await expect(
+        first.page.locator('[data-testid="session-row"]:not([data-pending])').first(),
+      ).toBeVisible({ timeout: 20_000 })
     } finally {
       await first.app.close()
     }
