@@ -586,6 +586,10 @@ export function installMockPidex(): void {
               monoFont: 'JetBrains Mono',
             },
             claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
+            // DirectivesSection reads both of these straight into state, so
+            // omitting them made the whole section throw in the harness.
+            agentDirectives: DEFAULT_APP_PREFS.agentDirectives,
+            agentDirectivesByProject: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
           })
         case 'app:setModelPicks':
@@ -1193,6 +1197,14 @@ export function installMockPidex(): void {
           emitLoginState({ providerId: args[0], phase: 'cancelled' } as never)
           return Promise.resolve(undefined as never)
         }
+        // Without this the Agent tab threw on `result.global` before any of
+        // it rendered — the channel had no case and the default returns
+        // undefined.
+        case 'pi:checkAgentSettings':
+          return Promise.resolve({
+            global: { exists: true, malformed: false },
+            project: args[0] ? { exists: false, malformed: false } : null,
+          })
         case 'pi:agentSettingsScoped':
           return Promise.resolve({
             global: {

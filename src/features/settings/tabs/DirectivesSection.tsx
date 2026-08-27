@@ -92,6 +92,20 @@ export function DirectivesSection(): React.JSX.Element {
         ].join('\n'),
       )
     }
+    if (editing.subagentPolicy) {
+      blocks.push(
+        [
+          '<pidex_subagents>',
+          'Sub-agents are available, but this harness does not outlive the turn: one',
+          'launched in the background is killed when the turn ends and its findings are',
+          'lost.',
+          '- Answer directly when you can. Reading a handful of files is not a fan-out.',
+          '- If you do delegate, pass run_in_background: false so the result comes back',
+          '  inside this turn.',
+          '</pidex_subagents>',
+        ].join('\n'),
+      )
+    }
     if (editing.custom.trim()) blocks.push(editing.custom.trim())
     return blocks.join('\n\n')
   }, [editing])
@@ -140,6 +154,13 @@ export function DirectivesSection(): React.JSX.Element {
         description="States that this is a lane, that it owns its branch, that it ends in a pull request, and that the acceptance ladder is run by pidex rather than reported by the agent."
       >
         <Toggle on={editing.laneCharter} onChange={(on) => patch({ laneCharter: on })} />
+      </Row>
+
+      <Row
+        title="Sub-agent policy"
+        description="A backgrounded sub-agent is killed when the turn ends and its findings are lost, because the CLI does not outlive the turn. Asks for direct answers on small work, and run_in_background: false when delegating is genuinely warranted."
+      >
+        <Toggle on={editing.subagentPolicy} onChange={(on) => patch({ subagentPolicy: on })} />
       </Row>
 
       <div className="flex flex-col gap-1.5">

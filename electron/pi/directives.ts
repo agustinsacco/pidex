@@ -72,6 +72,37 @@ export function laneCharterBlock(charter: LaneCharter): string {
   return lines.join('\n')
 }
 
+/**
+ * Sub-agents: allowed, but they must finish inside the turn.
+ *
+ * The default is the broken one. Claude Code's `Agent` tool backgrounds the
+ * sub-agent unless the caller passes `run_in_background: false`, and its tool
+ * result even promises "you will be notified automatically when it
+ * completes" — true inside Claude Code's own long-lived harness, false here,
+ * where the provider runs `claude -p` as a per-turn model server that exits
+ * with the answer. The agent dies with it.
+ *
+ * Measured 2026-08-27 on one lane: five background agents, two more nested
+ * inside them, 352 shell calls and 28.6M cache-read tokens, all seven killed
+ * at the same millisecond, not one finding returned. A synchronous sub-agent
+ * completes and returns inside a single `claude -p` invocation, so the fix is
+ * the flag, not a ban.
+ *
+ * Deliberately short. This is spent on every request for the life of the lane.
+ */
+export function subagentPolicyBlock(): string {
+  return [
+    '<pidex_subagents>',
+    'Sub-agents are available, but this harness does not outlive the turn: one',
+    'launched in the background is killed when the turn ends and its findings are',
+    'lost.',
+    '- Answer directly when you can. Reading a handful of files is not a fan-out.',
+    '- If you do delegate, pass run_in_background: false so the result comes back',
+    '  inside this turn.',
+    '</pidex_subagents>',
+  ].join('\n')
+}
+
 export interface ComposeDirectivesOptions {
   cwd: string
   git: GitInfo
@@ -85,8 +116,9 @@ export interface ComposeDirectivesOptions {
  * Compose layer 2, in a fixed order.
  *
  * Order is part of the contract: the worktree warning first because it is a
- * correctness guard, the charter next because it defines the work, the user's
- * text last so it can qualify either without being buried.
+ * correctness guard, the charter next because it defines the work, the
+ * sub-agent policy after it because it constrains how the work is done, and
+ * the user's text last so it can qualify any of them without being buried.
  */
 export function composeDirectives({
   cwd,
@@ -98,6 +130,7 @@ export function composeDirectives({
   const blocks: (string | undefined)[] = [
     prefs.worktreeGuard ? worktreePromptBlock(cwd, git) : undefined,
     prefs.laneCharter && charter ? laneCharterBlock(charter) : undefined,
+    prefs.subagentPolicy ? subagentPolicyBlock() : undefined,
     extra,
     prefs.custom.trim() ? prefs.custom.trim() : undefined,
   ]
