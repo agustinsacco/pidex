@@ -49,10 +49,11 @@ promoted into `reference/` or has been superseded. See
 
 ## backlog/ — open findings
 
-[cleanup-plan.md](backlog/cleanup-plan.md) (duplication and dead code) and
+[cleanup-plan.md](backlog/cleanup-plan.md) (duplication and dead code),
 [perf-findings.md](backlog/perf-findings.md) (memory and CPU on the streaming
-path). Both are per-finding status tables now, not prose backlogs. See
-[backlog/README.md](backlog/README.md).
+path), and [connectors.md](backlog/connectors.md) (OAuth MCP connectors: the
+catalog, the auth flow, and what the adapter already owns). All are per-finding
+status tables, not prose backlogs. See [backlog/README.md](backlog/README.md).
 
 ## Writing a new document
 

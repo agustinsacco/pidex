@@ -7,6 +7,7 @@ these are still worth reading for work to do.
 | ------------------------------------ | ----------------------------------------------- | --------------------- |
 | [perf-findings.md](perf-findings.md) | Memory and CPU on the pi → main → renderer path | 17 of 19 findings     |
 | [cleanup-plan.md](cleanup-plan.md)   | Duplication, dead code, module size             | Phase 6 + 1 loose end |
+| [connectors.md](connectors.md)       | OAuth MCP connectors: catalog, auth, status     | 6 of 7 findings       |
 
 ## The rule that keeps these useful
 
