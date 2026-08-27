@@ -7,6 +7,7 @@ import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
+import { LANE_LOOP_STATUS_KEY } from '@/features/lanes/laneLoop'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 
 /**
@@ -227,7 +228,11 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
  * a data bus — a status the strip doesn't recognise as prose belongs to
  * whichever component parses it.
  */
-const STRUCTURED_STATUS_KEYS = new Set([CONTEXT_BREAKDOWN_STATUS_KEY, RATE_LIMIT_STATUS_KEY])
+const STRUCTURED_STATUS_KEYS = new Set([
+  CONTEXT_BREAKDOWN_STATUS_KEY,
+  RATE_LIMIT_STATUS_KEY,
+  LANE_LOOP_STATUS_KEY,
+])
 
 /** Status strip entries for a session (extension setStatus). */
 export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
