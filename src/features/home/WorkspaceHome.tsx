@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { startChat, type StartChatPhase } from '@/features/sessions/startChat'
+import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
+import { useStartingChatStore } from '@/stores/startingChat'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { errorText } from '@shared/errors'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { FleetOverview } from './FleetOverview'
@@ -28,11 +31,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
-  const [phase, setPhase] = useState<StartChatPhase | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [isRepo, setIsRepo] = useState(false)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
-  const starting = phase !== null
+  // From the store, not local state: `begin` unmounts this screen, so a local
+  // flag could never be read again. It stays true for the frame between the
+  // keystroke and the swap.
+  const starting = useStartingChatStore((s) => s.starting !== null)
+  const draft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
   const workspaceName = workspaceDisplayName(workspacePath)
@@ -86,17 +92,48 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       .invoke('git:info', workspacePath)
       .then((info) => setIsRepo(info.isRepo))
       .catch(() => setIsRepo(false))
+    // Fetch trunk now, while the user is still typing, so the send itself
+    // never waits on the network for it (see prefetchTrunk). Throttled in
+    // main to once per 3 minutes per repo, so mounting this screen repeatedly
+    // costs nothing.
+    prefetchTrunk(workspacePath)
     textareaRef.current?.focus()
   }, [workspacePath])
+
+  /**
+   * Take back a message whose session failed to start.
+   *
+   * The composer that sent it no longer exists — committing a send unmounts
+   * this screen — so the text comes back through the store. Scoped to the
+   * folder it was composed in: a failure must not paste itself into a
+   * different project's composer if the user moved on.
+   */
+  useEffect(() => {
+    if (!draft || draft.workspacePath !== workspacePath) return
+    setText(draft.text)
+    setImages(draft.attachments)
+    setWarning(draft.message)
+    useStartingChatStore.getState().clearDraft()
+    textareaRef.current?.focus()
+  }, [draft, workspacePath])
 
   const start = async (): Promise<void> => {
     const message = text.trim()
     if (!message || starting) return
     setWarning(null)
-    // Set synchronously, before any await: `startChat` reports its first phase
-    // only after a git round trip, and until something marks the composer busy
-    // a second Enter would start a second session (and a second branch).
-    setPhase('starting')
+
+    const prompt = composePrompt(message, images)
+    const sent = toImageContents(images)
+    // The send is committed here, before any await, and the screen changes at
+    // once: `StartingChat` replaces this screen with the message already in
+    // the place the transcript will show it. Everything after this is off the
+    // user's path.
+    //
+    // It also closes the double-send window the old `setPhase` guard only
+    // half-covered — `startChat` reported its first phase after a git round
+    // trip, so until then a second Enter started a second session and a
+    // second branch. This screen is gone before the next keystroke lands.
+    useStartingChatStore.getState().begin({ workspacePath, prompt, images: sent })
     try {
       // Resolves once the session is live and its first prompt is away (see
       // startChat) — the branch is cut from the message slug first because a
@@ -105,15 +142,26 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       // waits for it.
       await startChat({
         workspacePath,
-        prompt: composePrompt(message, images),
-        images: toImageContents(images),
-        onPhase: setPhase,
-        onWarning: setWarning,
+        prompt,
+        images: sent,
+        onPhase: (next) => useStartingChatStore.getState().setPhase(next),
+        // A toast, not an inline note under the composer: the session did
+        // start, so this screen is already gone by the time the warning
+        // exists and an inline note would flash and vanish unread.
+        onWarning: (reason) => useExtensionUiStore.getState().pushToast(reason, 'warning'),
       })
-      setText('')
-      setImages([])
-    } finally {
-      setPhase(null)
+      useStartingChatStore.getState().finish()
+    } catch (error) {
+      // The session never started, so the message would otherwise be gone.
+      // This component is already unmounted (`begin` swapped the screen), so
+      // the draft goes back through the store and the remounted greeting
+      // screen picks it up below.
+      useStartingChatStore.getState().restore({
+        workspacePath,
+        text: message,
+        attachments: images,
+        message: `Couldn't start this session. ${errorText(error)}`,
+      })
     }
   }
 
@@ -179,7 +227,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           <div className="mb-2 flex items-center gap-1.5 px-0.5">
             <WorkspaceChip workspacePath={workspacePath} />
             {isRepo && <BranchControl workspacePath={workspacePath} />}
-            {isRepo && <IsolateToggle checked={isolate} disabled={starting} />}
+            {isRepo && (
+              <IsolateToggle checked={isolate} disabled={starting} workspacePath={workspacePath} />
+            )}
           </div>
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
@@ -273,37 +323,17 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                   busy={starting}
                   disabled={!text.trim()}
                   onClick={() => void start()}
-                  label={startLabel(phase)}
+                  label="Start session"
                 />
               </div>
             </div>
           </div>
-          {/* The session still started; this says what it did not get. */}
+          {/* Why a message came back rather than becoming a session. */}
           {warning && <p className="text-warning mt-2 px-1 text-sm">{warning}</p>}
         </div>
       </div>
     </div>
   )
-}
-
-/**
- * The submit button narrates the wait.
- *
- * There is much less to narrate than there was: naming no longer blocks the
- * send (see startChat), so what is left is a bounded fetch and `git worktree
- * add` — under a second on a warm repo. The labels stay because a cold fetch
- * on a large repo can still take a beat, and an unlabelled spinner reads as a
- * hang.
- */
-function startLabel(phase: StartChatPhase | null): string {
-  switch (phase) {
-    case 'branching':
-      return 'Creating branch…'
-    case 'starting':
-      return 'Starting session'
-    default:
-      return 'Start session'
-  }
 }
 
 /**
@@ -318,15 +348,18 @@ function startLabel(phase: StartChatPhase | null): string {
 function IsolateToggle({
   checked,
   disabled,
+  workspacePath,
 }: {
   checked: boolean
   disabled: boolean
+  workspacePath: string
 }): React.JSX.Element {
+  const trunk = useStartPoint(workspacePath)
   return (
     <label
       title={
         checked
-          ? 'This chat gets its own branch, off the latest main, in its own worktree.'
+          ? `This chat gets its own branch, off the latest ${trunk ?? 'main'}, in its own worktree. The branch chip beside this names the folder you are in now, which this chat will NOT run on.`
           : 'This chat runs in the folder that is already open, on its current branch.'
       }
       className={clsx(
@@ -341,9 +374,42 @@ function IsolateToggle({
         onChange={(e) => useWorktreesStore.getState().setPreferWorktree(e.target.checked)}
         className="accent-[var(--px-accent)]"
       />
-      <span className="text-text-tertiary text-sm">new branch</span>
+      {/*
+        Names the base, not just the mode. "new branch" alone left the only
+        other branch on the row — the chip beside it, which shows the folder's
+        CURRENT branch — looking like the answer to "off what?", when
+        `startChat` ignores it entirely and always branches from trunk.
+      */}
+      <span className="text-text-tertiary text-sm">
+        {checked && trunk ? `new branch off ${trunk}` : 'new branch'}
+      </span>
     </label>
   )
+}
+
+/**
+ * The trunk a new chat's branch will start from, or null while unknown.
+ *
+ * Read from `git:startPoint`, the same call `startChat` makes, so the label
+ * and the behaviour cannot disagree.
+ */
+function useStartPoint(workspacePath: string): string | null {
+  const [trunk, setTrunk] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void window.pidex
+      .invoke('git:startPoint', workspacePath)
+      .then((point) => {
+        if (!cancelled) setTrunk(point.defaultBranch)
+      })
+      // Unresolvable trunk means `startChat` falls back to HEAD; the label
+      // then says plain "new branch", which stays true.
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [workspacePath])
+  return trunk
 }
 
 const WEEKS = 26
