@@ -227,6 +227,60 @@ test('dropped chat images open on click and copy on right-click', async () => {
   }
 })
 
+/** 1800×200 PNG — the aspect ratio is the point; see the test below. */
+const PNG_WIDE =
+  'iVBORw0KGgoAAAANSUhEUgAABwgAAADIAQAAAADUp4gRAAAAyUlEQVR42u3PQREAAAwCIPuX1hJ77aAB6XcxNDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ8N6z0InrHKhrFAAAAAElFTkSuQmCC'
+
+test('a pasted wide image stays inside the transcript column', async () => {
+  // Regression: chat images were capped in HEIGHT only (`max-h-40`). A wide
+  // screenshot — a cropped strip of a window, 9:1 here — therefore rendered
+  // 160px tall and ~1440px wide inside a 720px column. The user-message row is
+  // a `justify-end` flex line, so the overflow grew LEFTWARDS: across the rows
+  // beside it, over the activity group's left edge, and then clipped off by
+  // the scroller, leaving most of the image unviewable.
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // Paste, not drop: the drop path is covered above, and pasting a
+    // screenshot is how this shape of image actually arrives.
+    const composer = page.getByPlaceholder(/Describe a task…/i)
+    await composer.click()
+    await page.evaluate((pngB64: string) => {
+      const bytes = Uint8Array.from(atob(pngB64), (c) => c.charCodeAt(0))
+      const clipboardData = new DataTransfer()
+      clipboardData.items.add(new File([bytes], 'wide.png', { type: 'image/png' }))
+      document
+        .querySelector<HTMLTextAreaElement>('textarea[placeholder^="Describe a task…"]')!
+        .dispatchEvent(
+          new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
+        )
+    }, PNG_WIDE)
+    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
+
+    await composer.fill('look at this')
+    await composer.press('Enter')
+
+    const scroller = page.getByTestId('transcript-scroll')
+    const image = scroller.getByAltText('Attached image')
+    await expect(image).toBeVisible()
+
+    // The assertion is geometric on purpose: the class list is not the
+    // contract, "it fits in the column" is.
+    const shown = (await image.boundingBox())!
+    const column = (await scroller.boundingBox())!
+    expect(shown.width).toBeLessThanOrEqual(column.width)
+    expect(shown.x).toBeGreaterThanOrEqual(column.x)
+    expect(shown.x + shown.width).toBeLessThanOrEqual(column.x + column.width)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls
