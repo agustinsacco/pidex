@@ -643,6 +643,21 @@ export interface AgentDirectivePrefs {
   worktreeGuard: boolean
   /** The lane charter: this is a lane, it owns a branch, it ends in a PR. */
   laneCharter: boolean
+  /**
+   * The sub-agent policy block.
+   *
+   * On by default because the default is the unsafe one. A Claude Code
+   * sub-agent launches in the BACKGROUND unless the caller passes
+   * `run_in_background: false`, and the CLI is a per-turn model server that
+   * exits when the turn's answer is done — so a backgrounded agent is killed
+   * mid-flight and its findings never reach the model that asked for them.
+   * Observed 2026-08-27: one lane launched five, they spawned two more, and
+   * all seven died at the same millisecond having spent 28.6M tokens on work
+   * nobody ever read. A synchronous sub-agent completes inside the turn and
+   * returns normally (verified against `claude -p`), so this block asks for
+   * the form that works rather than banning the tool.
+   */
+  subagentPolicy: boolean
   /** Free text appended last, so it can qualify either block above. */
   custom: string
 }
@@ -650,6 +665,7 @@ export interface AgentDirectivePrefs {
 export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
   worktreeGuard: true,
   laneCharter: true,
+  subagentPolicy: true,
   custom: '',
 }
 

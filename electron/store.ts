@@ -57,7 +57,15 @@ export function getPrefs(): AppPrefs {
       ...DEFAULT_APP_PREFS.agentDirectives,
       ...s.get('agentDirectives'),
     },
-    agentDirectivesByProject: s.get('agentDirectivesByProject') ?? {},
+    // Merged per entry, not passed through: a stored override predates any
+    // directive block added later, and an absent key must mean "take the
+    // default", never "off". Only the keys the user actually set win.
+    agentDirectivesByProject: Object.fromEntries(
+      Object.entries(s.get('agentDirectivesByProject') ?? {}).map(([path, directives]) => [
+        path,
+        { ...DEFAULT_APP_PREFS.agentDirectives, ...directives },
+      ]),
+    ),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     orchestrator: s.get('orchestrator') ?? {},
     orchestratorSessions: s.get('orchestratorSessions') ?? {},

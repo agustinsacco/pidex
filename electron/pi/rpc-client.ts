@@ -170,6 +170,14 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     const id = `px-${this.nextRequestId++}`
     const payload = { ...command, id }
 
+    // Interrupts specifically, not every command: a killed turn used to leave
+    // no trace at all. The log recorded the spawn and pi's stderr, so a
+    // session that ended mid-work looked identical to one that finished, and
+    // the sub-agents killed with it left nothing to correlate against.
+    if (command.type === 'abort' || command.type === 'abort_bash') {
+      log('pi', command.type, { sessionId: this.options.sessionId, requestId: id })
+    }
+
     return new Promise<RpcResponse<RpcResponseDataMap[T]>>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (r: RpcResponse) => void, reject })
       child.stdin.write(JSON.stringify(payload) + '\n', (error) => {

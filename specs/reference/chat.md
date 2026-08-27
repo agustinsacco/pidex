@@ -99,13 +99,30 @@ character-based estimates (no tokenizer is reachable from an extension), so
 remainder, and the popover labels them approximate. Never present an
 estimate as measured, and never let the parts sum past the total.
 
+That scaling makes the total load-bearing twice over, and it is worth knowing
+how it failed. Until `pi-claude-cli` 0.4.10, a Claude session's
+`contextUsage.tokens` was the episode's **summed billing**, not its context:
+pi derives context from `usage.totalTokens`, and the provider set that to
+input + output + cacheRead + cacheWrite across every cycle of the turn, so
+the cached prefix was counted once per API round trip. A 4-call turn read
+277k against a real 78k; a 26-call turn read 2.08M against a real 104k. The
+composition rows inherited the error exactly, because they are scaled onto
+that total — which is how a lane came to report a 146k system prompt. Both
+numbers are only as good as the provider's `totalTokens`, and a component
+row that looks absurd is evidence about the total, not about the estimate.
+
 **Plan limits** is account state, not session state: the window
-(`five_hour`), when it resets, whether the account is capped or on overage.
-It renders only when the key is present, so other providers show nothing
-rather than an empty section. It deliberately has **no utilization
-percentage** — the CLI never forwards the header that carries it, so "when
-capacity returns" is the honest answer and "how much is left" is not
-available at any price we're willing to pay (see 12-extensions.md).
+(`five_hour`), when it resets, whether the account is capped or on overage,
+and — from provider 0.4.9 — how much of that window is consumed. Older
+providers send the window and its reset without a percentage, so the bar is
+omitted rather than guessed; `utilization: null` and "none used" must never
+look the same. It renders only when the key is present, so other providers
+show nothing rather than an empty section.
+
+This is the only figure on the popover that comes from the account rather
+than from a token count, which makes it the one to trust when they disagree:
+sub-agent spend reached it (server-side) long before provider 0.4.10 taught
+the token rows about sub-agents at all.
 
 Both keys arrive through pi's extension-UI status channel and land in
 `stores/extensionUi.ts` keyed by session; parsing lives in
