@@ -5,6 +5,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Row, SectionTitle, NumberField, TextField, Toggle } from '@/components/form'
 import type { ConfigFileHealth } from '@shared/models'
 import { useSettingsUiStore } from '../settingsUiStore'
+import { DirectivesSection } from './DirectivesSection'
 import { errorText } from '@shared/errors'
 
 /** Agent defaults written into pi's own settings.json (global or per project). */
@@ -264,6 +265,8 @@ export function AgentTab(): React.JSX.Element {
           />
         </Row>
       </fieldset>
+
+      <DirectivesSection />
     </div>
   )
 }
