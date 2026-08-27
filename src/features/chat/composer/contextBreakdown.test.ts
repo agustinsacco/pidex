@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { breakdownSlices, parseContextBreakdown } from './contextBreakdown'
+import { breakdownSlices, mcpServerRows, parseContextBreakdown } from './contextBreakdown'
 
 /** Shape captured live from the bundled extension via pi's status channel. */
 const LIVE = JSON.stringify({
@@ -31,6 +31,41 @@ describe('parseContextBreakdown', () => {
       '{"parts":{"messages":-5,"systemPrompt":"x","tools":10,"mcpTools":null}}',
     )
     expect(parsed?.parts).toEqual({ messages: 0, systemPrompt: 0, tools: 10, mcpTools: 0 })
+  })
+
+  it('treats a payload with no per-server detail as no detail, not zero cost', () => {
+    // A session started by an older pidex build sends no mcpByServer key.
+    expect(parseContextBreakdown(LIVE)?.mcpByServer).toEqual({})
+    expect(
+      parseContextBreakdown('{"parts":{"messages":1},"mcpByServer":"nope"}')?.mcpByServer,
+    ).toEqual({})
+  })
+})
+
+describe('mcpServerRows', () => {
+  const breakdown = parseContextBreakdown(
+    JSON.stringify({
+      parts: { messages: 100, systemPrompt: 100, tools: 100, mcpTools: 200 },
+      counts: { tools: 4, mcpTools: 30, messages: 2 },
+      mcpByServer: {
+        linear: { tokens: 50, count: 8 },
+        datadog: { tokens: 150, count: 22 },
+        empty: { tokens: 0, count: 0 },
+      },
+    }),
+  )!
+
+  it('orders by cost and scales to pi\u2019s authoritative total', () => {
+    // Estimated 500, real 1000 — the same 2× scaling the slices use, so the
+    // rows cannot disagree with the bar above them.
+    expect(mcpServerRows(breakdown, 1000)).toEqual([
+      { name: 'datadog', tokens: 300, count: 22 },
+      { name: 'linear', tokens: 100, count: 8 },
+    ])
+  })
+
+  it('has nothing to say when no server reported', () => {
+    expect(mcpServerRows(parseContextBreakdown(LIVE)!, 1000)).toEqual([])
   })
 })
 

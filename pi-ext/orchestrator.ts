@@ -46,6 +46,35 @@ function textResult(text: string, details?: unknown, isError = false): ToolResul
 }
 
 /**
+ * Make what the model actually sent match what the host expects.
+ *
+ * Models routinely stringify nested structures in tool arguments — Opus 5 on
+ * Bedrock did it on every `publish_digest` call in session 01a04394 — so a
+ * field declared as an array arrives as `"[{\"kind\":\"note\",...}]"`.
+ * Rather than lecture the model in a prompt it cannot reliably follow, accept
+ * the string and parse it. Anything unparseable is dropped rather than
+ * throwing: a malformed digest must degrade to a smaller digest, never to a
+ * failed sweep.
+ */
+export function coerceParams(params: Record<string, unknown>): Record<string, unknown> {
+  const items = params.items
+  if (typeof items !== 'string') return params
+  const trimmed = items.trim()
+  if (!trimmed) return { ...params, items: [] }
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) return { ...params, items: parsed }
+    // A single item sent bare, which is the other shape models pick.
+    if (parsed && typeof parsed === 'object') return { ...params, items: [parsed] }
+  } catch {
+    // Not JSON at all. Treat the whole string as one note so the sweep still
+    // publishes something the user can see.
+    return { ...params, items: [{ kind: 'note', text: trimmed }] }
+  }
+  return { ...params, items: [] }
+}
+
+/**
  * One round trip to pidex.
  *
  * Never throws: a failure is returned to the model as an error result, so a
@@ -112,7 +141,7 @@ export default function orchestratorExtension(pi: PiExtensionApi): void {
         _onUpdate: unknown,
         ctx: ExtensionContext,
       ) {
-        return present(await callPidex(ctx, command, params ?? {}), summarize)
+        return present(await callPidex(ctx, command, coerceParams(params ?? {})), summarize)
       },
     })
   }
@@ -254,23 +283,33 @@ export default function orchestratorExtension(pi: PiExtensionApi): void {
       'the user genuinely needs to act, "suggestion" for things you recommend, "note" otherwise.',
     Type.Object({
       headline: Type.String({ description: 'One line summarizing the project right now' }),
+      // A union, not an array, on purpose. Opus 5 on Bedrock sends this field
+      // as a JSON-encoded STRING, and pi validates the schema before the
+      // handler runs — so a strict array rejected every publish with
+      // "items.0: must be object". Observed 4 times out of 4 in session
+      // 01a04394: the model reformatted and retried and never recovered,
+      // which is what "the orchestrator does nothing" looked like from the
+      // outside. `normalizeDigestItems` coerces both shapes below.
       items: Type.Optional(
-        Type.Array(
-          Type.Object({
-            kind: Type.String({ description: 'attention | suggestion | note' }),
-            text: Type.String(),
-            sessionPath: Type.Optional(
-              Type.String({ description: 'Session file path this item is about' }),
-            ),
-            startPrompt: Type.Optional(
-              Type.String({
-                description:
-                  'For a suggestion the user could act on: the first message a new session ' +
-                  'should receive. Renders as a one-click "Start this" button.',
-              }),
-            ),
-          }),
-        ),
+        Type.Union([
+          Type.Array(
+            Type.Object({
+              kind: Type.String({ description: 'attention | suggestion | note' }),
+              text: Type.String(),
+              sessionPath: Type.Optional(
+                Type.String({ description: 'Session file path this item is about' }),
+              ),
+              startPrompt: Type.Optional(
+                Type.String({
+                  description:
+                    'For a suggestion the user could act on: the first message a new session ' +
+                    'should receive. Renders as a one-click "Start this" button.',
+                }),
+              ),
+            }),
+          ),
+          Type.String({ description: 'A JSON array of the same items, encoded as a string' }),
+        ]),
       ),
     }),
     'publish_digest',

@@ -7,7 +7,10 @@ import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
+import { LANE_LOOP_STATUS_KEY } from '@/features/lanes/laneLoop'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
+import { MCP_STATUS_STATUS_KEY, parseMcpStatus, stateLabel } from '@/features/connectors/mcpStatus'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 /**
  * Extension-authored text styled with ANSI SGR codes, rendered as colored
@@ -227,16 +230,68 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
  * a data bus — a status the strip doesn't recognise as prose belongs to
  * whichever component parses it.
  */
-const STRUCTURED_STATUS_KEYS = new Set([CONTEXT_BREAKDOWN_STATUS_KEY, RATE_LIMIT_STATUS_KEY])
+const STRUCTURED_STATUS_KEYS = new Set([
+  CONTEXT_BREAKDOWN_STATUS_KEY,
+  RATE_LIMIT_STATUS_KEY,
+  LANE_LOOP_STATUS_KEY,
+  MCP_STATUS_STATUS_KEY,
+])
+
+/**
+ * MCP state as a chip, not as the adapter's sentence.
+ *
+ * The adapter's own footer text is prose ("3 servers enabled (2 connected)")
+ * and says nothing per server. This renders the structured snapshot instead,
+ * and clicking it goes where the user can act on it.
+ */
+function McpChip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[MCP_STATUS_STATUS_KEY])
+  const status = parseMcpStatus(statusText)
+  if (!status || status.servers.length === 0) return null
+  const attention = status.servers.filter(
+    (server) => server.state === 'needs-auth' || server.state === 'failed',
+  )
+  const enabled = status.servers.filter((server) => server.state !== 'disabled').length
+
+  return (
+    <button
+      onClick={() => {
+        const settings = useSettingsUiStore.getState()
+        settings.setTab('connectors')
+        settings.setOpen(true)
+      }}
+      title={status.servers.map((s) => `${s.name}: ${stateLabel(s.state)}`).join('\n')}
+      className="text-text-tertiary hover:text-text flex min-w-0 shrink-0 items-center gap-1.5 text-xs"
+    >
+      <span
+        className={clsx(
+          'h-1.5 w-1.5 shrink-0 rounded-full',
+          attention.length > 0
+            ? 'bg-warning'
+            : status.connectedCount > 0
+              ? 'bg-success'
+              : 'bg-info',
+        )}
+      />
+      <span className="truncate">
+        MCP {status.connectedCount}/{enabled}
+        {status.totalTools > 0 && ` · ${status.totalTools} tools`}
+        {attention.length > 0 && ` · ${attention.length} need attention`}
+      </span>
+    </button>
+  )
+}
 
 /** Status strip entries for a session (extension setStatus). */
 export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const statuses = useExtensionUiStore((s) => s.statuses[sessionId])
   if (!statuses) return null
   const entries = Object.entries(statuses).filter(([key]) => !STRUCTURED_STATUS_KEYS.has(key))
-  if (entries.length === 0) return null
+  const hasMcp = statuses[MCP_STATUS_STATUS_KEY] !== undefined
+  if (entries.length === 0 && !hasMcp) return null
   return (
     <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 border-t px-3">
+      <McpChip sessionId={sessionId} />
       {entries.map(([key, text]) => (
         <span
           key={key}

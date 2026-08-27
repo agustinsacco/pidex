@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { ExtensionUIRequest } from '@shared/rpc'
+import { parseAuthNotice, parseOAuthPrompt } from '@/features/connectors/oauthPrompt'
+import { useConnectorsStore } from './connectors'
 
 export interface PendingDialog {
   sessionId: string
@@ -49,14 +51,41 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
     switch (request.method) {
       case 'select':
       case 'confirm':
-      case 'input':
       case 'editor':
         set((s) => ({ dialogs: [...s.dialogs, { sessionId, request } as PendingDialog] }))
         break
 
-      case 'notify':
+      case 'input': {
+        // The MCP adapter asks for OAuth authorization through a plain input
+        // prompt. Rendering that raw means a URL the user has to copy by hand,
+        // so the connector flow claims it: it opens the browser and shows a
+        // card. Deliberately not scoped to the Settings window — the adapter
+        // also auto-authenticates mid-turn when a model calls a tool whose
+        // server has no token.
+        const prompt = parseOAuthPrompt(request.title)
+        if (prompt) {
+          useConnectorsStore.getState().promptReceived({
+            sessionId,
+            serverName: prompt.serverName,
+            authorizationUrl: prompt.authorizationUrl,
+            requestId: request.id,
+          })
+          break
+        }
+        set((s) => ({ dialogs: [...s.dialogs, { sessionId, request } as PendingDialog] }))
+        break
+      }
+
+      case 'notify': {
+        // The adapter's own verdict is what tells pidex a browser round-trip
+        // finished; status snapshots follow later, on reconnect.
+        const notice = parseAuthNotice(request.message)
+        if (notice) {
+          useConnectorsStore.getState().settle(notice.serverName, notice.outcome, notice.detail)
+        }
         get().pushToast(request.message, request.notifyType ?? 'info')
         break
+      }
 
       case 'setStatus':
         set((s) => {

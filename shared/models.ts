@@ -795,6 +795,10 @@ export interface ClaudeAuthStatus {
   loggedIn?: boolean
   method?: string
   email?: string
+  /** `subscriptionType`, e.g. `pro` / `max` / `team`. Which plan pays. */
+  plan?: string
+  /** `orgName` — present for team/enterprise logins, the giveaway for a wrong account. */
+  organization?: string
   error?: string
 }
 
@@ -803,6 +807,30 @@ export interface ClaudeStatus {
   binary: { found: boolean; path?: string; version?: string }
   auth: ClaudeAuthStatus
 }
+
+/**
+ * Where an in-app `claude auth login` has got to.
+ *
+ * Deliberately not `LoginFlowState`: this is a different flow with a different
+ * shape. pi's OAuth providers hand off to a browser and finish by themselves,
+ * while the Claude CLI's handshake redirects to a page that shows a code the
+ * user must paste back — so `awaiting-code` is a state the UI must collect
+ * input in, not just wait in. See `electron/pi/claude-login.ts`.
+ */
+export type ClaudeLoginState =
+  | { phase: 'starting' }
+  | {
+      phase: 'awaiting-code'
+      /** Authorization page. The CLI already opened it; this is the fallback link. */
+      url: string
+      /** The previous code was rejected and this URL is its replacement. */
+      invalidCode?: boolean
+    }
+  /** Code submitted; waiting on the CLI to write credentials. */
+  | { phase: 'finishing' }
+  | { phase: 'signed-in'; email?: string }
+  | { phase: 'cancelled' }
+  | { phase: 'error'; message: string }
 
 // ---------- subscription accounts ----------
 

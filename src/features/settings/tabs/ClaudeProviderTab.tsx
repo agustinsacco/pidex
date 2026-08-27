@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type { ClaudeStatus, ClaudeSystemPromptMode, PiPackageEntry } from '@shared/models'
-import { Button } from '@/components/form'
+import type {
+  ClaudeLoginState,
+  ClaudeStatus,
+  ClaudeSystemPromptMode,
+  PiPackageEntry,
+} from '@shared/models'
+import { Button, TextInput } from '@/components/form'
+import { Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
@@ -18,6 +24,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const [latest, setLatest] = useState<string | null>(null)
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
   const [promptMode, setPromptMode] = useState<ClaudeSystemPromptMode>('claude')
+  const [login, setLogin] = useState<ClaudeLoginState | null>(null)
 
   const setPromptModePref = useCallback((mode: ClaudeSystemPromptMode): void => {
     setPromptMode(mode)
@@ -46,12 +53,23 @@ export function ClaudeProviderTab(): React.JSX.Element {
     void refresh()
   }, [refresh])
 
+  // Sign-in progress is an event, not a return value: the middle of it is a
+  // human in a browser. Terminal phases re-read status so the row shows the
+  // account that is actually live, not the one we hoped for.
+  useEffect(
+    () =>
+      window.pidex.onClaudeLoginState((state) => {
+        setLogin(state.phase === 'signed-in' || state.phase === 'cancelled' ? null : state)
+        if (state.phase === 'signed-in' || state.phase === 'cancelled') void refresh()
+      }),
+    [refresh],
+  )
+
   const updateJob = usePackageJob(() => void refresh())
   const testJob = usePackageJob()
   const updatable =
     latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
   const binaryOk = status?.binary.found === true
-  const authOk = status?.auth.loggedIn === true
 
   return (
     <div className="max-w-2xl">
@@ -109,18 +127,12 @@ export function ClaudeProviderTab(): React.JSX.Element {
                 : 'not found on your login-shell PATH — npm install -g @anthropic-ai/claude-code'
           }
         />
-        <StatusRow
-          label="Claude account"
-          ok={authOk}
-          detail={
-            status === null
-              ? 'checking…'
-              : authOk
-                ? `${status.auth.email ?? 'logged in'} (${status.auth.method ?? 'unknown method'})`
-                : status.auth.ok
-                  ? 'not logged in — run `claude` in a terminal and use /login'
-                  : (status.auth.error ?? 'auth state unknown')
-          }
+        <ClaudeAccountRow
+          status={status}
+          login={login}
+          disabled={!binaryOk}
+          onChanged={() => void refresh()}
+          onLoginState={setLogin}
         />
       </div>
       {status?.binary.version && !status.binary.version.startsWith(`${TESTED_CLI_LINE}.`) && (
@@ -190,14 +202,197 @@ export function ClaudeProviderTab(): React.JSX.Element {
           <span className="font-mono">npm install -g @anthropic-ai/claude-code</span>.
         </li>
         <li>
-          Logged out or expired: run <span className="font-mono">claude</span> in a terminal and{' '}
-          <span className="font-mono">/login</span>; pidex picks it up on the next test.
+          Logged out or expired: use <strong>Sign in</strong> above. It drives{' '}
+          <span className="font-mono">claude auth login</span> for you — no terminal needed.
         </li>
         <li>
           Empty replies after a Claude Code update: the CLI&apos;s stream format may have moved —
           check the extension repo for a newer release.
         </li>
       </ul>
+    </div>
+  )
+}
+
+/**
+ * The Claude account: who is signed in, and the whole sign-in/out flow.
+ *
+ * This is the row that used to say “run `claude` in a terminal”. The credential
+ * belongs to the `claude` binary, not to pidex or to pi, so switching accounts
+ * is sign-out-then-sign-in — the CLI keeps exactly one, in the OS keychain, and
+ * there is no way to hold two side by side. Saying so beats a user hunting for
+ * an “Add account” button that cannot exist.
+ */
+function ClaudeAccountRow({
+  status,
+  login,
+  disabled,
+  onChanged,
+  onLoginState,
+}: {
+  status: ClaudeStatus | null
+  login: ClaudeLoginState | null
+  disabled: boolean
+  onChanged: () => void
+  onLoginState: (state: ClaudeLoginState | null) => void
+}): React.JSX.Element {
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const auth = status?.auth
+  const signedIn = auth?.loggedIn === true
+  const inFlight = login !== null
+
+  const start = async (): Promise<void> => {
+    setCode('')
+    onLoginState({ phase: 'starting' })
+    try {
+      await window.pidex.invoke('claude:startLogin')
+    } catch (caught) {
+      onLoginState({
+        phase: 'error',
+        message: caught instanceof Error ? caught.message : String(caught),
+      })
+    }
+  }
+
+  const submit = async (): Promise<void> => {
+    if (!code.trim()) return
+    try {
+      await window.pidex.invoke('claude:submitCode', code.trim())
+      setCode('')
+    } catch (caught) {
+      onLoginState({
+        phase: 'error',
+        message: caught instanceof Error ? caught.message : String(caught),
+      })
+    }
+  }
+
+  const signOut = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await window.pidex.invoke('claude:logout')
+    } finally {
+      setBusy(false)
+      onChanged()
+    }
+  }
+
+  const detail =
+    status === null
+      ? 'checking…'
+      : signedIn
+        ? [
+            auth?.email ?? 'logged in',
+            auth?.plan,
+            auth?.organization,
+            auth?.method !== 'claude.ai' ? auth?.method : undefined,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : auth?.ok
+          ? 'not signed in'
+          : (auth?.error ?? 'auth state unknown')
+
+  return (
+    <div className="px-3.5 py-2.5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className={clsx(
+              'h-2 w-2 shrink-0 rounded-full',
+              signedIn ? 'bg-success' : 'bg-warning',
+            )}
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <div className="text-base font-medium">Claude account</div>
+            <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
+          {inFlight ? (
+            <button
+              onClick={() => {
+                void window.pidex.invoke('claude:cancelLogin')
+                onLoginState(null)
+              }}
+              className="text-text-secondary hover:text-text text-base"
+            >
+              Cancel
+            </button>
+          ) : (
+            <>
+              {signedIn && (
+                <button
+                  onClick={() => void signOut()}
+                  disabled={busy}
+                  className="text-text-secondary hover:text-text text-base disabled:opacity-50"
+                >
+                  {busy ? 'Signing out…' : 'Sign out'}
+                </button>
+              )}
+              <Button variant="secondary" disabled={disabled || busy} onClick={() => void start()}>
+                {signedIn ? 'Switch account' : 'Sign in'}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {login?.phase === 'starting' && (
+        <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
+          <Spinner />
+          Starting the Claude CLI’s sign-in…
+        </div>
+      )}
+
+      {login?.phase === 'finishing' && (
+        <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
+          <Spinner />
+          Finishing sign-in…
+        </div>
+      )}
+
+      {login?.phase === 'error' && <p className="text-danger mt-3 text-sm">{login.message}</p>}
+
+      {login?.phase === 'awaiting-code' && (
+        <div className="border-border bg-surface-raised mt-3 rounded-md border p-3">
+          {login.invalidCode && (
+            <p className="text-danger text-sm">
+              That code wasn’t accepted. Use the fresh link below — the earlier one has expired.
+            </p>
+          )}
+          {/* The paste-back step is the one people miss: the CLI's OAuth
+              redirect lands on a page showing a code, and nothing on screen
+              says it has to come back here. */}
+          <p className="text-text-secondary text-sm">
+            Finish in the browser, then paste the code Claude shows you:
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <TextInput
+              autoFocus
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void submit()
+              }}
+              placeholder="Paste code"
+              className="min-w-0 flex-1 rounded-md font-mono"
+            />
+            <Button variant="primary" disabled={!code.trim()} onClick={() => void submit()}>
+              Continue
+            </Button>
+          </div>
+          <button
+            onClick={() => void window.pidex.invoke('app:openExternal', login.url)}
+            className="text-accent mt-2.5 block text-sm hover:underline"
+          >
+            Browser didn’t open? Open the sign-in page
+          </button>
+        </div>
+      )}
     </div>
   )
 }

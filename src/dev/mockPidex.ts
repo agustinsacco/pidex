@@ -116,6 +116,22 @@ function emitLoginState(state: never): void {
   mockLoginListeners.forEach((listener) => listener(state))
 }
 
+/**
+ * Claude CLI sign-in, mocked so the provider tab's whole flow — paste-code box,
+ * rejected code, the row flipping to a new account — is developable without a
+ * `claude` install.
+ */
+let mockClaudeAuth: { loggedIn: boolean; email?: string } = {
+  loggedIn: true,
+  email: 'dev@example.com',
+}
+const mockClaudeLoginListeners = new Set<(state: never) => void>()
+let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
+
+function emitClaudeLoginState(state: never): void {
+  mockClaudeLoginListeners.forEach((listener) => listener(state))
+}
+
 const MOCK_MODELS = [
   {
     id: 'qwen-3.5-122b',
@@ -225,6 +241,16 @@ function respond(command: RpcCommand): RpcResponse {
   }
 }
 
+/**
+ * Sessions the harness pretends are on disk, one entry per folder the mock
+ * claims to know about (`app:getPrefs` recents + `git:listWorktrees`).
+ *
+ * `cwd` is load-bearing: `sessions:list` filters on it, because the real
+ * handler reads one session directory per workspace folder. Returning every
+ * session for every folder duplicated each row inside the pidex group — the
+ * worktree folder folds into its main repo, so the same `path` was keyed
+ * twice and React logged "two children with the same key".
+ */
 const MOCK_DISK_SESSIONS = [
   {
     path: '/mock/sessions/a.jsonl',
@@ -266,6 +292,53 @@ const MOCK_DISK_SESSIONS = [
     branchCount: 0,
     mtimeMs: Date.now() - 86_400_000 * 2,
     lastActivityAt: '2026-08-01T12:00:00.000Z',
+  },
+  {
+    // Lives in the mock worktree from `git:listWorktrees`, so the sidebar
+    // still exercises the worktree-folds-into-its-repo group and the "wt"
+    // subtitle chip.
+    path: '/mock/sessions/c.jsonl',
+    sessionId: 'c',
+    cwd: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+    createdAt: '2026-08-02T08:00:00.000Z',
+    name: 'Fix the auth redirect loop',
+    firstUserText: 'The login redirect loops on expired tokens',
+    userMessages: 6,
+    assistantMessages: 7,
+    toolCalls: 15,
+    totalTokens: 240_000,
+    inputTokens: 38_000,
+    outputTokens: 12_000,
+    cacheReadTokens: 182_000,
+    cacheWriteTokens: 8_000,
+    cost: 0.52,
+    entryCount: 31,
+    branchCount: 1,
+    mtimeMs: Date.now() - 7200_000,
+    lastActivityAt: '2026-08-02T11:30:00.000Z',
+  },
+  {
+    // Second project group in the sidebar; without a session of its own the
+    // "other" header is filtered out for having no rows.
+    path: '/mock/sessions/d.jsonl',
+    sessionId: 'd',
+    cwd: '/Users/dev/projects/other',
+    createdAt: '2026-07-20T09:00:00.000Z',
+    name: 'Bump the CI image',
+    firstUserText: 'Update the CI base image to node 22',
+    userMessages: 2,
+    assistantMessages: 2,
+    toolCalls: 4,
+    totalTokens: 46_000,
+    inputTokens: 9_000,
+    outputTokens: 3_000,
+    cacheReadTokens: 33_000,
+    cacheWriteTokens: 1_000,
+    cost: 0.09,
+    entryCount: 9,
+    branchCount: 0,
+    mtimeMs: Date.now() - 86_400_000 * 9,
+    lastActivityAt: '2026-07-20T10:00:00.000Z',
   },
 ]
 
@@ -695,8 +768,53 @@ export function installMockPidex(): void {
         case 'packages:claudeStatus':
           return Promise.resolve({
             binary: { found: true, path: '/usr/local/bin/claude', version: '2.1.219' },
-            auth: { ok: true, loggedIn: true, method: 'claude.ai', email: 'dev@example.com' },
-          })
+            auth: {
+              ok: true,
+              loggedIn: mockClaudeAuth.loggedIn,
+              method: mockClaudeAuth.loggedIn ? 'claude.ai' : undefined,
+              email: mockClaudeAuth.email,
+              plan: mockClaudeAuth.loggedIn ? 'max' : undefined,
+            },
+          } as never)
+        case 'claude:startLogin':
+          clearTimeout(mockClaudeLoginTimer)
+          emitClaudeLoginState({ phase: 'starting' } as never)
+          mockClaudeLoginTimer = setTimeout(
+            () =>
+              emitClaudeLoginState({
+                phase: 'awaiting-code',
+                url: 'https://claude.com/cai/oauth/authorize?code=true',
+              } as never),
+            600,
+          )
+          return Promise.resolve(undefined as never)
+        case 'claude:submitCode': {
+          const code = String(args[0] ?? '')
+          emitClaudeLoginState({ phase: 'finishing' } as never)
+          clearTimeout(mockClaudeLoginTimer)
+          // "bad" reproduces the CLI's retry: a rejected code re-prompts with a
+          // fresh URL rather than ending the flow.
+          mockClaudeLoginTimer = setTimeout(() => {
+            if (code === 'bad') {
+              emitClaudeLoginState({
+                phase: 'awaiting-code',
+                url: 'https://claude.com/cai/oauth/authorize?code=true&retry=1',
+                invalidCode: true,
+              } as never)
+            } else {
+              mockClaudeAuth = { loggedIn: true, email: 'switched@example.com' }
+              emitClaudeLoginState({ phase: 'signed-in', email: mockClaudeAuth.email } as never)
+            }
+          }, 900)
+          return Promise.resolve(undefined as never)
+        }
+        case 'claude:cancelLogin':
+          clearTimeout(mockClaudeLoginTimer)
+          emitClaudeLoginState({ phase: 'cancelled' } as never)
+          return Promise.resolve(undefined as never)
+        case 'claude:logout':
+          mockClaudeAuth = { loggedIn: false }
+          return Promise.resolve(undefined as never)
         case 'pi:webSearchConfig':
           return Promise.resolve({
             path: '/Users/dev/.pi/web-search.json',
@@ -883,8 +1001,10 @@ export function installMockPidex(): void {
         case 'app:resumeTarget':
           // Browser harness always starts at the picker.
           return Promise.resolve({ kind: 'none' })
-        case 'sessions:list':
-          return Promise.resolve(MOCK_DISK_SESSIONS)
+        case 'sessions:list': {
+          const workspacePath = args[0] as string
+          return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))
+        }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'app:openExternal':
@@ -1211,6 +1331,11 @@ export function installMockPidex(): void {
     onPiLoginState: (listener) => {
       mockLoginListeners.add(listener)
       return () => mockLoginListeners.delete(listener)
+    },
+
+    onClaudeLoginState: (listener) => {
+      mockClaudeLoginListeners.add(listener)
+      return () => mockClaudeLoginListeners.delete(listener)
     },
 
     // Replay a full update lifecycle so the pill is developable in the

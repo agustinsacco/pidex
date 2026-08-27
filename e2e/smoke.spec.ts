@@ -227,6 +227,60 @@ test('dropped chat images open on click and copy on right-click', async () => {
   }
 })
 
+/** 1800×200 PNG — the aspect ratio is the point; see the test below. */
+const PNG_WIDE =
+  'iVBORw0KGgoAAAANSUhEUgAABwgAAADIAQAAAADUp4gRAAAAyUlEQVR42u3PQREAAAwCIPuX1hJ77aAB6XcxNDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ8N6z0InrHKhrFAAAAAElFTkSuQmCC'
+
+test('a pasted wide image stays inside the transcript column', async () => {
+  // Regression: chat images were capped in HEIGHT only (`max-h-40`). A wide
+  // screenshot — a cropped strip of a window, 9:1 here — therefore rendered
+  // 160px tall and ~1440px wide inside a 720px column. The user-message row is
+  // a `justify-end` flex line, so the overflow grew LEFTWARDS: across the rows
+  // beside it, over the activity group's left edge, and then clipped off by
+  // the scroller, leaving most of the image unviewable.
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // Paste, not drop: the drop path is covered above, and pasting a
+    // screenshot is how this shape of image actually arrives.
+    const composer = page.getByPlaceholder(/Describe a task…/i)
+    await composer.click()
+    await page.evaluate((pngB64: string) => {
+      const bytes = Uint8Array.from(atob(pngB64), (c) => c.charCodeAt(0))
+      const clipboardData = new DataTransfer()
+      clipboardData.items.add(new File([bytes], 'wide.png', { type: 'image/png' }))
+      document
+        .querySelector<HTMLTextAreaElement>('textarea[placeholder^="Describe a task…"]')!
+        .dispatchEvent(
+          new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
+        )
+    }, PNG_WIDE)
+    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
+
+    await composer.fill('look at this')
+    await composer.press('Enter')
+
+    const scroller = page.getByTestId('transcript-scroll')
+    const image = scroller.getByAltText('Attached image')
+    await expect(image).toBeVisible()
+
+    // The assertion is geometric on purpose: the class list is not the
+    // contract, "it fits in the column" is.
+    const shown = (await image.boundingBox())!
+    const column = (await scroller.boundingBox())!
+    expect(shown.width).toBeLessThanOrEqual(column.width)
+    expect(shown.x).toBeGreaterThanOrEqual(column.x)
+    expect(shown.x + shown.width).toBeLessThanOrEqual(column.x + column.width)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls
@@ -807,6 +861,44 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
         }
       })
       .toBe('npx')
+  } finally {
+    await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
+
+test('Connectors: adding a catalog connector writes a verified OAuth endpoint', async () => {
+  // Own agent dir: this writes a global mcp.json, which nothing cleans up.
+  const soloAgentDir = privateAgentDir()
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-connectors-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Datadog is the interesting row: its endpoint is per site, so the choice
+    // has to reach the written config rather than defaulting silently.
+    const datadog = page.getByTestId('connector-datadog')
+    await datadog.getByRole('combobox').selectOption('eu1')
+    await datadog.getByRole('button', { name: 'Add', exact: true }).click()
+
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
+          return JSON.parse(raw).mcpServers.datadog as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .toEqual({ url: 'https://mcp.datadoghq.eu/v1/mcp', auth: 'oauth' })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })
@@ -1403,14 +1495,25 @@ test('web access tab writes provider keys to web-search.json', async () => {
 
 test('claude provider tab proves the chain end to end (stubbed claude + pi)', async () => {
   // A fake claude via the gated PIDEX_CLAUDE_BIN override — PATH games are
-  // machine-dependent (a developer's real install shadows the fake).
+  // machine-dependent (a developer's real install shadows the fake). It answers
+  // `auth status` and `auth login`, the two the tab drives; the login branch
+  // reproduces the real CLI's shape (URL on stdout, code read from stdin).
   const claudeDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-claude-'))
   await writeFile(
     join(claudeDir, 'claude'),
     '#!/bin/sh\n' +
-      'case "$1" in\n' +
-      '  --version) echo "2.1.219 (stub)";;\n' +
-      '  auth) echo \'{"loggedIn": true, "authMethod": "claude.ai", "email": "e2e@test"}\';;\n' +
+      'case "$1 $2" in\n' +
+      '  "auth login")\n' +
+      '    echo "Opening browser to sign in..."\n' +
+      '    echo "If the browser didn\'t open, visit: https://claude.com/cai/oauth/authorize?state=e2e"\n' +
+      '    printf "Paste code here if prompted > "\n' +
+      '    read code\n' +
+      '    echo "Login successful."\n' +
+      '    ;;\n' +
+      '  *) case "$1" in\n' +
+      '       --version) echo "2.1.219 (stub)";;\n' +
+      '       auth) echo \'{"loggedIn": true, "authMethod": "claude.ai", "email": "e2e@test", "subscriptionType": "max"}\';;\n' +
+      '     esac;;\n' +
       'esac\n',
   )
   await chmod(join(claudeDir, 'claude'), 0o755)
@@ -1433,7 +1536,18 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
     // Health card sees the fake binary and its auth state.
     await expect(page.getByText(/v2\.1\.219 at /)).toBeVisible()
-    await expect(page.getByText('e2e@test (claude.ai)')).toBeVisible()
+    await expect(page.getByText('e2e@test · max')).toBeVisible()
+
+    // Switching accounts is in-app: the CLI's sign-in runs with piped stdio, so
+    // the paste-code box is the whole UI it needs — no terminal, no pty.
+    await page.getByRole('button', { name: 'Switch account' }).click()
+    await expect(page.getByPlaceholder('Paste code')).toBeVisible()
+    await page.getByPlaceholder('Paste code').fill('e2e-code')
+    await page.getByRole('button', { name: 'Continue' }).click()
+    // Back to a settled row — completion is read from `auth status`, never from
+    // the CLI's "Login successful." prose.
+    await expect(page.getByRole('button', { name: 'Switch account' })).toBeVisible()
+    await expect(page.getByText('e2e@test · max')).toBeVisible()
 
     // The one-click proof runs through the (stubbed) pi print mode.
     await page.getByRole('button', { name: 'Test provider' }).click()
@@ -1511,6 +1625,10 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     const banner = page.getByTestId('lane-banner')
     await expect(banner).toBeVisible({ timeout: 30_000 })
 
+    // The stub's lane has a failing rung, so the banner opens itself. A lane
+    // that needs nothing collapses to one line instead.
+    await expect(banner).toHaveAttribute('data-open', 'true')
+
     const ladder = banner.getByTestId('lane-ladder')
     // The full fixed ladder, in order, regardless of what was reported.
     await expect(ladder.locator('[data-rung]')).toHaveCount(6)
@@ -1524,6 +1642,26 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     await expect(banner.getByText(/test failed/i)).toBeVisible()
     await expect(banner.getByText(/auth\/ttl\.test\.ts/)).toBeVisible()
     await expect(banner.getByText(/pidex\/stub-lane/)).toBeVisible()
+
+    // It collapses. The first version was a fixed block with no way to
+    // dismiss it, which costs transcript room on every single turn.
+    await banner.getByRole('button', { name: /Collapse lane status/i }).click()
+    await expect(banner).toHaveAttribute('data-open', 'false')
+    // Collapsed still answers "is anything wrong": the ladder rides the
+    // summary line rather than hiding behind the chevron.
+    await expect(banner.getByTestId('lane-ladder')).toBeVisible()
+    await banner.getByRole('button', { name: /Expand lane status/i }).click()
+    await expect(banner).toHaveAttribute('data-open', 'true')
+
+    // And it offers the next action as a button rather than a sentence.
+    await expect(banner.getByRole('button', { name: /Fix test/i })).toBeVisible()
+
+    // The status strip must NOT print the raw payload. `setStatus` is the only
+    // channel an extension has, so it doubles as a data bus, and every
+    // structured key has to be excluded by name or its JSON lands in the strip
+    // at the bottom of the window. Shipping `pidex-lane-loop` without adding it
+    // to that list did exactly that; caught by looking at a screenshot.
+    await expect(page.getByText(/"rungs":/)).toHaveCount(0)
 
     // MOUNT 2 — the same component on the fleet card, so the two surfaces
     // cannot disagree about where the work is.
