@@ -15,8 +15,15 @@ describe('formatShortcutFor', () => {
     expect(formatShortcutFor('linux', ['alt', 'Enter'])).toBe('Alt+Enter')
   })
 
+  it('spells ctrl as Control on every platform', () => {
+    expect(formatShortcutFor('darwin', ['ctrl', 'O'])).toBe('⌃O')
+    expect(formatShortcutFor('linux', ['ctrl', 'O'])).toBe('Ctrl+O')
+  })
+
   it('passes non-modifier parts through untouched', () => {
     expect(formatShortcutFor('darwin', ['mod', '`'])).toBe('⌘`')
     expect(formatShortcutFor('linux', ['mod', ','])).toBe('Ctrl+,')
+    // A one-part label (a key sequence, an arrow) renders as written.
+    expect(formatShortcutFor('darwin', ['Esc Esc'])).toBe('Esc Esc')
   })
 })

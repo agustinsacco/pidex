@@ -6,6 +6,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useChatUiStore } from '@/features/chat/uiState'
 
 /**
  * True when the event target is a text-entry surface (composer, Monaco,
@@ -71,6 +72,17 @@ export function useGlobalShortcuts(): void {
       const mod = event.metaKey || event.ctrlKey
       if (!mod) return
 
+      // ⌃O — expand or collapse every activity group in the session, Claude
+      // Code's verbose-output toggle. Control specifically, on every platform,
+      // and above the editable guard: you press it while reading, which is
+      // while the composer holds focus.
+      if (event.ctrlKey && !event.metaKey && event.code === 'KeyO') {
+        event.preventDefault()
+        const sessionId = useSessionsStore.getState().activeSessionId
+        if (sessionId) useChatUiStore.getState().toggleVerbose(sessionId)
+        return
+      }
+
       // Backquote: toggle terminal. Accept the shifted (~) form too, and
       // match on physical key so keyboard layout doesn't matter. Deliberately
       // above the isEditableTarget guard: it must work while the composer has
@@ -83,6 +95,14 @@ export function useGlobalShortcuts(): void {
 
       if (event.code === 'Comma') {
         event.preventDefault()
+        useSettingsUiStore.getState().setOpen(true)
+        return
+      }
+
+      // ⌘/ — the shortcut list itself, where every app that has one puts it.
+      if (event.code === 'Slash') {
+        event.preventDefault()
+        useSettingsUiStore.getState().setTab('keybindings')
         useSettingsUiStore.getState().setOpen(true)
         return
       }

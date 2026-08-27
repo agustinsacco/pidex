@@ -27,6 +27,6 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 ## Keybindings
 
-- Reference sheet of all app shortcuts (read-only v1).
+- Reference sheet of all app shortcuts (read-only v1), grouped App / Chat / Editor & terminal.
 
 pidex's own prefs live in electron-store; pi's config stays in pi's files — the two are never mixed.

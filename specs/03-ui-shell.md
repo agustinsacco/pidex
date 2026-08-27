@@ -4,7 +4,7 @@
 
 - Native frame conventions per OS (hiddenInset traffic lights on macOS like the screenshots).
 - Window title: `workspace · session name`.
-- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar.
+- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Shift+Tab mode cycle, Ctrl+O verbose output), is Settings → Keybindings.
 
 ### Top bar
 
@@ -16,7 +16,7 @@ It is the **only** element allowed in the strip the OS draws window controls in,
 
 - **Workspace switcher** at top: current workspace name + dropdown of recent workspaces; "Open Folder…" via native picker. Adding a workspace records it in app prefs.
 - **New Session** button (prominent, like the screenshots' "+ New").
-- **Session list** for the active workspace: pinned section, then recent, grouped headers supported. Each row: session name (or first-message preview), relative timestamp, running indicator (spinner while streaming; unread/completed badge for background sessions). Context menu: rename, pin, fork, clone, export HTML, delete (trash).
+- **Session list** for the active workspace: pinned section, then recent, grouped headers supported. Each row: session name (or first-message preview), relative timestamp, running indicator (spinner while streaming; unread/completed badge for background sessions). Context menu: open, session tree, pin, suspend, fork, clone, export HTML, copy debug info, delete (trash). Labels are verbs; qualifiers ride as muted hints, never parentheticals.
 - Settings entry + app identity at the bottom (mirrors the account area in screenshots).
 - Collapsible (Cmd/Ctrl+B), width-draggable.
 

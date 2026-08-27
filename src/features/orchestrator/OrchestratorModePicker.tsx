@@ -1,8 +1,22 @@
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ORCHESTRATOR_MODES, ORCHESTRATOR_MODE_INFO } from '@shared/models'
+import { ORCHESTRATOR_MODES, ORCHESTRATOR_MODE_INFO, orchestratorModeOf } from '@shared/models'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useFleetStore } from '@/stores/fleet'
+import { formatShortcut } from '@/lib/shortcuts'
+
+/**
+ * Step to the next mode, wrapping — bound to ⇧Tab in the orchestrator's
+ * composer, which is where Claude Code puts the same "what may this thread do
+ * on its own" switch.
+ */
+export async function cycleOrchestratorMode(workspacePath: string): Promise<void> {
+  const fleet = useFleetStore.getState()
+  const current = orchestratorModeOf(fleet.prefs[workspacePath] ?? {})
+  const next =
+    ORCHESTRATOR_MODES[(ORCHESTRATOR_MODES.indexOf(current) + 1) % ORCHESTRATOR_MODES.length]
+  await fleet.setMode(workspacePath, next as (typeof ORCHESTRATOR_MODES)[number])
+}
 
 /**
  * How much the orchestrator may do on its own, switchable from its banner.
@@ -27,14 +41,9 @@ export function OrchestratorModePicker({
   // PopupMenu contributes no positioning of its own and treats its trigger as
   // "outside" for dismissal, so a click-toggled caller must supply both.
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const mode = useFleetStore((s) => {
-    const prefs = s.prefs[workspacePath]
-    if (prefs?.mode) return prefs.mode
-    // Migrate the pre-modes boolean for a project whose prefs predate it.
-    return (prefs as { autopilot?: boolean } | undefined)?.autopilot === true
-      ? 'autopilot'
-      : 'supervise'
-  })
+  // `orchestratorModeOf` owns the migration of the pre-modes `autopilot`
+  // boolean; duplicating that rule here is how the two drift.
+  const mode = useFleetStore((s) => orchestratorModeOf(s.prefs[workspacePath] ?? {}))
   const info = ORCHESTRATOR_MODE_INFO[mode]
 
   return (
@@ -43,7 +52,7 @@ export function OrchestratorModePicker({
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         data-testid="orchestrator-mode-picker"
-        title={`Orchestrator mode — ${info.summary}`}
+        title={`Orchestrator mode (${formatShortcut('shift', 'Tab')}) — ${info.summary}`}
         aria-label={`Orchestrator mode: ${info.label}`}
         className={clsx(
           'flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sm transition-colors',

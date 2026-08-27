@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
+import { useChatUiStore } from '@/features/chat/uiState'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { formatShortcut } from '@/lib/shortcuts'
 
@@ -62,6 +63,7 @@ export function CommandPalette({
     const layout = useLayoutStore.getState()
     const sessions = useSessionsStore.getState()
     const disk = sessions.disk[workspacePath] ?? []
+    const activeSessionId = sessions.activeSessionId
     const recents = useWorkspacesStore.getState().recents
 
     const base: PaletteAction[] = [
@@ -86,7 +88,7 @@ export function CommandPalette({
       // Right-pane commands only exist inside a session — the pane itself is
       // rendered by MainWithPanes, which requires one. Offering them on the
       // home screen produced a no-op that also desynced the pane state.
-      ...(sessions.activeSessionId
+      ...(activeSessionId
         ? ([
             {
               id: 'toggle-files',
@@ -111,6 +113,18 @@ export function CommandPalette({
               label: 'Toggle artifacts pane',
               run: () => layout.toggleRightPane('artifacts'),
             },
+            {
+              id: 'rewind',
+              label: 'Rewind to an earlier message…',
+              hint: 'Esc Esc',
+              run: () => useChatUiStore.getState().openForkPicker(activeSessionId),
+            },
+            {
+              id: 'toggle-verbose',
+              label: 'Expand / collapse tool output',
+              hint: formatShortcut('ctrl', 'O'),
+              run: () => useChatUiStore.getState().toggleVerbose(activeSessionId),
+            },
           ] satisfies PaletteAction[])
         : []),
       {
@@ -118,6 +132,15 @@ export function CommandPalette({
         label: 'Open settings',
         hint: formatShortcut('mod', ','),
         run: () => useSettingsUiStore.getState().setOpen(true),
+      },
+      {
+        id: 'keybindings',
+        label: 'Keyboard shortcuts',
+        hint: formatShortcut('mod', '/'),
+        run: () => {
+          useSettingsUiStore.getState().setTab('keybindings')
+          useSettingsUiStore.getState().setOpen(true)
+        },
       },
       {
         id: 'theme-light',
