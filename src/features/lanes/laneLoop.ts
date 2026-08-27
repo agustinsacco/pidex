@@ -141,6 +141,72 @@ export function laneHint(loop: LaneLoop): string {
   return `${next.label} has not run since the last edit.`
 }
 
+/**
+ * The one thing the lane should do next, as an action rather than a sentence.
+ *
+ * The banner used to state a problem and stop. That leaves the operator to
+ * retype an instruction the surface already knows, which is interaction time
+ * spent on something a machine can compose. Every action here is a message
+ * sent into the lane, so accepting one costs a keystroke rather than a
+ * paragraph.
+ *
+ * Returns null when there is nothing mechanical to ask for — a passing ladder
+ * needs no nudge, and inventing one would be exactly the alarm-without-a-
+ * response the register exists to forbid.
+ */
+export interface LaneAction {
+  /** Button text. */
+  label: string
+  /** The message delivered to the lane. */
+  prompt: string
+  /** Which rung this is about, for the tooltip. */
+  rung: string
+}
+
+export function laneAction(loop: LaneLoop): LaneAction | null {
+  const failed = loop.rungs.filter((r) => r.state === 'fail')
+
+  const diff = failed.find((r) => r.key === 'diff')
+  if (diff) {
+    const budget = loop.diffBudget ?? DEFAULT_DIFF_BUDGET
+    return {
+      rung: 'diff',
+      label: 'Ask for a split',
+      prompt:
+        `This lane is past its review budget of ${budget.lines} lines / ${budget.files} files. ` +
+        `Do not add more code. Propose how to split the work already here into a stack of ` +
+        `smaller pull requests, smallest first, and say which files go in each. ` +
+        `If you believe the change genuinely cannot be split, say why in one paragraph.`,
+    }
+  }
+
+  const other = failed[0]
+  if (other) {
+    return {
+      rung: other.key,
+      label: `Fix ${other.label}`,
+      prompt:
+        `The ${other.label} check is failing${other.detail ? `: ${other.detail}` : ''}. ` +
+        `Reproduce it with \`${other.command ?? other.label}\`, fix the cause rather than the ` +
+        `symptom, and re-run it. Do not change the check itself to make it pass.`,
+    }
+  }
+
+  const next = currentRung(loop)
+  if (next?.key === 'pr') {
+    return {
+      rung: 'pr',
+      label: 'Open the PR',
+      prompt:
+        `Every check passes. Commit anything outstanding, push the branch, and open a pull ` +
+        `request with \`gh pr create\`. Title it for the change, and in the body say what it ` +
+        `does, how it was verified, and anything you deliberately left out.`,
+    }
+  }
+
+  return null
+}
+
 /** `+118 −22 · 4 files`, or undefined when there is nothing to say. */
 export function diffLabel(loop: LaneLoop): string | undefined {
   if (!loop.diff) return undefined

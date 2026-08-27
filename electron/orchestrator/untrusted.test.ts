@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { envelope, newNonce, scrubInvisible, untrustedPreamble } from './untrusted'
-import { parseConfirm } from './bridge'
+import { digestItemsOf, parseConfirm } from './bridge'
 
 /**
  * Two defects this file guards.
@@ -91,5 +91,43 @@ describe('parseConfirm', () => {
     for (const unknown of ['affirmative', 'sure', 'go ahead', 'yep', '', undefined, null, {}]) {
       expect(parseConfirm(unknown)).toBeNull()
     }
+  })
+})
+
+describe('digestItemsOf', () => {
+  it('passes an array through', () => {
+    expect(digestItemsOf([{ kind: 'note', text: 'a' }])).toEqual([{ kind: 'note', text: 'a' }])
+  })
+
+  it('parses the JSON STRING models actually send', () => {
+    // The exact shape that failed 4 of 4 publish_digest calls in session
+    // 01a04394: Opus 5 on Bedrock stringifies nested tool arguments, and the
+    // strict array schema rejected every one with "items.0: must be object".
+    const asModelSends =
+      '[{"kind":"note","text":"Repo state unchanged"},{"kind":"note","text":"two lanes streaming"}]'
+    expect(digestItemsOf(asModelSends)).toEqual([
+      { kind: 'note', text: 'Repo state unchanged' },
+      { kind: 'note', text: 'two lanes streaming' },
+    ])
+  })
+
+  it('accepts a single item sent bare', () => {
+    expect(digestItemsOf('{"kind":"attention","text":"x"}')).toEqual([
+      { kind: 'attention', text: 'x' },
+    ])
+  })
+
+  it('keeps unparseable prose as one note rather than losing the sweep', () => {
+    expect(digestItemsOf('all quiet, nothing to report')).toEqual([
+      { kind: 'note', text: 'all quiet, nothing to report' },
+    ])
+  })
+
+  it('yields nothing for empty or non-string input', () => {
+    expect(digestItemsOf('')).toEqual([])
+    expect(digestItemsOf('   ')).toEqual([])
+    expect(digestItemsOf(undefined)).toEqual([])
+    expect(digestItemsOf(42)).toEqual([])
+    expect(digestItemsOf('"just a string"')).toEqual([])
   })
 })
