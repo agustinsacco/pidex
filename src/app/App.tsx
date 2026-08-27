@@ -28,8 +28,6 @@ import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/Extensio
 import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
-import { UsageModal } from '@/features/usage/UsageModal'
-import { MonitorModal } from '@/features/resources/MonitorModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { worktreeAwareName } from '@/lib/path'
@@ -175,8 +173,6 @@ export function App(): React.JSX.Element {
       <ToastHost />
       <CommandPalette workspacePath={currentWorkspace} />
       <SettingsModal />
-      <UsageModal />
-      <MonitorModal />
     </div>
   )
 }

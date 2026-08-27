@@ -17,18 +17,14 @@ import {
   MoreIcon,
   PinIcon,
   PlusIcon,
-  ResourcesIcon,
-  UsageIcon,
 } from '@/components/icons'
 import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
-import { useUsageUiStore } from '@/features/usage/usageUiStore'
-import { useMonitorUiStore } from '@/features/resources/monitorUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { worktreeAwareName, isWorktreeFolder, projectName } from '@/lib/path'
+import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -436,16 +432,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
           icon={<ArtifactsIcon />}
         />
-        <NavRow
-          label="Usage"
-          onClick={() => useUsageUiStore.getState().setOpen(true)}
-          icon={<UsageIcon />}
-        />
-        <NavRow
-          label="Resources"
-          onClick={() => useMonitorUiStore.getState().setOpen(true)}
-          icon={<ResourcesIcon />}
-        />
       </nav>
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
@@ -506,7 +492,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   // Permanent, not hover-revealed: these three controls are the
                   // workspace's fixed toolbar, and a control you cannot see is
                   // a control you do not know exists.
-                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
+                  className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
                 >
                   <MoreIcon size={14} />
                 </button>
@@ -539,7 +525,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   }}
                   data-testid="workspace-group-new-session"
                   title="New session here"
-                  className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
+                  className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
                 >
                   <PlusIcon size={12} strokeWidth={2.5} />
                 </button>
@@ -590,7 +576,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         <UpdatePill />
         <button
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
-          className="text-text-secondary hover:text-text hover:bg-bg-secondary -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"
+          className="text-text-secondary hover:text-text hover:bg-sidebar-hover -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"
           title={`Settings (${formatShortcut('mod', ',')})`}
         >
           <GearIcon /> Settings
@@ -652,7 +638,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
-        className="hover:bg-bg-secondary flex w-full items-center gap-2 rounded-lg px-2 py-1 transition-colors"
+        className="hover:bg-sidebar-hover flex w-full items-center gap-2 rounded-md px-2 py-1 transition-colors"
       >
         <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-base font-bold uppercase">
           {name.slice(0, 1)}
@@ -770,8 +756,9 @@ function SessionRow({
     setRenameValue('')
   }
   // Badge reads the session's own cwd, so a Pinned row shows the project it
-  // actually belongs to rather than whatever is on screen.
-  const rowWorkspaceName = worktreeAwareName(meta.cwd || workspacePath, git)
+  // actually belongs to rather than whatever is on screen. Project only — the
+  // subtitle beneath it already carries `wt` and the branch.
+  const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => {
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
@@ -833,15 +820,21 @@ function SessionRow({
         : 'disk'
 
   const rowClassName = clsx(
-    'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-    // Active = the row on screen. The full-tint background disappears at
-    // a glance, so pair it with a 2px accent rail on the left edge: the
-    // border is the "this is open" signal, the fill is the "and it has
-    // visual weight". The hover wash is dropped to /40 so it doesn't
-    // compete with the active fill on adjacent rows.
-    active
-      ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
-      : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
+    'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+    // Active = the row on screen, and a plain fill is the whole signal.
+    //
+    // This used to be a 2px accent rail plus a `bg-bg-secondary` fill, because
+    // that fill was invisible in light mode — `--px-bg-secondary` sits on the
+    // *lighter* side of the sidebar ground. The rail was a workaround, and on
+    // a `rounded-lg` row it followed the corner radius and rendered as an
+    // amber crescent down the left edge rather than a straight line.
+    //
+    // Fixed at the token instead: `sidebar-active` / `sidebar-hover` move away
+    // from the sidebar in whichever direction the theme needs. The fill alone
+    // is then legible in both modes, so the rail is gone, the radius is a
+    // step squarer, and the left edge is flush again. State (live, streaming,
+    // unseen) stays the indicator dot's job — see SessionIndicator.
+    active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
   )
 
   const body = (
@@ -886,7 +879,7 @@ function SessionRow({
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           {isSuspended && (
             <span
-              className="bg-bg-secondary text-text-tertiary mr-0.5 shrink-0 rounded px-1 font-medium"
+              className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
               title="Process released to save memory. Opening this session resumes it from disk."
             >
               suspended
@@ -899,7 +892,7 @@ function SessionRow({
         <span
           data-testid="session-workspace-badge"
           title={meta.cwd || workspacePath}
-          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
+          className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
         >
           {rowWorkspaceName}
         </span>
@@ -979,13 +972,11 @@ function PendingSessionRow({
       data-testid="session-row"
       data-pending="true"
       className={clsx(
-        'group flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
-        // Same active treatment as SessionRow — see comment there. Pending
-        // sessions are short-lived (no disk file yet) so the rail matters
-        // less, but it must still be visible while the row is on screen.
-        active
-          ? 'border-l-2 border-l-accent bg-bg-secondary pl-[calc(0.5rem-2px)]'
-          : 'border-l-2 border-l-transparent hover:bg-bg-secondary/40',
+        'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+        // Same treatment as SessionRow — see the comment there. It must match
+        // exactly: this row is replaced by a real SessionRow the moment the
+        // session file lands, and any difference reads as the row twitching.
+        active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
@@ -1035,7 +1026,7 @@ function SubtitleSegments({ segments }: { segments: SubtitleSegment[] }): React.
           {i > 0 && <span className="pr-1">·</span>}
           {segment.key === 'worktree' ? (
             <span
-              className="bg-bg-secondary text-text-tertiary rounded px-1 font-medium"
+              className="bg-chip text-text-secondary rounded px-1 font-medium"
               title="Runs in a git worktree"
             >
               wt
@@ -1111,7 +1102,7 @@ function NavRow({
   return (
     <button
       onClick={onClick}
-      className="text-text hover:bg-bg-secondary group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1 text-left text-lg transition-colors"
+      className="text-text hover:bg-sidebar-hover group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors"
     >
       <span
         className={clsx(

@@ -17,6 +17,20 @@
      without needing a border (which was producing a translucent "card"
      edge — see Sidebar.tsx). */
   --px-sidebar: #ededef;
+  /* Sidebar row states. A row highlight has to move AWAY from the sidebar
+     ground, and the sidebar is already a step off the page — so these go
+     DARKER in light and LIGHTER in dark. Reusing --px-bg-secondary here was
+     the bug: in light it sits 2 units on the wrong side of --px-sidebar, so
+     an active row was invisible and needed an accent rail to be findable. */
+  --px-sidebar-hover: #e6e6ea;
+  --px-sidebar-active: #dedee3;
+  /* Inline chips (`wt`, branch count, workspace badge). TRANSLUCENT on
+     purpose: a chip lives inside a row, so its ground is the sidebar on an
+     inactive row and --px-sidebar-active on the selected one. A flat colour
+     has to pick one of those and washes out against the other; an overlay
+     keeps the same step against every ground it lands on, page and modal
+     included. Ink over paper in light, paper over ink in dark. */
+  --px-chip: rgb(38 38 42 / 0.09);
   --px-surface: #ffffff;
   --px-surface-raised: #ffffff;
   --px-border: #e4e4e7;
@@ -68,6 +82,9 @@
   --px-bg-secondary: #26231e;
   /* Sidebar: one step darker than the page so it sits flush (no border). */
   --px-sidebar: #15130f;
+  --px-sidebar-hover: #221f19;
+  --px-sidebar-active: #2d2921;
+  --px-chip: rgb(236 231 219 / 0.11);
   --px-surface: #2a2721;
   --px-surface-raised: #322e27;
   --px-border: #3a352c;
@@ -95,6 +112,9 @@
   --color-bg: var(--px-bg);
   --color-bg-secondary: var(--px-bg-secondary);
   --color-sidebar: var(--px-sidebar);
+  --color-sidebar-hover: var(--px-sidebar-hover);
+  --color-sidebar-active: var(--px-sidebar-active);
+  --color-chip: var(--px-chip);
   --color-surface: var(--px-surface);
   --color-surface-raised: var(--px-surface-raised);
   --color-border: var(--px-border);

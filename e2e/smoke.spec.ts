@@ -3,13 +3,12 @@ import {
   expect,
   _electron as electron,
   type ElectronApplication,
-  type Locator,
   type Page,
 } from '@playwright/test'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
@@ -49,34 +48,6 @@ const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
  */
 function privateAgentDir(): string {
   return mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-solo-'))
-}
-
-/**
- * Click a checkbox until it actually reaches `want`.
- *
- * For a checkbox that lives under a live-updating panel, one click is not
- * reliable and no amount of polling afterwards fixes it. The resource monitor
- * re-renders on every sampling tick, and the totals block above the checkbox
- * grows as history accumulates — so the checkbox moves. Playwright resolves
- * the element, waits for it to be stable, then dispatches at those
- * coordinates; a sample landing in that gap shifts the target and the click is
- * simply lost. No React `onChange` fires, the state never changes, and the
- * assertion fails after burning its whole timeout.
- *
- * Retrying the click is the only thing that converges. Guarded on the current
- * state so a click that did land is never undone by the next attempt.
- */
-async function setCheckbox(box: Locator, want: boolean): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        if ((await box.isChecked()) === want) return want
-        await box.click({ timeout: 5_000 }).catch(() => undefined)
-        return box.isChecked()
-      },
-      { timeout: 20_000, intervals: [250, 500, 1000] },
-    )
-    .toBe(want)
 }
 
 /**
@@ -525,7 +496,7 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     // toolcall_end).
     await expect(page.getByText(/unknown/)).toHaveCount(0)
 
-    // Per-message cost is gone from the transcript (usage lives elsewhere).
+    // Per-message cost is gone from the transcript.
     await expect(page.locator('text=/\\$\\d+\\.\\d{4}/')).toHaveCount(0)
 
     // Streaming repair: the transcript briefly contained "**hello.ts" before
@@ -552,28 +523,6 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
     const statusText = await page.getByText(/MCP: 2 servers enabled/).innerText()
     expect(statusText).not.toContain('[38;2')
     expect(statusText).not.toContain('\u001b')
-  } finally {
-    await shutdown(harness)
-  }
-})
-
-test('usage view aggregates cost and tokens from session files', async () => {
-  const harness = await launch()
-  const { page } = harness
-  try {
-    await openWorkspace(page)
-    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
-    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-
-    await page.getByRole('button', { name: 'Usage' }).click()
-    await expect(page.getByText('Total cost')).toBeVisible({ timeout: 10_000 })
-
-    // The stub persisted an assistant message with usage → nonzero rollup.
-    await expect(page.getByText('$0.033').first()).toBeVisible()
-
-    await page.keyboard.press('Escape')
-    await expect(page.getByText('Total cost')).toBeHidden()
   } finally {
     await shutdown(harness)
   }
@@ -658,6 +607,15 @@ test('worktree flow: create from the branch chip, session stays under the projec
 
     // The top bar's branch control marks the worktree.
     await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
+
+    // ...and the folder chip beside it still names the PROJECT. The reported
+    // bug: with a worktree session open it showed the worktree folder's own
+    // basename — the branch slug — so the top bar read as if the user had
+    // switched to a workspace called "update-hello-ts".
+    const folderChip = page.getByRole('banner').getByTestId('workspace-chip')
+    await expect(folderChip).toContainText(basename(workspace), { timeout: 10_000 })
+    await expect(folderChip).not.toContainText('update-hello-ts')
+    await expect(folderChip).not.toContainText('stub-session-title')
   } finally {
     await shutdown(harness)
   }
@@ -1296,38 +1254,6 @@ test('a long tool run collapses to one dense group', async () => {
     expect(geometry.tallestCard).toBeLessThan(40)
     // Spacing lives *inside* each measured wrapper, so measured rows are flush.
     expect(geometry.worstGap).toBeLessThan(8)
-  } finally {
-    await shutdown(harness)
-  }
-})
-
-test('resource monitor reports real per-session process usage', async () => {
-  const harness = await launch()
-  const { page } = harness
-  try {
-    await openWorkspace(page)
-    // A live session means a real pi (stub) subprocess to attribute usage to.
-    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
-    await expect(page.getByTestId('session-row').first()).toBeVisible({ timeout: 60_000 })
-
-    await page.getByRole('button', { name: 'Resources', exact: true }).click()
-
-    // Sampling starts on open, so a row must appear with a real measurement.
-    const row = page.getByTestId('monitor-session-row').first()
-    await expect(row).toBeVisible({ timeout: 30_000 })
-    await expect(row).toContainText(/\d+(\.\d+)?\s*(KB|MB|GB)/, { timeout: 30_000 })
-
-    // The terminals toggle must actually change what is charged to a session.
-    // Clicked through `setCheckbox`: this panel re-renders under a live
-    // sampler and the checkbox moves as the totals above it grow, so a lone
-    // click gets dropped outright rather than merely landing late — polling
-    // the assertion afterwards cannot rescue it (measured: 2 failures in 4
-    // runs with a 10s poll).
-    const toggle = page.getByTestId('monitor-include-terminals')
-    await expect(toggle).toBeChecked()
-    await setCheckbox(toggle, false)
-    await expect(row).toBeVisible()
   } finally {
     await shutdown(harness)
   }

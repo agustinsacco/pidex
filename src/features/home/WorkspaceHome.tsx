@@ -6,12 +6,13 @@ import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
+import { useSessionsStore } from '@/stores/sessions'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
-import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { projectName } from '@/lib/path'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { ChatImage } from '@/features/chat/ChatImage'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
@@ -41,7 +42,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const draft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
-  const workspaceName = workspaceDisplayName(workspacePath)
+  // The project, never the worktree folder this home screen may be pointed at.
+  const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
+  const workspaceName = projectName(workspacePath, git)
 
   /** Images inline; everything else attaches by path (see attachments.ts). */
   const addFile = async (file: File): Promise<void> => {

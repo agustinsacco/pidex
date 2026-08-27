@@ -4,7 +4,7 @@ import { MenuRow, PopupMenu } from '@/components/PopupMenu'
 import { CheckIcon, ChevronIcon } from '@/components/icons'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { workspaceName as workspaceDisplayName } from '@/lib/path'
+import { projectName } from '@/lib/path'
 
 /**
  * Which folder you are in, and the menu to change it.
@@ -25,7 +25,12 @@ export function WorkspaceChip({
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const recents = useWorkspacesStore((s) => s.recents)
-  const name = workspaceDisplayName(workspacePath)
+  // The project, not the folder: with a worktree session open `workspacePath`
+  // is `<repo>/.pidex/worktrees/<branch-slug>`, and its basename read as if the
+  // user had switched workspaces. The branch is the chip immediately to the
+  // right of this one.
+  const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
+  const name = projectName(workspacePath, git)
 
   const choose = (path: string): void => {
     setOpen(false)

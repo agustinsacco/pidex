@@ -45,9 +45,6 @@ touch less code.
   hover/pin-revealed `ThoughtOnlyRow`s, a different design from this file's
   collapsible "Thought process" disclosure. This is the only file in
   `src/features/chat/blocks/`, so **delete the directory**.
-- **`electron/resources/monitor-window.ts:80` `isMonitorWindowOpen()`** — zero
-  callers anywhere including tests.
-- **`electron/resources/monitor.ts:77` `isSampling()`** — zero callers.
 - **`src/features/sessions/Sidebar.tsx:11`** —
   `export { relativeTimeShort as relativeTime } from '@/lib/time'`. A component
   file acting as a barrel for a lib function, _and_ the alias renames it to a
@@ -507,10 +504,9 @@ exactly as they are — `e2e/smoke.spec.ts` asserts on them.
 ~30 symbols carry `export` but are only referenced inside their own file, which
 makes the public surface of each module look larger than it is. Examples:
 `PiAgentSettings` and `EditableConfigFile` (`agent-settings.ts`),
-`JobSender`/`PiInvoker` (`packages.ts`), `normalizeRealPath`
-(`git-worktrees.ts`), `PS_SUPPORTED` (`sampler.ts`), `canToggleRightPane`
-(`useGlobalShortcuts.ts`), `formatRss`/`formatCpu` (`MonitorPanel.tsx`),
-`usePaletteStore` (`CommandPalette.tsx`), `MCP_SCOPES` (`shared/mcp.ts`).
+`JobSender`/`PiInvoker` (`packages.ts`), `canToggleRightPane`
+(`useGlobalShortcuts.ts`), `usePaletteStore` (`CommandPalette.tsx`),
+`MCP_SCOPES` (`shared/mcp.ts`).
 
 Two caveats before dropping any `export`:
 

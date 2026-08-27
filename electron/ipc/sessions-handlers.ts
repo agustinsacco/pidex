@@ -1,6 +1,6 @@
 import { handle } from './handle'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
-import { listSessions, readSessionTree, usageSummary, workspaceStats } from '../pi/session-scanner'
+import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
 import { deleteSession } from '../pi/session-deleter'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 import { getPrefs } from '../store'
@@ -10,12 +10,10 @@ export function registerSessionsHandlers(): void {
   handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
 
   // Home tiles describe work, so the project's orchestrator thread is not part
-  // of them. Usage deliberately still lists it — labelled, not hidden.
+  // of them.
   handle('sessions:stats', (_event, workspacePath: string) =>
     workspaceStats(workspacePath, Object.values(getPrefs().orchestratorSessions)),
   )
-
-  handle('sessions:usage', () => usageSummary())
 
   handle('sessions:watch', (_event, workspacePath: string) => {
     watchWorkspaceSessions(workspacePath)
