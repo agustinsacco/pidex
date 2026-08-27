@@ -673,12 +673,51 @@ export interface ClaudeStatus {
  * OAuth providers over RPC or the CLI, so these are curated from pi's
  * providers doc and each id is verified against `pi auth check`.
  */
+/**
+ * Providers pi offers under "Sign in with an account", as of pi 0.84.1.
+ *
+ * Read off pi's own login screen rather than guessed: pi exposes no way to
+ * enumerate these (no CLI, no RPC, and the provider registry is not a package
+ * export), so this list is maintained by hand and WILL drift as pi adds
+ * providers. `pi auth check --provider <id>` answers `provider_not_found` for
+ * an id pi does not know, which surfaces as "unknown" rather than a crash.
+ */
+export type LoginProviderId =
+  | 'anthropic'
+  | 'openai-codex'
+  | 'github-copilot'
+  | 'kimi-for-coding'
+  | 'openrouter'
+  | 'radius'
+  | 'xai'
+
+/** Where a sign-in has got to. Drives the whole Accounts UI. */
+export type LoginFlowState =
+  | { providerId: LoginProviderId; phase: 'starting' }
+  /** pi produced a device-code URL; the user finishes in their browser. */
+  | {
+      providerId: LoginProviderId
+      phase: 'awaiting-browser'
+      url: string
+      /** Device code to type on the provider's page. */
+      userCode?: string
+    }
+  | { providerId: LoginProviderId; phase: 'signed-in' }
+  | { providerId: LoginProviderId; phase: 'cancelled' }
+  | { providerId: LoginProviderId; phase: 'error'; message: string }
+
 export interface SubscriptionProvider {
   /** pi's provider id — the key in `auth.json` and `pi auth check --provider`. */
-  id: string
+  id: LoginProviderId
   name: string
   /** What the user must already be paying for. */
   requires: string
+  /**
+   * What signing in actually spends. The distinction matters enough to sort
+   * the list by: a plan you already pay for is free to use here, while a
+   * balance is charged per token even though the sign-in looks identical.
+   */
+  billing: 'subscription' | 'balance'
   /** Anything the user should know before signing in. Rendered verbatim. */
   caveat?: string
 }

@@ -1,13 +1,57 @@
 import { homedir } from 'node:os'
+import { BrowserWindow, shell } from 'electron'
+import type { LoginFlowState } from '@shared/models'
 import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
+import { cancelLogin, startLogin } from '../pi/login-flow'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
 
+/**
+ * Open the provider's authorization page.
+ *
+ * The URL is scraped from pi's terminal output, so it is validated the same
+ * way `app:openExternal` validates a renderer-supplied one: http/https only,
+ * never `file:` or a custom scheme that would hand a local handler an
+ * argument. Failing closed just means the user clicks the link in the UI.
+ */
+function openAuthPage(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+    void shell.openExternal(parsed.toString())
+  } catch {
+    /* unparseable — the UI still shows the raw URL */
+  }
+}
+
+function broadcastLoginState(state: LoginFlowState): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('pi:loginState', state)
+  }
+}
+
 /** Signing into the subscription providers pi supports. */
 export function registerPiAuthHandlers(): void {
   handle('pi:subscriptionAuth', () => checkSubscriptionAuth())
+
+  handle('pi:startLogin', async (_event, providerId) => {
+    let opened = false
+    await startLogin(providerId, (state) => {
+      // Open the browser once, on the first URL. The flow re-emits on repaint,
+      // and a second tab mid-sign-in reads as a bug.
+      if (state.phase === 'awaiting-browser' && !opened) {
+        opened = true
+        openAuthPage(state.url)
+      }
+      broadcastLoginState(state)
+    })
+  })
+
+  handle('pi:cancelLogin', (_event, providerId) => {
+    cancelLogin(providerId)
+  })
 
   handle('pi:loginTerminal', async (_event, cols, rows) => {
     const health = await checkPiHealth()

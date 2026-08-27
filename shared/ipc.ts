@@ -43,6 +43,8 @@ import type {
   GitInfo,
   LiveSessionInfo,
   PiHealth,
+  LoginFlowState,
+  LoginProviderId,
   SubscriptionProviderStatus,
   PiResources,
   PullResult,
@@ -222,6 +224,22 @@ export interface IpcInvokeMap {
    * internals. Drive it with the ordinary `pty:*` channels once created.
    */
   'pi:loginTerminal': { args: [cols: number, rows: number]; result: { ptyId: string } }
+
+  /**
+   * Sign into one provider without showing a terminal at all.
+   *
+   * Same TUI underneath as `pi:loginTerminal`, driven off-screen by
+   * `electron/pi/login-flow.ts`: progress arrives on the `pi:loginState`
+   * event, and main opens the browser itself once pi produces a URL. Resolves
+   * as soon as the flow has *started*; the outcome is an event, because the
+   * middle of it is a human in a browser.
+   *
+   * `pi:loginTerminal` stays for the escape hatch — a provider that asks
+   * something this driver does not know how to answer.
+   */
+  'pi:startLogin': { args: [providerId: LoginProviderId]; result: void }
+  /** Abort a `pi:startLogin` in progress. No-op if nothing is running. */
+  'pi:cancelLogin': { args: [providerId: LoginProviderId]; result: void }
 
   /**
    * pi packages (settings.json `packages` arrays + install dirs). Mutations
@@ -545,6 +563,8 @@ export interface PidexApi {
   onResourceSample(listener: (snapshot: ResourceSnapshot) => void): () => void
   /** Update lifecycle changes (checking / downloading / ready to install). */
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
+  /** Progress of a background `pi:startLogin`; returns unsubscribe. */
+  onPiLoginState(listener: (state: LoginFlowState) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image

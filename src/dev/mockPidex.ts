@@ -48,6 +48,74 @@ function replayFixture(sessionId: string): void {
   }, 40)
 }
 
+/**
+ * The Accounts tab's providers, one per badge state so all three are
+ * reachable in the browser harness without a pi install. `mockAuthState`
+ * overlays a signed-in result once a mock sign-in completes, so the flow ends
+ * where the real one does: the row flipped.
+ */
+const MOCK_PROVIDERS = [
+  {
+    id: 'openai-codex',
+    name: 'ChatGPT (Codex)',
+    requires: 'ChatGPT Plus or Pro',
+    billing: 'subscription' as const,
+    defaultState: { status: 'ready' as const },
+  },
+  {
+    id: 'anthropic',
+    name: 'Claude Pro/Max',
+    requires: 'Claude Pro or Max',
+    billing: 'subscription' as const,
+    caveat: 'Bills per token from extra usage, not against plan limits.',
+    defaultState: { status: 'not_ready' as const, reason: 'credentials_not_configured' },
+  },
+  {
+    id: 'github-copilot',
+    name: 'GitHub Copilot',
+    requires: 'a Copilot subscription',
+    billing: 'subscription' as const,
+    defaultState: { status: 'unknown' as const, error: 'pi is not available' },
+  },
+  {
+    id: 'kimi-for-coding',
+    name: 'Kimi For Coding',
+    requires: 'a Kimi For Coding plan',
+    billing: 'subscription' as const,
+    defaultState: { status: 'not_ready' as const, reason: 'credentials_not_configured' },
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    requires: 'an xAI account',
+    billing: 'balance' as const,
+    caveat: 'Billed per token against your xAI credit balance, not a flat plan.',
+    defaultState: { status: 'not_ready' as const, reason: 'credentials_not_configured' },
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    requires: 'an OpenRouter account',
+    billing: 'balance' as const,
+    defaultState: { status: 'not_ready' as const, reason: 'credentials_not_configured' },
+  },
+  {
+    id: 'radius',
+    name: 'Radius',
+    requires: 'a Radius account',
+    billing: 'balance' as const,
+    defaultState: { status: 'not_ready' as const, reason: 'credentials_not_configured' },
+  },
+]
+
+const mockAuthState: Record<string, { status: 'ready' | 'not_ready' | 'unknown' }> = {}
+const mockLoginListeners = new Set<(state: never) => void>()
+let mockLoginTimers: ReturnType<typeof setTimeout>[] = []
+
+function emitLoginState(state: never): void {
+  mockLoginListeners.forEach((listener) => listener(state))
+}
+
 const MOCK_MODELS = [
   {
     id: 'qwen-3.5-122b',
@@ -1008,31 +1076,44 @@ export function installMockPidex(): void {
         // One of each state, so the Accounts tab's three badges are all
         // reachable in the browser harness without a pi install.
         case 'pi:subscriptionAuth':
-          return Promise.resolve([
-            {
-              id: 'openai-codex',
-              name: 'ChatGPT (Codex)',
-              requires: 'ChatGPT Plus or Pro',
-              status: 'ready',
-            },
-            {
-              id: 'anthropic',
-              name: 'Claude Pro/Max',
-              requires: 'Claude Pro or Max',
-              caveat: 'Bills per token from extra usage, not against plan limits.',
-              status: 'not_ready',
-              reason: 'credentials_not_configured',
-            },
-            {
-              id: 'github-copilot',
-              name: 'GitHub Copilot',
-              requires: 'a Copilot subscription',
-              status: 'unknown',
-              error: 'pi is not available',
-            },
-          ])
+          return Promise.resolve(
+            MOCK_PROVIDERS.map(({ defaultState, ...p }) => ({
+              ...p,
+              ...(mockAuthState[p.id] ?? defaultState),
+            })) as never,
+          )
         case 'pi:loginTerminal':
           return Promise.resolve({ ptyId: 'mock-login-pty' })
+        // Replays the real flow's phases so the Accounts tab — device code,
+        // cancel, the row flipping to "Signed in" — is developable without pi.
+        case 'pi:startLogin': {
+          const providerId = args[0] as string
+          mockLoginTimers.forEach(clearTimeout)
+          mockLoginTimers = [
+            setTimeout(() => emitLoginState({ providerId, phase: 'starting' } as never), 300),
+            setTimeout(
+              () =>
+                emitLoginState({
+                  providerId,
+                  phase: 'awaiting-browser',
+                  url: 'https://example.com/oauth2/device?user_code=8G95-72AD',
+                  userCode: '8G95-72AD',
+                } as never),
+              1200,
+            ),
+            setTimeout(() => {
+              mockAuthState[providerId] = { status: 'ready' }
+              emitLoginState({ providerId, phase: 'signed-in' } as never)
+            }, 6000),
+          ]
+          return Promise.resolve(undefined as never)
+        }
+        case 'pi:cancelLogin': {
+          mockLoginTimers.forEach(clearTimeout)
+          mockLoginTimers = []
+          emitLoginState({ providerId: args[0], phase: 'cancelled' } as never)
+          return Promise.resolve(undefined as never)
+        }
         case 'pi:agentSettingsScoped':
           return Promise.resolve({
             global: {
@@ -1096,6 +1177,11 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     onPtyStatus: () => () => {},
+
+    onPiLoginState: (listener) => {
+      mockLoginListeners.add(listener)
+      return () => mockLoginListeners.delete(listener)
+    },
 
     // Replay a full update lifecycle so the pill is developable in the
     // browser harness. Timings are compressed; the real one polls every 30min.
