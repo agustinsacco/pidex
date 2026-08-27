@@ -77,7 +77,7 @@ than as zero.
 ## Verification
 
 `npm run validate` green: typecheck, lint, prettier, 741 unit tests, 22 e2e.
-New `electron/fs/__tests__/git-sync.test.ts` runs real git against a local
+New `electron/fs/git-sync.test.ts` runs real git against a local
 clone-as-remote — ff-only refusal on diverged history, dirty guards on pull /
 update / checkout, conflict abort leaving a clean tree, and the held-branch
 message.

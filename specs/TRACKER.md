@@ -11,7 +11,7 @@
 | Phase | Title                                        | Status |
 | ----- | -------------------------------------------- | ------ |
 | P0–P9 | Foundations → tech-debt pass (archived)      | ✅     |
-| P10   | Visual identity: Phosphor                    | 🟡     |
+| P10   | Visual identity: Phosphor                    | ✅     |
 | P11   | Chat UX correctness pass (Phase 0)           | 🟡     |
 | P12   | UI refinements + platform features           | ✅     |
 | P13   | Transcript density: activity grouping        | ✅     |
@@ -23,7 +23,6 @@ without a reason to batch work into a phase again.
 
 **Still open** (the only unchecked boxes in this file):
 
-- P10 — regenerate `specs/screenshots/`; the PNGs still show the pre-Phosphor UI.
 - P11 — B6 cost honesty (`—` for an all-zero `ModelCost`, per-component rows).
 - P11 — phases 2–5 of the plan (type scale, ink-based grouping, CTA rows, `Notice`).
 
@@ -36,7 +35,7 @@ All ten shipped. Detail, deviations and per-phase logs live in
 
 ---
 
-## P10 — Visual identity: Phosphor `🟡`
+## P10 — Visual identity: Phosphor `✅`
 
 Specs: [STYLE_GUIDE.md](reference/style-guide.md) · [RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md)
 
@@ -44,14 +43,24 @@ Specs: [STYLE_GUIDE.md](reference/style-guide.md) · [RESTYLE_PLAN.md](archive/R
 - [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
 - [x] RESTYLE_PLAN phases 1–3: token swap, xterm/Monaco, chart/mermaid (one PR)
 - [x] Phase 4: mono structural-voice pass over labels/badges + serif retirement
-- [ ] Phase 5 leftover: regenerate `specs/screenshots/` (sweep + e2e done; PNGs still show v1)
+- [x] Phase 5: sweep + e2e done. The "regenerate the screenshots" leftover was **closed by deleting them** on 2026-08-27 — see the log entry below.
 
-**Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually, screenshots refreshed.
+**Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually. Both hold.
 
 **Log:**
 
 - 2026-08-07 — Brand adopted; guide + plan + icon landed on PR #4. Known dev-mode limitation documented in main.ts: macOS menu-bar title says "Electron" when unpackaged (Info.plist, not fixable at runtime); dock icon is set at runtime instead. Restyle deliberately deferred to its own PR — a half-migrated palette is the worst state.
 - 2026-08-07 — Restyle phases 1–4 executed (see RESTYLE_PLAN Outcome): token swap + new `--px-terminal-bg`, xterm/Monaco/Mermaid/Chart.js re-themed, mono voice on all 18 uppercase-label sites, serif retired from chrome, heatmap info→accent. Exit grep clean; typecheck/lint/prettier/348 unit/8 e2e green; both-themes manual sweep in the browser harness (dark accent-text flip verified). Screenshots regen still pending.
+- 2026-08-27 — **P10 closed.** The last box asked to regenerate
+  `specs/screenshots/` because "the PNGs still show the pre-Phosphor UI". That
+  was a misreading of what they were: every capture was of Anthropic's Claude
+  Desktop, taken during the original cloning study, not of pidex. There was no
+  pidex UI in them to regenerate, so the box could never have been ticked as
+  written. Phosphor makes the resemblance an explicit non-goal
+  ([style-guide.md](reference/style-guide.md): "the wrong place to stay"), so
+  the 8.7MB of third-party captures were deleted and the two live docs that
+  called them "the visual quality bar" were corrected. Phase 5's real work
+  (sweep + e2e) had already landed on 2026-08-07.
 
 ---
 

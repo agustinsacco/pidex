@@ -45,7 +45,7 @@ There is no structured per-server liveness source. The tab shows:
 ## Code map
 
 - Types: `shared/mcp.ts`. Main: `electron/pi/mcp-config.ts` (injectable dirs
-  for hermetic tests: `electron/pi/__tests__/mcp-config.test.ts`).
+  for hermetic tests: `electron/pi/mcp-config.test.ts`).
 - IPC: `mcp:readConfigs / upsertServer / removeServer / setDisabled /
 readCache / readFile / writeFile` (`electron/ipc/mcp-handlers.ts`).
 - UI: Settings → MCP (`src/features/settings/tabs/McpTab.tsx`): adapter

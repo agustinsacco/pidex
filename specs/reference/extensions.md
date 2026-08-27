@@ -122,7 +122,7 @@ package's own resolution rather than guessing:
 
 - Main: `electron/pi/packages.ts` (spec classification, install-dir
   resolution, resource discovery, job runner, `claudeStatus`) — unit tests
-  in `electron/pi/__tests__/packages.test.ts` using fixture dirs via
+  in `electron/pi/packages.test.ts` using fixture dirs via
   `PI_CODING_AGENT_DIR`.
 - IPC: `packages:list / run / installPi / detect / claudeStatus /
 testClaudeProvider` (`electron/ipc/packages-handlers.ts`);

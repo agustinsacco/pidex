@@ -153,7 +153,7 @@ checkoutBranch` (`shared/ipc.ts`, `electron/ipc/git-handlers.ts`, mocks in
 
 ## Tests
 
-- `electron/fs/__tests__/git-worktrees.test.ts` and `git-sync.test.ts` run
+- `electron/fs/git-worktrees.test.ts` and `git-sync.test.ts` run
   **real git** in mkdtemp repos; the sync suite clones a local "remote" so
   fetch/pull/ff-only refusal are exercised for real.
 - `src/lib/branchName.test.ts` covers the derivation, including that no slug it

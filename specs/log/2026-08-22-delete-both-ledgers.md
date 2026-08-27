@@ -77,8 +77,8 @@ wrong file.
   the provider is not in the header, and a session that switched providers
   mid-run is only recognisable by looking at every `model_change`. The scan
   stops at the first hit, which for a Claude session is line 2.
-- Tests: `electron/pi/__tests__/pi-paths.test.ts` for the mangling rule
+- Tests: `electron/pi/pi-paths.test.ts` for the mangling rule
   (including the real truncated directory name), and
-  `electron/pi/__tests__/session-deleter.test.ts` for the delete behaviour —
+  `electron/pi/session-deleter.test.ts` for the delete behaviour —
   copy trashed, copy absent, other provider skipped, provider switched
   mid-session, malformed transcript, and a failing trash call.

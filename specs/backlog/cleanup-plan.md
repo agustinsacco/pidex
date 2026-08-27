@@ -214,8 +214,8 @@ handler that can be async — convert `listPackages` to async and `await` it in
 `shared/ipc.ts` is unchanged).
 
 **Verify phase 2:** existing tests cover this well —
-`electron/fs/__tests__/git-sync.test.ts`, `git-worktrees.test.ts`,
-`electron/pi/__tests__/{agent-settings,mcp-config,packages}.test.ts`. Add a case
+`electron/fs/git-sync.test.ts`, `git-worktrees.test.ts`,
+`electron/pi/{agent-settings,mcp-config,packages}.test.ts`. Add a case
 for `dirtyCount` on trailing-newline output, since that behavior is being
 unified rather than preserved verbatim.
 
