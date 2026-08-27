@@ -44,19 +44,21 @@ export function OrchestratorHeaderButton({
   const menu = (event: React.MouseEvent): void => {
     const fleet = useFleetStore.getState()
     showContextMenu(event, [
-      { label: 'Open orchestrator', onClick: () => void open() },
+      { label: 'Open', onClick: () => void open() },
       {
-        label: 'Brief me (spends tokens)',
+        label: 'Brief me',
+        hint: 'spends tokens',
         disabled: fleet.sweeping.includes(workspacePath),
         onClick: () => void fleet.sweep(workspacePath, 'brief'),
       },
       {
-        label: 'Review sessions (spends tokens)',
+        label: 'Review sessions',
+        hint: 'spends tokens',
         disabled: fleet.sweeping.includes(workspacePath),
         onClick: () => void fleet.sweep(workspacePath, 'review'),
       },
       {
-        label: 'Orchestration settings…',
+        label: 'Settings…',
         separatorAbove: true,
         onClick: () => {
           useSettingsUiStore.getState().setTab('orchestration')
@@ -66,7 +68,8 @@ export function OrchestratorHeaderButton({
       {
         // Picks up spawn-time changes (edited rules, a different model)
         // without losing the conversation.
-        label: 'Restart process (keeps the thread)',
+        label: 'Restart process',
+        hint: 'keeps the thread',
         disabled: !liveId,
         onClick: () => void useFleetStore.getState().restart(workspacePath),
       },
@@ -74,7 +77,8 @@ export function OrchestratorHeaderButton({
         // The escape hatch. A thread can reach a state where it cannot take
         // another turn at all — a malformed tool call persisted into its
         // session file is replayed on every turn and rejected by the provider.
-        label: 'Reset thread (start fresh)',
+        label: 'Reset thread',
+        hint: 'starts fresh',
         separatorAbove: true,
         danger: true,
         onClick: () => {

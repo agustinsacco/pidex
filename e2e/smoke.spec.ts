@@ -695,9 +695,9 @@ test('a session whose file lands late still becomes a real, right-clickable row'
     // Any SessionRow-only action proves the promotion: `PendingSessionRow` has
     // no context menu at all. (Rename is not in this menu — it is an inline
     // edit on the row, covered by the next test.)
-    await expect(page.getByRole('button', { name: /Fork \(new branch session\)/ })).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(
+      page.getByTestId('context-menu').getByRole('button', { name: /^Fork/ }),
+    ).toBeVisible({ timeout: 10_000 })
   } finally {
     await shutdown(harness)
   }

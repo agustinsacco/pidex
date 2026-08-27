@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
+import { revealLabel } from '@/lib/reveal'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry } from './fileActions'
 
@@ -104,7 +105,7 @@ function ExplorerRow({
   const onContextMenu = (event: React.MouseEvent): void => {
     showContextMenu(event, [
       {
-        label: 'Reveal in file manager',
+        label: revealLabel(),
         onClick: () => void window.pidex.invoke('app:revealPath', entry.path),
       },
       {
@@ -129,7 +130,8 @@ function ExplorerRow({
         onClick: () => void renameEntry(workspacePath, entry),
       },
       {
-        label: 'Delete (move to trash)',
+        label: 'Delete',
+        hint: 'to trash',
         danger: true,
         separatorAbove: true,
         onClick: () => void trashEntry(workspacePath, entry),

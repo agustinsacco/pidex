@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { GitInfo, WorktreeInfo } from '@shared/models'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { revealLabel } from '@/lib/reveal'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
@@ -190,7 +191,7 @@ export function BranchControl({
           <div className="border-border my-1 border-t" />
           {info.isWorktree && mainRepo && (
             <MenuRow active={false} onClick={() => void openMergeModal()}>
-              <span className="text-lg">Merge into main repo…</span>
+              <span className="text-lg">Merge into main…</span>
             </MenuRow>
           )}
           <MenuRow
@@ -200,7 +201,7 @@ export function BranchControl({
               void window.pidex.invoke('app:revealPath', workspacePath)
             }}
           >
-            <span className="text-lg">Reveal in file manager</span>
+            <span className="text-lg">{revealLabel()}</span>
           </MenuRow>
         </PopupMenu>
       )}

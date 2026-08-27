@@ -10,14 +10,25 @@ import type { PidexPlatform } from '@shared/ipc'
  * them (Ctrl+Shift+E).
  */
 
-export type Modifier = 'mod' | 'shift' | 'alt'
+export type Modifier = 'mod' | 'shift' | 'alt' | 'ctrl'
 
-/** `mod` is Command on macOS and Control everywhere else. */
-const GLYPHS: Record<Modifier, string> = { mod: '⌘', shift: '⇧', alt: '⌥' }
-const NAMES: Record<Modifier, string> = { mod: 'Ctrl', shift: 'Shift', alt: 'Alt' }
+/**
+ * `mod` is Command on macOS and Control everywhere else; `ctrl` is Control on
+ * every platform, for the handful of bindings pidex inherits from Claude
+ * Code's terminal UI (⌃O) where Control is the key regardless of OS.
+ */
+const GLYPHS: Record<Modifier, string> = { mod: '⌘', shift: '⇧', alt: '⌥', ctrl: '⌃' }
+const NAMES: Record<Modifier, string> = {
+  mod: 'Ctrl',
+  shift: 'Shift',
+  alt: 'Alt',
+  ctrl: 'Ctrl',
+}
+
+const MODIFIERS = new Set<string>(['mod', 'shift', 'alt', 'ctrl'])
 
 function isModifier(part: string): part is Modifier {
-  return part === 'mod' || part === 'shift' || part === 'alt'
+  return MODIFIERS.has(part)
 }
 
 /** Pure form, for tests and for callers that already know the platform. */

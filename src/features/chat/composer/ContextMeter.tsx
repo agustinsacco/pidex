@@ -112,12 +112,10 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                   : 'border-warning/30 bg-warning/10 text-warning',
               )}
             >
-              Burning {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min, and cache writes
-              are accelerating
-              {burn.acceleration != null && ` ${burn.acceleration.toFixed(1)}×`} across the window —
-              the signature of a loop re-sending context it already delivered. Only{' '}
-              {(burn.yield * 100).toFixed(1)}% of the spend is reaching output. Worth stopping the
-              turn and checking.
+              {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min, cache writes accelerating
+              {burn.acceleration != null && ` ${burn.acceleration.toFixed(1)}×`} — the signature of
+              a loop re-sending context it already has. Only {(burn.yield * 100).toFixed(1)}% of the
+              spend reaches output; worth stopping the turn.
             </div>
           )}
           <div className="mt-2 space-y-1 text-base">
