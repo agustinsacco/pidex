@@ -7,6 +7,7 @@ import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
+import { formatShortcut } from '@/lib/shortcuts'
 import { entryIdForUserMessageOrdinal, rewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import { ChatImage } from './ChatImage'
@@ -184,7 +185,7 @@ function UserMessage({
         )}
         <button
           onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
-          title="Fork from an earlier message…"
+          title={`Rewind to an earlier message… (${formatShortcut('Esc Esc')})`}
           className="text-text-tertiary hover:text-text flex items-center transition-colors"
         >
           <BranchIcon size={12} />

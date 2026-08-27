@@ -363,7 +363,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     }
     showContextMenu(event, [
       {
-        label: 'New session here',
+        label: 'New session',
         onClick: () => {
           useWorkspacesStore.getState().openWorkspace(group.workspacePath)
           useSessionsStore.getState().activate(null)
@@ -376,7 +376,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       ...(git?.isWorktree && git.mainRepoPath
         ? [
             {
-              label: 'Merge into main repo…',
+              label: 'Merge into main…',
               separatorAbove: true,
               onClick: () => void openWorktreeModal('merge'),
             },
@@ -667,9 +667,6 @@ function WorkspaceSwitcher(): React.JSX.Element {
           triggerRef={triggerRef}
           className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
         >
-          <div className="text-text-tertiary px-3 pb-1 pt-1 text-xs font-medium font-mono uppercase tracking-wide">
-            Workspaces
-          </div>
           {recents.map((ws) => (
             <MenuRow
               key={ws.path}
@@ -792,13 +789,15 @@ function SessionRow({
       ...(livePidexId
         ? [
             {
-              label: 'Suspend (free ~200 MB)',
+              label: 'Suspend',
+              hint: '~200 MB',
               onClick: () => void store.suspendSession(livePidexId),
             },
           ]
         : []),
       {
-        label: 'Fork (new branch session)',
+        label: 'Fork',
+        hint: 'new branch',
         separatorAbove: true,
         onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
       },
@@ -815,7 +814,8 @@ function SessionRow({
         onClick: () => void copySessionDebugInfo(meta, livePidexId),
       },
       {
-        label: 'Delete (move to trash)',
+        label: 'Delete',
+        hint: 'to trash',
         danger: true,
         separatorAbove: true,
         onClick: () => void store.deleteDiskSession(workspacePath, meta),

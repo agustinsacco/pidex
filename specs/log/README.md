@@ -48,3 +48,4 @@ to collide with.
 | 2026-08-23 | [Signing into subscription providers without leaving the app](2026-08-23-subscription-accounts.md)            |
 | 2026-08-23 | [Workspace order belongs to the user](2026-08-23-user-controlled-workspace-order.md)                          |
 | 2026-08-23 | [The e2e suite was lying twice](2026-08-23-e2e-isolation-and-the-missing-regression-test.md)                  |
+| 2026-08-26 | [Claude Code chords, and tighter menus](2026-08-26-shortcuts-and-menu-density.md)                             |

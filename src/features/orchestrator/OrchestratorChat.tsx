@@ -63,7 +63,8 @@ export function OrchestratorChat({
     const fleet = useFleetStore.getState()
     showContextMenu(event, [
       {
-        label: 'Review sessions (spends tokens)',
+        label: 'Review sessions',
+        hint: 'spends tokens',
         disabled: sweeping,
         onClick: () => void fleet.sweep(workspacePath, 'review'),
       },
@@ -71,11 +72,13 @@ export function OrchestratorChat({
       {
         // Picks up spawn-time changes (edited rules, a different model)
         // without losing the conversation.
-        label: 'Restart process (keeps the thread)',
+        label: 'Restart process',
+        hint: 'keeps the thread',
         onClick: () => void fleet.restart(workspacePath),
       },
       {
-        label: 'Reset thread (start fresh)',
+        label: 'Reset thread',
+        hint: 'starts fresh',
         separatorAbove: true,
         danger: true,
         onClick: reset,

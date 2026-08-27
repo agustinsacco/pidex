@@ -81,52 +81,44 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute right-0 top-full mt-1.5 w-72 py-1.5"
+          className="absolute right-0 top-full mt-1.5 w-60 py-1"
         >
           <MenuRow active={false} onClick={() => void command(exportHtml)}>
-            <span className="flex-1">Export as HTML…</span>
+            <span className="flex-1">Export HTML…</span>
+          </MenuRow>
+          <MenuRow active={false} onClick={() => void command(compactNow)}>
+            <span className="flex-1">Compact now…</span>
           </MenuRow>
           <Separator />
-          <MenuRow active={false} onClick={() => void command(compactNow)}>
-            <span className="flex-1">Compact context now…</span>
-          </MenuRow>
-          <MenuRow active={false} onClick={() => void command(toggleAutoCompaction)}>
+          {/* Toggles and cycles keep the menu open: they are settings you may
+              want to flip two of, not commands that take you elsewhere. */}
+          <MenuRow active={false} onClick={() => void toggleAutoCompaction()}>
             <span className="flex-1">Auto-compaction</span>
             <ToggleDot on={meta?.autoCompactionEnabled ?? true} />
           </MenuRow>
-          <MenuRow active={false} onClick={() => void command(toggleAutoRetry)}>
-            <span className="flex-1">Auto-retry on transient errors</span>
+          <MenuRow
+            active={false}
+            onClick={() => void toggleAutoRetry()}
+            title="Retry the turn automatically after a transient provider error"
+          >
+            <span className="flex-1">Auto-retry</span>
             <ToggleDot on={autoRetry} />
           </MenuRow>
           <Separator />
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-xs font-medium font-mono uppercase tracking-wide">
-            Steering delivery
-          </div>
-          <MenuRow active={false} onClick={() => void command(() => setSteeringMode('all'))}>
-            <span className="flex-1">All at once</span>
-            {meta?.steeringMode === 'all' && <Dot />}
-          </MenuRow>
-          <MenuRow
-            active={false}
-            onClick={() => void command(() => setSteeringMode('one-at-a-time'))}
-          >
-            <span className="flex-1">One at a time</span>
-            {meta?.steeringMode === 'one-at-a-time' && <Dot />}
-          </MenuRow>
-          <div className="text-text-tertiary px-3 pb-0.5 pt-1.5 text-xs font-medium font-mono uppercase tracking-wide">
-            Follow-up delivery
-          </div>
-          <MenuRow active={false} onClick={() => void command(() => setFollowUpMode('all'))}>
-            <span className="flex-1">All at once</span>
-            {meta?.followUpMode === 'all' && <Dot />}
-          </MenuRow>
-          <MenuRow
-            active={false}
-            onClick={() => void command(() => setFollowUpMode('one-at-a-time'))}
-          >
-            <span className="flex-1">One at a time</span>
-            {meta?.followUpMode === 'one-at-a-time' && <Dot />}
-          </MenuRow>
+          {/* One row per queue, cycling its two modes in place. Two labelled
+              sections of two radio rows each said the same thing in six. */}
+          <ModeRow
+            label="Steering"
+            title="How messages you send WHILE the agent is working are delivered"
+            mode={meta?.steeringMode ?? 'all'}
+            onCycle={(mode) => void setSteeringMode(mode)}
+          />
+          <ModeRow
+            label="Follow-ups"
+            title="How messages queued for AFTER the turn are delivered"
+            mode={meta?.followUpMode ?? 'all'}
+            onCycle={(mode) => void setFollowUpMode(mode)}
+          />
         </PopupMenu>
       )}
     </div>
@@ -137,8 +129,30 @@ function Separator(): React.JSX.Element {
   return <div className="border-border my-1 border-t" />
 }
 
-function Dot(): React.JSX.Element {
-  return <span className="bg-accent h-1.5 w-1.5 rounded-full" />
+const QUEUE_MODE_LABEL: Record<QueueMode, string> = {
+  all: 'All at once',
+  'one-at-a-time': 'One at a time',
+}
+
+/** Label plus the mode it is currently in; clicking steps to the other one. */
+function ModeRow({
+  label,
+  title,
+  mode,
+  onCycle,
+}: {
+  label: string
+  title: string
+  mode: QueueMode
+  onCycle: (mode: QueueMode) => void
+}): React.JSX.Element {
+  const next: QueueMode = mode === 'all' ? 'one-at-a-time' : 'all'
+  return (
+    <MenuRow active={false} title={title} onClick={() => onCycle(next)}>
+      <span className="flex-1">{label}</span>
+      <span className="text-text-tertiary text-base">{QUEUE_MODE_LABEL[mode]}</span>
+    </MenuRow>
+  )
 }
 
 function ToggleDot({ on }: { on: boolean }): React.JSX.Element {

@@ -6,6 +6,8 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { ChatImage } from './ChatImage'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
+import { cycleOrchestratorMode } from '@/features/orchestrator/OrchestratorModePicker'
+import { useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { ContextMeter } from './composer/ContextMeter'
 import {
   buildCommandEntries,
@@ -16,6 +18,7 @@ import {
 } from './composer/CommandMenu'
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
+import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
 import { Spinner } from '@/components/icons'
 import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
@@ -51,6 +54,10 @@ export function Composer({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
+  // Non-null only for an orchestrator thread. The mode PICKER lives in that
+  // thread's banner now (it is per-project, not per-message), but ⇧Tab still
+  // has to know whether this composer belongs to one.
+  const orchestratorWorkspace = useIsOrchestrator(sessionId)
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
@@ -59,6 +66,11 @@ export function Composer({
   const [activeIndex, setActiveIndex] = useState(0)
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  /** ↑/↓ prompt recall: offset from the newest prompt, null = live draft. */
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
+  const draftRef = useRef('')
+  /** Timestamp of the last bare Escape, for Claude Code's Esc-Esc rewind. */
+  const lastEscapeRef = useRef(0)
   useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
 
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
@@ -203,6 +215,7 @@ export function Composer({
       setImages([])
       setCommand(null)
       setMention(null)
+      setHistoryIndex(null)
 
       // Only non-command prompts render as user bubbles immediately; extension
       // commands echo through the event stream if they produce messages.
@@ -309,15 +322,61 @@ export function Composer({
       }
     }
 
+    // ⇧Tab cycles what the thread is allowed to do — Claude Code's mode
+    // switch, on the one thread here that has modes.
+    if (event.key === 'Tab' && event.shiftKey && orchestratorWorkspace) {
+      event.preventDefault()
+      void cycleOrchestratorMode(orchestratorWorkspace)
+      return
+    }
+
+    // ↑/↓ recall earlier prompts (Claude Code's REPL history). Browsing starts
+    // only from an empty composer and ends at the first keystroke (see the
+    // textarea's onChange), so the arrows go back to moving the caret the
+    // moment there is text of your own to move through.
+    const plainArrow = !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+    const browsing = historyIndex !== null
+    if (plainArrow && event.key === 'ArrowUp' && (browsing || text === '')) {
+      const recalled = recallPrevious(promptHistory(sessionId), historyIndex)
+      if (!recalled) return
+      event.preventDefault()
+      if (!browsing) draftRef.current = text
+      setHistoryIndex(recalled.index)
+      setText(recalled.text)
+      return
+    }
+    if (plainArrow && event.key === 'ArrowDown' && browsing) {
+      const recalled = recallNext(promptHistory(sessionId), historyIndex, draftRef.current)
+      if (!recalled) return
+      event.preventDefault()
+      setHistoryIndex(recalled.index)
+      setText(recalled.text)
+      return
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       // Alt/Cmd+Enter during streaming → follow-up; plain Enter → steer.
       void send(event.altKey || event.metaKey ? 'followUp' : 'steer')
       return
     }
-    if (event.key === 'Escape' && isStreaming) {
-      event.preventDefault()
-      void abort()
+    if (event.key === 'Escape') {
+      if (isStreaming) {
+        event.preventDefault()
+        lastEscapeRef.current = 0
+        void abort()
+        return
+      }
+      // Esc Esc → rewind, as in Claude Code. The first press is left alone so
+      // it can still blur/close whatever else is listening.
+      const now = Date.now()
+      if (now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
+        event.preventDefault()
+        lastEscapeRef.current = 0
+        useChatUiStore.getState().openForkPicker(sessionId)
+        return
+      }
+      lastEscapeRef.current = now
     }
   }
 
@@ -462,6 +521,9 @@ export function Composer({
             value={text}
             onChange={(event) => {
               setText(event.target.value)
+              // Typing leaves history-browsing mode: the next ↑ starts again
+              // from the newest prompt rather than from wherever it was.
+              setHistoryIndex(null)
               updateOverlays(
                 event.target.value,
                 event.target.selectionStart ?? event.target.value.length,
@@ -534,4 +596,27 @@ export function Composer({
 
 async function runCompact(sessionId: string): Promise<void> {
   await piCallOk(sessionId, { type: 'compact' })
+}
+
+/** Two Escapes inside this window count as the rewind chord, not two aborts. */
+const DOUBLE_ESCAPE_MS = 600
+
+/**
+ * The prompts this session has already sent, oldest first.
+ *
+ * Read straight off the transcript rather than kept as a second list: every
+ * send appends a user item (optimistically, before pi echoes it), so the
+ * transcript is already the history — and a session resumed from disk has one
+ * without pidex persisting anything of its own.
+ */
+function promptHistory(sessionId: string): string[] {
+  const items = useChatStore.getState().sessions[sessionId]?.items ?? []
+  const prompts: string[] = []
+  for (const item of items) {
+    if (item.kind !== 'user') continue
+    const text = item.text.trim()
+    // Consecutive duplicates (a retried prompt) would make ↑ look stuck.
+    if (text && text !== prompts[prompts.length - 1]) prompts.push(text)
+  }
+  return prompts
 }

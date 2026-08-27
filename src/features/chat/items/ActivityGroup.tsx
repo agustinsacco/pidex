@@ -11,6 +11,7 @@ import { ToolCard, ToolDetail } from '../tools/ToolCard'
 import { settledVerb } from '../tools/toolSummaries'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
+import { useChatUiStore } from '../uiState'
 
 /**
  * One run of agent activity — thinking and tool calls, merged across pi's
@@ -45,6 +46,7 @@ export const ActivityGroup = memo(function ActivityGroup({
 }): React.JSX.Element | null {
   /** null = follow the live/settled default; true/false = explicit user choice. */
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  const verbose = useChatUiStore((s) => s.verbose[sessionId] ?? false)
   const live = isActivityLive(steps, tools)
   const activeRun = active || live
 
@@ -58,10 +60,17 @@ export const ActivityGroup = memo(function ActivityGroup({
     wasActive.current = activeRun
   }, [activeRun])
 
+  // ⌃O flips the session's default open/closed state (uiState.verbose). Drop
+  // per-group overrides when it changes, or "expand everything" would skip
+  // exactly the groups the user had collapsed by hand.
+  useEffect(() => {
+    setUserOpen(null)
+  }, [verbose])
+
   const visible = hideThinking ? steps.filter((s) => s.block.type !== 'thinking') : steps
   if (visible.length === 0) return null
 
-  const open = activeRun || (userOpen ?? false)
+  const open = activeRun || (userOpen ?? verbose)
   const summary = summarizeActivity(visible, tools, (t) => settledVerb(t.toolName ?? ''))
 
   // Pair each thinking block onto the step that follows it (gutter mark);

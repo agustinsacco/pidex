@@ -52,10 +52,10 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
       <div className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <div>
-            <div className="text-lg font-semibold">Fork from an earlier message</div>
+            <div className="text-lg font-semibold">Rewind to an earlier message</div>
             <div className="text-text-tertiary text-sm">
-              The conversation rewinds to just before the chosen message; its text is placed in the
-              composer so you can edit and resend.
+              The thread rewinds to just before the message you pick, and its text comes back in the
+              composer to edit and resend.
             </div>
           </div>
           <button onClick={close} className="text-text-tertiary hover:text-text">
