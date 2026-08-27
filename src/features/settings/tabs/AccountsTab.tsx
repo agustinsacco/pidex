@@ -1,148 +1,301 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import clsx from 'clsx'
-import type { SubscriptionProviderStatus } from '@shared/models'
+import { useCallback, useEffect, useState } from 'react'
+import type { LoginFlowState, LoginProviderId, SubscriptionProviderStatus } from '@shared/models'
 import { Button } from '@/components/form'
+import { CheckIcon, Spinner } from '@/components/icons'
 import { TerminalView } from '@/features/terminal/TerminalView'
 
 /**
- * How often to re-check auth while the login terminal is open.
+ * Signing pi into a provider.
  *
- * pi writes `auth.json` when the OAuth callback lands, and tells us nothing —
- * there is no event to subscribe to, so polling is the only way to notice.
- * Three seconds is slow enough to be free and fast enough that the card flips
- * while the user is still looking at the terminal.
+ * The sign-in itself is pi's TUI, driven off-screen by the main process (see
+ * `electron/pi/login-flow.ts`). What the user sees here is a button per
+ * provider, their browser opening, and the row flipping to "Signed in" — the
+ * terminal below is the escape hatch for a provider whose prompts that driver
+ * does not know how to answer, not the normal path.
  */
-const POLL_MS = 3_000
-
 export function AccountsTab(): React.JSX.Element {
   const [providers, setProviders] = useState<SubscriptionProviderStatus[] | null>(null)
+  const [flow, setFlow] = useState<LoginFlowState | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [ptyId, setPtyId] = useState<string | null>(null)
-  const [spawnError, setSpawnError] = useState<string | null>(null)
-  const sentLogin = useRef(false)
 
   const refresh = useCallback(async (): Promise<void> => {
-    const next = await window.pidex.invoke('pi:subscriptionAuth')
-    setProviders(next)
+    setProviders(await window.pidex.invoke('pi:subscriptionAuth'))
   }, [])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  // Poll only while the terminal is open — this shells out to pi once per
-  // provider, so it has no business running when nothing can change.
-  useEffect(() => {
-    if (!ptyId) return
-    const timer = setInterval(() => void refresh(), POLL_MS)
-    return () => clearInterval(timer)
-  }, [ptyId, refresh])
+  useEffect(
+    () =>
+      window.pidex.onPiLoginState((state) => {
+        setFlow(state.phase === 'signed-in' || state.phase === 'cancelled' ? null : state)
+        if (state.phase === 'error') setError(state.message)
+        // Re-check on every terminal phase, not just success: a cancelled or
+        // failed attempt can still have written credentials before it stopped.
+        if (state.phase === 'signed-in' || state.phase === 'cancelled') void refresh()
+      }),
+    [refresh],
+  )
 
-  const openLogin = async (): Promise<void> => {
-    setSpawnError(null)
+  const signIn = async (providerId: LoginProviderId): Promise<void> => {
+    setError(null)
+    setFlow({ providerId, phase: 'starting' })
     try {
-      const { ptyId: id } = await window.pidex.invoke('pi:loginTerminal', 80, 20)
-      sentLogin.current = false
-      setPtyId(id)
-      /*
-       * pi's TUI needs a moment before it will accept input; typing into a
-       * half-started process drops the keystrokes. There is no ready signal on
-       * the PTY, so this is a delay — and it is why the command is still
-       * visible and re-typeable if it misses.
-       */
-      setTimeout(() => {
-        if (sentLogin.current) return
-        sentLogin.current = true
-        void window.pidex.invoke('pty:write', id, '/login\r')
-      }, 1_200)
-    } catch (error) {
-      setSpawnError(error instanceof Error ? error.message : String(error))
+      await window.pidex.invoke('pi:startLogin', providerId)
+    } catch (caught) {
+      setFlow(null)
+      setError(caught instanceof Error ? caught.message : String(caught))
     }
   }
 
-  const closeLogin = (): void => {
+  const cancel = (providerId: LoginProviderId): void => {
+    void window.pidex.invoke('pi:cancelLogin', providerId)
+    setFlow(null)
+  }
+
+  const openTerminal = async (): Promise<void> => {
+    setError(null)
+    try {
+      const { ptyId: id } = await window.pidex.invoke('pi:loginTerminal', 80, 20)
+      setPtyId(id)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    }
+  }
+
+  const closeTerminal = (): void => {
     if (ptyId) void window.pidex.invoke('pty:kill', ptyId)
     setPtyId(null)
     void refresh()
   }
 
+  const subscriptions = providers?.filter((p) => p.billing === 'subscription') ?? []
+  const balances = providers?.filter((p) => p.billing === 'balance') ?? []
+
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">Accounts</h2>
       <p className="text-text-secondary mt-1 text-base">
-        Sign pi into a provider with a subscription instead of an API key. Signed-in providers put
-        their models in the picker for every session.
+        Sign pi into a provider instead of pasting an API key. Signed-in providers put their models
+        in the picker for every session.
       </p>
 
-      <div className="border-border mt-4 divide-y rounded-lg border">
-        {providers === null && (
-          <div className="text-text-secondary px-3.5 py-3 text-base">Checking…</div>
+      {providers === null ? (
+        <div className="text-text-secondary mt-4 text-base">Checking…</div>
+      ) : (
+        <>
+          <ProviderGroup
+            title="Use a plan you already pay for"
+            providers={subscriptions}
+            flow={flow}
+            onSignIn={signIn}
+            onCancel={cancel}
+          />
+          {balances.length > 0 && (
+            <ProviderGroup
+              title="Billed per token"
+              caption="These sign in the same way, but usage is charged against a credit balance."
+              providers={balances}
+              flow={flow}
+              onSignIn={signIn}
+              onCancel={cancel}
+            />
+          )}
+        </>
+      )}
+
+      {error && <p className="text-danger mt-3 text-base">{error}</p>}
+
+      <div className="mt-5 flex items-center gap-4">
+        <button
+          onClick={() => void refresh()}
+          className="text-text-secondary hover:text-text text-base"
+        >
+          Refresh
+        </button>
+        {ptyId === null && (
+          <button
+            onClick={() => void openTerminal()}
+            className="text-text-tertiary hover:text-text text-base"
+          >
+            Open pi’s login terminal
+          </button>
         )}
-        {providers?.map((p) => (
-          <ProviderRow key={p.id} provider={p} />
-        ))}
       </div>
 
-      {spawnError && <p className="text-danger mt-3 text-base">Could not start pi: {spawnError}</p>}
-
-      {ptyId === null ? (
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={() => void openLogin()}>Sign in…</Button>
-          <button
-            onClick={() => void refresh()}
-            className="text-text-secondary hover:text-text text-base"
-          >
-            Refresh
-          </button>
-        </div>
-      ) : (
+      {ptyId !== null && (
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-text-secondary text-base">
-              Pick a provider in pi’s menu, then finish in your browser.
+              pi’s own <span className="font-mono">/login</span>. Type it and press Enter.
             </p>
-            <button onClick={closeLogin} className="text-text-secondary hover:text-text text-base">
+            <button
+              onClick={closeTerminal}
+              className="text-text-secondary hover:text-text text-base"
+            >
               Done
             </button>
           </div>
           <div className="border-border h-64 overflow-hidden rounded-lg border p-2">
             <TerminalView ptyId={ptyId} visible />
           </div>
-          <p className="text-text-tertiary mt-2 text-sm">
-            This is pi’s own <span className="font-mono">/login</span>. If the menu didn’t open,
-            type <span className="font-mono">/login</span> and press Enter.
-          </p>
         </div>
       )}
     </div>
   )
 }
 
-function ProviderRow({ provider }: { provider: SubscriptionProviderStatus }): React.JSX.Element {
-  const ready = provider.status === 'ready'
+function ProviderGroup({
+  title,
+  caption,
+  providers,
+  flow,
+  onSignIn,
+  onCancel,
+}: {
+  title: string
+  caption?: string
+  providers: SubscriptionProviderStatus[]
+  flow: LoginFlowState | null
+  onSignIn: (id: LoginProviderId) => Promise<void>
+  onCancel: (id: LoginProviderId) => void
+}): React.JSX.Element {
   return (
-    <div className="flex items-start justify-between gap-4 px-3.5 py-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-base font-medium">{provider.name}</span>
-          <span className="text-text-tertiary font-mono text-sm">{provider.id}</span>
-        </div>
-        <p className="text-text-secondary mt-0.5 text-sm">Requires {provider.requires}.</p>
-        {provider.caveat && <p className="text-text-tertiary mt-1 text-sm">{provider.caveat}</p>}
-        {provider.error && <p className="text-danger mt-1 text-sm">{provider.error}</p>}
+    <section className="mt-5">
+      <h3 className="text-text-secondary text-sm font-medium tracking-wide uppercase">{title}</h3>
+      {caption && <p className="text-text-tertiary mt-1 text-sm">{caption}</p>}
+      <div className="border-border mt-2 divide-y rounded-lg border">
+        {providers.map((provider) => (
+          <ProviderRow
+            key={provider.id}
+            provider={provider}
+            flow={flow?.providerId === provider.id ? flow : null}
+            // One sign-in at a time: pi writes a single auth.json, and two
+            // device flows racing it is a support ticket waiting to happen.
+            disabled={flow !== null && flow.providerId !== provider.id}
+            onSignIn={onSignIn}
+            onCancel={onCancel}
+          />
+        ))}
       </div>
-      <span
-        className={clsx(
-          'shrink-0 rounded-full px-2 py-0.5 text-sm',
-          ready
-            ? 'bg-success/15 text-success'
-            : provider.status === 'unknown'
-              ? 'bg-warning/15 text-warning'
-              : 'bg-surface-raised text-text-tertiary',
-        )}
-        title={provider.reason}
+    </section>
+  )
+}
+
+function ProviderRow({
+  provider,
+  flow,
+  disabled,
+  onSignIn,
+  onCancel,
+}: {
+  provider: SubscriptionProviderStatus
+  flow: LoginFlowState | null
+  disabled: boolean
+  onSignIn: (id: LoginProviderId) => Promise<void>
+  onCancel: (id: LoginProviderId) => void
+}): React.JSX.Element {
+  const ready = provider.status === 'ready'
+  const busy = flow !== null
+
+  return (
+    <div className="px-3.5 py-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-medium">{provider.name}</span>
+            {ready && (
+              <span className="bg-success/15 text-success inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm">
+                <CheckIcon size={11} />
+                Signed in
+              </span>
+            )}
+            {provider.status === 'unknown' && (
+              <span
+                className="bg-warning/15 text-warning rounded-full px-2 py-0.5 text-sm"
+                title={provider.reason ?? provider.error}
+              >
+                Unknown
+              </span>
+            )}
+          </div>
+          <p className="text-text-secondary mt-0.5 text-sm">Requires {provider.requires}.</p>
+          {provider.caveat && <p className="text-text-tertiary mt-1 text-sm">{provider.caveat}</p>}
+          {provider.error && <p className="text-danger mt-1 text-sm">{provider.error}</p>}
+        </div>
+
+        <div className="shrink-0">
+          {busy ? (
+            <button
+              onClick={() => onCancel(provider.id)}
+              className="text-text-secondary hover:text-text text-base"
+            >
+              Cancel
+            </button>
+          ) : (
+            <Button
+              variant="secondary"
+              disabled={disabled}
+              onClick={() => void onSignIn(provider.id)}
+            >
+              {ready ? 'Sign in again' : 'Sign in'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {flow && <LoginProgress flow={flow} />}
+    </div>
+  )
+}
+
+/** The middle of a sign-in: what pi is doing, and what the user must do. */
+function LoginProgress({ flow }: { flow: LoginFlowState }): React.JSX.Element | null {
+  if (flow.phase === 'starting') {
+    return (
+      <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
+        <Spinner />
+        Starting pi’s sign-in…
+      </div>
+    )
+  }
+
+  if (flow.phase !== 'awaiting-browser') return null
+
+  return (
+    <div className="border-border bg-surface-raised mt-3 rounded-md border p-3">
+      <div className="text-text-secondary flex items-center gap-2 text-sm">
+        <Spinner />
+        Waiting for you to finish in your browser.
+      </div>
+
+      {flow.userCode && (
+        <div className="mt-2.5">
+          {/* The device code is the step people miss: the browser page asks for
+              it, and it is nowhere else on screen. */}
+          <p className="text-text-tertiary text-sm">Enter this code on the page:</p>
+          <div className="mt-1 flex items-center gap-2">
+            <code className="border-border bg-surface rounded border px-2 py-1 font-mono text-base tracking-widest">
+              {flow.userCode}
+            </code>
+            <button
+              onClick={() => void navigator.clipboard.writeText(flow.userCode ?? '')}
+              className="text-text-secondary hover:text-text text-sm"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => void window.pidex.invoke('app:openExternal', flow.url)}
+        className="text-accent mt-2.5 block text-sm hover:underline"
       >
-        {ready ? 'Signed in' : provider.status === 'unknown' ? 'Unknown' : 'Not signed in'}
-      </span>
+        Browser didn’t open? Open the sign-in page again
+      </button>
     </div>
   )
 }

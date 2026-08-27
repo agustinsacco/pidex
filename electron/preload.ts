@@ -7,6 +7,7 @@ import type {
   ResourceSnapshot,
   SessionPush,
   UpdateState,
+  LoginFlowState,
 } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 
@@ -62,6 +63,8 @@ const api: PidexApi = {
   onResourceSample: (listener) => subscribe<[ResourceSnapshot]>('resources:sample', listener),
 
   onUpdateEvent: (listener) => subscribe<[UpdateState]>('updates:event', listener),
+
+  onPiLoginState: (listener) => subscribe<[LoginFlowState]>('pi:loginState', listener),
 
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 
