@@ -90,31 +90,6 @@ export interface SessionMeta {
  */
 export type SessionScanStatus = 'ok' | 'error'
 
-/** Rollup of usage across sessions (per workspace and grand total). */
-export interface UsageTotals {
-  cost: number
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  totalTokens: number
-  messages: number
-  toolCalls: number
-  sessionCount: number
-}
-
-export interface WorkspaceUsage {
-  /** The cwd sessions were recorded against (from each session header). */
-  workspacePath: string
-  sessions: SessionMeta[]
-  totals: UsageTotals
-}
-
-export interface UsageSummary {
-  workspaces: WorkspaceUsage[]
-  totals: UsageTotals
-}
-
 export interface WorkspaceSessionStats {
   sessionCount: number
   messages: number
@@ -735,55 +710,6 @@ export interface SubscriptionProviderStatus extends SubscriptionProvider {
   reason?: string
   /** Present only when the check itself failed. */
   error?: string
-}
-
-// ---------- resource monitor ----------
-
-/** One process tree's cost. RSS is in kilobytes, matching `ps rss=`. */
-export interface UsageTotal {
-  rssKb: number
-  /** Percent of ONE core, as `ps %cpu=` reports it (may exceed 100). */
-  cpuPercent: number
-  processCount: number
-}
-
-/** Per-session resource usage, split by what is spending it. */
-export interface SessionUsage {
-  sessionId: string
-  workspacePath: string
-  /** The pi subprocess and any tools it spawned. */
-  agent: UsageTotal
-  /** This session's terminal shells and whatever the user ran in them. */
-  terminals: UsageTotal
-  /** agent + terminals, de-duplicated by pid. */
-  total: UsageTotal
-  piPid?: number
-}
-
-export interface AppProcessUsage {
-  pid: number
-  type: string
-  name?: string
-  rssKb: number
-  cpuPercent: number
-}
-
-/** One monitor tick. */
-export interface ResourceSnapshot {
-  /** Epoch ms, stamped in main so every renderer agrees on tick times. */
-  at: number
-  /**
-   * False where per-process sampling is unavailable (Windows has no `ps`).
-   * The UI must say so rather than render zeroes as if they were measurements.
-   */
-  perSessionSupported: boolean
-  sessions: SessionUsage[]
-  /** pidex's own Electron processes (browser, renderers, GPU, utility). */
-  app: {
-    rssKb: number
-    cpuPercent: number
-    processes: AppProcessUsage[]
-  }
 }
 
 // ---------- updater ----------

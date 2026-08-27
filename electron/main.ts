@@ -6,7 +6,6 @@ import { ptyManager } from './pty/pty-manager'
 import { cancelAllLogins } from './pi/login-flow'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
-import { stopMonitor } from './resources/monitor'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
@@ -129,7 +128,7 @@ if (!singleInstance) {
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }
-    registerIpcHandlers(isDev)
+    registerIpcHandlers()
     createWindow()
     // No-op unless packaged: dev and E2E must never poll GitHub.
     startUpdateChecks()
@@ -160,7 +159,6 @@ app.on('before-quit', (event) => {
   quitting = true
   // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
   // filesystem watchers so no chokidar handles or debounce timers outlive us.
-  stopMonitor()
   stopUpdateChecks()
   // Before killAll: a login flow polls its own pty on a timer, and killing the
   // pty out from under it would leave that timer running against a dead id.

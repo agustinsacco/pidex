@@ -3,10 +3,11 @@ import {
   basename,
   dirname,
   isWorktreeFolder,
+  projectName,
+  projectPathFor,
   splitPath,
   workspaceName,
   worktreeAwareName,
-  projectName,
 } from './path'
 
 describe('isWorktreeFolder', () => {
@@ -94,34 +95,72 @@ describe('workspaceName', () => {
   })
 })
 
-describe('projectName', () => {
-  it('names the project, never the worktree folder or its branch', () => {
+describe('projectPathFor', () => {
+  it('returns the path itself outside a worktree', () => {
+    expect(projectPathFor('/Users/u/pidex')).toBe('/Users/u/pidex')
+    expect(projectPathFor('/Users/u/pidex', { isWorktree: false })).toBe('/Users/u/pidex')
+  })
+
+  it('prefers git mainRepoPath, which covers a worktree anywhere on disk', () => {
     expect(
-      projectName('/Users/u/pidex/.pidex/worktrees/main', {
+      projectPathFor('/tmp/detached-checkout', {
+        isWorktree: true,
+        mainRepoPath: '/Users/u/pidex',
+      }),
+    ).toBe('/Users/u/pidex')
+  })
+
+  it('falls back to the path shape when git info has not loaded', () => {
+    // The reported bug: every surface renders once before `git:infoBatch`
+    // answers, and one whose cwd never gets an answer renders that way for
+    // good. Without this branch the top bar sat on the branch slug.
+    expect(projectPathFor('/Users/u/pidex/.pidex/worktrees/hey-2')).toBe('/Users/u/pidex')
+    expect(projectPathFor('C:\\Users\\u\\pidex\\.pidex\\worktrees\\hey-2')).toBe(
+      'C:\\Users\\u\\pidex',
+    )
+  })
+
+  it('still resolves the repo when git reports isWorktree false', () => {
+    // Stale or partial git info must not resurrect the folder basename: the
+    // path shape alone proves this is a worktree pidex made.
+    expect(
+      projectPathFor('/Users/u/pidex/.pidex/worktrees/main', {
+        isWorktree: false,
+        mainRepoPath: '/Users/u/pidex',
+      }),
+    ).toBe('/Users/u/pidex')
+  })
+
+  it('cuts at the outermost worktree folder', () => {
+    expect(projectPathFor('/Users/u/pidex/.pidex/worktrees/a/.pidex/worktrees/b')).toBe(
+      '/Users/u/pidex',
+    )
+  })
+})
+
+describe('projectName', () => {
+  it('names the repo, never the worktree folder or its branch', () => {
+    // A worktree folder is named after its branch, so its basename read as if
+    // the user had switched projects. The branch has its own control.
+    expect(projectName('/Users/u/pidex/.pidex/worktrees/hey-2')).toBe('pidex')
+    expect(
+      projectName('/Users/u/pidex/.pidex/worktrees/hey-2', {
         isWorktree: true,
         mainRepoPath: '/Users/u/pidex',
       }),
     ).toBe('pidex')
   })
 
-  it('falls back to the folder basename outside a worktree', () => {
-    expect(projectName('/Users/u/pidex', { isWorktree: false })).toBe('pidex')
-    expect(projectName('/Users/u/pidex')).toBe('pidex')
+  it('is the folder basename for an ordinary workspace', () => {
+    expect(projectName('/Users/u/games')).toBe('games')
   })
 })
 
 describe('worktreeAwareName', () => {
-  it('falls back to the folder basename when there is no git info', () => {
-    expect(worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main')).toBe('main')
-  })
-
-  it('falls back to the folder basename outside a worktree', () => {
-    expect(worktreeAwareName('/Users/u/pidex', { isWorktree: false })).toBe('pidex')
-  })
-
-  it('uses "repo (branch)" for a linked worktree, not the folder name', () => {
-    // The regression this guards: a worktree folder named after its own
-    // branch (".../worktrees/main") must not read as if the app were "main".
+  // The window title only. It is one line with nowhere else to put the
+  // branch; every in-app surface sits under a top bar that names the folder
+  // and the branch separately, and uses `projectName`.
+  it('appends the branch for a linked worktree', () => {
     expect(
       worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
         isWorktree: true,
@@ -131,7 +170,7 @@ describe('worktreeAwareName', () => {
     ).toBe('pidex (main)')
   })
 
-  it('falls back to just the repo name when the branch is unknown', () => {
+  it('is just the project when the branch is unknown', () => {
     expect(
       worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
         isWorktree: true,
@@ -140,13 +179,13 @@ describe('worktreeAwareName', () => {
     ).toBe('pidex')
   })
 
-  it('ignores mainRepoPath when isWorktree is false', () => {
-    expect(
-      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
-        isWorktree: false,
-        mainRepoPath: '/Users/u/pidex',
-        branch: 'main',
-      }),
-    ).toBe('main')
+  it('names the project, not the folder, before git info arrives', () => {
+    // It delegates to `projectName`, so it inherits the path-shape fallback:
+    // this used to read "main" for the pidex repo.
+    expect(worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main')).toBe('pidex')
+  })
+
+  it('is the folder basename for an ordinary workspace', () => {
+    expect(worktreeAwareName('/Users/u/games')).toBe('games')
   })
 })

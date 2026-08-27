@@ -44,34 +44,62 @@ export function isWorktreeFolder(path: string): boolean {
 }
 
 /**
- * Display name that understands linked worktrees: `repoName (branch)` rather
- * than the worktree folder's own basename. Worktree folders are commonly
- * named after their branch (`.../worktrees/main`), which made the sidebar and
- * window title show "main" for what is actually the `pidex` repo.
+ * The project a path belongs to: the repo root for a linked worktree, the path
+ * itself for anything else.
+ *
+ * Two sources, in order, because they fail in opposite directions:
+ *
+ *  1. `git.isWorktree` + `mainRepoPath`, which is authoritative and works for
+ *     a worktree anywhere on disk — but arrives over a batched `git:infoBatch`
+ *     round trip, so it is `undefined` on the first paint of every surface.
+ *  2. The path shape `<repo>/.pidex/worktrees/<name>`, which needs no I/O and
+ *     is true the moment the path exists. It only knows about worktrees pidex
+ *     created, which is why it is the fallback and not the primary.
+ *
+ * Without step 2 the identity flashed — or stuck, whenever git info for that
+ * cwd never loaded — on the worktree folder's own basename. Those folders are
+ * named after their branch, so the top bar read "hey-2" for the `pidex` repo.
  */
-export function worktreeAwareName(
-  workspacePath: string,
-  git?: { isWorktree?: boolean; mainRepoPath?: string; branch?: string },
+export function projectPathFor(
+  path: string,
+  git?: { isWorktree?: boolean; mainRepoPath?: string },
 ): string {
-  const repo = projectName(workspacePath, git)
-  if (git?.isWorktree && git.mainRepoPath && git.branch) return `${repo} (${git.branch})`
-  return repo
+  if (git?.isWorktree && git.mainRepoPath) return git.mainRepoPath
+  return /^(.*?)[/\\]\.pidex[/\\]worktrees[/\\]/.exec(path)?.[1] ?? path
 }
 
 /**
- * Just the project, with no branch: `pidex` for every folder of the pidex
- * repo, worktrees included.
+ * Display name for "which project am I working in" — never a worktree folder.
  *
- * Separate from `worktreeAwareName` because the two answer different
- * questions, and surfaces that show both were saying the same thing twice.
- * The window title has nowhere else to put the branch, so it keeps the long
- * form; the sidebar sits directly under a top bar whose chips already name
- * the folder and the branch, so it uses this.
+ * Use this for every surface that answers that question: the top bar chip, the
+ * sidebar switcher and row badges, the home screen, the orchestrator banner.
+ * The *branch* is a separate question with its own controls (`BranchControl`,
+ * the row subtitle), so this name deliberately carries no branch — showing one
+ * here put two answers on screen for a question the user asked once.
+ *
+ * Surfaces that are about a worktree *as a worktree* (`BranchPicker`,
+ * `RemoveWorktreeModal`) want the folder name and should keep calling
+ * `workspaceName` directly.
  */
 export function projectName(
-  workspacePath: string,
+  path: string,
   git?: { isWorktree?: boolean; mainRepoPath?: string },
 ): string {
-  if (git?.isWorktree && git.mainRepoPath) return workspaceName(git.mainRepoPath)
-  return workspaceName(workspacePath)
+  return workspaceName(projectPathFor(path, git))
+}
+
+/**
+ * `projectName`, plus the branch in parentheses for a linked worktree.
+ *
+ * Only the window title uses this: it is one line with nowhere else to put the
+ * branch, unlike every in-app surface, which sits under a top bar whose chips
+ * already name the folder and the branch separately.
+ */
+export function worktreeAwareName(
+  path: string,
+  git?: { isWorktree?: boolean; mainRepoPath?: string; branch?: string },
+): string {
+  const repo = projectName(path, git)
+  if (git?.isWorktree && git.mainRepoPath && git.branch) return `${repo} (${git.branch})`
+  return repo
 }

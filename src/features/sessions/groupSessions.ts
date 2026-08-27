@@ -1,7 +1,7 @@
 import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
-import { workspaceName } from '@/lib/path'
+import { projectPathFor, workspaceName } from '@/lib/path'
 
 export interface GroupedSessions {
   /**
@@ -66,7 +66,10 @@ export function groupSessionsByProject(
   >()
   for (const path of knownWorkspaces) {
     const git = gitByCwd[path]
-    const projectKey = git?.isWorktree && git.mainRepoPath ? git.mainRepoPath : path
+    // One group per project. Resolved through `projectPathFor` rather than
+    // git info alone: a worktree whose `git:infoBatch` answer has not landed
+    // would otherwise open its own group, headed by the branch slug.
+    const projectKey = projectPathFor(path, git)
     const metas = (disk[path] ?? []).filter(
       (m) => !isPinned(m) && !isOrchestratorSession(m, orchestratorPaths),
     )

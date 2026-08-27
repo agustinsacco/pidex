@@ -200,24 +200,6 @@ export function ChangesIcon({ size = 14, className }: IconProps): React.JSX.Elem
   )
 }
 
-/** Bar chart, for the usage rollup. */
-export function UsageIcon({ size = 14, className }: IconProps): React.JSX.Element {
-  return (
-    <svg {...strokeProps(size)} strokeLinecap="round" className={className}>
-      <path d="M3 20h18M7 20V10M12 20V4M17 20v-8" />
-    </svg>
-  )
-}
-
-/** Heartbeat trace, for the resource monitor. */
-export function ResourcesIcon({ size = 14, className }: IconProps): React.JSX.Element {
-  return (
-    <svg {...strokeProps(size)} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M3 12h4l2 6 4-14 2 8h6" />
-    </svg>
-  )
-}
-
 /**
  * The orchestrator: one node coordinating three others.
  *
