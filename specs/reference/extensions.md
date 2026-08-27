@@ -235,6 +235,26 @@ guards the behaviour (`items/claudeCliRendering.test.ts`).
   else**, so the UI makes no liveness claim: no progress, no result, and the
   CLI does not outlive the turn.
 
+  The tool's default is the destructive one. `Agent` backgrounds the
+  sub-agent unless the caller passes `run_in_background: false`, and its own
+  tool result promises "you will be notified automatically when it
+  completes" — true inside Claude Code's harness, false here. Measured
+  2026-08-27: one lane launched five, two more nested inside them, and all
+  seven were killed at the same millisecond having run 352 shell calls and
+  spent 28.6M cache-read tokens that nothing ever read. A **synchronous**
+  sub-agent completes and returns inside a single `claude -p` invocation
+  (verified directly), so the `subagentPolicy` directive block asks for that
+  form rather than banning the tool. It is prose, so it is a bias and not a
+  guarantee; `PI_CLAUDE_CLI_SETTINGS` → `--settings` with
+  `permissions.deny: ["Agent","Task"]` is the hard block if one is ever
+  needed, and it removes the tool from the model's list entirely.
+
+  Sub-agent **spend** is no longer invisible, though their transcripts still
+  are: from provider 0.4.10 the episode's billing comes from
+  `result.modelUsage` (every model, sub-agents included) rather than
+  `result.usage` (the main agent alone). Before that, a seven-agent turn
+  reported \$2.34 of a real \$24.
+
 **If you extend this** (tool request/response UX, live sub-agent trees): the
 provider still drops the two things you would need — the `tool_result`
 blocks the CLI feeds itself between cycles (so external tools have no result
