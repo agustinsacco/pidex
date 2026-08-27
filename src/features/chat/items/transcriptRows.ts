@@ -64,6 +64,12 @@ export interface ExternalToolInfo {
   headline?: string
   /** Longer secondary text (the agent's prompt), when recoverable. */
   detail?: string
+  /**
+   * Every argument that survived the preview cap, unescaped. Exposed so the
+   * row can be summarized with the same vocabulary as a pi tool call rather
+   * than re-parsing the marker somewhere else.
+   */
+  fields: Record<string, string>
 }
 
 /** Argument keys worth surfacing, most meaningful first. */
@@ -80,6 +86,29 @@ const HEADLINE_KEYS = [
 ]
 
 /**
+ * Unescape a JSON string body that may have been cut mid-escape.
+ *
+ * `JSON.parse('"…"')` is the only correct unescaper, but it throws on a
+ * fragment ending in a lone `\\` or a half-written `\\uXXXX`. Those tails are
+ * dropped first; whatever cannot be parsed even then is returned raw, since a
+ * slightly over-escaped label beats an empty row.
+ */
+function unescapeJsonFragment(value: string): string {
+  // A half-written `\uXXXX` first, then a dangling escape: an ODD number of
+  // trailing backslashes means the last one was going to escape whatever the
+  // cap removed. An even number is a complete `\\` and must survive.
+  const withoutPartialUnicode = value.replace(/\\u[0-9a-fA-F]{0,3}$/, '')
+  const trailingSlashes = /\\*$/.exec(withoutPartialUnicode)?.[0].length ?? 0
+  const safe =
+    trailingSlashes % 2 === 1 ? withoutPartialUnicode.slice(0, -1) : withoutPartialUnicode
+  try {
+    return JSON.parse(`"${safe}"`) as string
+  } catch {
+    return safe
+  }
+}
+
+/**
  * Best-effort read of a marker's argument preview.
  *
  * The provider caps the preview, so `args` is often TRUNCATED mid-string and
@@ -89,7 +118,7 @@ const HEADLINE_KEYS = [
  */
 export function externalToolInfo(name: string, args?: string): ExternalToolInfo {
   const isAgent = isAgentMarker(name)
-  if (!args) return { isAgent }
+  if (!args) return { isAgent, fields: {} }
 
   let fields: Record<string, string> = {}
   try {
@@ -103,23 +132,31 @@ export function externalToolInfo(name: string, args?: string): ExternalToolInfo 
     fields = {}
     const pair = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g
     for (let match = pair.exec(args); match; match = pair.exec(args)) {
-      try {
-        fields[match[1]!] = JSON.parse(`"${match[2]!}"`) as string
-      } catch {
-        fields[match[1]!] = match[2]!
-      }
+      fields[match[1]!] = unescapeJsonFragment(match[2]!)
+    }
+    // The pair scan needs a CLOSING quote, so a tool whose only interesting
+    // argument is the one the cap cut through recovers nothing at all. That
+    // is the common case, not an edge case: every `Bash` marker carries just
+    // `command`, so a long command rendered as a bare "Claude Code Bash" row
+    // with the command — the entire content of the row — missing.
+    // The trailing `\\?` matters: a cut landing right after a backslash leaves
+    // one with nothing to escape, which `\\.` cannot consume.
+    const dangling = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*\\?)$/.exec(args)
+    if (dangling && fields[dangling[1]!] === undefined) {
+      fields[dangling[1]!] = unescapeJsonFragment(dangling[2]!)
     }
   }
 
   if (isAgent) {
     return {
       isAgent,
+      fields,
       headline: fields['description'] || fields['subagent_type'] || undefined,
       detail: fields['prompt'] || undefined,
     }
   }
   const key = HEADLINE_KEYS.find((k) => fields[k])
-  return { isAgent, headline: key ? fields[key] : undefined }
+  return { isAgent, fields, headline: key ? fields[key] : undefined }
 }
 
 export interface ActivityStep {

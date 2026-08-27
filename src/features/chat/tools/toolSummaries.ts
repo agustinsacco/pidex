@@ -34,7 +34,7 @@ export function editDiffStats(tool: ToolState): DiffStats | null {
   return null
 }
 
-interface ToolSummary {
+export interface ToolSummary {
   /** Leading verb phrase, e.g. "Edited", "Ran a command". */
   label: string
   /** Emphasized object, e.g. file basename or command. */
@@ -272,3 +272,100 @@ export function truncate(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > max ? flat.slice(0, max - 1) + '…' : flat
 }
+
+/**
+ * The same summary shape for a tool Claude Code ran inside its own process.
+ *
+ * These arrive as `[Claude Code · Name {args}]` markers rather than as pi
+ * tool calls, and they used to render as `Claude Code | Bash | <raw arg>` —
+ * a different verb, a different type scale and no path cleanup, sitting
+ * directly above pi's own `Ran <command>` rows in the same run. Two
+ * vocabularies for the same act made one turn read like two transcripts.
+ *
+ * So the mapping is deliberate rather than incidental: Claude Code's tool
+ * names resolve to the verbs `summarizeTool` already uses, and the argument
+ * keys of both spellings (`path` and `file_path`) are accepted, because the
+ * marker carries Claude's names while pi's own tools carry pi's.
+ *
+ * What CANNOT be borrowed is status and output. The provider forwards the
+ * invocation and nothing else — no `tool_result` — so these rows are always
+ * settled and never expandable. Never infer a result here.
+ */
+export function summarizeExternalTool(
+  name: string,
+  fields: Record<string, string>,
+  workspacePath?: string,
+): ToolSummary {
+  const first = (...keys: string[]): string | undefined => {
+    for (const key of keys) if (fields[key]) return fields[key]
+    return undefined
+  }
+  const file = (...keys: string[]): string | undefined => {
+    const value = first(...keys)
+    return value ? basename(value) : undefined
+  }
+
+  switch (name) {
+    case 'Bash':
+    case 'BashOutput': {
+      const command = first('command')
+      const display = command ? cleanCommandForDisplay(command, workspacePath) : undefined
+      return {
+        label: 'Ran',
+        object: display ? truncate(display, 64) : 'a command',
+        mono: !!display,
+      }
+    }
+    case 'Read':
+    case 'NotebookRead':
+      return { label: 'Read', object: file('file_path', 'path', 'notebook_path') }
+    case 'Edit':
+    case 'MultiEdit':
+    case 'NotebookEdit':
+      return { label: 'Edited', object: file('file_path', 'path', 'notebook_path') }
+    case 'Write':
+      return { label: 'Created', object: file('file_path', 'path') }
+    case 'Grep':
+      return { label: 'Searched for', object: truncate(first('pattern') ?? '', 48), mono: true }
+    case 'Glob':
+      return {
+        label: 'Found files matching',
+        object: truncate(first('pattern') ?? '', 48),
+        mono: true,
+      }
+    case 'LS':
+      return { label: 'Listed', object: file('path') ?? 'directory' }
+    case 'WebSearch':
+      return { label: 'Searched the web for', object: truncate(first('query') ?? '', 64) }
+    case 'WebFetch':
+      return { label: 'Fetched', object: truncate(first('url') ?? '', 64), mono: true }
+    case 'Skill':
+      return { label: 'Used skill', object: first('skill', 'command') }
+    case 'ToolSearch':
+      return { label: 'Searched tools for', object: truncate(first('query') ?? '', 48) }
+    default: {
+      // Unknown tools keep their NAME as the emphasis — an MCP tool called
+      // `mcp__linear__save_issue` says more than any verb we could invent —
+      // and any headline argument trails it as context.
+      const detail = first(...EXTERNAL_HEADLINE_KEYS)
+      return {
+        label: 'Used',
+        object: name,
+        hint: detail ? truncate(detail.replace(/\s+/g, ' '), 48) : undefined,
+      }
+    }
+  }
+}
+
+/** Argument keys worth surfacing for an unrecognised external tool. */
+const EXTERNAL_HEADLINE_KEYS = [
+  'description',
+  'query',
+  'url',
+  'path',
+  'file_path',
+  'command',
+  'pattern',
+  'skill',
+  'prompt',
+]
