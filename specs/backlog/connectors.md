@@ -148,33 +148,29 @@ authoritative ([reference/extensions.md](../reference/extensions.md)).
 
 ## Findings
 
-| #   | Finding                                                                                                                                                                                                                                                                                                       | Status                                        |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| F1  | The status strip rendered the lane-loop payload as raw JSON.                                                                                                                                                                                                                                                  | **fixed** — `2002d12` (#88)                   |
-| F2  | `pi-ext/context-breakdown.ts` classifies MCP tools by a `mcp__` name prefix. That only matches namespace proxies (`mcp__<server>`) and `toolPrefix: "mcp"`. The adapter's **default** is `toolPrefix: "server"` → `<server>_<tool>` (`types.ts:741`), so direct connector tools are billed to pi's built-ins. | **open**                                      |
-| F3  | Settings → MCP has no auth affordance at all: no OAuth fields, no bearer token, no Connect. OAuth-only servers can be configured but never authorized from the UI.                                                                                                                                            | **open**                                      |
-| F4  | pi's RPC has no cancel for a pending dialog, and an empty answer aborts a successful OAuth flow (Trap 1).                                                                                                                                                                                                     | **open** — upstream constraint, design around |
-| F5  | `AdapterSessionStatus` reads the active session's status text, so Settings opened with no live session reports nothing about MCP.                                                                                                                                                                             | **open**                                      |
-| F6  | No catalog: every server is hand-typed, including its URL. Nothing prevents `mcp.notion.com/sse`.                                                                                                                                                                                                             | **open**                                      |
-| F7  | The context popover cannot attribute schema cost per MCP server, which is the whole cost of adding connectors.                                                                                                                                                                                                | **open**                                      |
+| #   | Finding                                                                                                                                                                                                                                                                                                       | Status                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| F1  | The status strip rendered the lane-loop payload as raw JSON.                                                                                                                                                                                                                                                  | **fixed** — `2002d12` (#88)                                                                    |
+| F2  | `pi-ext/context-breakdown.ts` classifies MCP tools by a `mcp__` name prefix. That only matches namespace proxies (`mcp__<server>`) and `toolPrefix: "mcp"`. The adapter's **default** is `toolPrefix: "server"` → `<server>_<tool>` (`types.ts:741`), so direct connector tools are billed to pi's built-ins. | **fixed** — `classifyToolServer`, all four prefix modes tested                                 |
+| F3  | Settings → MCP has no auth affordance at all: no OAuth fields, no bearer token, no Connect. OAuth-only servers can be configured but never authorized from the UI.                                                                                                                                            | **fixed** — Settings → Connectors                                                              |
+| F4  | pi's RPC has no cancel for a pending dialog, and an empty answer aborts a successful OAuth flow (Trap 1).                                                                                                                                                                                                     | **open** — upstream; contained by never auto-answering, guarded by `stores/connectors.test.ts` |
+| F5  | `AdapterSessionStatus` reads the active session's status text, so Settings opened with no live session reports nothing about MCP.                                                                                                                                                                             | **fixed** — the tab says status needs a live session instead of hiding it                      |
+| F6  | No catalog: every server is hand-typed, including its URL. Nothing prevents `mcp.notion.com/sse`.                                                                                                                                                                                                             | **fixed** — `features/connectors/catalog.ts`                                                   |
+| F7  | The context popover cannot attribute schema cost per MCP server, which is the whole cost of adding connectors.                                                                                                                                                                                                | **fixed** — `mcpByServer` + per-server rows in the meter                                       |
 
 ## Phases
 
-Each phase is one reviewable PR.
+All four landed in one pass; deviations are recorded in the log entry.
 
-1. **Catalog + config.** `src/features/settings/connectors.ts` (static, the
-   shape of `catalogue.ts`), a `connectors` settings tab, per-row Add using the
-   verified URL, region/site/read-only options, Slack's credential step. Writes
-   go through the existing `mcp:upsertServer`. Closes F6, part of F3.
-2. **Connect / disconnect.** `mcp:startConnect`, `mcp:cancelConnect`,
-   `mcp:logout` + a `mcp:connectState` push channel modelled on
-   `pi:loginState` (`electron/ipc/pi-auth-handlers.ts`), the dialog
-   interception, `shell.openExternal`, the waiting card and the paste
-   fallback. Closes F3, contains F4.
-3. **Honest status.** `pi-ext/mcp-status.ts` + `pidex-mcp-status` parsing +
-   per-row state and tool counts + a clickable footer entry. Closes F5.
-4. **Context inspector.** Per-server MCP grouping and the prefix fix. Closes
-   F2 and F7.
+1. **Catalog + config.** Done — `src/features/connectors/catalog.ts`, the
+   Connectors tab, per-row Add with region/site/read-only options and Slack's
+   credential step, written through the existing `mcp:upsertServer`.
+2. **Connect / disconnect.** Done — but entirely in the renderer over existing
+   IPC (`piCommand` + `app:openExternal`), not the planned `mcp:startConnect`
+   channel and hidden session. The main process gained no code.
+3. **Honest status.** Done — `pi-ext/mcp-status.ts` → `pidex-mcp-status` →
+   per-row badges and a clickable footer chip.
+4. **Context inspector.** Done — per-server MCP grouping and the prefix fix.
 
 ## Verification
 

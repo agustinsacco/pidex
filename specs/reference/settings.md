@@ -29,4 +29,10 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 - Reference sheet of all app shortcuts (read-only v1), grouped App / Chat / Editor & terminal.
 
+## Connectors and MCP
+
+- **Connectors**: the curated OAuth catalog (Linear, Notion, Braintrust, Datadog, Fellow, Slack) — add, sign in, reconnect, remove. Signing in drives the MCP adapter's own `/mcp-auth` command in a live session; pidex holds no tokens.
+- **MCP**: the `mcp.json` resolution chain, custom servers, and raw JSON repair.
+- Both are specified in [mcp.md](mcp.md).
+
 pidex's own prefs live in electron-store; pi's config stays in pi's files — the two are never mixed.

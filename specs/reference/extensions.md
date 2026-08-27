@@ -149,6 +149,11 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 | `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](../build/07-artifacts.md)) |
 | `context-breakdown.ts` | measures context composition — the parts are only visible in-process           |
 | `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout         |
+| `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread     |
+| `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus         |
+
+Plus `orchestrator.ts` and `lane-loop.ts`, loaded only for the sessions that
+need them (orchestrator sessions and lanes respectively).
 
 `worktree-paths.ts` is the only pidex code that can refuse a tool call. A
 session in `.pidex/worktrees/<name>` was observed reading files out of the main
@@ -170,26 +175,38 @@ actually occupy context) while `getActiveTools()` returns **names** — using
 the latter for sizing reports a handful of tokens for a tool set costing
 thousands; and it publishes at rest (`session_start`, `agent_settled`,
 `turn_end`), never mid-stream, because a per-delta recompute walks the whole
-branch on every token.
+branch on every token. It also attributes MCP schema cost **per server**,
+which needs the adapter's server names: those arrive on pi's shared event bus
+(`pi-mcp-adapter/status/v1`), because the tool-name prefix alone cannot say
+which server a tool belongs to under the adapter's default `toolPrefix`.
+
+`mcp-status.ts` exists for the same reason in the other direction: the adapter
+knows each server's state (connected / needs-auth / failed / cached /
+disabled) and publishes it on that bus, but pi's RPC has no channel for it, so
+without this extension a front-end can only read the adapter's one-line prose
+footer. It forwards the snapshot verbatim — no rewording, no inference.
 
 ### The status channel is a wire contract
 
 Both bundled extensions and provider packages talk to pidex's UI the same
 way: `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the
-per-session map in `stores/extensionUi.ts`. Two keys are load-bearing today:
+per-session map in `stores/extensionUi.ts`. Three keys are load-bearing today:
 
-| Key                       | Emitter                            | Consumer                                      |
-| ------------------------- | ---------------------------------- | --------------------------------------------- |
-| `pidex-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter |
-| `claude-rate-limit`       | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter        |
+| Key                       | Emitter                            | Consumer                                       |
+| ------------------------- | ---------------------------------- | ---------------------------------------------- |
+| `pidex-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter  |
+| `pidex-mcp-status`        | `pi-ext/mcp-status.ts`             | `connectors/mcpStatus.ts` → Connectors, footer |
+| `claude-rate-limit`       | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter         |
 
-The second crosses a repo boundary, so its shape is API — it is documented
+The last one crosses a repo boundary, so its shape is API — it is documented
 on the emitting side in that repo's `docs/ARCHITECTURE.md`, and changing it
-there breaks rendering here with no compile error. Rules for both: the
+there breaks rendering here with no compile error. Rules for all three: the
 payload is JSON in a string, every parser returns `null` rather than
 throwing on garbage, and a missing key means "render nothing", never an
-empty section. Status pushes must never be able to break a turn — the
-emitters swallow their own errors for that reason.
+empty section. A structured key must also be listed in
+`STRUCTURED_STATUS_KEYS` (`features/extension-ui/ExtensionUiHosts.tsx`) or the
+status strip renders its JSON as prose. Status pushes must never be able to
+break a turn — the emitters swallow their own errors for that reason.
 
 ## How provider transcripts render
 
