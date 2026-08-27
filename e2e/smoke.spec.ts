@@ -1034,6 +1034,72 @@ test('home composer: grey focus border, top-bar chip popovers, and model picker'
   }
 })
 
+test('model picker: lexical search across providers, family grouping, stars', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    await page.getByTestId('home-model-picker').click()
+    const search = page.getByTestId('model-search')
+    await expect(search).toBeVisible()
+    const rows = page.getByTestId('model-row')
+
+    // The catalogue offers Claude Opus 5 four ways: pi's native provider, the
+    // Claude Code CLI provider, and two Bedrock entries. One family header,
+    // four routes — the case a flat list of identical names cannot express.
+    await search.fill('opus')
+    await expect(rows).toHaveCount(4)
+    // The header is uppercased in CSS only, so match the underlying text.
+    await expect(page.getByTestId('model-list')).toContainText('Claude Opus 5')
+    // Every row names its provider, because the display names are identical.
+    await expect(rows.nth(0)).toContainText('anthropic')
+
+    // Terms AND together in any order, and `aws` resolves to amazon-bedrock —
+    // a provider nobody spells out in full.
+    await search.fill('opus aws')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.filter({ hasText: 'amazon-bedrock' })).toHaveCount(2)
+    await search.fill('aws opus')
+    await expect(rows).toHaveCount(2)
+
+    // The bare Bedrock foundation id stays visible and stays unselectable:
+    // hiding it would make "where did Opus go?" unanswerable.
+    await expect(rows.filter({ hasText: /inference profile/ })).toHaveCount(1)
+    await expect(rows.first()).toBeDisabled()
+
+    // Separators are noise.
+    await search.fill('opus-5')
+    await expect(rows).toHaveCount(4)
+
+    // Negation and field qualifiers.
+    await search.fill('opus -aws')
+    await expect(rows).toHaveCount(2)
+    await search.fill('provider:openai')
+    await expect(rows).toHaveCount(1)
+    await expect(rows.first()).toHaveAttribute('title', 'openai/gpt-5')
+
+    // A miss says so rather than falling back to the whole catalogue.
+    await search.fill('llama')
+    await expect(rows).toHaveCount(0)
+    await expect(page.getByText(/No models match/)).toBeVisible()
+
+    // Starring survives closing and reopening the menu.
+    await search.fill('provider:openai')
+    await page
+      .getByRole('button', { name: /^Star / })
+      .first()
+      .click()
+    await page.keyboard.press('Escape')
+    await page.getByTestId('home-model-picker').click()
+    await expect(page.getByTestId('model-list')).toContainText('Starred')
+    // Twice: once in the Starred shortcut, once in its place in the catalogue.
+    await expect(page.getByRole('button', { name: /^Unstar GPT-5$/ })).toHaveCount(2)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('artifact pane scrolls a long document', async () => {
   const harness = await launch()
   const { page } = harness

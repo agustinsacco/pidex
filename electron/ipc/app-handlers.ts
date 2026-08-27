@@ -13,6 +13,7 @@ import {
   setClaudeSystemPrompt,
   setFontPrefs,
   setLastSession,
+  setModelPicks,
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
@@ -53,6 +54,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)
+  })
+
+  handle('app:setModelPicks', (_event, picks) => {
+    setModelPicks(picks)
   })
 
   handle('app:setLastSession', (_event, sessionPath) => {

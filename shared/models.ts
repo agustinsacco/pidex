@@ -522,6 +522,11 @@ export interface AppPrefs {
   lastSessionPath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
+  /**
+   * Model picker memory, keyed `provider/id` (the same identity the picker
+   * uses — a model is only ever "the same" if the route to it is too).
+   */
+  modelPicks: ModelPicks
   /** Sidebar workspace groups the user collapsed, by workspace path. */
   collapsedWorkspaces: string[]
   /**
@@ -558,10 +563,34 @@ export interface AppPrefs {
  */
 export type ClaudeSystemPromptMode = 'claude' | 'pi'
 
+/** Starred and recently used models, keyed `provider/id`, plus how to group them. */
+export interface ModelPicks {
+  /** User-ordered; these sort to the top of the picker. */
+  starred: string[]
+  /** Most-recent-first, bounded by {@link MAX_RECENT_MODELS}. */
+  recent: string[]
+  /**
+   * Whether the idle picker buckets by model family ("which Opus 5?") or by
+   * provider ("what do I have from whom?"). Persisted because it is a habit,
+   * not a per-open decision.
+   */
+  groupMode: 'family' | 'provider'
+}
+
+/**
+ * How many recent models to remember. Long enough to cover the handful anyone
+ * rotates between, short enough that the "Recent" section stays a shortcut
+ * rather than a second copy of the catalogue.
+ */
+export const MAX_RECENT_MODELS = 8
+
+export const DEFAULT_MODEL_PICKS: ModelPicks = { starred: [], recent: [], groupMode: 'family' }
+
 export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'dark',
   recentWorkspaces: [],
   pinnedSessions: [],
+  modelPicks: DEFAULT_MODEL_PICKS,
   collapsedWorkspaces: [],
   seenSessions: {},
   fonts: DEFAULT_FONT_PREFS,

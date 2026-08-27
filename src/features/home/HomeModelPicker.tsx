@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { ThinkingLevel, ThinkingLevelMap } from '@shared/rpc'
+import type { ModelCost, ThinkingLevel, ThinkingLevelMap } from '@shared/rpc'
 import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { ThinkingMenu, thinkingLabel } from '@/features/chat/composer/ThinkingMenu'
@@ -18,6 +18,10 @@ interface CatalogueModel {
   provider: string
   reasoning: boolean
   thinkingLevelMap?: ThinkingLevelMap | null
+  /** Comparison metadata for the menu rows; absent when pi could not be run. */
+  contextWindow?: number
+  cost?: ModelCost
+  input?: string[]
 }
 
 /**
@@ -134,7 +138,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
           }}
           onClose={() => setOpen(null)}
           emptyText="No models found in pi's models.json. The next session starts with pi's default model — you can switch in the session composer once it's running."
-          className="absolute bottom-full right-0 mb-2 w-72"
+          className="absolute bottom-full right-0 mb-2 w-[30rem] max-w-[90vw]"
         />
       )}
 
