@@ -56,6 +56,7 @@ function bundledExtensions(): string[] {
     bundledExtensionPath('worktree-paths.ts'),
     bundledExtensionPath('tool-name-guard.ts'),
     bundledExtensionPath('lane-loop.ts'),
+    bundledExtensionPath('mcp-status.ts'),
   ]
 }
 

@@ -139,8 +139,8 @@ you want to watch.
   the publish workflow only ships a version npm does not already have.
   Rate-limit percentages need >= 0.4.9.
 
-- **pidex ships five extensions that run inside pi's process** (`pi-ext/`,
-  loaded with `-e`; the bundled four are listed in `bundledExtensions()` in
+- **pidex ships seven extensions that run inside pi's process** (`pi-ext/`,
+  loaded with `-e`; the bundled six are listed in `bundledExtensions()` in
   `electron/ipc/pi-session-handlers.ts`, plus `orchestrator.ts` for
   orchestrator sessions only). They are the only pidex code with a say inside
   a turn, and two of them can change or refuse what the model did:
@@ -161,15 +161,23 @@ you want to watch.
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
     See [specs/log/2026-08-26-orchestrator-controls.md](specs/log/2026-08-26-orchestrator-controls.md).
-- **Two UI surfaces are fed by extensions, not by RPC.** The context meter's
+- **Three UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
-  into every session) and its plan-limits section from the Claude provider
-  package — both over `ctx.ui.setStatus` into `stores/extensionUi.ts`. The
-  second crosses a repo boundary, so nothing here fails to compile when it
+  into every session), its plan-limits section from the Claude provider
+  package, and per-server MCP state from `pi-ext/mcp-status.ts` — all over
+  `ctx.ui.setStatus` into `stores/extensionUi.ts`. The provider one crosses a
+  repo boundary, so nothing here fails to compile when it
   changes; the keys and their rules are in
   [specs/reference/extensions.md](specs/reference/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
+- **Connecting an MCP server never puts a token in pidex.** The adapter owns
+  OAuth and the OS credential store; pidex writes `mcp.json` and drives the
+  adapter's own `/mcp-auth` command (an extension command, so no model runs).
+  And it must **never auto-answer** the adapter's "paste the callback URL"
+  prompt: pi's RPC has no dialog cancel, so an empty answer wins the race
+  against the loopback callback and kills a flow that already succeeded. See
+  [specs/reference/mcp.md](specs/reference/mcp.md#connectors-settings--connectors).
 
 ## Conventions
 

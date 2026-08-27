@@ -18,6 +18,8 @@ export interface ContextBreakdown {
   contextWindow: number | null
   parts: { messages: number; systemPrompt: number; tools: number; mcpTools: number }
   counts: { tools: number; mcpTools: number; messages: number }
+  /** Approximate MCP schema cost per server. Absent from older payloads. */
+  mcpByServer: Record<string, { tokens: number; count: number }>
   approximate: boolean
 }
 
@@ -59,11 +61,51 @@ export function parseContextBreakdown(statusText: string | undefined): ContextBr
         mcpTools: num(parsed.counts?.mcpTools),
         messages: num(parsed.counts?.messages),
       },
+      mcpByServer: parseByServer(parsed.mcpByServer),
       approximate: parsed.approximate !== false,
     }
   } catch {
     return null
   }
+}
+
+/**
+ * Per-server MCP cost, rebuilt defensively: the extension is a separate file
+ * loaded into pi, so a session started by an older pidex build sends a payload
+ * without this key. Missing means "no per-server detail", never zero cost.
+ */
+function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: ContextBreakdown['mcpByServer'] = {}
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!name || !value || typeof value !== 'object') continue
+    const record = value as { tokens?: unknown; count?: unknown }
+    const tokens = typeof record.tokens === 'number' && record.tokens >= 0 ? record.tokens : 0
+    const count = typeof record.count === 'number' && record.count >= 0 ? record.count : 0
+    if (tokens === 0 && count === 0) continue
+    out[name] = { tokens, count }
+  }
+  return out
+}
+
+/**
+ * Per-server MCP rows for the popover, largest first and scaled to pi's total
+ * the same way the slices are, so the numbers agree with the bar above them.
+ */
+export function mcpServerRows(
+  breakdown: ContextBreakdown,
+  total: number,
+): Array<{ name: string; tokens: number; count: number }> {
+  const parts = breakdown.parts
+  const estimated = parts.messages + parts.systemPrompt + parts.tools + parts.mcpTools
+  const scale = estimated > 0 && total > 0 ? total / estimated : 0
+  return Object.entries(breakdown.mcpByServer)
+    .map(([name, value]) => ({
+      name,
+      tokens: Math.round(value.tokens * scale),
+      count: value.count,
+    }))
+    .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name))
 }
 
 /**
