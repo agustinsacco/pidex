@@ -145,6 +145,18 @@ temp dir is a symlink, so git reports `/private/var/...` where the test says
 `/var/...`. Production lookups already match on `path || realPath`; the test
 now does the same.
 
+## One e2e guard was resting on the old latency
+
+`reopens the last session on relaunch` waits for a sidebar row before closing
+the app, because `lastSessionPath` is only persisted once `get_state` returns
+the session's file. But `PendingSessionRow` carries the same `session-row`
+testid, so a bare match was already satisfied before any file existed — the
+guard proved nothing and only held because starting a chat was slow enough for
+the disk write to win the race anyway. Taking ~0.9s of git off the send path
+made it lose, and the test failed. It now waits for
+`[data-testid="session-row"]:not([data-pending])`, which is the signal it
+always meant.
+
 ## Tests
 
 - `electron/pi/__tests__/print-mode.test.ts` (new) — stdin-EOF fixture,
