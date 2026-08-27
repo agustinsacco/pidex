@@ -684,6 +684,12 @@ select:focus:not(:focus-visible) {
  * Shimmering the actual glyphs rather than swapping in a skeleton bar is the
  * point: the provisional title is real, readable, useful text — it just is not
  * final. A skeleton would hide information the user already has.
+ *
+ * **Exactly one surface may use this: the top bar's session title.** It was
+ * on four (both sidebar row types, the top bar and the branch chip), so
+ * starting a chat set three or four continuous animations running at once in
+ * the two places the user was already watching change. The others carry the
+ * pending state in a tooltip and animate only the arrival (`.name-enter`).
  */
 .name-pending {
   background: linear-gradient(

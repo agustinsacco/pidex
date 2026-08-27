@@ -1,4 +1,4 @@
-import type { GitInfo, SessionMeta } from '@shared/models'
+import type { GitInfo } from '@shared/models'
 import { relativeTimeShort } from '@/lib/time'
 import { formatCost } from '@/lib/format'
 
@@ -10,12 +10,24 @@ export interface SubtitleSegment {
 }
 
 /**
+ * The two fields a subtitle needs, rather than a whole `SessionMeta`.
+ *
+ * A live session with no file on disk yet has no `SessionMeta` at all, and it
+ * needs this same subtitle — pi does not write a session file until a turn
+ * ends, so that row is on screen for the length of the first turn.
+ */
+export interface SubtitleSource {
+  mtimeMs: number
+  cost: number
+}
+
+/**
  * Sidebar row subtitle: `2m · ⌥wt · ⎇ branch · ±3 · $1.24`.
  *
  * Everything after the timestamp is optional and data-driven; git segments
  * come from the batched per-cwd summary and may lag a refresh behind.
  */
-export function sessionSubtitle(meta: SessionMeta, git: GitInfo | undefined): SubtitleSegment[] {
+export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined): SubtitleSegment[] {
   const segments: SubtitleSegment[] = [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
   if (git?.isRepo) {
     if (git.isWorktree) segments.push({ key: 'worktree', text: 'wt' })

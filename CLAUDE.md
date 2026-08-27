@@ -85,6 +85,20 @@ you want to watch.
   directory layout and cwd mangling (`realpathSync.native` first — pi resolves
   symlinks). The e2e stub duplicates the mangling in
   `e2e/fixtures/pi-stub.cjs`; keep them in sync.
+- **`pi -p` blocks until stdin reaches EOF, so it must never be run through
+  `execFile`/`exec`.** Both leave the child's stdin an open pipe, and pi then
+  sits there until the caller's timeout — silently, with empty stdout and empty
+  stderr. That killed session auto-naming outright for weeks: no session was
+  ever named and no branch was ever renamed. Spawn print-mode runs through
+  `electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
+  catch a regression — it prints and exits without reading stdin — so the guard
+  is `electron/pi/__tests__/print-mode.test.ts`. See
+  [specs/log/2026-08-26-session-start-ux.md](specs/log/2026-08-26-session-start-ux.md).
+- **pi writes a session's file only when a turn ENDS**, not incrementally. A
+  name set mid-turn does not reach the disk scan until the reply lands, so
+  every surface showing a LIVE session's title prefers the chat store's
+  `meta.sessionName` over the scanned `meta.name`, and a session keeps its
+  placeholder sidebar row (`PendingSessionRow`) for the whole first turn.
 - **`electron/store.ts` constructs its electron-store lazily on purpose** —
   a module-scope `new Store()` would resolve `userData` before main.ts can
   redirect it for E2E, leaking test state into real prefs.

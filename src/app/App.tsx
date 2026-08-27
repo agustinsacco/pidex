@@ -8,6 +8,7 @@ import {
 import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
+import { useStartingChatStore } from '@/stores/startingChat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore, useRightExpanded, useRightPane } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
@@ -15,6 +16,7 @@ import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
+import { StartingChat } from '@/features/home/StartingChat'
 import { OrchestratorChat, useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { TopBar } from './TopBar'
@@ -36,6 +38,7 @@ export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
   const currentWorkspace = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const starting = useStartingChatStore((s) => s.starting)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
   const currentWorkspaceGit = useSessionsStore((s) =>
     currentWorkspace ? s.gitByCwd[currentWorkspace] : undefined,
@@ -147,8 +150,19 @@ export function App(): React.JSX.Element {
       <div className="flex min-h-0 flex-1">
         {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
         <main className="min-w-0 flex-1">
+          {/*
+            Three states, in priority order. `starting` sits between the other
+            two on purpose: it covers the window where a chat has been sent but
+            `activeSessionId` is still null, which used to fall through to the
+            greeting screen — and since `startChat` switches the open workspace
+            to the new worktree before the session exists, that greeting
+            re-rendered for an empty folder ("Start your first session in
+            hey-2") for a beat before the chat replaced it.
+          */}
           {activeSessionId ? (
             <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
+          ) : starting ? (
+            <StartingChat starting={starting} />
           ) : (
             <WorkspaceHome workspacePath={currentWorkspace} />
           )}

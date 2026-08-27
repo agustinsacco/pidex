@@ -141,7 +141,10 @@ export function BranchControl({
           key={info.branch}
           className={clsx(
             'max-w-36 truncate',
-            naming.pending && 'name-pending',
+            // Arrival only. The pending state is carried by the tooltip above
+            // rather than by motion: this chip sits in the same bar as the
+            // session title, and two things shimmering side by side there was
+            // the bulk of the "everything animates on send" complaint.
             naming.settled && 'name-enter',
           )}
         >

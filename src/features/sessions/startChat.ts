@@ -44,19 +44,16 @@ import { errorText } from '@shared/errors'
  * back to local trunk, a git refusal starts a plain session in the open folder
  * with the reason shown, and a failed naming leaves the slug in place. The
  * user's message is never lost to a failure in any of this.
- */
-
-/**
- * How long the send may wait on `git fetch` before branching off local refs.
  *
- * Bounded because "branch off the *latest* trunk" is a nicety and starting the
- * chat is not: a slow link, a credential prompt or a large repo would
- * otherwise put the whole fetch (30s in main, worst case) back in front of the
- * send button — the exact failure this rewrite exists to remove. The fetch is
- * not cancelled, only stopped being waited on; it lands in time for the next
- * chat.
+ * **None of the naming above actually ran until 2026-08-26.** The handler
+ * behind `pi:generateTitle` used `execFile`, which leaves the child's stdin an
+ * open pipe, and `pi -p` waits for stdin EOF — so every request sat idle until
+ * its 30s timeout and returned null, silently, with empty stdout and empty
+ * stderr. No session was ever auto-named and no branch was ever renamed; the
+ * only visible symptom was that every branch kept its message slug. Fixed in
+ * electron/pi/print-mode.ts, which spawns with stdin ignored. Read the note
+ * there before touching that spawn.
  */
-const FETCH_BUDGET_MS = 3_000
 
 export type StartChatPhase = 'branching' | 'starting'
 
@@ -100,8 +97,13 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
   const { repoPath } = isolate
   options.onPhase?.('branching')
 
+  // Concurrent: the start point and the taken-name lists are independent
+  // reads of the same repo, and running them back to back doubled the git
+  // latency in front of every send for no reason. `createBranchWorktree`
+  // consumes the refresh, so it is awaited there rather than dropped here.
+  const refreshed = useWorktreesStore.getState().refresh(repoPath)
   const base = await resolveBase(repoPath)
-  const created = await createBranchWorktree(repoPath, prompt, base)
+  const created = await createBranchWorktree(repoPath, prompt, base, refreshed)
 
   if (!created.worktree) {
     // Git refused (a locked index, a name race, a repo in an odd state). The
@@ -118,6 +120,12 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
   options.onPhase?.('starting')
   // Point the window at the new worktree before the session starts, so the top
   // bar and file tree describe the place the session is actually running in.
+  //
+  // Safe to do ahead of the session only because `stores/startingChat.ts` is
+  // covering this window. Without it, `activeSessionId` is still null here and
+  // the app fell back to the greeting screen — which then re-rendered for the
+  // brand-new, empty worktree ("Start your first session in hey-2") for a beat
+  // before the chat replaced it.
   useWorkspacesStore.getState().openWorkspace(cwd)
 
   const sessionId = await useSessionsStore.getState().createSession(cwd, {
@@ -212,7 +220,15 @@ async function applyGeneratedName({
   if (!useSessionsStore.getState().live[sessionId]) return
 
   if (await piCallOk(sessionId, { type: 'set_session_name', name: title })) {
+    // `patchMeta` is what the user actually sees. pi does not write a session
+    // file until a turn ENDS (measured), so this rename reaches disk only when
+    // the first reply lands — minutes later for real work. Every surface that
+    // shows a live session's title therefore prefers the chat store's name
+    // over the scanned one (see `SessionRow` in Sidebar.tsx).
     useChatStore.getState().patchMeta(sessionId, { sessionName: title })
+    // Still worth asking: if the turn happened to settle already, the file is
+    // on disk now and this is the scan that picks the name up. If it has not,
+    // the folder watcher does it when pi writes.
     void useSessionsStore.getState().refreshDisk(cwd)
   }
 
@@ -279,17 +295,23 @@ function existingTitlesForRepo(repoPath: string, workspacePath: string): string[
 }
 
 /**
- * Freshest trunk to branch from, fetching first so "latest main" is true.
+ * Freshest trunk to branch from, using the refs already on disk.
  *
- * The fetch is the throttled one (once per 3 minutes per repo in main), so
- * starting several chats in a row costs one network round trip — and it is
- * bounded here (see FETCH_BUDGET_MS) so the one that does go to the network
- * cannot hold the send button. A repo that is offline, has no remote, or has
- * no credentials simply resolves to local trunk.
+ * **No fetch happens here, on purpose.** "Branch off the *latest* main" is
+ * real intent, but paying for it at send time is what made a new chat feel
+ * slow: the fetch is throttled to once per 3 minutes per repo, so the first
+ * send after any pause paid the whole network round trip (~0.8s on a warm
+ * link, and a bounded 3s wait when the link was cold) while the user watched
+ * an unchanged screen.
+ *
+ * `prefetchTrunk` moves that round trip to when the home screen mounts
+ * instead — i.e. while the user is still typing — so the refs are already
+ * fresh by the time this reads them, and a send never waits on the network at
+ * all. A repo that is offline, has no remote, or has no credentials simply
+ * resolves to local trunk, exactly as before.
  */
 async function resolveBase(repoPath: string): Promise<{ base: string; noTrack: boolean }> {
   try {
-    await withBudget(useWorktreesStore.getState().syncRemote(repoPath), FETCH_BUDGET_MS)
     const point = await window.pidex.invoke('git:startPoint', repoPath)
     return { base: point.base, noTrack: point.fromRemote }
   } catch {
@@ -298,17 +320,26 @@ async function resolveBase(repoPath: string): Promise<{ base: string; noTrack: b
   }
 }
 
-/** Wait on `work` for at most `ms`; the work itself keeps running either way. */
-async function withBudget(work: Promise<unknown>, ms: number): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const budget = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, ms)
-  })
-  try {
-    await Promise.race([work.catch(() => undefined), budget])
-  } finally {
-    clearTimeout(timer)
-  }
+/**
+ * Warm the refs a new chat will branch from, ahead of the send.
+ *
+ * Call from a screen where a chat is about to be composed. It is the same
+ * throttled fetch `resolveBase` used to await, moved off the critical path —
+ * cheap to call repeatedly (main throttles to once per 3 minutes per repo) and
+ * safe to ignore: nothing waits on it and a failure only means the next branch
+ * starts from the trunk we already had.
+ */
+export function prefetchTrunk(workspacePath: string): void {
+  void (async () => {
+    try {
+      const info = await window.pidex.invoke('git:info', workspacePath)
+      if (!info.isRepo) return
+      const repoPath = info.isWorktree && info.mainRepoPath ? info.mainRepoPath : workspacePath
+      await useWorktreesStore.getState().syncRemote(repoPath)
+    } catch {
+      // Offline, no remote, not a repo: the send falls back to local trunk.
+    }
+  })()
 }
 
 /** Create the worktree, or explain in one sentence why there isn't one. */
@@ -316,11 +347,13 @@ async function createBranchWorktree(
   repoPath: string,
   title: string,
   base: { base: string; noTrack: boolean },
+  /** The in-flight `refresh` started by the caller, so the two git reads overlap. */
+  refreshed: Promise<unknown>,
 ): Promise<{ worktree: WorktreeInfo; error?: undefined } | { worktree: null; error: string }> {
   const store = useWorktreesStore.getState()
-  // Refresh first: the taken-name lists have to reflect the repo as it is now,
-  // not as it was when the branch popup was last opened.
-  await store.refresh(repoPath)
+  // Awaited before reading the lists: the taken-name lists have to reflect the
+  // repo as it is now, not as it was when the branch popup was last opened.
+  await refreshed
   const repo = repoWorktrees(useWorktreesStore.getState(), repoPath)
 
   const { folder, branch } = branchNameFor({
