@@ -78,7 +78,7 @@ early). And `bootstrapSession` re-scans the folder when it learns the session's
 time the watcher attaches raises no event either — which is the normal case for
 a worktree that only becomes watched once the session creating it exists.
 
-`electron/pi/__tests__/session-watcher.test.ts` is new and covers both; it was
+`electron/pi/session-watcher.test.ts` is new and covers both; it was
 confirmed to fail against the un-fixed watcher before being kept.
 
 ## One branch control per screen

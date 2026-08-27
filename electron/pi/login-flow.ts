@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { stripAnsi } from '@shared/ansi'
 import type { LoginFlowState, LoginProviderId } from '@shared/models'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
@@ -64,14 +65,22 @@ const VERIFY_INTERVAL_MS = 2_000
 /** Width of the hidden terminal. See the note where the pty is created. */
 const TERMINAL_COLS = 1000
 
-const ESC = String.fromCharCode(27)
 const CR = String.fromCharCode(13)
-/** CSI and OSC, so a URL split across cursor moves still reads as one string. */
-const CSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, 'g')
-const OSC = new RegExp(`${ESC}\\][^\\u0007${ESC}]*(\\u0007|${ESC}\\\\)`, 'g')
+/** Written to the pty to cancel a pending device-code request. */
+const ESC = String.fromCharCode(27)
 
-export function stripAnsi(raw: string): string {
-  return raw.replace(OSC, '').replace(CSI, '').split('\r').join('\n')
+/**
+ * A pty screen as plain text.
+ *
+ * Escape removal is `@shared/ansi`'s — this used to be a second, narrower
+ * `stripAnsi` here (CSI plus terminated OSC only), which is exactly the kind
+ * of near-duplicate that drifts. What is specific to reading a *screen* is the
+ * carriage-return handling: the TUI redraws a line by returning to its start,
+ * so a bare CR separates two states of the same row and must read as a line
+ * break, not as a join.
+ */
+export function screenText(raw: string): string {
+  return stripAnsi(raw).split('\r').join('\n')
 }
 
 /**
@@ -232,7 +241,7 @@ export async function startLogin(
   const timer = setInterval(() => {
     if (cancelled) return
     // `attach` is a pure read of the buffer — no side effects on the pty.
-    const screen = stripAnsi(ptyManager.attach(ptyId).scrollback)
+    const screen = screenText(ptyManager.attach(ptyId).scrollback)
 
     if (Date.now() - startedAt > FLOW_TIMEOUT_MS) {
       finish({ providerId, phase: 'error', message: 'Sign-in timed out.' })

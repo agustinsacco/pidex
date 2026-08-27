@@ -2,7 +2,7 @@
 
 **2026-08-22.** The home screen was a greeting and every session was an island:
 "what is everything doing right now?" was answered by clicking through the
-sidebar. This lands the design in [13-orchestration.md](../13-orchestration.md)
+sidebar. This lands the design in [13-orchestration.md](../reference/orchestration.md)
 — three layers, strictly ordered by cost.
 
 ## What shipped

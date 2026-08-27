@@ -85,7 +85,7 @@ unit tests assert on is a capture, not a fixture written by hand:
 
 The status channel now carries two cross-boundary contracts, one of them
 across a repo boundary with no compile-time guard. Both are tabulated in
-[12-extensions.md](../12-extensions.md#the-status-channel-is-a-wire-contract);
+[12-extensions.md](../reference/extensions.md#the-status-channel-is-a-wire-contract);
 the parsers return `null` on anything malformed so a bad push degrades to a
 missing section.
 

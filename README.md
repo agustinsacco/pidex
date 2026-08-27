@@ -82,42 +82,62 @@ npm run dev
 | `npm run test:e2e`  | Playwright-Electron smoke tests                       |
 | `npm run dist`      | Package for the current platform via electron-builder |
 
-### Architecture
+### Repo layout
+
+This tree is the single source of truth for "what lives where". `CLAUDE.md` and
+[specs/reference/architecture.md](specs/reference/architecture.md) link here
+rather than keeping their own copies — there used to be three, and all three had
+drifted.
 
 ```
-electron/          main process — pi RPC clients, PTYs, fs/git, watchers, prefs
-  ipc.ts           composition root: calls the per-domain handler registrars
-  ipc/             one module per IPC channel prefix (pi, app, sessions, git, fs, pty)
-  registry.ts      the live pi session registry
-  pi/              PiRpcClient (strict LF JSONL framing), session scanner/writer
-  pty/             node-pty manager
-  fs/              file service, git service, workspace watcher
-shared/            types shared by main + renderer (ipc, rpc, models)
-src/               renderer (React) — pure UI over typed IPC
-  components/      cross-feature primitives (Modal, icons, form fields)
-  features/        chat, files, terminal, artifacts, sessions, settings, palette
-  lib/             framework-free helpers (format, path, rpc, base64, fuzzy, time)
-  stores/          zustand stores (projections of main-process state)
-pi-ext/            bundled pi extension (artifacts tools)
-e2e/               Playwright-Electron smoke tests + deterministic pi stub
-specs/             product and domain specifications
+electron/            main process — owns every side effect
+  main.ts            app lifecycle, window creation, quit teardown
+  preload.ts         the contextBridge surface (one typed `subscribe` helper)
+  ipc.ts             composition root: calls the per-domain handler registrars
+  ipc/               one module per IPC channel prefix — 13 of them today
+                     (pi, app, sessions, fleet, git, gh, fs, pty, mcp,
+                      clipboard, packages, orchestrator, updates)
+  registry.ts        the live pi session registry
+  pi/                RPC client (strict LF JSONL framing), session scanner,
+                     writer, paths, print mode, model catalogue, login flow
+  pty/               node-pty manager + spawn-helper repair
+  fs/                file service, git layer (git-exec/info/sync/worktrees),
+                     workspace watcher
+  orchestrator/      the per-project orchestrator session and the fleet hub
+  updates/           update check + download state machine
+  store.ts           app prefs (electron-store, constructed lazily)
+shared/              types and pure logic shared by main + renderer
+  ipc.ts             the typed IpcInvokeMap contract
+  rpc.ts             hand-mirrored copy of pi's RPC protocol + drift guards
+  models.ts          model catalogue and orchestration types
+src/                 renderer (React) — pure UI over typed IPC
+  app/               shell: App, TopBar, workspace picker, global shortcuts
+  features/          one folder per surface: chat, sessions, files, terminal,
+                     artifacts, settings, home, orchestrator, worktrees,
+                     workspaces, palette, updates, extension-ui
+  components/        cross-feature primitives (Modal, PopupMenu, form, icons,
+                     markdown renderers)
+  stores/            zustand stores — projections of main-process state
+  lib/               framework-free helpers (format, path, rpc, fuzzy, time…)
+  styles/            the Phosphor design tokens
+  dev/               browser-only mock of the preload API (never bundled)
+pi-ext/              five pi extensions that run inside pi's process:
+                     artifacts, context-breakdown, worktree-paths,
+                     tool-name-guard (bundled into every session) and
+                     orchestrator (orchestrator sessions only)
+e2e/                 Playwright-Electron smoke tests + deterministic pi stub
+scripts/             install.sh, icon generation, release + validate helpers
+specs/               specifications, split by genre — see specs/README.md
 ```
-
-Conventions worth knowing:
-
-- **IPC handlers** live in `electron/ipc/<domain>-handlers.ts`; a new channel
-  goes in the module matching its prefix.
-- **RPC calls from the renderer** go through `src/lib/rpc.ts` (`piCall` /
-  `piCallOk`), which reports failures on the session's chat surface. Calling
-  `window.pidex.piCommand` directly means handling the error envelope yourself.
-- **Modals** use `ModalOverlay` from `src/components/Modal.tsx` for portalling,
-  backdrop dismissal and depth-aware Escape (innermost modal wins).
-- **Tests** live beside their subject as `*.test.ts`. DOM-dependent suites opt
-  in per file with `// @vitest-environment jsdom`.
 
 The main process owns all side effects. The renderer runs with
 `contextIsolation`, no Node integration, and a strict CSP; model-authored HTML
 only ever renders inside a sandboxed iframe.
+
+**Conventions** (IPC channels, the `piCall` rule, modals, tests, and the sharp
+edges worth knowing before you touch pi's session files) live in
+[CLAUDE.md](CLAUDE.md). It is written for coding agents but it is the shortest
+accurate orientation for a human too.
 
 ## License
 

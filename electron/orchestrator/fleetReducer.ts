@@ -7,7 +7,7 @@ import type { AgentMessage, ExtensionUIRequest, PiEvent } from '@shared/rpc'
  * Everything the home screen knows about a running session is derived here
  * from pi's own event stream — no model, no polling, no extra RPC. Kept free
  * of Electron and of the registry so the whole state machine is testable
- * without spawning anything (see `__tests__/fleetReducer.test.ts`).
+ * without spawning anything (see `fleetReducer.test.ts`).
  */
 
 /** Inputs the hub folds into a session's state. */

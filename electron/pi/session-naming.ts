@@ -5,7 +5,7 @@
  * Pure functions — the subprocess plumbing lives in the IPC handler
  * (electron/ipc/pi-session-handlers.ts), which is not unit-testable without
  * spawning processes. Everything with decisions in it is here, tested in
- * __tests__/session-naming.test.ts.
+ * session-naming.test.ts.
  */
 
 const MAX_TITLE_LENGTH = 60

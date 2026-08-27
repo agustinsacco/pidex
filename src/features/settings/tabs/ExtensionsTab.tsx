@@ -5,7 +5,7 @@ import { Button } from '@/components/form'
 import { CatalogueCards } from '../CatalogueCards'
 import { JobOutput } from '../JobOutput'
 import { usePackageJob } from '../usePackageJob'
-import { isNewerVersion } from '../versions'
+import { isNewerVersion } from '@shared/version'
 import { errorText } from '@shared/errors'
 
 /**

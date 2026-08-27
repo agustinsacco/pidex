@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import type { ClaudeStatus, ClaudeSystemPromptMode, PiPackageEntry } from '@shared/models'
 import { Button } from '@/components/form'
 import { usePackageJob } from '../usePackageJob'
-import { isNewerVersion } from '../versions'
+import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
