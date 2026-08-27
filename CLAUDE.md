@@ -150,6 +150,23 @@ the browser uses the mock API (plain `vite` reads the root `vite.config.ts`,
 which mirrors the `renderer` block of `electron.vite.config.ts` — keep the two
 in sync). The `/run` and `/e2e` skills cover both flows.
 
+**Never run a packaging build (`electron-builder`, or anything that writes
+`release/`) in the main pidex checkout.** It drops a real, fully-formed
+`pidex.app` at `~/pidex/release/mac-arm64/pidex.app`, and macOS Spotlight
+indexes that identically to the actual install in `/Applications` — same
+name, no version shown in search. Launching the wrong one from Spotlight
+looks like a broken auto-updater ("Update available" never clears) when it's
+actually just a stale local build sitting next to the real app. Confirmed
+2026-08-27: a stray `release/` build was 5 versions behind and someone
+launched it by mistake straight from search.
+
+The user installs pidex the normal way — download the DMG from
+[GitHub Releases](https://github.com/agustinsacco/pidex/releases), drag to
+`/Applications`, let it auto-update from there (a release ships on every
+green merge to main). If a packaged build is ever genuinely needed for local
+testing, point the output outside the repo (e.g. the scratchpad) instead of
+letting it land in `~/pidex/release/`.
+
 ## Debugging a failing session
 
 `~/Library/Logs/pidex/pidex.log` (Linux: `~/.config/pidex/logs/`) is written by
