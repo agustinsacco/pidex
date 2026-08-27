@@ -1549,6 +1549,10 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     const banner = page.getByTestId('lane-banner')
     await expect(banner).toBeVisible({ timeout: 30_000 })
 
+    // The stub's lane has a failing rung, so the banner opens itself. A lane
+    // that needs nothing collapses to one line instead.
+    await expect(banner).toHaveAttribute('data-open', 'true')
+
     const ladder = banner.getByTestId('lane-ladder')
     // The full fixed ladder, in order, regardless of what was reported.
     await expect(ladder.locator('[data-rung]')).toHaveCount(6)
@@ -1562,6 +1566,19 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     await expect(banner.getByText(/test failed/i)).toBeVisible()
     await expect(banner.getByText(/auth\/ttl\.test\.ts/)).toBeVisible()
     await expect(banner.getByText(/pidex\/stub-lane/)).toBeVisible()
+
+    // It collapses. The first version was a fixed block with no way to
+    // dismiss it, which costs transcript room on every single turn.
+    await banner.getByRole('button', { name: /Collapse lane status/i }).click()
+    await expect(banner).toHaveAttribute('data-open', 'false')
+    // Collapsed still answers "is anything wrong": the ladder rides the
+    // summary line rather than hiding behind the chevron.
+    await expect(banner.getByTestId('lane-ladder')).toBeVisible()
+    await banner.getByRole('button', { name: /Expand lane status/i }).click()
+    await expect(banner).toHaveAttribute('data-open', 'true')
+
+    // And it offers the next action as a button rather than a sentence.
+    await expect(banner.getByRole('button', { name: /Fix test/i })).toBeVisible()
 
     // The status strip must NOT print the raw payload. `setStatus` is the only
     // channel an extension has, so it doubles as a data bus, and every

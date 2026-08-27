@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   currentRung,
   diffLabel,
+  laneAction,
   laneHint,
   laneIsGreen,
   overDiffBudget,
@@ -164,5 +165,46 @@ describe('diff reporting', () => {
       }),
     )!
     expect(overDiffBudget(loop)).toBe(true)
+  })
+})
+
+describe('laneAction', () => {
+  const ladder = (over: Record<string, string>) =>
+    parseLaneLoop(
+      payload(
+        DEFAULT_LANE_RUNGS.map((r) => ({ key: r.key, state: over[r.key] ?? 'pass' })),
+        { diff: { added: 100, removed: 10, files: 3 } },
+      ),
+    )!
+
+  it('offers nothing when every rung passes', () => {
+    expect(laneAction(ladder({}))).toBeNull()
+  })
+
+  it('asks for the PR when that is the only thing left', () => {
+    const action = laneAction(ladder({ pr: 'stale' }))
+    expect(action?.rung).toBe('pr')
+    expect(action?.label).toBe('Open the PR')
+    expect(action?.prompt).toContain('gh pr create')
+  })
+
+  it('asks for a split when the diff is over budget, and refuses to ask for more code', () => {
+    const action = laneAction(ladder({ diff: 'fail', pr: 'stale' }))
+    expect(action?.rung).toBe('diff')
+    expect(action?.prompt).toContain('Do not add more code')
+    expect(action?.prompt).toContain('smaller pull requests')
+  })
+
+  it('prioritises the over-budget diff over any other failure', () => {
+    // Splitting first is the point: fixing tests inside an unreviewable diff
+    // just makes a bigger unreviewable diff.
+    const action = laneAction(ladder({ diff: 'fail', test: 'fail', pr: 'stale' }))
+    expect(action?.rung).toBe('diff')
+  })
+
+  it('tells the lane to fix the cause, never the check', () => {
+    const action = laneAction(ladder({ test: 'fail', pr: 'stale' }))
+    expect(action?.rung).toBe('test')
+    expect(action?.prompt).toContain('Do not change the check itself')
   })
 })

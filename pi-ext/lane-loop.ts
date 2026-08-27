@@ -146,6 +146,53 @@ export default function laneLoop(pi: PiExtensionApi): void {
   }
 
   /** `+a −r · files` against the merge base, plus the conflict dry run. */
+  /**
+   * Does this lane have an open pull request?
+   *
+   * This rung used to be hardcoded to `stale`, so it could NEVER light up. A
+   * lane that had committed, pushed AND opened a PR still rendered an empty
+   * `pr` rung: observed on `pidex/adding-another-claude-account`, whose PR #90
+   * was open while the banner said it still owed one. A rung that cannot
+   * change state is worse than no rung, because it is a gauge that lies.
+   *
+   * `gh` may be absent, unauthenticated, or pointed at a non-GitHub remote.
+   * None of that is a statement about the lane, so it reports `unconfigured`
+   * ("not measured here") rather than `stale` ("you still owe a PR").
+   */
+  async function prRung(cwd: string): Promise<Rung> {
+    const now = Date.now()
+    try {
+      const out = await run(cwd, 'gh', ['pr', 'view', '--json', 'number,state,isDraft'])
+      if (out.code !== 0) {
+        const text = `${out.stderr}\n${out.stdout}`
+        // "no pull requests found" is a real answer: the lane owes one.
+        if (/no (open )?pull requests?/i.test(text)) {
+          return { key: 'pr', state: 'stale', command: 'gh pr view', at: now }
+        }
+        return { key: 'pr', state: 'unconfigured', at: now }
+      }
+      const parsed = JSON.parse(out.stdout) as {
+        number?: number
+        state?: string
+        isDraft?: boolean
+      }
+      const state = (parsed.state ?? '').toUpperCase()
+      if (state !== 'OPEN' && state !== 'MERGED') {
+        return { key: 'pr', state: 'stale', command: 'gh pr view', at: now }
+      }
+      return {
+        key: 'pr',
+        state: 'pass',
+        command: 'gh pr view',
+        exitCode: 0,
+        at: now,
+        detail: `#${String(parsed.number ?? '?')}${parsed.isDraft ? ' draft' : ''} ${state.toLowerCase()}`,
+      }
+    } catch {
+      return { key: 'pr', state: 'unconfigured', at: now }
+    }
+  }
+
   async function gitRungs(cwd: string): Promise<{
     diff: Rung
     merge: Rung
@@ -161,15 +208,30 @@ export default function laneLoop(pi: PiExtensionApi): void {
 
       // Base is the merge base with the default branch, so the stat measures
       // this lane's own work rather than everything trunk moved on by.
+      // TWO refs, and conflating them was a bug. `base` is the merge base and
+      // is the right thing to measure the DIFF against: it isolates this
+      // lane's own work from everything trunk moved on by. `tip` is the
+      // current default-branch head, and it is the only thing worth testing a
+      // MERGE against.
+      //
+      // The first version merged HEAD against `base` using `base` as the merge
+      // base, which is a fast-forward by construction and so returned exit 0
+      // unconditionally: the merge rung could not fail. Verified against a
+      // scratch repo with a genuine conflicting change on main, where the old
+      // form exits 0 and the form below exits 1.
       let base = ''
+      let tip = ''
       for (const candidate of ['origin/HEAD', 'origin/main', 'main', 'origin/master', 'master']) {
         const mb = await run(cwd, 'git', ['merge-base', 'HEAD', candidate])
         if (mb.code === 0 && mb.stdout.trim()) {
           base = mb.stdout.trim()
+          tip = candidate
           break
         }
       }
-      if (!base) return { diff: stale('diff'), merge: stale('merge'), pr: stale('pr'), branch }
+      if (!base) {
+        return { diff: stale('diff'), merge: stale('merge'), pr: await prRung(cwd), branch }
+      }
 
       const stat = await run(cwd, 'git', ['diff', '--numstat', base])
       let added = 0
@@ -205,12 +267,12 @@ export default function laneLoop(pi: PiExtensionApi): void {
         '--write-tree',
         `--merge-base=${base}`,
         'HEAD',
-        base,
+        tip,
       ])
       const merge: Rung = {
         key: 'merge',
         state: merged.code === 0 ? 'pass' : 'fail',
-        command: 'git merge-tree --write-tree',
+        command: `git merge-tree --write-tree HEAD ${tip}`,
         exitCode: merged.code,
         at: now,
         ...(merged.code === 0
@@ -220,9 +282,13 @@ export default function laneLoop(pi: PiExtensionApi): void {
             }),
       }
 
-      return { diff, merge, pr: stale('pr'), stat: { added, removed, files }, branch }
+      return { diff, merge, pr: await prRung(cwd), stat: { added, removed, files }, branch }
     } catch {
-      return { diff: stale('diff'), merge: stale('merge'), pr: stale('pr') }
+      return {
+        diff: stale('diff'),
+        merge: stale('merge'),
+        pr: { key: 'pr', state: 'unconfigured' },
+      }
     }
   }
 

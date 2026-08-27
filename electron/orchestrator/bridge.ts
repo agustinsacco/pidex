@@ -162,13 +162,38 @@ function summarizeMessages(messages: AgentMessage[], limit: number, nonce: strin
   })
 }
 
+/**
+ * The `items` a model actually sent, as an array.
+ *
+ * Belt to the extension's brace. Models stringify nested tool arguments —
+ * every `publish_digest` in session 01a04394 arrived with `items` as a
+ * JSON-encoded string — and the bridge is the one choke point every digest
+ * passes through, so it tolerates the shape here too rather than trusting a
+ * single upstream fix. Unparseable input yields no items rather than throwing:
+ * a malformed digest degrades to a headline, never to a failed sweep.
+ */
+export function digestItemsOf(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return []
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) return parsed
+    if (parsed && typeof parsed === 'object') return [parsed]
+    return []
+  } catch {
+    return [{ kind: 'note', text: trimmed }]
+  }
+}
+
 function parseDigest(
   args: Record<string, unknown>,
   workspacePath: string,
 ): OrchestratorDigest | null {
   const headline = asString(args.headline)
   if (!headline) return null
-  const rawItems = Array.isArray(args.items) ? args.items : []
+  const rawItems = digestItemsOf(args.items)
   const items: DigestItem[] = []
   for (const raw of rawItems) {
     if (!raw || typeof raw !== 'object') continue
