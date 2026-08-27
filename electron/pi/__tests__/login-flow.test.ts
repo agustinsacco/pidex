@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyScreen, parseAuthPrompt, stripAnsi } from '../login-flow'
+import { classifyScreen, parseAuthPrompt, screenText } from '../login-flow'
 
 /**
  * The fixtures below are real captures from pi 0.84.1's `/login`, escape
@@ -9,18 +9,18 @@ import { classifyScreen, parseAuthPrompt, stripAnsi } from '../login-flow'
 
 const ESC = String.fromCharCode(27)
 
-describe('stripAnsi', () => {
+describe('screenText', () => {
   it('removes CSI cursor moves that would otherwise split a URL', () => {
     const raw = `https://accounts.x.ai/oauth2${ESC}[5C/device?user_code=8G95-72AD`
-    expect(stripAnsi(raw)).toBe('https://accounts.x.ai/oauth2/device?user_code=8G95-72AD')
+    expect(screenText(raw)).toBe('https://accounts.x.ai/oauth2/device?user_code=8G95-72AD')
   })
 
   it('removes OSC title sequences', () => {
-    expect(stripAnsi(`${ESC}]0;piready`)).toBe('ready')
+    expect(screenText(`${ESC}]0;piready`)).toBe('ready')
   })
 
   it('treats a carriage return as a line break so redraws stay separate lines', () => {
-    expect(stripAnsi('first\rsecond')).toBe('first\nsecond')
+    expect(screenText('first\rsecond')).toBe('first\nsecond')
   })
 })
 

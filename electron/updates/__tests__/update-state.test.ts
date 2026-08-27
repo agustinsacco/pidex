@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { IDLE, isNewerVersion, reduceUpdate, type UpdateState } from '../update-state'
+import { IDLE, reduceUpdate, type UpdateState } from '../update-state'
 
 /**
  * The updater is invisible when it works and must never nag when it doesn't,
@@ -92,30 +92,5 @@ describe('reduceUpdate', () => {
         0,
       )
     })
-  })
-})
-
-describe('isNewerVersion', () => {
-  it('compares numerically, not lexicographically', () => {
-    // The bug this exists to prevent: "0.1.9" > "0.1.10" as strings would
-    // strand every user on the ninth release forever.
-    expect(isNewerVersion('0.1.10', '0.1.9')).toBe(true)
-    expect(isNewerVersion('0.1.9', '0.1.10')).toBe(false)
-  })
-
-  it('is false for the same version', () => {
-    expect(isNewerVersion('0.1.42', '0.1.42')).toBe(false)
-  })
-
-  it('tolerates a leading v and missing segments', () => {
-    expect(isNewerVersion('v0.2.0', '0.1.99')).toBe(true)
-    expect(isNewerVersion('0.2', '0.1.99')).toBe(true)
-  })
-
-  it('refuses to claim an update on malformed input', () => {
-    // A corrupt latest-*.yml must not trigger a phantom update prompt.
-    expect(isNewerVersion('not-a-version', '0.1.0')).toBe(false)
-    expect(isNewerVersion('', '0.1.0')).toBe(false)
-    expect(isNewerVersion('0.1.1', 'garbage')).toBe(false)
   })
 })

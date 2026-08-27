@@ -16,6 +16,12 @@
  * archaeology exercise.
  */
 
+import { claudeProjectDirName } from '@shared/claude-paths'
+
+// Re-exported: the CLI's mangling is shared with the main process now, but
+// this module is where callers already reach for it.
+export { claudeProjectDirName }
+
 export interface SessionDebugSource {
   /** pi's session file (.jsonl), absolute. */
   path: string
@@ -37,20 +43,6 @@ export interface SessionDebugSource {
 export function piSessionDirName(cwd: string): string {
   const segments = cwd.split(/[/\\]/).filter(Boolean)
   return `--${segments.join('-')}--`
-}
-
-/**
- * The Claude Code CLI mangles the same cwd differently — every character that
- * is not a letter or digit becomes a dash, with no wrapping.
- * `/home/u/proj/.claude/wt` → `-home-u-proj--claude-wt`.
- *
- * Mirrors `claudeProjectDirName` in `electron/pi/pi-paths.ts`, which is the
- * source of truth and carries the full rule (including the length cap that
- * only very deep paths reach). This copy is for display, so it stops at the
- * character substitution.
- */
-export function claudeProjectDirName(cwd: string): string {
-  return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
 /**

@@ -1,14 +1,22 @@
 /**
- * ANSI handling for text pi extensions hand us (status lines, widget lines,
- * notifications). Extensions style their output for pi's own TUI with SGR
- * escape codes; outside a terminal those bytes must never reach the DOM raw.
+ * ANSI handling, shared by both processes.
+ *
+ * The renderer needs it for text pi extensions hand us (status lines, widget
+ * lines, notifications): extensions style their output for pi's own TUI with
+ * SGR escape codes, and outside a terminal those bytes must never reach the
+ * DOM raw. The main process needs it to read pi's `/login` TUI back off a pty.
  *
  * Two levels of fidelity:
  * - `stripAnsi` removes every escape sequence — for surfaces where color is
- *   noise (toasts, dialog titles).
+ *   noise (toasts, dialog titles) and for scraping a pty screen as text.
  * - `ansiToSpans` honors foreground SGR colors as styled runs — for the
  *   status strip and composer widgets, where extensions use color to mean
  *   something (e.g. green = connected).
+ *
+ * Lives in `shared/` because `electron/pi/login-flow.ts` used to carry its own
+ * narrower `stripAnsi` (CSI + terminated-OSC only, no two-byte escapes). Two
+ * strippers with different coverage is how a sequence one of them missed
+ * reaches the DOM.
  */
 
 export interface AnsiSpan {
