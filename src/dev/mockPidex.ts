@@ -524,12 +524,18 @@ export function installMockPidex(): void {
                 id: 'mock-rl',
                 method: 'setStatus',
                 statusKey: 'claude-rate-limit',
+                // Shaped like provider >= 0.4.9, which forwards `utilization`.
+                // 0.62 exercises the ordinary case: a real bar, under the
+                // warning threshold, so the harness shows what most sessions
+                // look like rather than only the alarming state.
                 statusText: JSON.stringify({
                   status: 'allowed',
                   resetsAt: Math.floor(Date.now() / 1000) + 8640,
                   rateLimitType: 'five_hour',
                   overageStatus: 'rejected',
                   isUsingOverage: false,
+                  utilization: 0.62,
+                  surpassedThreshold: null,
                 }),
               },
             } as SessionPush)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ORCHESTRATOR_MODES, ORCHESTRATOR_MODE_INFO } from '@shared/models'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
@@ -23,6 +23,9 @@ export function OrchestratorModePicker({
   workspacePath: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  // PopupMenu contributes no positioning of its own and treats its trigger as
+  // "outside" for dismissal, so a click-toggled caller must supply both.
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const mode = useFleetStore((s) => {
     const prefs = s.prefs[workspacePath]
     if (prefs?.mode) return prefs.mode
@@ -36,6 +39,7 @@ export function OrchestratorModePicker({
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         data-testid="orchestrator-mode-picker"
         title={`Orchestrator mode — ${info.summary}`}
@@ -51,7 +55,14 @@ export function OrchestratorModePicker({
         <span>{info.label}</span>
       </button>
       {open && (
-        <PopupMenu onClose={() => setOpen(false)} className="bottom-full right-0 mb-1 w-64">
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
+          // `absolute` is load-bearing: PopupMenu positions nothing itself, so
+          // without it the menu lays out in normal flow INSIDE the composer
+          // and shoves the text area around instead of floating over it.
+          className="absolute bottom-full right-0 mb-2 w-72 py-1.5"
+        >
           {ORCHESTRATOR_MODES.map((option) => (
             <MenuRow
               key={option}
