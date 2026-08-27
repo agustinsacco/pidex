@@ -37,7 +37,7 @@ because Chromium deprioritizes rendering for a window that was never shown.
 `PIDEX_E2E_SHOW=1 npm run test:e2e` puts them back on your real display when
 you want to watch.
 
-## Architecture in five facts
+## Architecture in six facts
 
 1. **The main process owns all side effects.** The renderer runs sandboxed
    (contextIsolation, no Node) and is pure UI over typed IPC. If a feature
@@ -57,7 +57,16 @@ you want to watch.
    guards (`_NoMissingResponseKeys` / `_NoExtraResponseKeys`). Adding an RPC
    command means updating both the command union and `RpcResponseDataMap`, or
    it won't compile — that's intentional.
-5. **Stores (`src/stores/`, zustand) are projections of main-process state.**
+5. **The orchestrator is a session that manages sessions**, not a feature
+   bolted onto one. One pi session per project (`electron/orchestrator/`),
+   spawned through the same `SessionRegistry` as any other, plus a
+   zero-inference "fleet hub" that projects what every live session is doing.
+   Two rules it must keep: nothing spends tokens unless the user asks, and
+   its **mode** (`observe` / `supervise` / `autopilot`) is enforced in
+   `bridge.ts` at CALL time — never trusted from the system prompt, which is
+   fixed at spawn and goes stale the moment the user switches. Full design in
+   [specs/13-orchestration.md](specs/13-orchestration.md).
+6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
    frozen empty value — never mutate it, never inline a fresh `{}` in a
@@ -96,15 +105,44 @@ you want to watch.
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
   read [specs/12-extensions.md](specs/12-extensions.md#how-provider-transcripts-render).
-- **`pi-ext/worktree-paths.ts` can refuse a tool call**, and it is the only
-  pidex code that runs inside pi's process. It blocks a `read`/`write`/`edit`/
-  `ls`/`grep`/`find` whose path escapes a worktree session into the repo's main
-  checkout (a different branch) when the same file exists in the worktree —
-  models were doing this silently and answering about the wrong branch. The
-  four conditions in that file are deliberately narrow; widening them blocks
-  legitimate reads, because pi's own prompt sends the model to absolute paths
-  outside the cwd for its docs. See
-  [specs/log/2026-08-22-worktree-path-leak.md](specs/log/2026-08-22-worktree-path-leak.md).
+- **Claude sessions run through a SEPARATELY VERSIONED package**, and
+  pidex pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
+  (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
+  filler bugs all live outside this repo. Check what is actually installed
+  before diagnosing a Claude-provider session:
+
+  ```bash
+  jq -r .version ~/.pi/agent/npm/node_modules/@saccolabs/pi-claude-cli/package.json
+  npm view @saccolabs/pi-claude-cli version   # what is published
+  ```
+
+  A fix merged there is NOT live until it is published _and_ reinstalled —
+  0.4.8 sat merged-but-unpublished for a day while sessions kept dying, because
+  the publish workflow only ships a version npm does not already have.
+  Rate-limit percentages need >= 0.4.9.
+
+- **pidex ships five extensions that run inside pi's process** (`pi-ext/`,
+  loaded with `-e`; the bundled four are listed in `bundledExtensions()` in
+  `electron/ipc/pi-session-handlers.ts`, plus `orchestrator.ts` for
+  orchestrator sessions only). They are the only pidex code with a say inside
+  a turn, and two of them can change or refuse what the model did:
+  - **`worktree-paths.ts` can refuse a tool call.** It blocks a
+    `read`/`write`/`edit`/`ls`/`grep`/`find` whose path escapes a worktree
+    session into the repo's main checkout (a different branch) when the same
+    file exists in the worktree —
+    models were doing this silently and answering about the wrong branch. The
+    four conditions in that file are deliberately narrow; widening them blocks
+    legitimate reads, because pi's own prompt sends the model to absolute paths
+    outside the cwd for its docs. See
+    [specs/log/2026-08-22-worktree-path-leak.md](specs/log/2026-08-22-worktree-path-leak.md).
+  - **`tool-name-guard.ts` rewrites a malformed tool call** at `message_end`,
+    before pi persists it. A model can emit a tool call whose _name_ is not a
+    tool name (seen: `mcp({})<tool_call>find`, raw syntax leaked into the name
+    field). pi tolerates it in the moment and writes it to the session file —
+    and then every later turn replays it and the provider rejects the whole
+    request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
+    bricking the thread permanently. The guard turns it into plain text.
+    See [specs/log/2026-08-26-orchestrator-controls.md](specs/log/2026-08-26-orchestrator-controls.md).
 - **Two UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session) and its plan-limits section from the Claude provider
