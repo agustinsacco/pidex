@@ -223,6 +223,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     () => Object.values(orchestratorSessions),
     [orchestratorSessions],
   )
+  /**
+   * Live orchestrator session ids. Needed as well as the paths above: a
+   * placeholder row is keyed by session id and appears before any path is
+   * known, so the path list cannot suppress it.
+   */
+  const liveOrchestrators = useFleetStore((s) => s.liveOrchestrators)
+  const orchestratorIds = useMemo(
+    () => new Set(Object.values(liveOrchestrators)),
+    [liveOrchestrators],
+  )
 
   /** Pinned sessions across every workspace — this group deliberately mixes. */
   const pinnedMetas = useMemo(
@@ -288,8 +298,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * scan catches up, which reads as a dropped message.
    */
   const pendingByWorkspace = useMemo(
-    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups),
-    [live, diskPaths, groups],
+    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups, orchestratorIds),
+    [live, diskPaths, groups, orchestratorIds],
   )
 
   /**

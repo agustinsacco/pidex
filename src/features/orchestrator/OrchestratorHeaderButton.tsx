@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { showContextMenu } from '@/components/ContextMenu'
 import { PiSpark } from '@/components/PiSpark'
+import { OrchestratorIcon } from '@/components/icons'
 import { useChatStore } from '@/stores/chat'
 import { useFleetStore } from '@/stores/fleet'
 import { useSessionsStore } from '@/stores/sessions'
@@ -105,7 +106,12 @@ export function OrchestratorHeaderButton({
         enabled ? 'text-accent' : 'text-text-tertiary hover:text-text',
       )}
     >
-      {isStreaming ? <PiSpark size={12} /> : <span className="text-sm leading-none">✳</span>}
+      {/*
+        The spark is the "working" state and nothing else. Using ✳ for the
+        idle state too made the orchestrator's identity and every session's
+        busy indicator the same mark.
+      */}
+      {isStreaming ? <PiSpark size={12} /> : <OrchestratorIcon size={13} />}
       {unread > 0 && !active && (
         <span
           data-testid="orchestrator-unread"
