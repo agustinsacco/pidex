@@ -171,6 +171,14 @@ you want to watch.
   [specs/reference/extensions.md](specs/reference/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
+- **macOS updates itself by replacing its own bundle**, because Squirrel.Mac
+  refuses the ad-hoc signature this repo ships (`electron/updates/mac-installer.ts`).
+  Staging lives BESIDE the installed `.app`, not in `/tmp`, so the swap is two
+  atomic same-volume renames with a rollback — and the relauncher must poll for
+  the old pid to exit, or the single-instance lock in `main.ts` kills the new
+  instance and the user is left with no app. The startup sweep that deletes
+  leftovers is `rm -rf` next to `/Applications`; its name match is a full-string
+  regex on purpose. See [specs/reference/updates.md](specs/reference/updates.md).
 - **Connecting an MCP server never puts a token in pidex.** The adapter owns
   OAuth and the OS credential store; pidex writes `mcp.json` and drives the
   adapter's own `/mcp-auth` command (an extension command, so no model runs).

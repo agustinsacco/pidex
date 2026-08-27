@@ -34,6 +34,7 @@ Two rules that keep this workable:
 | [chat.md](reference/chat.md)                     | Transcript rendering, composer, tool cards                       |
 | [terminal.md](reference/terminal.md)             | PTY panes, clipboard, scrollback, per-session ownership          |
 | [settings.md](reference/settings.md)             | The settings window and which config file each tab writes        |
+| [updates.md](reference/updates.md)               | Update detection, the three install paths, and the macOS swap    |
 | [worktrees.md](reference/worktrees.md)           | Git worktree lifecycle and the branch control                    |
 | [mcp.md](reference/mcp.md)                       | MCP servers via the pi-mcp-adapter config chain                  |
 | [extensions.md](reference/extensions.md)         | The five bundled pi extensions; provider transcript shapes       |
