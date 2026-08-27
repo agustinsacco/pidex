@@ -28,6 +28,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  ClaudeLoginState,
   AgentDirectivePrefs,
   ClaudeSystemPromptMode,
   CreateSessionOptions,
@@ -284,6 +285,25 @@ export interface IpcInvokeMap {
   }
   /** Claude Code CLI health for the provider tab (binary + local auth state). */
   'packages:claudeStatus': { args: []; result: ClaudeStatus }
+
+  /**
+   * Sign the Claude Code CLI in from inside pidex — the account that bills a
+   * Claude Pro/Max plan.
+   *
+   * No terminal, and no pty either: unlike pi's TUI-only `/login`,
+   * `claude auth login` accepts piped stdio, so `electron/pi/claude-login.ts`
+   * reads its URL off stdout and writes the pasted code back into stdin.
+   * Resolves once the CLI is running; progress arrives on `claude:loginState`,
+   * because the middle of it is a human in a browser. The CLI opens the browser
+   * itself, so main deliberately does not.
+   */
+  'claude:startLogin': { args: []; result: void }
+  /** Hand the code copied from the authorization page to the waiting CLI. */
+  'claude:submitCode': { args: [code: string]; result: void }
+  /** Abort a `claude:startLogin` in progress. No-op if nothing is running. */
+  'claude:cancelLogin': { args: []; result: void }
+  /** `claude auth logout`. Credentials are the CLI's, so this is its subcommand. */
+  'claude:logout': { args: []; result: void }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
@@ -565,6 +585,8 @@ export interface PidexApi {
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
   /** Progress of a background `pi:startLogin`; returns unsubscribe. */
   onPiLoginState(listener: (state: LoginFlowState) => void): () => void
+  /** Progress of a background `claude:startLogin`; returns unsubscribe. */
+  onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image

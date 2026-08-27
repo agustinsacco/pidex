@@ -94,9 +94,9 @@ electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per IPC channel prefix — 13 of them today
+  ipc/               one module per IPC channel prefix — 14 of them today
                      (pi, app, sessions, fleet, git, gh, fs, pty, mcp,
-                      clipboard, packages, orchestrator, updates)
+                      clipboard, packages, claude, orchestrator, updates)
   registry.ts        the live pi session registry
   pi/                RPC client (strict LF JSONL framing), session scanner,
                      writer, paths, print mode, model catalogue, login flow
