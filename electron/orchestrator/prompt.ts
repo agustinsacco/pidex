@@ -4,6 +4,7 @@ import {
   type OrchestratorMode,
   type SweepKind,
 } from '@shared/models'
+import { envelope, newNonce, scrubInvisible, untrustedPreamble } from './untrusted'
 
 /**
  * What the orchestrator is told about itself, and what a sweep asks for.
@@ -85,8 +86,20 @@ export function modeReminder(mode: OrchestratorMode): string {
   return `You are currently in ${ORCHESTRATOR_MODE_INFO[mode].label} mode. ${ORCHESTRATOR_MODE_INFO[mode].summary}`
 }
 
-/** Compact fleet view embedded in a sweep prompt, so the model starts informed. */
-export function describeFleet(sessions: FleetSession[], now: number = Date.now()): string {
+/**
+ * Compact fleet view embedded in a sweep prompt, so the model starts informed.
+ *
+ * `lastLine` and a pending question's title are written by ANOTHER lane's
+ * agent, so they are untrusted input to a thread holding `session_send` and
+ * `session_stop` over that lane. They used to be interpolated raw. They are
+ * now enveloped under a per-sweep nonce; everything else on the line is a
+ * mechanical fact the hub computed and is safe to state plainly.
+ */
+export function describeFleet(
+  sessions: FleetSession[],
+  now: number = Date.now(),
+  nonce?: string,
+): string {
   const working = sessions.filter((s) => !s.isOrchestrator)
   if (working.length === 0) return 'No sessions are running right now.'
   return working
@@ -95,18 +108,33 @@ export function describeFleet(sessions: FleetSession[], now: number = Date.now()
       // pidex's naming call can fail), but its folder always means something —
       // usually the worktree cut for this piece of work. "untitled" told the
       // model nothing and it fell back to quoting raw session ids at the user.
-      const label = s.title ?? s.workspacePath.split('/').filter(Boolean).pop() ?? 'untitled'
+      const label = scrubInvisible(
+        s.title ?? s.workspacePath.split('/').filter(Boolean).pop() ?? 'untitled',
+      )
       const bits = [`- ${label} (${s.sessionId})`, `phase: ${s.phase}`]
       if (s.currentTool) bits.push(`running: ${s.currentTool}`)
-      if (s.pendingQuestion) bits.push(`BLOCKED asking: "${s.pendingQuestion.title}"`)
+      if (s.pendingQuestion) {
+        bits.push(`BLOCKED asking: ${quote(s.pendingQuestion.title, nonce, label)}`)
+      }
       if (s.idleSince) bits.push(`idle ${Math.round((now - s.idleSince) / 60_000)}m`)
-      if (s.lastLine) bits.push(`last said: ${s.lastLine}`)
+      if (s.lastLine) bits.push(`last said: ${quote(s.lastLine, nonce, label)}`)
       if (s.filesTouched.length > 0) {
         bits.push(`touched: ${s.filesTouched.slice(-5).join(', ')}`)
       }
       return bits.join(' · ')
     })
     .join('\n')
+}
+
+/**
+ * One field of lane-written text, framed when a nonce is in play.
+ *
+ * The no-nonce path keeps the old inline shape so the many existing callers
+ * and tests of `describeFleet` stay meaningful; every real sweep passes one.
+ */
+function quote(text: string, nonce: string | undefined, source: string): string {
+  if (!nonce) return `"${scrubInvisible(text)}"`
+  return `\n${envelope(nonce, text, { kind: 'lane-output', source })}`
 }
 
 /**
@@ -138,8 +166,10 @@ export function sweepPrompt(
   // a mode changed mid-thread would leave the model believing the old posture.
   mode?: OrchestratorMode,
 ): string {
-  const fleet = describeFleet(sessions, now)
+  const nonce = newNonce()
+  const fleet = describeFleet(sessions, now, nonce)
   const modeLine = mode ? ['', modeReminder(mode)] : []
+  const trustLine = ['', untrustedPreamble(nonce)]
   if (kind === 'brief') {
     return [
       'Brief me on this project.',
@@ -149,6 +179,7 @@ export function sweepPrompt(
       '',
       'Read your memory first. Look at anything that changed since you last',
       'reported. Do not steer or stop anything.',
+      ...trustLine,
       ...modeLine,
       '',
       REQUIRED_PUBLISH,
@@ -166,6 +197,7 @@ export function sweepPrompt(
     'so and suggest archiving it. Update your memory with anything worth',
     'remembering next time. Report; do not act, unless a rule in your',
     'instructions tells you to.',
+    ...trustLine,
     ...modeLine,
     '',
     REQUIRED_PUBLISH,

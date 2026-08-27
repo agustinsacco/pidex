@@ -31,7 +31,7 @@ import type { ExtensionUIRequest } from '@shared/rpc'
  * Owns each project's orchestrator session and answers its control calls.
  *
  * The only thing here that spends tokens is `sweep()`, and it is always
- * user-initiated or explicitly opted into — see specs/13-orchestration.md.
+ * user-initiated or explicitly opted into — see specs/reference/orchestration.md.
  */
 
 /** Sweeps closer together than this are refused rather than queued. */

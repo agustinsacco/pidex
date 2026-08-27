@@ -11,7 +11,7 @@ import type {
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { stripAnsi } from '@/lib/ansi'
+import { stripAnsi } from '@shared/ansi'
 import { ChevronIcon } from '@/components/icons'
 import { Button, TextInput } from '@/components/form'
 import { usePackageJob } from '../usePackageJob'

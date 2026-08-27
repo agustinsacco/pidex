@@ -6,6 +6,9 @@
  * feeds events in here.
  */
 
+// Version comparison is shared with the renderer's package tabs.
+export { isNewerVersion } from '@shared/version'
+
 export type UpdatePhase =
   | 'idle'
   | 'checking'
@@ -89,34 +92,4 @@ export function reduceUpdate(state: UpdateState, event: UpdateEvent): UpdateStat
 function clampPercent(percent: number): number {
   if (!Number.isFinite(percent)) return 0
   return Math.min(100, Math.max(0, Math.round(percent)))
-}
-
-/**
- * Compare two `x.y.z` versions. Returns true when `candidate` is newer.
- *
- * Used by the manual-download poller, which reads `latest-*.yml` directly and
- * therefore cannot lean on electron-updater's own comparison. Numeric per
- * segment on purpose: string comparison puts 0.1.9 above 0.1.10, which would
- * strand every user on the ninth release.
- */
-export function isNewerVersion(candidate: string, current: string): boolean {
-  const parse = (value: string): number[] =>
-    value
-      .trim()
-      .replace(/^v/, '')
-      // Drop any prerelease/build suffix; pidex ships plain x.y.z.
-      .split('-')[0]!
-      .split('.')
-      .map((part) => Number.parseInt(part, 10))
-
-  const a = parse(candidate)
-  const b = parse(current)
-  if (a.some(Number.isNaN) || b.some(Number.isNaN)) return false
-
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const left = a[i] ?? 0
-    const right = b[i] ?? 0
-    if (left !== right) return left > right
-  }
-  return false
 }

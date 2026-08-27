@@ -2,7 +2,7 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { Button, Row, SectionTitle, TextField, Toggle } from '@/components/form'
-import { normalizePrefix } from '@/lib/branchName'
+import { normalizePrefix } from '@shared/branchName'
 import type { WorkspaceInfo } from '@shared/models'
 
 /** How new chats get their branch, plus recent workspaces and layout reset. */

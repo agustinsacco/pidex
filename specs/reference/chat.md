@@ -1,0 +1,114 @@
+# 04 — Chat: Composer, Streaming, Rich Rendering
+
+## Composer
+
+- Multi-line input; Enter sends, Shift+Enter newline.
+- **While streaming**: Enter queues a **steering** message (delivered after the current turn's tool calls), Alt/Cmd+Enter queues a **follow-up** (after the agent finishes). Match pi TUI semantics exactly; the two queues are visually distinct. Escape aborts and restores queued messages to the composer.
+- `queue_update` renders queued chips above the composer (steer = one color, follow-up = another) with remove/recall.
+- `@` → fuzzy file search across the workspace (gitignore-aware), inserts a path reference chip/text.
+- Images: paste or drag → thumbnails in composer → sent as `images[]` (base64) with the prompt.
+- `!command` → RPC `bash` (output shown in chat, enters model context on next prompt). `!!command` → same with `excludeFromContext: true` and a "not sent to model" badge. Surface both in a composer hint.
+- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with pidex-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
+- Composer widget slots above/below for extension `setWidget`; `set_editor_text` prefills the input.
+
+## Streaming rendering rules
+
+- Reduce `message_update.assistantMessageEvent` deltas incrementally into per-message view-models; never rebuild the whole list per delta.
+- **Text deltas** render as live markdown. Fenced blocks render their rich form only once the fence closes (skeleton/plain-mono while open) to avoid flicker.
+- **Thinking deltas** stream into a collapsed-by-default "Thinking…" block with subdued styling; respect pi's `hideThinkingBlock` setting; expandable during and after streaming.
+- **Tool calls** appear as cards at `toolcall_start`, args fill from deltas, then live output attaches via `tool_execution_update` (partialResult is accumulated — replace displayed output each update), final state at `tool_execution_end` (success/error styling).
+- Virtualized message list; long sessions (1000+ entries) stay smooth. Autoscroll with "jump to bottom" pill when the user scrolls up.
+
+## Message affordances
+
+- Copy message / copy as markdown; code blocks: copy, "open as file", "run in terminal", "open as artifact".
+- User messages: **fork from here** (`fork` entryId) and edit-and-refork.
+- Error/abort stopReasons styled clearly (error banner with message; aborted = muted "stopped" divider).
+- Auto-retry: inline strip "Retrying (2/3) in 4s — <error>" with cancel (`abort_retry`).
+- Compaction: `compaction_start/end` render a system divider "Context compacted — N tokens summarized" (expandable summary). Branch summaries similar.
+
+## Tool renderers
+
+| Tool               | Treatment                                                                                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                                 |
+| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                                   |
+| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](../build/05-files-editor.md)) |
+| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                                    |
+| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                            |
+| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                                |
+
+### Blocks from the Claude Code provider
+
+Sessions on `@saccolabs/pi-claude-cli` carry two shapes no pi-native provider
+produces. Both are handled in `items/transcriptRows.ts`, so tool-UX work
+inherits them for free — but anything that re-derives rows from
+`AssistantBlock`s must handle them again.
+
+| Shape                                       | Where it comes from                                                                                                                                                             | Treatment                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[Claude Code · Name {args}]` text block    | Tools Claude Code ran **inside its own process** (WebSearch, WebFetch, ToolSearch, the user's MCP servers, sub-agents). pi cannot execute them, so they are never pi tool calls | Parsed into an `externalTool` activity step: grouped with pi's tools, counted in the summary, never markdown-rendered. There is **no result** — only what was invoked |
+| thinking block with a signature and no text | Encrypted thinking. Measured: fable-5, opus-5, sonnet-5 all do this; haiku-4-5 is the only family sending plaintext                                                             | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                      |
+
+The marker string is a **cross-repo wire contract**; the emitting side
+documents its shape. The argument preview is truncation-prone and therefore
+frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
+(JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
+headline — `Agent`/`Task` markers additionally render as sub-agent rows and
+feed the composer's sub-agent strip (`trailingAgentLaunches`). **A Claude
+Code sub-agent never returns its results to pidex** — it dies when the
+per-turn CLI exits, so no surface may imply one is still running; see
+[log/2026-08-22-claude-subagents-never-return.md](../log/2026-08-22-claude-subagents-never-return.md).
+Nothing may ever _depend_ on the preview parsing: a marker whose args are
+unreadable still renders as a plain named step.
+
+## Rich content (first-class citizens)
+
+- GFM: headings, tables (copy as markdown/CSV), task lists, blockquote callouts, footnotes, autolinks.
+- Code: Shiki/hljs, language badge, copy, line numbers on hover, horizontal scroll contained inside the block.
+- ```mermaid → rendered diagram; click for pan/zoom lightbox; export PNG/SVG; parse errors fall back to code with an error note.
+
+  ```
+- `vega-lite / `chart → theme-aware rendered chart; invalid spec falls back to code.
+- ```html → Code/Preview toggle; preview in sandboxed iframe (`sandbox` attr, no network, inlined content only).
+- KaTeX for `$…$` / `$$…$$`.
+- Images in content blocks inline with click-to-zoom.
+
+## Session header / status strip (per session)
+
+- Model picker (from `get_available_models`, grouped by provider — remember custom/local providers exist), thinking-level selector (off→xhigh, hidden if model lacks reasoning).
+- Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
+- Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
+
+### What the context meter's popover shows
+
+Three sources, three different confidence levels — and the UI is required to
+keep them distinguishable, because they are not equally trustworthy.
+
+| Section             | Source                                                   | Shown for                     |
+| ------------------- | -------------------------------------------------------- | ----------------------------- |
+| Tokens / cost       | `get_session_stats`                                      | every session                 |
+| Context composition | `pidex-context-breakdown` status key (bundled extension) | every session                 |
+| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)         | Claude Code provider sessions |
+
+**Context composition** answers "full of _what_" — messages, system prompt,
+tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
+number cannot. Only that **total is authoritative**: component sizes are
+character-based estimates (no tokenizer is reachable from an extension), so
+`breakdownSlices` scales them onto pi's real total, free space is the honest
+remainder, and the popover labels them approximate. Never present an
+estimate as measured, and never let the parts sum past the total.
+
+**Plan limits** is account state, not session state: the window
+(`five_hour`), when it resets, whether the account is capped or on overage.
+It renders only when the key is present, so other providers show nothing
+rather than an empty section. It deliberately has **no utilization
+percentage** — the CLI never forwards the header that carries it, so "when
+capacity returns" is the honest answer and "how much is left" is not
+available at any price we're willing to pay (see 12-extensions.md).
+
+Both keys arrive through pi's extension-UI status channel and land in
+`stores/extensionUi.ts` keyed by session; parsing lives in
+`composer/contextBreakdown.ts` and `composer/rateLimit.ts`, each of which
+returns `null` for a missing or malformed payload so a bad push degrades to
+"section absent" rather than a broken meter.

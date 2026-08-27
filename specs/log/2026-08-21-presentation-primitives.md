@@ -1,6 +1,6 @@
 # 2026-08-21 — Presentation primitives (cleanup plan, phase 5)
 
-Phase 5 of [../CLEANUP_PLAN.md](../CLEANUP_PLAN.md): the renderer's presentation
+Phase 5 of [../CLEANUP_PLAN.md](../backlog/cleanup-plan.md): the renderer's presentation
 layer, where the same four shapes had been retyped once per feature. Nothing
 here changes behaviour; the point is that the next component gets these for
 free instead of copying a class string from whichever neighbour was closest.

@@ -17,6 +17,7 @@ import {
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
+  setAgentDirectives,
   setWorktreePrefs,
   setNotificationsMuted,
 } from '../store'
@@ -124,6 +125,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setWorktreePrefs', (_event, worktrees) => {
     setWorktreePrefs(worktrees)
+  })
+
+  handle('app:setAgentDirectives', (_event, directives, projectPath) => {
+    setAgentDirectives(directives, projectPath)
   })
 
   handle('app:setNotificationsMuted', (_event, muted: boolean) => {

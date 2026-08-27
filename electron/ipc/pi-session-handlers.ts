@@ -6,7 +6,7 @@ import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
-import { worktreePromptBlock } from '../pi/workspace-prompt'
+import { composeDirectives } from '../pi/directives'
 import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace } from '../store'
@@ -14,6 +14,7 @@ import { broadcast } from '../orchestrator/broadcast'
 import { configureOrchestrator, orchestrator } from '../orchestrator/instance'
 import { startNotifier } from '../orchestrator/notifier'
 import { gitInfo, gitInfoBatch } from '../fs/git-info'
+import { createLaneWorkspace } from '../fs/lane-workspace'
 import {
   MIN_PI_VERSION,
   type CreateSessionOptions,
@@ -39,8 +40,14 @@ function bundledExtensionPath(file: string): string {
  * artifacts (tools the model can call), context-breakdown (passive reporting
  * of what is filling the context window, which only pi can see),
  * worktree-paths (refuses a file read that has escaped into the main
- * checkout of a worktree session), and tool-name-guard (keeps a malformed
- * tool call out of the session file, where it would brick every later turn).
+ * checkout of a worktree session), tool-name-guard (keeps a malformed
+ * tool call out of the session file, where it would brick every later turn),
+ * and lane-loop (runs the acceptance ladder when a turn settles).
+ *
+ * lane-loop is the one that survives every provider intact: it executes
+ * commands rather than intercepting tool calls, so it works identically on a
+ * native provider and on the Claude Code CLI bridge, where CLI-internal tools
+ * never reach `tool_call` at all.
  */
 function bundledExtensions(): string[] {
   return [
@@ -48,6 +55,7 @@ function bundledExtensions(): string[] {
     bundledExtensionPath('context-breakdown.ts'),
     bundledExtensionPath('worktree-paths.ts'),
     bundledExtensionPath('tool-name-guard.ts'),
+    bundledExtensionPath('lane-loop.ts'),
   ]
 }
 
@@ -102,14 +110,23 @@ async function spawnSession(
   // sidebar has almost always just resolved this cwd, so creating a session
   // usually costs no git at all.
   const gitByPath = stub ? {} : await gitInfoBatch([options.workspacePath])
-  const worktreeBlock = worktreePromptBlock(
-    options.workspacePath,
-    gitByPath[options.workspacePath] ?? { isRepo: false },
-  )
-  // Both can apply: the orchestrator supplies its own preamble, and if it ever
-  // runs somewhere that needs the worktree block it must still get one.
-  const appendSystemPrompt =
-    [worktreeBlock, options.appendSystemPrompt].filter(Boolean).join('\n\n') || undefined
+  const git = gitByPath[options.workspacePath] ?? { isRepo: false }
+  // Layer 2 of the directive stack. `directives.ts` owns the order and the
+  // reasoning; this only resolves which prefs apply. Per-project overrides key
+  // on the repo of record, so every worktree of a repo gets the same rules.
+  const projectKey = git.mainRepoPath ?? options.workspacePath
+  const prefs = getPrefs()
+  const directivePrefs = prefs.agentDirectivesByProject[projectKey] ?? prefs.agentDirectives
+  const appendSystemPrompt = composeDirectives({
+    cwd: options.workspacePath,
+    git,
+    prefs: directivePrefs,
+    // Present only for a lane on its own branch. A session opened in the main
+    // checkout is not a lane and is not told it owes a PR.
+    ...(git.isWorktree && git.branch ? { charter: { branch: git.branch } } : {}),
+    // The orchestrator supplies its own preamble and is not a lane.
+    ...(options.appendSystemPrompt ? { extra: options.appendSystemPrompt } : {}),
+  })
 
   const session = registry.create(options.workspacePath, {
     binaryPath,
@@ -205,11 +222,31 @@ export function registerPiSessionHandlers(): void {
         },
         'broadcast',
       ),
+    // Every lane gets its own branch and worktree, including the ones the
+    // orchestrator starts. This used to spawn straight into `workspacePath`,
+    // so an autopilot lane landed in the main checkout on whatever branch was
+    // out — the exact collision the worktree design exists to prevent, live
+    // again in the layer meant to prevent it.
     startWork: async (workspacePath, prompt, name) => {
-      const info = await spawnSession({ workspacePath, name }, 'broadcast')
+      const lane = await createLaneWorkspace({
+        workspacePath,
+        title: name,
+        branchPrefix: getPrefs().worktrees.branchPrefix,
+      })
+      const info = await spawnSession({ workspacePath: lane.workspacePath, name }, 'broadcast')
+      if (lane.warning) {
+        // Never silent: an un-isolated lane is a fact the operator has to know,
+        // and it lands in the lane's own transcript rather than a log file.
+        // Same channel the visible-hand rule uses for orchestrator injections.
+        broadcast(`pi:event:${info.sessionId}`, {
+          kind: 'injected',
+          text: lane.warning,
+          source: 'orchestrator',
+        })
+      }
       const session = registry.get(info.sessionId)
       await session?.client.request({ type: 'prompt', message: prompt })
-      return { sessionId: info.sessionId }
+      return { sessionId: info.sessionId, workspacePath: lane.workspacePath, branch: lane.branch }
     },
     gitStatus: async (workspacePath) => gitInfo(workspacePath),
   })

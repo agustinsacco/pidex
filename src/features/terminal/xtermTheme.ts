@@ -1,7 +1,7 @@
 import type { ITheme } from '@xterm/xterm'
 
 /**
- * xterm themes derived from the Phosphor tokens (specs/STYLE_GUIDE.md §Terminal).
+ * xterm themes derived from the Phosphor tokens (specs/reference/style-guide.md §Terminal).
  * Hex literals on purpose — xterm takes a JS object, not CSS vars; keep in
  * sync with --px-* in src/styles/index.css (incl. --px-terminal-bg).
  */

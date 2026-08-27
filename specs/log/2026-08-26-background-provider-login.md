@@ -84,7 +84,7 @@ login: xAI, Anthropic, GitHub Copilot, OpenAI Codex, OpenRouter, Kimi For
 Coding, Radius. The probe imports the shipping parsers rather than
 reimplementing them, so a green run is about this code and not about the probe.
 
-21 unit tests in `electron/pi/__tests__/login-flow.test.ts` pin the screen
+21 unit tests in `electron/pi/login-flow.test.ts` pin the screen
 shapes as verbatim captures. Each wording variant in the table above has a test
 whose failure names the provider that broke it.
 

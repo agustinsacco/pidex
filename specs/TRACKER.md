@@ -6,12 +6,12 @@
 - This file tracks the long-term plan only: the phase table, phase checklists, and each phase's own **Log**. Update it as you go — flip task checkboxes the moment a task is done, set phase status (⬜ todo → 🟡 in progress → ✅ done), add a dated note to a phase's Log when it completes or its plan changes.
 - Work that isn't advancing a numbered phase (most day-to-day fixes and features) gets its own file: `log/YYYY-MM-DD-slug.md`, one dated write-up per change. Don't append it here — entries used to pile up at the end of this file, all landing at the same spot, so two PRs in flight at once conflicted here even when their code never overlapped. A new file per change has nothing to collide with.
 - If you deviate from a spec, write the deviation + reason in the phase Log, or in the change's own `log/` file when it isn't phase work. Specs are the contract; this file is the state.
-- Before implementing anything pi-related, re-read [02-pi-integration.md](02-pi-integration.md) and verify against the local pi docs it lists.
+- Before implementing anything pi-related, re-read [02-pi-integration.md](reference/pi-integration.md) and verify against the local pi docs it lists.
 
 | Phase | Title                                        | Status |
 | ----- | -------------------------------------------- | ------ |
 | P0–P9 | Foundations → tech-debt pass (archived)      | ✅     |
-| P10   | Visual identity: Phosphor                    | 🟡     |
+| P10   | Visual identity: Phosphor                    | ✅     |
 | P11   | Chat UX correctness pass (Phase 0)           | 🟡     |
 | P12   | UI refinements + platform features           | ✅     |
 | P13   | Transcript density: activity grouping        | ✅     |
@@ -23,7 +23,6 @@ without a reason to batch work into a phase again.
 
 **Still open** (the only unchecked boxes in this file):
 
-- P10 — regenerate `specs/screenshots/`; the PNGs still show the pre-Phosphor UI.
 - P11 — B6 cost honesty (`—` for an all-zero `ModelCost`, per-component rows).
 - P11 — phases 2–5 of the plan (type scale, ink-based grouping, CTA rows, `Notice`).
 
@@ -31,33 +30,54 @@ without a reason to batch work into a phase again.
 
 ## P0–P9 — Foundations through the tech-debt pass `✅`
 
-All ten shipped. Detail, deviations and per-phase logs live in
-[archive/TRACKER-P0-P9.md](archive/TRACKER-P0-P9.md).
+All ten shipped. The per-phase detail, deviations and logs lived in
+`specs/archive/TRACKER-P0-P9.md` until 2026-08-27, when `specs/archive/` was
+deleted — nothing in it was a live contract and it was drifting unread. Recover
+it from git if you ever need the archaeology:
+
+```bash
+git show 737f18e:specs/archive/TRACKER-P0-P9.md
+```
 
 ---
 
-## P10 — Visual identity: Phosphor `🟡`
+## P10 — Visual identity: Phosphor `✅`
 
-Specs: [STYLE_GUIDE.md](STYLE_GUIDE.md) · [RESTYLE_PLAN.md](archive/RESTYLE_PLAN.md)
+Specs: [style-guide.md](reference/style-guide.md). The execution plan
+(`specs/archive/RESTYLE_PLAN.md`) was deleted 2026-08-27 now that the migration
+it sequenced is done.
 
 - [x] Brand definition: Phosphor system (amber-phosphor accent, paper/graphite neutrals, mono structural voice) with contrast ratios verified at design time
 - [x] New mark ("prompt bubble") + `scripts/generate-icons.mjs` (Playwright-rendered png/icns/ico) + dev-run dock/window icon in `electron/main.ts`
 - [x] RESTYLE_PLAN phases 1–3: token swap, xterm/Monaco, chart/mermaid (one PR)
 - [x] Phase 4: mono structural-voice pass over labels/badges + serif retirement
-- [ ] Phase 5 leftover: regenerate `specs/screenshots/` (sweep + e2e done; PNGs still show v1)
+- [x] Phase 5: sweep + e2e done. The "regenerate the screenshots" leftover was **closed by deleting them** on 2026-08-27 — see the log entry below.
 
-**Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually, screenshots refreshed.
+**Done when:** zero terracotta hexes in `src/` + `electron/`, both themes swept manually. Both hold.
 
 **Log:**
 
 - 2026-08-07 — Brand adopted; guide + plan + icon landed on PR #4. Known dev-mode limitation documented in main.ts: macOS menu-bar title says "Electron" when unpackaged (Info.plist, not fixable at runtime); dock icon is set at runtime instead. Restyle deliberately deferred to its own PR — a half-migrated palette is the worst state.
 - 2026-08-07 — Restyle phases 1–4 executed (see RESTYLE_PLAN Outcome): token swap + new `--px-terminal-bg`, xterm/Monaco/Mermaid/Chart.js re-themed, mono voice on all 18 uppercase-label sites, serif retired from chrome, heatmap info→accent. Exit grep clean; typecheck/lint/prettier/348 unit/8 e2e green; both-themes manual sweep in the browser harness (dark accent-text flip verified). Screenshots regen still pending.
+- 2026-08-27 — **P10 closed.** The last box asked to regenerate
+  `specs/screenshots/` because "the PNGs still show the pre-Phosphor UI". That
+  was a misreading of what they were: every capture was of Anthropic's Claude
+  Desktop, taken during the original cloning study, not of pidex. There was no
+  pidex UI in them to regenerate, so the box could never have been ticked as
+  written. Phosphor makes the resemblance an explicit non-goal
+  ([style-guide.md](reference/style-guide.md): "the wrong place to stay"), so
+  the 8.7MB of third-party captures were deleted and the two live docs that
+  called them "the visual quality bar" were corrected. Phase 5's real work
+  (sweep + e2e) had already landed on 2026-08-07.
 
 ---
 
 ## P11 — Chat UX correctness pass (Phase 0) `🟡`
 
-Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
+Plan: `specs/archive/CHAT_UX_PHASE0_PLAN.md`, deleted 2026-08-27
+(`git show 737f18e:specs/archive/CHAT_UX_PHASE0_PLAN.md`). Its still-relevant
+phases are inlined at the bottom of this section so the open boxes stay
+actionable without it.
 
 - [x] B1 Streaming tool identity: `toolIdentity.ts` (placeholder ids, `toolName: null`, adoption on `tool_execution_*` / later partials) — no more "Running unknown", no more output routed to an orphan key
 - [x] B2 Autoscroll: `items/autoscroll.ts` intent-based pinning + a synchronous pin ref + self-scroll suppression — reading back during a stream survives (e2e measures `scrollTop` holding while the stream grows the scroll range)
@@ -68,7 +88,22 @@ Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
 - [x] B5 Pane scrolling: `PaneShell` content slot is a flex column, so `flex-1` bodies constrain their scrollers
 - [x] Artifact tool UX: `ArtifactDetail` card (glyph/title/type/version, "Open in panel"), artifact-aware labels, live byte counter while content streams
 - [ ] B6 Cost honesty: `—` for all-zero `ModelCost`, per-component cost rows in the usage popover
-- [ ] Phases 2–5 of the plan (type scale, further ink-based grouping, unified CTA rows, `Notice` primitive)
+- [ ] Phases 2–5 of the plan — **status stale, re-verify before picking any of these up.** Parts appear to have shipped by other routes; see the inlined list below.
+
+### Phases 2–5, inlined from the deleted plan
+
+Recorded verbatim in intent so the boxes above survive the plan's deletion. The
+**status column is what needs checking** — the surrounding work (the 2026-08-20
+type scale, P13's activity grouping, the ContextMeter pricing text) delivered
+some of this by different means than the plan proposed, and nobody reconciled
+the boxes.
+
+| Phase | Intent                                                                                                                                     | Apparent state (2026-08-27, unverified)                                                                                                                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2     | One type scale replacing hardcoded sizes; larger body text in less vertical space. Plan proposed `--px-fs-*` tokens.                       | **Delivered differently** — [the type scale](log/2026-08-20-type-scale.md) replaced 424 sizes without those tokens.                                              |
+| 3     | Consecutive tool rows of one turn render as one block (gray label + emphasized object), grouping by ink rather than whitespace.            | **Likely delivered** by P13's turn-level `ActivityGroup`.                                                                                                        |
+| 4     | One `MessageActions` used by both user and assistant messages, always rendered, so turn rhythm stops alternating. Plus B3 session title.   | B3 is done. `MessageActions` was never built; P13 shipped a zero-height floating hover pill instead.                                                             |
+| 5     | A `<Notice tone level actions>` primitive replacing `CrashBanner` / `NoModelsBanner` / `RetryStrip` / the inline assistant error. Plus B6. | **Open.** `RetryStrip.tsx` and `banners.tsx` are still separate. B6's "no pricing configured" text exists in `ContextMeter`; the per-component cost rows do not. |
 
 **Done when:** the plan's Phase 0 exit criteria hold in e2e and Phases 1–5 are either landed or explicitly deferred here.
 
@@ -81,7 +116,7 @@ Plan: [CHAT_UX_PHASE0_PLAN.md](archive/CHAT_UX_PHASE0_PLAN.md)
 
 ## P12 — UI refinements + platform features (10-item pass) `✅`
 
-Specs: [WORKTREES.md](WORKTREES.md) · [11-mcp.md](11-mcp.md)
+Specs: [WORKTREES.md](reference/worktrees.md) · [11-mcp.md](reference/mcp.md)
 
 - [x] Removed the informational "Local" chip from the home composer
 - [x] ANSI-safe extension UI: `src/lib/ansi.ts` (stripAnsi + ansiToSpans); status strip and composer widgets render SGR colors, toasts/dialogs strip — fixes raw `[38;2;…m` bytes in the bottom bar

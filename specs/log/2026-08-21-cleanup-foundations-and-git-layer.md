@@ -1,6 +1,6 @@
 # Cleanup, part 1: foundations and the main-process git layer
 
-2026-08-21. Phases 1 and 2 of `specs/CLEANUP_PLAN.md`.
+2026-08-21. Phases 1 and 2 of `specs/backlog/cleanup-plan.md`.
 
 ## What this was
 
@@ -86,7 +86,7 @@ while consolidating the runners, not introduced by it.
 
 ## Also in this commit
 
-`specs/PERF_FINDINGS.md` — a separate read-only audit of memory and CPU on the
+`specs/backlog/perf-findings.md` — a separate read-only audit of memory and CPU on the
 RPC and streaming path. It is analysis only; nothing in it is implemented here.
 Three of its findings are bugs rather than slowness, and two of them are cases
 where a comment in this repo describes a fix that is not actually wired up.
