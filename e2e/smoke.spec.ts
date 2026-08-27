@@ -1525,6 +1525,13 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     await expect(banner.getByText(/auth\/ttl\.test\.ts/)).toBeVisible()
     await expect(banner.getByText(/pidex\/stub-lane/)).toBeVisible()
 
+    // The status strip must NOT print the raw payload. `setStatus` is the only
+    // channel an extension has, so it doubles as a data bus, and every
+    // structured key has to be excluded by name or its JSON lands in the strip
+    // at the bottom of the window. Shipping `pidex-lane-loop` without adding it
+    // to that list did exactly that; caught by looking at a screenshot.
+    await expect(page.getByText(/"rungs":/)).toHaveCount(0)
+
     // MOUNT 2 — the same component on the fleet card, so the two surfaces
     // cannot disagree about where the work is.
     await page.getByRole('button', { name: /^New$/ }).click()
