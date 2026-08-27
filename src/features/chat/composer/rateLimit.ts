@@ -6,10 +6,15 @@
  * simply never pushes this key, so the UI shows nothing rather than an
  * empty section.
  *
- * Deliberately not utilization percentages: those come from
- * `anthropic-ratelimit-unified-*` response headers, which the CLI consumes
- * in-process and never forwards. What we get is the window and its reset,
- * which is the actionable part — "when do I get capacity back".
+ * ONE window per event, not a dashboard. The CLI reports the first window
+ * whose warning threshold has been crossed, walking
+ * `5h -> 7d -> 7d_oi -> overage`, so what arrives is the *binding constraint* —
+ * the limit that will actually stop you — and the other windows are simply not
+ * on this stream. Rendering it as "the" limit is honest; rendering four bars
+ * from it would not be.
+ *
+ * `utilization` arrives from provider ≥ 0.4.9. Older providers send the window
+ * and its reset but no percentage, so the bar is omitted rather than guessed.
  */
 
 export const RATE_LIMIT_STATUS_KEY = 'claude-rate-limit'
@@ -23,6 +28,11 @@ export interface ClaudeRateLimit {
   windowType: string | null
   isUsingOverage: boolean
   overageStatus: string | null
+  /**
+   * Fraction of the window consumed: 1.01 means 101%, i.e. over.
+   * `null` on providers older than 0.4.9, which never sent it.
+   */
+  utilization: number | null
 }
 
 export function parseRateLimit(statusText: string | undefined): ClaudeRateLimit | null {
@@ -41,6 +51,12 @@ export function parseRateLimit(statusText: string | undefined): ClaudeRateLimit 
       windowType,
       isUsingOverage: raw.isUsingOverage === true,
       overageStatus: str(raw.overageStatus),
+      // Absent on older providers. Kept as null rather than 0 — "unknown" and
+      // "none used" must not look the same in the UI.
+      utilization:
+        typeof raw.utilization === 'number' && Number.isFinite(raw.utilization)
+          ? raw.utilization
+          : null,
     }
   } catch {
     return null
@@ -56,9 +72,31 @@ export function windowLabel(windowType: string | null): string {
       return 'Weekly limit'
     case 'seven_day_oauth_apps':
       return 'Weekly limit (apps)'
+    case 'seven_day_overage_included':
+      return 'Weekly limit (incl. credits)'
+    // Not a plan window at all: pay-as-you-go usage credits, billed at
+    // standard API rates on top of the subscription. Saying "overage limit"
+    // hid that this one costs real money per token.
+    case 'overage':
+      return 'Usage credits'
     default:
       return windowType ? windowType.replace(/_/g, ' ') : 'Usage limit'
   }
+}
+
+/** "101%" — or null when the provider is too old to report it. */
+export function utilizationPercent(utilization: number | null): number | null {
+  if (utilization === null) return null
+  return Math.max(0, Math.round(utilization * 100))
+}
+
+/**
+ * Whether this window costs money per token rather than consuming an
+ * allowance. `overage` is the usage-credit bucket: billed at standard API
+ * rates, charged separately from the subscription.
+ */
+export function isPaidWindow(windowType: string | null): boolean {
+  return windowType === 'overage'
 }
 
 /**

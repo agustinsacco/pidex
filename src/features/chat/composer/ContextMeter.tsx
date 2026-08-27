@@ -11,7 +11,14 @@ import {
   breakdownSlices,
   parseContextBreakdown,
 } from './contextBreakdown'
-import { RATE_LIMIT_STATUS_KEY, parseRateLimit, resetLabel, windowLabel } from './rateLimit'
+import {
+  RATE_LIMIT_STATUS_KEY,
+  isPaidWindow,
+  parseRateLimit,
+  resetLabel,
+  utilizationPercent,
+  windowLabel,
+} from './rateLimit'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
@@ -222,16 +229,24 @@ function ContextComposition({
 }
 
 /**
- * Account-level usage window for Claude Code sessions — which window the
- * account is in and when capacity returns. Utilization percentages are not
- * available: the CLI reads them from response headers and never forwards
- * them (see rateLimit.ts).
+ * Account-level usage window for Claude Code sessions.
+ *
+ * ONE window, not four: the CLI reports the first limit whose threshold has
+ * been crossed, so this is the binding constraint — the one that will actually
+ * stop you. `utilization` arrives from provider >= 0.4.9; older providers give
+ * the window and its reset but no percentage, and the bar is omitted rather
+ * than guessed at.
  */
 function PlanLimits({ statusText }: { statusText: string | undefined }): React.JSX.Element | null {
   const limit = parseRateLimit(statusText)
   if (!limit) return null
   const reset = resetLabel(limit.resetsAt)
   const capped = limit.status === 'rejected'
+  const percent = utilizationPercent(limit.utilization)
+  // Past 100% on the credit bucket means real money is being spent per token,
+  // which deserves the same colour as a hard cap rather than a mild warning.
+  const over = percent !== null && percent >= 100
+  const paid = isPaidWindow(limit.windowType)
 
   return (
     <>
@@ -241,13 +256,35 @@ function PlanLimits({ statusText }: { statusText: string | undefined }): React.J
         <span
           className={clsx(
             'font-mono text-sm tabular-nums',
-            capped ? 'text-danger' : 'text-text-secondary',
+            capped || over ? 'text-danger' : 'text-text-secondary',
           )}
         >
+          {percent !== null && `${percent}% · `}
           {capped ? 'limit reached' : (reset ?? 'active')}
         </span>
       </div>
-      {limit.isUsingOverage && (
+      {percent !== null && (
+        <div className="bg-bg-secondary mt-1 h-1 overflow-hidden rounded-full">
+          <div
+            className={clsx(
+              'h-full rounded-full',
+              capped || over ? 'bg-danger' : percent >= 75 ? 'bg-warning' : 'bg-accent',
+            )}
+            // Bar caps at 100% even when utilization does not: a 101% bar
+            // would overflow its track, and the number beside it already
+            // says exactly how far over the line this is.
+            style={{ width: `${Math.min(100, percent)}%` }}
+          />
+        </div>
+      )}
+      {paid && (
+        <div className={clsx('text-sm', over ? 'text-danger' : 'text-warning')}>
+          {over
+            ? 'Over the credit allowance — further usage bills at standard API rates.'
+            : 'Usage credits bill separately from the subscription.'}
+        </div>
+      )}
+      {limit.isUsingOverage && !paid && (
         <div className="text-warning text-sm">Using extra usage beyond the plan allowance.</div>
       )}
       {capped && reset && <div className="text-text-tertiary text-sm">{reset}.</div>}
