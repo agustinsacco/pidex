@@ -47,11 +47,20 @@ describe('SUBSCRIPTION_PROVIDERS', () => {
       'openai-codex',
       'anthropic',
       'github-copilot',
+      'kimi-for-coding',
+      'xai',
+      'openrouter',
+      'radius',
     ])
     for (const provider of SUBSCRIPTION_PROVIDERS) {
       expect(provider.name).toBeTruthy()
       expect(provider.requires).toBeTruthy()
     }
+    // Subscriptions first — the Accounts tab renders in this order, and a
+    // per-token provider sitting under "a plan you already pay for" would be
+    // an outright lie about what signing in costs.
+    const billing = SUBSCRIPTION_PROVIDERS.map((p) => p.billing)
+    expect(billing.lastIndexOf('subscription')).toBeLessThan(billing.indexOf('balance'))
   })
 
   it('warns that Anthropic OAuth does not spend plan limits', () => {

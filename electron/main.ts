@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
+import { cancelAllLogins } from './pi/login-flow'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { stopMonitor } from './resources/monitor'
@@ -161,6 +162,9 @@ app.on('before-quit', (event) => {
   // filesystem watchers so no chokidar handles or debounce timers outlive us.
   stopMonitor()
   stopUpdateChecks()
+  // Before killAll: a login flow polls its own pty on a timer, and killing the
+  // pty out from under it would leave that timer running against a dead id.
+  cancelAllLogins()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),
