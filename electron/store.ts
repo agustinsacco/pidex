@@ -1,10 +1,11 @@
 import Store from 'electron-store'
-import { pruneSeenSessions } from './prefs-utils'
+import { blobIdsOf, pruneDrafts, pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
   type AgentDirectivePrefs,
   type AppPrefs,
+  type ComposerDraftRecord,
   type OrchestratorDigest,
   type OrchestratorWorkspacePrefs,
   type ThemePreference,
@@ -71,7 +72,39 @@ export function getPrefs(): AppPrefs {
     orchestratorSessions: s.get('orchestratorSessions') ?? {},
     orchestratorDigests: s.get('orchestratorDigests') ?? {},
     notificationsMuted: s.get('notificationsMuted') ?? false,
+    drafts: s.get('drafts') ?? {},
   }
+}
+
+/**
+ * Store one composer draft, pruning the map back to `MAX_DRAFTS`.
+ *
+ * Returns the blob ids that the prune dropped, so the caller can unlink their
+ * files. Without that return the images would outlive every reference to them
+ * and `userData/drafts/` would only ever grow.
+ */
+export function setDraft(draft: ComposerDraftRecord): string[] {
+  const s = prefs()
+  const next = { ...(s.get('drafts') ?? {}), [draft.key]: draft }
+  const { drafts, dropped } = pruneDrafts(next)
+  s.set('drafts', drafts)
+  return dropped
+}
+
+/** Forget one draft. Returns its blob ids so the caller can unlink them. */
+export function clearDraft(key: string): string[] {
+  const s = prefs()
+  const drafts = { ...(s.get('drafts') ?? {}) }
+  const removed = drafts[key]
+  if (!removed) return []
+  delete drafts[key]
+  s.set('drafts', drafts)
+  return blobIdsOf([removed])
+}
+
+/** Replace the whole map — used by the launch-time sweep. */
+export function setDrafts(drafts: Record<string, ComposerDraftRecord>): void {
+  prefs().set('drafts', drafts)
 }
 
 export function setOrchestratorPrefs(

@@ -611,7 +611,55 @@ export interface AppPrefs {
   orchestratorDigests: Record<string, OrchestratorDigest>
   /** Suppress orchestrator desktop notifications. */
   notificationsMuted: boolean
+  /**
+   * Unsent composer drafts, keyed by `session:<pidexId>` or
+   * `home:<workspacePath>`.
+   *
+   * Both composers used to keep their text and pending attachments in local
+   * `useState`, and `ChatView` is keyed on the active session id — so
+   * switching session unmounted the subtree and threw the draft away with no
+   * warning, and quitting did the same. Image BYTES are not in here: they go
+   * to `userData/drafts/` and are referenced by `blobId`, because a 5 MB paste
+   * re-serialised into config.json on every keystroke is not a pref, it is a
+   * problem.
+   */
+  drafts: Record<string, ComposerDraftRecord>
 }
+
+/** One pending attachment inside a persisted draft. */
+export interface DraftAttachment {
+  kind: 'image' | 'file'
+  name: string
+  size: number
+  /** kind 'file': the absolute path the agent is told to open. */
+  path?: string
+  /** kind 'image': file under `userData/drafts/`. */
+  blobId?: string
+  mimeType?: string
+}
+
+/** A composer's unsent state, durable across session switches and restarts. */
+export interface ComposerDraftRecord {
+  key: string
+  text: string
+  attachments: DraftAttachment[]
+  /**
+   * The model chosen for THIS draft. The home picker also writes pi's global
+   * default, but coming back to a draft should restore the model you picked
+   * for it rather than whatever the last session set globally.
+   */
+  model?: { provider: string; id: string }
+  thinking?: string
+  workspacePath?: string
+  preferWorktree?: boolean
+  updatedAt: number
+}
+
+/** Drafts kept per key; the oldest are pruned past this. */
+export const MAX_DRAFTS = 30
+
+/** Total bytes of draft image blobs allowed on disk. */
+export const MAX_DRAFT_BLOB_BYTES = 50 * 1024 * 1024
 
 /**
  * Which system prompt the pi-claude-cli provider gives its `claude`
@@ -712,6 +760,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   orchestratorSessions: {},
   orchestratorDigests: {},
   notificationsMuted: false,
+  drafts: {},
 }
 
 /** Minimum pi version pidex is verified against. */

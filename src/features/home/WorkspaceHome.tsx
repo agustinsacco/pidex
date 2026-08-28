@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
@@ -19,13 +19,32 @@ import { composePrompt, toImageContents, type PendingAttachment } from '@/featur
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
 import { ComposerField, useComposerFormatting } from '@/features/chat/composer/ComposerField'
+import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
-  const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingAttachment[]>([])
+  /*
+   * The first-prompt draft, per workspace, persisted.
+   *
+   * It used to be local state with one escape hatch: a failed session start
+   * pushed the text back through `startingChat`. Everything else lost it —
+   * switching workspace, opening a session, quitting the app. Keyed by folder
+   * so composing against two projects keeps two drafts.
+   */
+  const draftKey = homeDraftKey(workspacePath)
+  const draft = useDraftsStore((s) => s.drafts[draftKey])
+  const text = draft?.text ?? ''
+  const images = draft?.attachments ?? EMPTY_ATTACHMENTS
+  const setText = useCallback(
+    (next: string) => useDraftsStore.getState().setText(draftKey, next),
+    [draftKey],
+  )
+  const setImages = useCallback(
+    (next: PendingAttachment[]) => useDraftsStore.getState().setAttachments(draftKey, next),
+    [draftKey],
+  )
   const [warning, setWarning] = useState<string | null>(null)
   const [isRepo, setIsRepo] = useState(false)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
@@ -33,7 +52,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   // flag could never be read again. It stays true for the frame between the
   // keystroke and the swap.
   const starting = useStartingChatStore((s) => s.starting !== null)
-  const draft = useStartingChatStore((s) => s.draft)
+  const failedDraft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const attachments = useAttachments({
     attachments: images,
@@ -73,13 +92,16 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
    * different project's composer if the user moved on.
    */
   useEffect(() => {
-    if (!draft || draft.workspacePath !== workspacePath) return
-    setText(draft.text)
-    setImages(draft.attachments)
-    setWarning(draft.message)
+    if (!failedDraft || failedDraft.workspacePath !== workspacePath) return
+    useDraftsStore.getState().patch(draftKey, {
+      text: failedDraft.text,
+      attachments: failedDraft.attachments,
+      workspacePath,
+    })
+    setWarning(failedDraft.message)
     useStartingChatStore.getState().clearDraft()
     textareaRef.current?.focus()
-  }, [draft, workspacePath])
+  }, [failedDraft, workspacePath, draftKey])
 
   const start = async (): Promise<void> => {
     const message = text.trim()
@@ -98,6 +120,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     // trip, so until then a second Enter started a second session and a
     // second branch. This screen is gone before the next keystroke lands.
     useStartingChatStore.getState().begin({ workspacePath, prompt, images: sent })
+    // The send is committed, so the draft is spent. A failure re-fills it
+    // through `startingChat` below.
+    useDraftsStore.getState().clear(draftKey)
     try {
       // Resolves once the session is live and its first prompt is away (see
       // startChat) — the branch is cut from the message slug first because a
@@ -234,7 +259,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
-                <HomeModelPicker />
+                <HomeModelPicker
+                  override={draft?.model}
+                  onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
+                />
                 <SubmitIconButton
                   busy={starting}
                   disabled={!text.trim()}
@@ -382,3 +410,6 @@ function prettifyName(username: string): string {
 function formatNumber(n: number): string {
   return n.toLocaleString()
 }
+
+/** Stable empty list: a fresh `[]` per render would remount the chip row. */
+const EMPTY_ATTACHMENTS: PendingAttachment[] = []

@@ -27,7 +27,18 @@ import {
  * pi's own `get_available_thinking_levels` answer; this derivation is what a
  * new session will get, computed from the same data pi computes it from.
  */
-export function HomeModelPicker(): React.JSX.Element | null {
+export function HomeModelPicker({
+  override,
+  onPick,
+}: {
+  /**
+   * The model this workspace's saved draft was composed against. It wins over
+   * pi's global default: coming back to a draft should restore the model you
+   * chose for it, not whatever some later session set globally.
+   */
+  override?: { provider: string; id: string } | undefined
+  onPick?: (model: { provider: string; id: string }) => void
+} = {}): React.JSX.Element | null {
   const status = useModelCatalogueStore((s) => s.status)
   const models = useModelCatalogueStore((s) => s.models)
   const providers = useModelCatalogueStore((s) => s.providers)
@@ -37,6 +48,12 @@ export function HomeModelPicker(): React.JSX.Element | null {
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
 
   useEffect(() => {
+    if (!override) return
+    setProvider(override.provider)
+    setModelId(override.id)
+  }, [override])
+
+  useEffect(() => {
     // Usually a no-op — App hydrates this at boot, well before the home
     // screen renders. It stays here so the picker still works if it does not.
     void useModelCatalogueStore.getState().hydrate()
@@ -44,8 +61,11 @@ export function HomeModelPicker(): React.JSX.Element | null {
       const defaultProvider = settings.defaultProvider
       const defaultModel = settings.defaultModel
       const defaultThinking = settings.defaultThinkingLevel
-      if (typeof defaultProvider === 'string') setProvider(defaultProvider)
-      if (typeof defaultModel === 'string') setModelId(defaultModel)
+      // An override (a restored draft's model) has already been applied.
+      if (!override) {
+        if (typeof defaultProvider === 'string') setProvider(defaultProvider)
+        if (typeof defaultModel === 'string') setModelId(defaultModel)
+      }
       if (
         typeof defaultThinking === 'string' &&
         ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
@@ -77,6 +97,7 @@ export function HomeModelPicker(): React.JSX.Element | null {
     setOpen(null)
     setProvider(model.provider)
     setModelId(model.id)
+    onPick?.({ provider: model.provider, id: model.id })
     void window.pidex.invoke('pi:patchAgentSettings', 'global', undefined, {
       defaultProvider: model.provider,
       defaultModel: model.id,

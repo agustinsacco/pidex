@@ -35,6 +35,8 @@ import { composePrompt, toImageContents, type PendingAttachment } from './attach
 import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
 import { useAttachments } from './composer/useAttachments'
 import { ComposerField, useComposerFormatting } from './composer/ComposerField'
+import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
+import { useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
 
 interface MentionState {
@@ -58,9 +60,40 @@ export function Composer({
   // thread's banner now (it is per-project, not per-message), but ⇧Tab still
   // has to know whether this composer belongs to one.
   const orchestratorWorkspace = useIsOrchestrator(sessionId)
-  const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingAttachment[]>([])
+  /*
+   * Draft state lives in the store, not in `useState`.
+   *
+   * `App` renders `<ChatView key={activeSessionId}>`, so switching session
+   * unmounts this whole subtree — a local draft went with it, silently, along
+   * with any pasted image. Keyed by the session's FILE path once we know it,
+   * because that is the only identity that survives a restart; `rekey` below
+   * moves the draft across when pi finally tells us the path.
+   */
+  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
+  const draftKey = sessionDraftKey(diskPath, sessionId)
+  const draft = useDraftsStore((s) => s.drafts[draftKey])
+  const text = draft?.text ?? ''
+  const images = draft?.attachments ?? EMPTY_ATTACHMENTS
+  const setText = useCallback(
+    (next: string) => useDraftsStore.getState().setText(draftKey, next),
+    [draftKey],
+  )
+  const setImages = useCallback(
+    (next: PendingAttachment[]) => useDraftsStore.getState().setAttachments(draftKey, next),
+    [draftKey],
+  )
   const [attachWarning, setAttachWarning] = useState<string | null>(null)
+
+  // The file path arrives asynchronously (see `bootstrapSession`), so a draft
+  // typed in the first moments is filed under the pidexId. Move it rather than
+  // stranding it under a key nothing will read again.
+  const previousKey = useRef(draftKey)
+  useEffect(() => {
+    if (previousKey.current !== draftKey) {
+      useDraftsStore.getState().rekey(previousKey.current, draftKey)
+      previousKey.current = draftKey
+    }
+  }, [draftKey])
   const [mention, setMention] = useState<MentionState | null>(null)
   const [command, setCommand] = useState<CommandState | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -171,7 +204,7 @@ export function Composer({
         const exclude = message.startsWith('!!')
         const shellCommand = message.slice(exclude ? 2 : 1).trim()
         if (!shellCommand) return
-        setText('')
+        useDraftsStore.getState().clear(draftKey)
         const itemId = chat.addBashItem(sessionId, {
           command: shellCommand,
           output: '',
@@ -219,8 +252,8 @@ export function Composer({
       // has no document type, so the agent opens them with its own tools.
       const messageWithFiles = composePrompt(message, images)
 
-      setText('')
-      setImages([])
+      useDraftsStore.getState().clear(draftKey)
+      setAttachWarning(null)
       setCommand(null)
       setMention(null)
       setHistoryIndex(null)
@@ -246,7 +279,7 @@ export function Composer({
         chat.setError(sessionId, errorText(error))
       }
     },
-    [sessionId, text, images, isStreaming],
+    [sessionId, text, images, isStreaming, draftKey],
   )
 
   const abort = useCallback(async () => {
@@ -257,13 +290,14 @@ export function Composer({
       await piCallOk(sessionId, { type: 'abort' })
       // Escape semantics: restore queued messages into the composer.
       if (queuedText) {
-        setText((current) => (current ? current + '\n' + queuedText : queuedText))
+        const current = useDraftsStore.getState().get(draftKey).text
+        setText(current ? current + '\n' + queuedText : queuedText)
         textareaRef.current?.focus()
       }
     } catch (error) {
       chat.setError(sessionId, errorText(error))
     }
-  }, [sessionId])
+  }, [sessionId, draftKey, setText])
 
   const pickMention = (file: string): void => {
     if (!mention) return
@@ -533,3 +567,6 @@ function promptHistory(sessionId: string): string[] {
   }
   return prompts
 }
+
+/** Stable empty list: a fresh `[]` per render would remount the chip row. */
+const EMPTY_ATTACHMENTS: PendingAttachment[] = []

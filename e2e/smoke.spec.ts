@@ -998,6 +998,81 @@ test('reopens the last session on relaunch instead of the picker', async () => {
   }
 })
 
+test('an unsent draft survives a session switch and a relaunch', async () => {
+  // One userData dir across both launches so the draft has somewhere to live,
+  // while staying out of the developer's real prefs.
+  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+
+  try {
+    const first = await launch({ workspace, userDataDir })
+    try {
+      await openWorkspace(first.page)
+      const home = first.page.getByPlaceholder('Describe a task or ask a question')
+
+      // Type a first-prompt draft and paste an image into it.
+      await home.fill('half-written thought')
+      await first.page.evaluate((pngB64: string) => {
+        const bytes = Uint8Array.from(atob(pngB64), (c) => c.charCodeAt(0))
+        const dataTransfer = new DataTransfer()
+        dataTransfer.items.add(new File([bytes], 'dot.png', { type: 'image/png' }))
+        const zone = document
+          .querySelector<HTMLTextAreaElement>(
+            'textarea[placeholder="Describe a task or ask a question"]',
+          )!
+          .closest('div.relative')!
+        zone.dispatchEvent(
+          new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }),
+        )
+        zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
+      }, PNG_1X1)
+      await expect(
+        first.page.getByRole('button', { name: 'Attached image', exact: true }),
+      ).toBeVisible()
+
+      // Start a session in a SECOND composer, then come back. This is the
+      // case local state could never survive: App keys ChatView on the active
+      // session id, so navigating away unmounted the composer entirely.
+      await first.page.getByRole('button', { name: /^New$/ }).click()
+      await expect(first.page.getByPlaceholder('Describe a task or ask a question')).toHaveValue(
+        'half-written thought',
+      )
+
+      // Writes are debounced, so wait for the draft to actually be in prefs
+      // before pulling the plug — a fixed sleep here would be a flake waiting
+      // to happen on slower CI.
+      await expect
+        .poll(
+          () =>
+            first.page.evaluate(async () => {
+              const prefs = await window.pidex.invoke('app:getPrefs')
+              return Object.keys(prefs.drafts).length
+            }),
+          { timeout: 10_000 },
+        )
+        .toBeGreaterThan(0)
+    } finally {
+      await first.app.close()
+    }
+
+    const second = await launch({ workspace, userDataDir })
+    try {
+      const home = second.page.getByPlaceholder('Describe a task or ask a question')
+      await expect(home).toBeVisible({ timeout: 30_000 })
+      await expect(home).toHaveValue('half-written thought', { timeout: 20_000 })
+      // The image came back too — its bytes live beside prefs, not in them.
+      await expect(
+        second.page.getByRole('button', { name: 'Attached image', exact: true }),
+      ).toBeVisible({ timeout: 20_000 })
+    } finally {
+      await second.app.close()
+    }
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
 test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
   // Two projects, one shared prefs store so both stay in "known workspaces".
   const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))

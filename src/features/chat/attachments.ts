@@ -28,6 +28,12 @@ export interface PendingImage {
   data: string
   mimeType: string
   name: string
+  /**
+   * Where the bytes were persisted for a saved draft (`userData/drafts/`).
+   * In-memory bookkeeping only: it never reaches pi, and an image that has not
+   * been saved does not have one. See `src/stores/drafts.ts`.
+   */
+  blobId?: string
 }
 
 export interface PendingFile {
