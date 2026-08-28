@@ -5,7 +5,7 @@
  * loaded lazily behind `import.meta.env.DEV && !window.pidex`.
  */
 import type { PidexApi } from '@shared/ipc'
-import type { SessionPush } from '@shared/models'
+import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import fixtureRaw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'
@@ -125,6 +125,7 @@ let mockClaudeAuth: { loggedIn: boolean; email?: string } = {
   loggedIn: true,
   email: 'dev@example.com',
 }
+const mockConnectorAuthListeners = new Set<(push: ConnectorAuthPush) => void>()
 const mockClaudeLoginListeners = new Set<(state: never) => void>()
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -892,6 +893,30 @@ export function installMockPidex(): void {
               },
             ],
           })
+        case 'mcp:authorize': {
+          const serverName = String(args[0])
+          const emit = (state: ConnectorAuthState): void => {
+            for (const listener of mockConnectorAuthListeners) listener({ serverName, state })
+          }
+          emit({ phase: 'starting' })
+          setTimeout(
+            () =>
+              emit({
+                phase: 'awaiting-browser',
+                authorizationUrl: `https://example.test/oauth/${serverName}`,
+              }),
+            300,
+          )
+          setTimeout(() => emit({ phase: 'connected' }), 2500)
+          return undefined
+        }
+
+        case 'mcp:submitAuthCallback':
+          return true
+
+        case 'mcp:cancelAuth':
+          return undefined
+
         case 'mcp:readCache':
           return Promise.resolve([
             { name: 'linear', tools: ['get_issue', 'save_issue', 'list_issues'] },
@@ -1327,6 +1352,13 @@ export function installMockPidex(): void {
     },
     onPtyExit: () => () => {},
     onPtyStatus: () => () => {},
+
+    // Connector authorization: the browser harness cannot spawn pi, so the
+    // flow is replayed on a timer. Enough to develop the card without an app.
+    onMcpAuthState: (listener) => {
+      mockConnectorAuthListeners.add(listener)
+      return () => mockConnectorAuthListeners.delete(listener)
+    },
 
     onPiLoginState: (listener) => {
       mockLoginListeners.add(listener)

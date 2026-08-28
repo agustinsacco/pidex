@@ -905,6 +905,47 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
   }
 })
 
+test('Connectors: signing in works with no session open', async () => {
+  // Seeded rather than added through the UI: this test is about the headless
+  // authorization path, and the previous test already covers writing config.
+  const soloAgentDir = privateAgentDir()
+  await writeFile(
+    join(soloAgentDir, 'mcp.json'),
+    JSON.stringify({
+      mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', auth: 'oauth' } },
+    }),
+  )
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-signin-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // Deliberately no session: the whole point is that Settings works on a
+    // fresh launch, which is when someone goes looking for connectors.
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+
+    const linear = page.getByTestId('connector-linear')
+    await expect(linear.getByRole('button', { name: 'Sign in' })).toBeEnabled({ timeout: 10_000 })
+    await linear.getByRole('button', { name: 'Sign in' }).click()
+
+    // Main spawned its own throwaway pi, sent /mcp-auth, and surfaced the
+    // adapter's authorization URL — with no session in the sidebar.
+    await expect(linear.getByText(/Approve access in your browser/)).toBeVisible({
+      timeout: 20_000,
+    })
+    await expect(linear.getByText('https://stub.test/oauth/authorize?server=linear')).toBeVisible()
+
+    await linear.getByRole('button', { name: 'Cancel' }).click()
+    await expect(linear.getByText(/Approve access in your browser/)).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
+
 test('reopens the last session on relaunch instead of the picker', async () => {
   // Both launches share a userData dir so prefs survive the restart, while
   // staying isolated from the developer's real config.

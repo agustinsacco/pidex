@@ -101,9 +101,9 @@ Each of these turns into a support ticket if the UI pretends otherwise:
   (`piCommand`, `app:openExternal`, the extension-UI stream), and adding main-
   process code for it would have been ceremony.
 - No hidden connector session. Sign-in uses the active session and the tab says
-  so when there is none. Spawning a session per authorization is still the
-  better answer for a settings surface that should work standalone, and is the
-  obvious follow-up.
+  so when there is none. **Closed the same day** by
+  [2026-08-27-connectors-headless-signin.md](2026-08-27-connectors-headless-signin.md),
+  which spawns a throwaway `pi --no-session` for the flow.
 - Braintrust's API-key alternative is not surfaced; `pi-mcp-adapter token set`
   already covers it and the MCP tab can write the config.
 

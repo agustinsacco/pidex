@@ -361,6 +361,23 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      // The MCP adapter's OAuth flow: an extension command, so it runs no
+      // model at all. The stub reproduces the two wire facts pidex depends on
+      // — the authorization prompt arrives as an `input` request the client
+      // must NOT answer, and the outcome arrives later as a `notify`.
+      if (message.startsWith('/mcp-auth ')) {
+        const server = message.slice('/mcp-auth '.length).trim()
+        out({
+          type: 'extension_ui_request',
+          id: `mcp-auth-${server}`,
+          method: 'input',
+          title:
+            `Complete ${server} OAuth\n\n` +
+            `https://stub.test/oauth/authorize?server=${server}\n\n` +
+            'Approve access, then paste the full localhost callback URL below.',
+        })
+        break
+      }
       if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('longstream')) runLongStreamTurn()

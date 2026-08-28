@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ExtensionUIRequest } from '@shared/rpc'
-import { parseAuthNotice, parseOAuthPrompt } from '@/features/connectors/oauthPrompt'
+import { parseAuthNotice, parseOAuthPrompt } from '@shared/connectors'
 import { useConnectorsStore } from './connectors'
 
 export interface PendingDialog {

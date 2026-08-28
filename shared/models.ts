@@ -859,6 +859,27 @@ export type LoginProviderId =
   | 'xai'
 
 /** Where a sign-in has got to. Drives the whole Accounts UI. */
+/**
+ * Progress of a headless MCP connector authorization
+ * (`electron/pi/connector-auth.ts`).
+ *
+ * Deliberately not `LoginFlowState`: this flow is owned by the MCP adapter
+ * inside a throwaway pi process, and its only interactive step is a browser
+ * round-trip whose fallback is pasting the callback URL back.
+ */
+export type ConnectorAuthState =
+  | { phase: 'starting' }
+  /** The adapter produced an authorization URL; main already opened it. */
+  | { phase: 'awaiting-browser'; authorizationUrl: string }
+  | { phase: 'connected' }
+  | { phase: 'failed'; message: string }
+
+/** One `mcp:authState` push. */
+export interface ConnectorAuthPush {
+  serverName: string
+  state: ConnectorAuthState
+}
+
 export type LoginFlowState =
   | { providerId: LoginProviderId; phase: 'starting' }
   /** pi produced a device-code URL; the user finishes in their browser. */
