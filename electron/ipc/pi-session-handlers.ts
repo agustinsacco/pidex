@@ -42,20 +42,24 @@ function bundledExtensionPath(file: string): string {
  * worktree-paths (refuses a file read that has escaped into the main
  * checkout of a worktree session), tool-name-guard (keeps a malformed
  * tool call out of the session file, where it would brick every later turn),
- * and lane-loop (runs the acceptance ladder when a turn settles).
+ * and lane-loop (runs the acceptance ladder when a turn settles, for lanes
+ * only — see `options.lane`).
  *
  * lane-loop is the one that survives every provider intact: it executes
  * commands rather than intercepting tool calls, so it works identically on a
  * native provider and on the Claude Code CLI bridge, where CLI-internal tools
  * never reach `tool_call` at all.
  */
-function bundledExtensions(): string[] {
+function bundledExtensions(options: { lane: boolean } = { lane: true }): string[] {
   return [
     bundledExtensionPath('artifacts.ts'),
     bundledExtensionPath('context-breakdown.ts'),
     bundledExtensionPath('worktree-paths.ts'),
     bundledExtensionPath('tool-name-guard.ts'),
-    bundledExtensionPath('lane-loop.ts'),
+    // The ladder belongs to a lane. An orchestrator is not one: it runs in the
+    // project's main checkout, so the rungs would grade whatever branch
+    // happens to be out there and offer to steer a lane that is not its own.
+    ...(options.lane ? [bundledExtensionPath('lane-loop.ts')] : []),
     bundledExtensionPath('mcp-status.ts'),
   ]
 }
@@ -70,7 +74,12 @@ function bundledExtensions(): string[] {
  * main-initiated one broadcasts, since no window owns it.
  */
 async function spawnSession(
-  options: CreateSessionOptions & { appendSystemPrompt?: string; extraExtensions?: string[] },
+  options: CreateSessionOptions & {
+    appendSystemPrompt?: string
+    extraExtensions?: string[]
+    /** An orchestrator manages lanes; it is not one, so it gets no ladder. */
+    isOrchestrator?: boolean
+  },
   target: Electron.WebContents | 'broadcast',
 ): Promise<LiveSessionInfo> {
   const stub = piStubPath()
@@ -99,7 +108,7 @@ async function spawnSession(
       }
 
   const extensions = [
-    ...bundledExtensions(),
+    ...bundledExtensions({ lane: !options.isOrchestrator }),
     ...(options.extraExtensions ?? []).map(bundledExtensionPath),
   ]
 
@@ -220,6 +229,7 @@ export function registerPiSessionHandlers(): void {
           ...(model ? { model } : {}),
           appendSystemPrompt,
           extraExtensions: [extraExtension],
+          isOrchestrator: true,
         },
         'broadcast',
       ),

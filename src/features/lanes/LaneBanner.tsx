@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useFleetStore } from '@/stores/fleet'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { LaneLadder } from './LaneLadder'
@@ -51,12 +52,17 @@ export function LaneBanner({
   className?: string
 }): React.JSX.Element | null {
   const loop = useLaneLoop(sessionId)
+  // An orchestrator manages lanes and is not one. It runs in the project's
+  // main checkout, so a ladder here would grade whatever branch happens to be
+  // out and offer to steer a lane that is not its own. Belt to the spawn-time
+  // brace: a session started before that landed still has the extension.
+  const orchestrator = useFleetStore((s) => Object.values(s.liveOrchestrators).includes(sessionId))
   // Undefined until the user decides, so the default can follow the lane's
   // state rather than freezing whatever it was on first render.
   const [override, setOverride] = useState<boolean | undefined>(undefined)
   const [sending, setSending] = useState(false)
 
-  if (!loop) return null
+  if (!loop || orchestrator) return null
 
   const green = laneIsGreen(loop)
   const action = laneAction(loop)

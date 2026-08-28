@@ -14,6 +14,17 @@
  * session loading this file could not drive anything.
  *
  * Imports resolve against pi's own runtime when it loads the extension.
+ *
+ * **Every tool here declares at least one REQUIRED parameter, on purpose.**
+ * On the Claude Code provider a tool call carrying no arguments streams no
+ * `input_json_delta`, so the bridge's accumulated JSON is the empty string and
+ * it forwards `arguments: ""`. pi validates arguments before `execute` runs,
+ * so an empty-schema tool dies at `root: must be object` and never reaches
+ * this file — `fleet_status` and `memory_read` failed on literally every call.
+ * A required field forces the model to emit an object, which sidesteps it. The
+ * real fix belongs in `@saccolabs/pi-claude-cli` (parse `partialJson || '{}'`);
+ * this constraint stays regardless, because it costs nothing and the provider
+ * is separately versioned.
  */
 import { Type } from 'typebox'
 
@@ -152,7 +163,14 @@ export default function orchestratorExtension(pi: PiExtensionApi): void {
     'List the sessions running in this project, with what each is doing right now: ' +
       'phase, the tool it is running, the last thing it said, files it has touched, ' +
       'how long it has been idle, and any question it is blocked on.',
-    Type.Object({}),
+    // `scope` is required to keep the arguments object non-empty (see the
+    // header), and it earns its place: a big fleet is easier to read one
+    // slice at a time.
+    Type.Object({
+      scope: Type.String({
+        description: '"all", "blocked" (waiting on a question) or "idle" (not working right now)',
+      }),
+    }),
     'fleet_status',
     (data) => {
       const sessions = (data as { sessions?: unknown[] })?.sessions ?? []
@@ -228,8 +246,13 @@ export default function orchestratorExtension(pi: PiExtensionApi): void {
     'Git status',
     'Branch, dirty-file count, worktree state and main-repo path for a folder. ' +
       'Use it to tell whether a session has uncommitted work or has already landed.',
+    // Required rather than optional: a tool whose every field is optional is
+    // called with no arguments sooner or later, which is the empty-arguments
+    // failure again. "." means this project.
     Type.Object({
-      workspacePath: Type.Optional(Type.String({ description: 'Defaults to this project' })),
+      workspacePath: Type.String({
+        description: 'Folder to inspect. Pass "." for this project.',
+      }),
     }),
     'git_status',
     (data) => JSON.stringify(data, null, 2),
@@ -240,7 +263,11 @@ export default function orchestratorExtension(pi: PiExtensionApi): void {
     'Read your memory',
     'Read your durable notes for this project. Your conversation gets compacted over time; ' +
       'these notes do not. Read them at the start of a sweep.',
-    Type.Object({}),
+    // Required for the same reason as `fleet_status`; the host ignores it,
+    // but it shows in the transcript as why you went looking.
+    Type.Object({
+      purpose: Type.String({ description: 'One short phrase: why you are reading memory now' }),
+    }),
     'memory_read',
     (data) => {
       const content = (data as { content?: string })?.content ?? ''
