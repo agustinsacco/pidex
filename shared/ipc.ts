@@ -28,6 +28,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  ConnectorAuthPush,
   ClaudeLoginState,
   AgentDirectivePrefs,
   ClaudeSystemPromptMode,
@@ -330,6 +331,25 @@ export interface IpcInvokeMap {
     result: void
   }
   'mcp:readCache': { args: []; result: McpCacheEntry[] }
+
+  /**
+   * Authorize a connector with no session open.
+   *
+   * OAuth belongs to the MCP adapter and only runs inside pi, so main spawns a
+   * throwaway `pi --mode rpc --no-session`, sends the adapter's own
+   * `/mcp-auth <server>` (an extension command — no model call, no tokens),
+   * opens the browser, and kills the process when the flow settles. Progress
+   * arrives on `mcp:authState`; this resolves once the flow has *started*,
+   * because the middle of it is a human in a browser.
+   */
+  'mcp:authorize': { args: [serverName: string, workspacePath?: string]; result: void }
+  /**
+   * Answer the adapter's prompt with a pasted callback URL, for a loopback
+   * callback that never arrived. False when nothing is waiting for one.
+   */
+  'mcp:submitAuthCallback': { args: [serverName: string, url: string]; result: boolean }
+  /** Abandon an authorization in progress. No-op if nothing is running. */
+  'mcp:cancelAuth': { args: [serverName: string]; result: void }
   'mcp:readFile': {
     args: [scope: McpScope, workspacePath: string | undefined]
     result: { path: string; content: string }
@@ -584,6 +604,7 @@ export interface PidexApi {
   /** Update lifecycle changes (checking / downloading / ready to install). */
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
   /** Progress of a background `pi:startLogin`; returns unsubscribe. */
+  onMcpAuthState(listener: (push: ConnectorAuthPush) => void): () => void
   onPiLoginState(listener: (state: LoginFlowState) => void): () => void
   /** Progress of a background `claude:startLogin`; returns unsubscribe. */
   onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
+import { disposeConnectorAuth } from './pi/connector-auth'
 import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
@@ -165,6 +166,9 @@ app.on('before-quit', (event) => {
   // pty out from under it would leave that timer running against a dead id.
   cancelAllLogins()
   cancelAllClaudeLogins()
+  // A connector flow owns its own throwaway pi child — not in the registry, so
+  // disposeAll below would not touch it, and it holds the OAuth callback port.
+  disposeConnectorAuth()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

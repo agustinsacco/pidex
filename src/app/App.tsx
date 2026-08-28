@@ -29,6 +29,7 @@ import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { useTerminalStore } from '@/stores/terminal'
+import { attachConnectorAuthListener } from '@/stores/connectors'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { worktreeAwareName } from '@/lib/path'
 
@@ -57,6 +58,10 @@ export function App(): React.JSX.Element {
     () => window.pidex.onPtyStatus((statuses) => useTerminalStore.getState().applyStatus(statuses)),
     [],
   )
+
+  // Headless connector authorization runs in main (no session needed), so its
+  // progress arrives as a broadcast rather than on a session's channel.
+  useEffect(() => attachConnectorAuthListener(), [])
 
   // Land where the user left off. Main validates that the workspace and
   // session file still exist, so a deleted folder degrades to the picker

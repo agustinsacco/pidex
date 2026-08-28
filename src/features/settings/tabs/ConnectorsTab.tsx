@@ -104,13 +104,6 @@ export function ConnectorsTab(): React.JSX.Element {
         pidex never holds a copy.
       </p>
 
-      {!activeSessionId && (
-        <div className="border-warning/30 bg-warning/10 text-warning mt-3 rounded-lg border px-3 py-2 text-sm">
-          Adding a connector works now; signing in needs a live session, because the adapter runs
-          inside one. Open a session in this workspace, then come back.
-        </div>
-      )}
-
       {error && (
         <div className="border-danger/30 bg-danger-soft text-danger mt-3 rounded-lg border px-3 py-2 text-sm">
           {error}
@@ -194,6 +187,14 @@ function ConnectorRow({
     >
       <div className="flex items-center gap-2">
         <span className="text-lg font-medium">{entry.name}</span>
+        {server && !state && !sessionId && (
+          <span
+            className="text-text-tertiary shrink-0 text-sm"
+            title="Per-server state comes from the MCP adapter, which runs inside a session"
+          >
+            state unknown
+          </span>
+        )}
         {server && state && (
           <span
             className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
@@ -211,19 +212,22 @@ function ConnectorRow({
           <>
             <Button
               size="sm"
-              disabled={!sessionId}
               onClick={() => {
-                if (!sessionId) return
                 const store = useConnectorsStore.getState()
-                if (state === 'connected') void store.reconnect(sessionId, serverName)
-                else void store.connect(sessionId, serverName)
+                // Reconnect needs the process that holds the connection;
+                // signing in does not, and runs headless when nothing is live.
+                if (state === 'connected' && sessionId) {
+                  void store.reconnect(sessionId, serverName)
+                } else {
+                  void store.connect(serverName, sessionId ?? undefined)
+                }
               }}
             >
               {state === 'connected' ? 'Reconnect' : 'Sign in'}
             </Button>
             <button
               onClick={() => {
-                if (sessionId) void useConnectorsStore.getState().disconnect(sessionId, serverName)
+                void useConnectorsStore.getState().disconnect(serverName, sessionId ?? undefined)
                 onRemove(server)
               }}
               className="text-text-tertiary hover:text-danger shrink-0 text-sm underline-offset-2 hover:underline"

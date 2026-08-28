@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseAuthNotice, parseOAuthPrompt } from './oauthPrompt'
+import { parseAuthNotice, parseOAuthPrompt } from './connectors'
 
 /**
  * The exact strings the adapter emits (`pi-mcp-adapter/commands.ts`). The

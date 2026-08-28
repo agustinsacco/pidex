@@ -11,7 +11,7 @@
  * message falls through to the generic dialog/toast, which is the pre-existing
  * behaviour and always usable. Source: `pi-mcp-adapter/commands.ts`.
  */
-import { stripAnsi } from '@shared/ansi'
+import { stripAnsi } from './ansi'
 
 export interface OAuthPrompt {
   serverName: string
