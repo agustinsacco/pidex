@@ -57,14 +57,20 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   const setModel = async (model: Model): Promise<void> => {
     setOpen(null)
-    const ok = await piCallOk(sessionId, {
+    const selected = await piCall(sessionId, {
       type: 'set_model',
       provider: model.provider,
       modelId: model.id,
     })
-    if (ok) {
+    if (selected) {
       const chat = useChatStore.getState()
-      chat.patchMeta(sessionId, { model })
+      // A provider quota failure is recorded on the session-wide error surface.
+      // Once pi confirms a different model, that error is no longer actionable;
+      // leaving it set makes a successful Claude → Bedrock recovery look broken.
+      chat.setError(sessionId, null)
+      // Use pi's response rather than the menu row: pi may normalize or enrich
+      // the model record, and it is the authority for the live session.
+      chat.patchMeta(sessionId, { model: selected })
       // Supported levels are per-model. Clear the previous model's list
       // synchronously so the ?? fallback derives from the NEW model during
       // the refresh gap (and permanently, if the refresh fails) — a stale
