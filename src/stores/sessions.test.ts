@@ -135,4 +135,70 @@ describe('session scan status', () => {
     expect(s.disk['/repo-ok']).toEqual([])
     expect(s.disk['/repo-fail']).toBeUndefined()
   })
+
+  it('refreshAllDisk caps how many workspaces a cold boot scans', async () => {
+    invoke.mockResolvedValue([])
+    const paths = Array.from({ length: 12 }, (_, i) => `/w${i}`)
+    await useSessionsStore.getState().refreshAllDisk(paths)
+    expect(Object.keys(useSessionsStore.getState().scanStatus)).toHaveLength(8)
+  })
+})
+
+/**
+ * The lane-visibility bug: lanes are discovered late and appended last, so the
+ * position-capped boot scan skipped them, and the watcher's `ignoreInitial`
+ * meant nothing ever backfilled a file already on disk.
+ */
+describe('refreshMissing', () => {
+  const invoke = vi.fn()
+
+  beforeEach(() => {
+    invoke.mockReset()
+    vi.stubGlobal('window', {
+      pidex: { invoke, piCommand: vi.fn(), onSessionPush: vi.fn() },
+    })
+    useSessionsStore.setState({ disk: {}, scanStatus: {} })
+  })
+
+  it('scans only the workspaces with no attempt recorded', async () => {
+    invoke.mockResolvedValue([])
+    useSessionsStore.setState({ scanStatus: { '/repo': 'ok' } })
+    await useSessionsStore.getState().refreshMissing(['/repo', '/repo/.pidex/worktrees/lane'])
+    const listed = invoke.mock.calls.filter((c) => c[0] === 'sessions:list').map((c) => c[1])
+    expect(listed).toEqual(['/repo/.pidex/worktrees/lane'])
+  })
+
+  it('re-scans a workspace whose last attempt errored only on an explicit retry', async () => {
+    invoke.mockResolvedValue([])
+    useSessionsStore.setState({ scanStatus: { '/repo': 'error' } })
+    await useSessionsStore.getState().refreshMissing(['/repo'])
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('is not capped — every unscanned lane of an expanded group gets scanned', async () => {
+    invoke.mockResolvedValue([])
+    const lanes = Array.from({ length: 20 }, (_, i) => `/repo/.pidex/worktrees/l${i}`)
+    await useSessionsStore.getState().refreshMissing(lanes)
+    expect(invoke.mock.calls.filter((c) => c[0] === 'sessions:list')).toHaveLength(20)
+  })
+
+  it('settles after one pass, so an effect keyed on the groups cannot loop', async () => {
+    invoke.mockResolvedValue([])
+    await useSessionsStore.getState().refreshMissing(['/a'])
+    invoke.mockClear()
+    await useSessionsStore.getState().refreshMissing(['/a'])
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('does nothing at all when there is nothing missing', async () => {
+    useSessionsStore.setState({ scanStatus: { '/a': 'ok' } })
+    await useSessionsStore.getState().refreshMissing(['/a'])
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates repeated paths', async () => {
+    invoke.mockResolvedValue([])
+    await useSessionsStore.getState().refreshMissing(['/a', '/a', '/a'])
+    expect(invoke.mock.calls.filter((c) => c[0] === 'sessions:list')).toHaveLength(1)
+  })
 })

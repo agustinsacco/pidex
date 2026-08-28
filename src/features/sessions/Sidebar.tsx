@@ -17,6 +17,7 @@ import {
   MoreIcon,
   PinIcon,
   PlusIcon,
+  Spinner,
 } from '@/components/icons'
 import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
@@ -124,6 +125,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return [...paths].filter(Boolean)
   }, [workspacePath, live, cleanRecents, worktreeDirs])
 
+  /** Live sessions running in a worktree folder discovery has not found yet. */
+  const unknownLanes = useMemo(
+    () =>
+      Object.values(live).filter(
+        (entry) =>
+          isWorktreeFolder(entry.workspacePath) && !worktreeDirs.includes(entry.workspacePath),
+      ).length,
+    [live, worktreeDirs],
+  )
+
   // Scan every known workspace (capped; collapsed groups lazy-load on expand).
   useEffect(() => {
     const store = useSessionsStore.getState()
@@ -160,7 +171,13 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const roots = [...cleanRecents.map((ws) => ws.path), workspacePath].filter(
       (p) => Boolean(p) && !isWorktreeFolder(p!),
     )
-    const key = roots.join('\u0000')
+    // Starting a lane does not touch `recents` (worktrees are deliberately
+    // never persisted there), so a roots-only key never re-listed and a lane
+    // was visible only for as long as its session stayed live. Folding the
+    // count of live-but-undiscovered lanes into the key re-lists once when one
+    // appears; the next pass finds it, the count returns to zero, and the key
+    // settles.
+    const key = [...roots, `lanes:${unknownLanes}`].join('\u0000')
     if (worktreeListedKey.current === key) return
     worktreeListedKey.current = key
     let cancelled = false
@@ -182,7 +199,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     return () => {
       cancelled = true
     }
-  }, [cleanRecents, workspacePath, collapsed])
+  }, [cleanRecents, workspacePath, collapsed, unknownLanes])
 
   // Git summaries for row subtitles: refresh (debounced) whenever the disk
   // listing changes, and again on window focus (branch switches happen in
@@ -309,7 +326,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    */
   const isGroupCollapsed = (group: GroupedSessions): boolean =>
     collapsed?.[group.workspacePath] ??
-    (group.scanned ? false : !group.paths.includes(workspacePath))
+    (group.anyScanned ? false : !group.paths.includes(workspacePath))
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
     const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
@@ -340,10 +357,22 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   useEffect(() => {
     if (collapsed === null) return
     const store = useSessionsStore.getState()
-    const expanded = groups.filter((g) => !isGroupCollapsed(g)).flatMap((g) => g.paths)
+    const open = groups.filter((g) => !isGroupCollapsed(g))
+    const expanded = open.flatMap((g) => g.paths)
     const closed = groups.filter((g) => isGroupCollapsed(g)).flatMap((g) => g.paths)
     store.watchWorkspaces(expanded)
     store.unwatchWorkspaces(closed)
+    /*
+     * Backfill an expanded group's unscanned folders.
+     *
+     * Watching is not enough: chokidar runs with `ignoreInitial: true`, so a
+     * lane whose .jsonl was written before the watch started fires no event
+     * and never appears. The boot scan is capped by list position and lanes
+     * are appended last, so those are exactly the folders that miss it. This
+     * is what removes the collapse-and-re-expand dance — `refreshMissing`
+     * only touches folders with no scan attempt, so it settles in one pass.
+     */
+    void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
   const groupContextMenu = (event: React.MouseEvent, group: GroupedSessions): void => {
@@ -547,6 +576,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 group.metas.map((meta) => (
                   <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
                 ))}
+              {/* Rows already scanned stay put while the rest of the group
+                  catches up — a partial answer must not read as the whole
+                  answer, but it must not hide what we have either. */}
+              {!isCollapsed && group.metas.length > 0 && group.unscannedPaths.length > 0 && (
+                <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
+                  <Spinner />
+                  <span>
+                    loading {group.unscannedPaths.length} more folder
+                    {group.unscannedPaths.length === 1 ? '' : 's'}…
+                  </span>
+                </div>
+              )}
               {!isCollapsed &&
                 group.metas.length === 0 &&
                 !pendingByWorkspace.has(group.workspacePath) &&
@@ -565,7 +606,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     Sessions you start will show up here
                   </div>
                 ) : (
-                  <div className="text-text-tertiary px-2 py-2 text-sm">Loading sessions…</div>
+                  <SessionRowSkeletons />
                 ))}
             </div>
           )
@@ -1114,5 +1155,28 @@ function NavRow({
       </span>
       {label}
     </button>
+  )
+}
+
+/**
+ * Placeholder rows for a group whose folders have not been scanned yet.
+ *
+ * Replaces a single "Loading sessions…" line: the line was indistinguishable
+ * from the empty state one character at a time, and gave no sense of a list
+ * arriving.
+ */
+function SessionRowSkeletons(): React.JSX.Element {
+  return (
+    <div className="space-y-2 px-2 py-2" data-testid="sessions-loading" aria-busy="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex flex-col gap-1">
+          <div
+            className="bg-sidebar-hover h-3 animate-pulse rounded"
+            style={{ width: `${70 - i * 12}%` }}
+          />
+          <div className="bg-sidebar-hover h-2 w-1/3 animate-pulse rounded opacity-60" />
+        </div>
+      ))}
+    </div>
   )
 }

@@ -652,6 +652,18 @@ export function installMockPidex(): void {
           })
         case 'app:setModelPicks':
           return Promise.resolve(undefined)
+        // Drafts in the browser harness are in-memory only: there is no main
+        // process to persist them to, and a fake blob store would only hide
+        // that.
+        case 'app:setDraft':
+        case 'app:clearDraft':
+          return Promise.resolve(undefined)
+        case 'app:writeDraftBlob':
+          return Promise.resolve(true)
+        case 'app:readDraftBlob':
+          return Promise.resolve(null)
+        case 'app:sweepDrafts':
+          return Promise.resolve({})
         case 'app:setWorktreePrefs':
           return Promise.resolve(undefined)
         case 'app:setAgentDirectives':

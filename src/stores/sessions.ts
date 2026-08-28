@@ -66,6 +66,8 @@ interface SessionsState {
   refreshDisk: (workspacePath: string) => Promise<void>
   /** Scan many workspaces in parallel (capped); powers the grouped sidebar. */
   refreshAllDisk: (workspacePaths: string[], limit?: number) => Promise<void>
+  /** Scan only workspaces with no scan attempt recorded yet. */
+  refreshMissing: (workspacePaths: string[]) => Promise<void>
   /** Start session-dir watchers for these workspaces (idempotent). */
   watchWorkspaces: (workspacePaths: string[]) => void
   /** Stop watching these workspaces (collapsed sidebar groups). */
@@ -394,8 +396,15 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    *
    * Capped and parallel: the scanner has an mtime+size cache so warm boots
    * are cheap, but a cold start with many known folders would otherwise do
-   * unbounded directory walks before first paint. Remaining workspaces load
-   * when their group is expanded.
+   * unbounded directory walks before first paint.
+   *
+   * The cap is BY LIST POSITION, which is why lanes used to go missing: they
+   * are discovered asynchronously and appended last, so a project with more
+   * than a handful of them pushed its own lanes past the cap, and the
+   * session-dir watcher (`ignoreInitial: true`) never backfills a file that
+   * was already on disk. Collapsing and re-expanding the group was the only
+   * thing that scanned them. `refreshMissing` is the other half of the fix:
+   * the sidebar calls it for every folder of an EXPANDED group, uncapped.
    */
   refreshAllDisk: async (workspacePaths, limit = 8) => {
     const targets = workspacePaths.slice(0, limit)
@@ -429,6 +438,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
       return { disk, scanStatus }
     })
+  },
+
+  /**
+   * Scan only the folders nothing has looked at yet.
+   *
+   * Idempotent by construction: a scanned folder has a `scanStatus` entry, so
+   * calling this on every render of an expanded group settles after one pass.
+   * That is what lets the sidebar call it from an effect keyed on the groups
+   * themselves without looping.
+   */
+  refreshMissing: async (workspacePaths) => {
+    const { scanStatus } = get()
+    const targets = [...new Set(workspacePaths)].filter((path) => !(path in scanStatus))
+    if (targets.length === 0) return
+    await get().refreshAllDisk(targets, targets.length)
   },
 
   watchWorkspaces: (workspacePaths) => {

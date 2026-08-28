@@ -3,10 +3,14 @@
 ## Composer
 
 - Multi-line input; Enter sends, Shift+Enter newline.
+- **Markdown list primitives** ([2026-08-28-composer-list-primitives.md](../log/2026-08-28-composer-list-primitives.md)). Shift+Enter continues the list the caret is on (renumbering as it goes; an empty item steps out a level, then exits), Tab/Shift+Tab nest and un-nest inside a list only, Cmd/Ctrl+Shift+8 and +7 toggle bullet/numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always sends** — continuation is deliberately not on it, or a one-line prompt starting with `- ` would stop sending. Logic is pure in `src/lib/composerText.ts`; the keymap lives in `composer/ComposerField.tsx`, which both composers share.
+- Sent user messages render their list runs as real lists (`UserText`), not as literal `- ` text. Deliberately not a full markdown renderer: the bubble also carries the `<attached-files>` block.
 - **While streaming**: Enter queues a **steering** message (delivered after the current turn's tool calls), Alt/Cmd+Enter queues a **follow-up** (after the agent finishes). Match pi TUI semantics exactly; the two queues are visually distinct. Escape aborts and restores queued messages to the composer.
 - `queue_update` renders queued chips above the composer (steer = one color, follow-up = another) with remove/recall.
 - `@` → fuzzy file search across the workspace (gitignore-aware), inserts a path reference chip/text.
 - Images: paste or drag → thumbnails in composer → sent as `images[]` (base64) with the prompt.
+- **Drafts persist** ([2026-08-28-persisted-composer-drafts.md](../log/2026-08-28-persisted-composer-drafts.md)). Text, pending attachments and the model a draft was composed against live in `src/stores/drafts.ts`, keyed `session:<sessionFilePath>` or `home:<workspacePath>`, and survive switching session (the composer subtree unmounts) and quitting. Image bytes go to `userData/drafts/` by blob id, never into prefs.
+- The model chip and the model menu have an explicit **loading** state; an empty list before the catalogue answers is never rendered as "no models configured" ([2026-08-28-model-catalogue-loading.md](../log/2026-08-28-model-catalogue-loading.md)).
 - `!command` → RPC `bash` (output shown in chat, enters model context on next prompt). `!!command` → same with `excludeFromContext: true` and a "not sent to model" badge. Surface both in a composer hint.
 - `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with pidex-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
 - Composer widget slots above/below for extension `setWidget`; `set_editor_text` prefills the input.

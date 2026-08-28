@@ -11,10 +11,53 @@ import {
   readConfigFile,
   writeConfigFile,
 } from '../pi/agent-settings'
-import { listModelsViaRpc, resolveCatalogueModels } from '../pi/model-catalogue'
-import { checkPiHealth } from '../pi/health'
+import {
+  listModelsViaRpc,
+  resolveCatalogueModels,
+  type CatalogueModel,
+} from '../pi/model-catalogue'
+import { cachedPiHealth } from '../pi/health'
+import { createTtlCache } from '../pi/ttl-cache'
 import { piStubPath } from '../pi/stub'
 import { type ConfigFileHealth } from '@shared/models'
+
+/** How long the catalogue stays believed without re-spawning pi. */
+const CATALOGUE_TTL_MS = 5 * 60_000
+
+/**
+ * The model catalogue, cached across pickers.
+ *
+ * Every open used to spawn `pi --mode rpc --no-session` AND run `pi --version`
+ * for the health gate — two processes, hundreds of milliseconds to seconds,
+ * for an answer that does not change between them. The renderer now preloads
+ * this at boot (see `src/stores/modelCatalogue.ts`), so by the time a picker
+ * opens the list is usually already here.
+ *
+ * An empty result is not cached: `resolveCatalogueModels` returns `[]` when pi
+ * is missing AND models.json is empty, and that is exactly the state a user
+ * fixes and retries.
+ */
+const catalogueCache = createTtlCache(async (): Promise<CatalogueModel[]> => {
+  const stub = piStubPath()
+  const models = await resolveCatalogueModels(
+    async () => {
+      if (stub) return process.execPath
+      const health = await cachedPiHealth()
+      return health.ok ? (health.binaryPath ?? null) : null
+    },
+    listCatalogueModels,
+    stub
+      ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
+      : (binaryPath) => listModelsViaRpc(binaryPath),
+  )
+  if (models.length === 0) throw new Error('no models available')
+  return models
+}, CATALOGUE_TTL_MS)
+
+/** Drop the cached catalogue — call after anything that changes pi's config. */
+export function invalidateCatalogueModels(): void {
+  catalogueCache.invalidate()
+}
 
 /** Reading and patching pi's own agent settings files. */
 export function registerPiConfigHandlers(): void {
@@ -34,28 +77,26 @@ export function registerPiConfigHandlers(): void {
   // the real binary, which boots pi against the sandboxed agent dir and
   // installs whatever `settings.json` declares — a network install, mid-suite,
   // that pruned a fixture package another test had written.
-  handle('pi:catalogueModels', () => {
-    const stub = piStubPath()
-    return resolveCatalogueModels(
-      async () => {
-        if (stub) return process.execPath
-        const health = await checkPiHealth()
-        return health.ok ? (health.binaryPath ?? null) : null
-      },
-      listCatalogueModels,
-      stub
-        ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
-        : (binaryPath) => listModelsViaRpc(binaryPath),
-    )
+  handle('pi:catalogueModels', async () => {
+    // The cache rejects on "nothing to show" so it does not remember an empty
+    // list; the channel's contract is still a list.
+    try {
+      return await catalogueCache.get()
+    } catch {
+      return []
+    }
   })
 
   handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
 
   handle('pi:writeConfigFile', (_event, name, content) => writeConfigFile(name, content))
 
-  handle('pi:patchAgentSettings', (_event, scope, workspacePath, patch) =>
-    patchAgentSettings(scope, workspacePath, patch),
-  )
+  handle('pi:patchAgentSettings', (_event, scope, workspacePath, patch) => {
+    // Declaring a provider or a model in settings.json changes what pi will
+    // report, so the cached catalogue is stale the moment this lands.
+    invalidateCatalogueModels()
+    return patchAgentSettings(scope, workspacePath, patch)
+  })
 
   handle('pi:checkAgentSettings', async (_event, workspacePath?: string) => {
     const result = await checkAgentSettings(workspacePath)

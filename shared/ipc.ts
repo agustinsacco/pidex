@@ -64,6 +64,7 @@ import type {
   WorkspaceSessionStats,
   WorktreeInfo,
   WorktreePrefs,
+  ComposerDraftRecord,
 } from './models'
 
 /** Parsed session tree (subset of entries) for the tree view. */
@@ -157,6 +158,25 @@ export interface IpcInvokeMap {
   'app:recordWorkspace': { args: [path: string]; result: void }
   /** Mark a session file as viewed now (unseen-pill bookkeeping). */
   'app:markSessionSeen': { args: [sessionPath: string]; result: void }
+
+  /**
+   * Unsent composer drafts.
+   *
+   * Metadata rides in `AppPrefs.drafts`; image BYTES go through the blob
+   * channels below into `userData/drafts/`, because a pasted screenshot
+   * re-serialised into config.json on every keystroke is not a preference.
+   */
+  'app:setDraft': { args: [draft: ComposerDraftRecord]; result: void }
+  'app:clearDraft': { args: [key: string]; result: void }
+  /** False when the write was refused for pushing past the total blob cap. */
+  'app:writeDraftBlob': { args: [blobId: string, base64: string]; result: boolean }
+  /** Null when the file is gone; the caller drops the chip. */
+  'app:readDraftBlob': { args: [blobId: string]; result: string | null }
+  /**
+   * Launch-time GC: drop drafts whose workspace is gone, then unlink every
+   * blob no surviving draft refers to. Returns the surviving drafts.
+   */
+  'app:sweepDrafts': { args: []; result: Record<string, ComposerDraftRecord> }
   /** `awsProfile` lets error remedies suggest the right `aws sso login`. */
   'app:userInfo': { args: []; result: { username: string; awsProfile?: string } }
   'app:about': { args: []; result: AboutInfo }

@@ -67,3 +67,20 @@ show a status line when the group is genuinely empty.
 
 Existing `scanned`-based collapse and reachability behavior is unchanged; the
 full unit suite (955 tests), typecheck, eslint, and prettier all pass.
+
+## Amendment, 2026-08-28
+
+"Groups beyond the cap stay collapsed until expanded" was recorded above as
+intended behaviour. It is not sufficient, and the gap it left is the subject
+of [2026-08-28-sidebar-lane-scan.md](2026-08-28-sidebar-lane-scan.md): the cap
+is **by list position**, lanes are appended last, and the session-dir watcher
+runs with `ignoreInitial: true` — so a lane inside an **already expanded**
+group was never scanned by anything. Only `toggleGroup` scanned a whole group,
+which is why collapsing and re-expanding was the workaround users found.
+
+`refreshMissing` now backfills an expanded group's unscanned folders,
+uncapped. The cap itself stays, and still governs collapsed groups.
+
+The collapse default described here also changed. It keyed off `scanned`,
+which is AND-ed across the group, so one late-discovered lane flipped an open
+group shut. It keys off `anyScanned` now.

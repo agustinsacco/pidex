@@ -43,6 +43,7 @@ const NATIVE_PROVIDERS = new Set([
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
+  const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)
   const thinkingLevels = useChatStore((s) => s.sessions[sessionId]?.thinkingLevels)
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
 
@@ -119,7 +120,12 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
         )}
       >
-        {currentModel?.name ?? 'No model'}
+        {currentModel?.name ??
+          (modelsLoaded ? (
+            'No model'
+          ) : (
+            <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
+          ))}
         {/* Two providers can expose the same model name (native anthropic
             and the Claude Code CLI provider both offer "Claude Opus 5"), so
             the name alone cannot answer "what is actually serving this
@@ -158,6 +164,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             if (model) void setModel(model)
           }}
           onClose={() => setOpen(null)}
+          loading={!modelsLoaded}
           emptyText="No models configured — sign in via the terminal (`pi /login`) or add API keys."
           className="absolute bottom-full right-0 mb-2 w-[30rem] max-w-[90vw]"
         />

@@ -65,6 +65,7 @@ export function ModelMenu({
   onPick,
   onClose,
   emptyText,
+  loading = false,
   className,
 }: {
   models: ModelMenuEntry[]
@@ -72,6 +73,11 @@ export function ModelMenu({
   onPick: (model: ModelMenuEntry) => void
   onClose: () => void
   emptyText: string
+  /**
+   * The list is still being fetched. Without this an empty `models` reads as
+   * "none configured", and the menu answers a question it has not asked yet.
+   */
+  loading?: boolean
   className?: string
 }): React.JSX.Element {
   const [query, setQuery] = useState('')
@@ -237,7 +243,10 @@ export function ModelMenu({
             setActiveIndex(0)
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search models — try “opus bedrock” or “provider:aws”"
+          disabled={loading}
+          placeholder={
+            loading ? 'Loading models…' : 'Search models — try “opus bedrock” or “provider:aws”'
+          }
           data-testid="model-search"
           // composer-field: opt out of the global accent focus outline — the
           // popup frame already signals where focus lives.
@@ -297,7 +306,8 @@ export function ModelMenu({
           ),
         )}
 
-        {models.length === 0 && (
+        {loading && models.length === 0 && <ModelRowSkeletons />}
+        {!loading && models.length === 0 && (
           <div className="text-text-tertiary px-3 py-2 text-base">{emptyText}</div>
         )}
         {models.length > 0 && results.length === 0 && (
@@ -309,7 +319,7 @@ export function ModelMenu({
 
       <div className="border-border text-text-tertiary flex items-center gap-2 border-t px-2.5 py-1.5 text-xs">
         <span className="tabular-nums">
-          {results.length} of {models.length}
+          {loading && models.length === 0 ? 'Loading…' : `${results.length} of ${models.length}`}
         </span>
         <span className="ml-auto flex items-center gap-1">
           <span className="hidden sm:inline">Group</span>
@@ -599,5 +609,19 @@ function GroupChip({
     >
       {label}
     </button>
+  )
+}
+
+/** Placeholder rows while the catalogue is still being fetched. */
+function ModelRowSkeletons(): React.JSX.Element {
+  return (
+    <div className="space-y-2 px-3 py-2" data-testid="model-list-loading" aria-busy="true">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="bg-bg-secondary h-3.5 flex-1 animate-pulse rounded" />
+          <div className="bg-bg-secondary h-3.5 w-16 animate-pulse rounded" />
+        </div>
+      ))}
+    </div>
   )
 }
