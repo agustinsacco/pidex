@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } from './reducer'
 import { Markdown } from '@/components/markdown/Markdown'
+import { useSmoothedText } from './useSmoothedText'
 import { CopyButton } from '@/components/CopyButton'
 import { PiSpark } from '@/components/PiSpark'
 import { absoluteTime, relativeTime } from '@/lib/time'
@@ -225,11 +226,15 @@ function AssistantText({
     .map((b) => (b.type === 'text' ? b.text : ''))
     .join('\n\n')
   const streamingTail = item.streaming && isLastInItem && !block.closed
+  // Paced reveal, not raw deltas: the Claude Code provider hands prose over
+  // in ~100-char slabs half a second apart, and rendering each on arrival is
+  // what made those turns land in harsh chunks. See useSmoothedText.
+  const shownText = useSmoothedText(block.text, item.streaming && !block.closed)
 
   return (
     <div className="group/msg relative">
       <div className={clsx(streamingTail && 'streaming-tail')}>
-        <Markdown text={block.text} streaming={item.streaming && !block.closed} />
+        <Markdown text={shownText} streaming={item.streaming && !block.closed} />
       </div>
 
       {/*
