@@ -7,23 +7,18 @@ import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
-import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
+import { AttachButton, FormatButtons, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { projectName } from '@/lib/path'
-import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
-import { ChatImage } from '@/features/chat/ChatImage'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { BranchControl } from '@/features/worktrees/BranchControl'
-import {
-  composePrompt,
-  formatFileSize,
-  toAttachment,
-  toImageContents,
-  type PendingAttachment,
-} from '@/features/chat/attachments'
+import { composePrompt, toImageContents, type PendingAttachment } from '@/features/chat/attachments'
+import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
+import { useAttachments } from '@/features/chat/composer/useAttachments'
+import { ComposerField, useComposerFormatting } from '@/features/chat/composer/ComposerField'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
@@ -31,7 +26,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [username, setUsername] = useState('')
   const [text, setText] = useState('')
   const [images, setImages] = useState<PendingAttachment[]>([])
-  const [dragging, setDragging] = useState(false)
   const [warning, setWarning] = useState<string | null>(null)
   const [isRepo, setIsRepo] = useState(false)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
@@ -41,48 +35,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const starting = useStartingChatStore((s) => s.starting !== null)
   const draft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
+  const attachments = useAttachments({
+    attachments: images,
+    onChange: setImages,
+    onReject: setWarning,
+  })
+  const format = useComposerFormatting(textareaRef, setText)
   // The project, never the worktree folder this home screen may be pointed at.
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
   const workspaceName = projectName(workspacePath, git)
-
-  /** Images inline; everything else attaches by path (see attachments.ts). */
-  const addFile = async (file: File): Promise<void> => {
-    const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
-    if (!attachment) return
-    setImages((current) => [...current, attachment])
-  }
-
-  const handlePaste = (event: React.ClipboardEvent): void => {
-    const files = [...event.clipboardData.items]
-      .filter((item) => item.kind === 'file')
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
-
-  /** Without preventDefault on dragover the card is never a drop target. */
-  const handleDragOver = (event: React.DragEvent): void => {
-    if (!event.dataTransfer.types.includes('Files')) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-    if (!dragging) setDragging(true)
-  }
-
-  const handleDragLeave = (event: React.DragEvent): void => {
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    setDragging(false)
-  }
-
-  const handleDrop = (event: React.DragEvent): void => {
-    const files = [...event.dataTransfer.files]
-    setDragging(false)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
 
   useEffect(() => {
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
@@ -237,73 +198,24 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
           <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDragOver={attachments.handleDragOver}
+            onDragLeave={attachments.handleDragLeave}
+            onDrop={attachments.handleDrop}
             className={clsx(
               'bg-surface relative rounded-xl border shadow-sm transition-colors',
-              dragging
+              attachments.dragging
                 ? 'border-accent ring-accent/25 ring-2'
                 : 'border-border hover:border-border-focus focus-within:border-border-focus',
             )}
           >
-            {dragging && (
-              <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-                <span className="text-text text-base font-medium">
-                  Drop to attach — images inline, other files by path
-                </span>
-              </div>
-            )}
-            {images.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-3 pt-3">
-                {images.map((attachment, index) => (
-                  <div key={index} className="group/img relative">
-                    {attachment.kind === 'image' ? (
-                      // Openable (click) and copyable (right-click) like the
-                      // same image once it lands in the transcript.
-                      <ChatImage
-                        image={{
-                          type: 'image',
-                          data: attachment.data,
-                          mimeType: attachment.mimeType,
-                        }}
-                        className="border-border h-16 w-16 rounded-lg border object-cover"
-                      />
-                    ) : (
-                      <div
-                        title={attachment.path}
-                        className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
-                      >
-                        <span className="text-text truncate text-sm font-medium">
-                          {attachment.name}
-                        </span>
-                        <span className="text-text-tertiary font-mono text-xs">
-                          {formatFileSize(attachment.size)} · sent as path
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
-                      aria-label="Remove attachment"
-                      className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-full text-xs group-hover/img:flex"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={textareaRef}
+            <DropOverlay visible={attachments.dragging} />
+            <AttachmentChips attachments={images} onRemove={attachments.remove} />
+            <ComposerField
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void start()
-                }
-              }}
-              onPaste={handlePaste}
+              textareaRef={textareaRef}
+              onChange={setText}
+              onSubmit={() => void start()}
+              onPasteFiles={attachments.addFiles}
               placeholder="Describe a task or ask a question"
               rows={2}
               className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
@@ -313,10 +225,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 model + thinking on the right, submit at the far right. */}
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 items-center gap-1.5">
-                <AttachButton
-                  onFiles={(files) => {
-                    for (const file of files) void addFile(file)
-                  }}
+                <AttachButton onFiles={attachments.addFiles} />
+                <FormatButtons
+                  onBullet={format.toggleBullet}
+                  onOrdered={format.toggleOrdered}
+                  onCode={format.codeBlock}
                 />
               </div>
 
