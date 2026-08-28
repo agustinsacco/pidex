@@ -22,6 +22,37 @@ describe('reduceUpdate', () => {
     expect(state).toEqual({ phase: 'downloaded', version: '0.1.42' })
   })
 
+  it('walks the macOS self-install path: downloading → installing → downloaded', () => {
+    // `installing` covers verify-and-expand, which only the hand-rolled macOS
+    // path has. It must not be reachable from anywhere but a live download.
+    let state: UpdateState = { phase: 'downloading', version: '0.1.42', progressPercent: 100 }
+    state = reduceUpdate(state, { type: 'install-started' })
+    expect(state).toEqual({ phase: 'installing', version: '0.1.42' })
+
+    state = reduceUpdate(state, { type: 'update-downloaded', version: '0.1.42' })
+    expect(state).toEqual({ phase: 'downloaded', version: '0.1.42' })
+  })
+
+  it('ignores install-started outside a download', () => {
+    expect(reduceUpdate(IDLE, { type: 'install-started' })).toBe(IDLE)
+    const staged: UpdateState = { phase: 'downloaded', version: '0.1.42' }
+    expect(reduceUpdate(staged, { type: 'install-started' })).toBe(staged)
+  })
+
+  it('degrades a failed self-install to the manual link, not to silence', () => {
+    // The whole point of the fallback: a macOS swap that fails must leave the
+    // user a way to update by hand rather than an update that vanished.
+    const state = reduceUpdate(
+      { phase: 'installing', version: '0.1.42' },
+      { type: 'install-failed', version: '0.1.42', releaseUrl: 'https://example.test/r' },
+    )
+    expect(state).toEqual({
+      phase: 'manual-download',
+      version: '0.1.42',
+      releaseUrl: 'https://example.test/r',
+    })
+  })
+
   it('returns to idle when there is nothing to install', () => {
     const state = reduceUpdate({ phase: 'checking' }, { type: 'update-not-available' })
     expect(state).toEqual(IDLE)
@@ -69,11 +100,19 @@ describe('reduceUpdate', () => {
 
       const staged: UpdateState = { phase: 'downloaded', version: '0.1.42' }
       expect(reduceUpdate(staged, { type: 'check-started' })).toBe(staged)
+
+      // Extraction on the macOS path takes seconds more; the same holds.
+      const installing: UpdateState = { phase: 'installing', version: '0.1.42' }
+      expect(reduceUpdate(installing, { type: 'check-started' })).toBe(installing)
     })
 
-    it('ignores update-not-available once something is staged', () => {
+    it('ignores update-not-available once something is staged or in flight', () => {
       const staged: UpdateState = { phase: 'downloaded', version: '0.1.42' }
       expect(reduceUpdate(staged, { type: 'update-not-available' })).toBe(staged)
+
+      // A check that races a download must not cancel it back to idle.
+      const downloading: UpdateState = { phase: 'downloading', version: '0.1.42' }
+      expect(reduceUpdate(downloading, { type: 'update-not-available' })).toBe(downloading)
     })
   })
 

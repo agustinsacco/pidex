@@ -914,6 +914,8 @@ export type UpdatePhase =
   | 'idle'
   | 'checking'
   | 'downloading'
+  /** Verifying and expanding the download (macOS self-install only). */
+  | 'installing'
   | 'downloaded'
   /** Detected, but this install must be updated by hand (unsigned mac, deb). */
   | 'manual-download'
