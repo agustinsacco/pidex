@@ -425,6 +425,12 @@ export interface IpcInvokeMap {
   }
   'sessions:jump': { args: [sessionFilePath: string, targetId: string]; result: void }
   'sessions:forkAt': { args: [sessionFilePath: string, targetId: string]; result: string }
+  /**
+   * The Claude Code CLI session paired with a pi session, from the provider's
+   * own sidecar map. Null when there is none — the two ids are NOT the same
+   * under observer mode, which is why this cannot be derived in the renderer.
+   */
+  'sessions:claudeSessionId': { args: [piSessionId: string]; result: string | null }
 
   /** PR for a branch via the `gh` CLI; null when gh/auth/remote is absent. */
   'gh:prForBranch': {

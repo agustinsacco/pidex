@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { PiSpark } from '@/components/PiSpark'
 import { formatDuration, formatTokens } from '@/lib/format'
-import { buildTranscriptRows, trailingAgentLaunches } from './items/transcriptRows'
+import { buildTranscriptRows, trailingUnfinishedAgents } from './items/transcriptRows'
 
 /**
  * Persistent "pi is working" strip: elapsed time and running token count for
@@ -15,33 +15,30 @@ import { buildTranscriptRows, trailingAgentLaunches } from './items/transcriptRo
  * climbs during the run rather than jumping once at the end.
  */
 /**
- * "This turn's sub-agents never reported back" strip for the Claude provider.
+ * "These sub-agents never reported back" strip for the Claude provider.
  *
- * Shown when the LAST turn launched Claude Code sub-agents and the user has
- * not replied yet.
+ * Shown when the LAST turn left Claude Code sub-agents unfinished and the
+ * user has not replied yet.
  *
- * The wording is load-bearing, and the first version of it was wrong.
- * "Launched in background" implies something is still out there working;
- * verified against a real capture, nothing is. Claude Code answers the
- * `Agent` tool with "Async agent launched successfully… you will be notified
- * automatically when it completes", which assumes the long-lived harness the
- * CLI normally runs inside. pidex has no such harness: the provider runs
- * `claude -p` as a per-turn model server, so the process exits when the turn's
- * answer is done and the agent dies with it. In the capture
- * (`~/.claude/projects/…/01a0271c-….jsonl`) the CLI's own record simply ends
- * after the launch — no notification, no results, never resumed — and pi's
- * session shows the turn closed with `stopReason: stop`.
+ * This used to fire on every launch, because every launch was a dead end:
+ * the provider killed `claude -p` at the turn's first `result`, which for a
+ * background `Agent` call lands while the agents are still working. In the
+ * original capture (`~/.claude/projects/…/01a0271c-….jsonl`) the CLI's record
+ * simply ends after the launch — no notification, no results, never resumed.
  *
- * So this strip reports a dead end, not work in flight: no spinner, no count
- * of "running" agents, and it says plainly that the results are not coming.
- * Making the promise true is provider work (see 04-chat.md and
- * specs/log/2026-08-22-claude-subagents-never-return.md).
+ * `pi-claude-cli` 0.4.14 fixed that: a `result` with agents pending is a
+ * cycle boundary, the CLI re-invokes the model itself when they report, and
+ * their findings land in the same turn. So the strip is now driven by
+ * EVIDENCE — agents whose markers never reached a terminal state — instead of
+ * by the assumption. pidex pins no provider version, so both shapes will keep
+ * arriving from real sessions; counting what the transcript proves is the
+ * only version-free way to be right about either.
  */
 export function AgentLaunchStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const items = useChatStore((s) => s.sessions[sessionId]?.items)
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const count = useMemo(
-    () => (items ? trailingAgentLaunches(buildTranscriptRows(items)) : 0),
+    () => (items ? trailingUnfinishedAgents(buildTranscriptRows(items)) : 0),
     [items],
   )
   if (isStreaming || count === 0) return null
@@ -50,7 +47,7 @@ export function AgentLaunchStrip({ sessionId }: { sessionId: string }): React.JS
     <div className="mx-auto w-full max-w-3xl px-1 pb-2" data-testid="agent-launch-strip">
       <div
         className="text-text-secondary flex items-center gap-2 px-2 text-base"
-        title="Claude Code sub-agents run inside the CLI, which pidex starts fresh for each turn and which exits when the turn ends — so the agent stops with it and its findings are never sent back. Asking again re-does the work in this session."
+        title="These sub-agents were started but never reported a result. On pi-claude-cli older than 0.4.14 the CLI was shut down at the end of the turn, so background agents died with it; update the provider (npm i -g, then reinstall into pi) to let them finish. Asking again re-does the work in this session."
       >
         {/* bg-bg-secondary, not a *-soft token: only accent-soft and
             danger-soft are defined, and this is a caution, not an error. */}
@@ -58,8 +55,8 @@ export function AgentLaunchStrip({ sessionId }: { sessionId: string }): React.JS
           agent
         </span>
         <span>
-          {count === 1 ? 'A sub-agent was' : `${count} sub-agents were`} started but won&rsquo;t
-          report back — ask again to get the work done here
+          {count === 1 ? 'A sub-agent' : `${count} sub-agents`} never reported back — ask again to
+          get the work done here
         </span>
       </div>
     </div>

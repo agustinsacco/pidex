@@ -3,6 +3,7 @@ import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-
 import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
 import { deleteSession } from '../pi/session-deleter'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
+import { claudeSessionIdFor } from '../pi/claude-session-map'
 import { getPrefs } from '../store'
 
 /** On-disk session discovery, tree reading and history rewrites. */
@@ -39,5 +40,9 @@ export function registerSessionsHandlers(): void {
 
   handle('sessions:forkAt', (_event, sessionFilePath, targetId) =>
     forkSessionAt(sessionFilePath, targetId),
+  )
+
+  handle('sessions:claudeSessionId', (_event, piSessionId: string) =>
+    claudeSessionIdFor(piSessionId),
   )
 }

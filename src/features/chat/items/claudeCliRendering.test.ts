@@ -5,8 +5,9 @@ import {
   externalToolInfo,
   parseExternalToolMarker,
   summarizeActivity,
-  trailingAgentLaunches,
+  trailingUnfinishedAgents,
   type ActivityStep,
+  type SubagentBlock,
 } from './transcriptRows'
 import { settledVerb, summarizeExternalTool } from '../tools/toolSummaries'
 import type { AgentMessage } from '@shared/rpc'
@@ -258,36 +259,205 @@ describe('summarizeExternalTool', () => {
   })
 })
 
-describe('trailingAgentLaunches', () => {
-  const agentText = '[Claude Code · Agent {"description":"scout"}]'
+/**
+ * One row per sub-agent, folded from the three markers the CLI emits for it.
+ *
+ * Every marker string here is copied verbatim from a real captured session
+ * (pi session 01a04614, 2026-08-28), where three agents produced eight rows
+ * and a strip that said "8 sub-agents were started".
+ */
+describe('sub-agent lifecycle folding', () => {
   const message = (role: string, content: unknown): AgentMessage =>
     ({ role, content, stopReason: 'stop' }) as unknown as AgentMessage
+  const text = (t: string): unknown => ({ type: 'text', text: t })
 
-  it('counts launches after the last user message', () => {
+  const agentsIn = (msgs: AgentMessage[]): SubagentBlock[] =>
+    rowsFor(msgs)
+      .filter((r) => r.kind === 'activity')
+      .flatMap((r) => (r as { steps: ActivityStep[] }).steps)
+      .map((s) => s.block)
+      .filter((b): b is SubagentBlock => b.type === 'subagent')
+
+  it('folds the model call, the start and the finish into one agent', () => {
+    const agents = agentsIn([
+      message('user', 'go'),
+      message('assistant', [
+        text(
+          '[Claude Code · Agent {"description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","prompt":"Investigate how the @sacco…]',
+        ),
+        text(
+          '[Claude Code · Task {"status":"started","description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","task_id":"a8de7d982d824b56a"}]',
+        ),
+      ]),
+      message('assistant', [
+        text(
+          '[Claude Code · Task {"status":"completed","description":"Dig into pi-claude-cli internals","task_id":"a8de7d982d824b56a","tool_uses":2,"total_tokens":1234,"duration_ms":900}]',
+        ),
+        text('The agent found it.'),
+      ]),
+    ])
+
+    expect(agents).toHaveLength(1)
+    expect(agents[0]).toMatchObject({
+      status: 'completed',
+      description: 'Dig into pi-claude-cli internals',
+      subagentType: 'general-purpose',
+      taskId: 'a8de7d982d824b56a',
+      toolUses: 2,
+      totalTokens: 1234,
+      durationMs: 900,
+    })
+    // The prompt survives from the model's own call, which is the only
+    // marker that carries it.
+    expect(agents[0]?.prompt).toContain('Investigate how the @sacco')
+  })
+
+  it('keeps same-named parallel agents apart', () => {
+    // A fan-out routinely launches several agents under one description, and
+    // pre-0.4.14 providers send no task_id to tell them apart. Each block
+    // absorbs one marker per phase, so three calls stay three agents.
+    const agents = agentsIn([
+      message('user', 'go'),
+      message('assistant', [
+        text('[Claude Code · Agent {"description":"Explore","subagent_type":"Explore"}]'),
+        text('[Claude Code · Agent {"description":"Explore","subagent_type":"Explore"}]'),
+        text('[Claude Code · Task {"status":"started","description":"Explore"}]'),
+        text('[Claude Code · Task {"status":"started","description":"Explore"}]'),
+      ]),
+    ])
+    expect(agents).toHaveLength(2)
+    expect(agents.every((a) => a.status === 'running')).toBe(true)
+  })
+
+  it('joins on task_id when descriptions collide', () => {
+    const agents = agentsIn([
+      message('user', 'go'),
+      message('assistant', [
+        text(
+          '[Claude Code · Task {"status":"started","description":"Explore","task_id":"aaaaaaaaaaaaa1"}]',
+        ),
+        text(
+          '[Claude Code · Task {"status":"started","description":"Explore","task_id":"aaaaaaaaaaaaa2"}]',
+        ),
+        text(
+          '[Claude Code · Task {"status":"completed","description":"Explore","task_id":"aaaaaaaaaaaaa2","tool_uses":7}]',
+        ),
+      ]),
+    ])
+    expect(agents).toHaveLength(2)
+    expect(agents[0]).toMatchObject({ taskId: 'aaaaaaaaaaaaa1', status: 'running' })
+    expect(agents[1]).toMatchObject({ taskId: 'aaaaaaaaaaaaa2', status: 'completed', toolUses: 7 })
+  })
+
+  it('never walks a finished agent back to launched', () => {
+    // Markers can arrive out of order across cycles; a stale start must not
+    // undo a completion.
+    const agents = agentsIn([
+      message('user', 'go'),
+      message('assistant', [
+        text(
+          '[Claude Code · Task {"status":"completed","description":"scout","task_id":"bbbbbbbbbbbb1"}]',
+        ),
+        text('[Claude Code · Agent {"description":"scout","prompt":"look around"}]'),
+      ]),
+    ])
+    expect(agents).toHaveLength(1)
+    expect(agents[0]).toMatchObject({ status: 'completed', prompt: 'look around' })
+  })
+
+  it('does not name a row after a raw task id', () => {
+    // provider 0.4.13 filled the missing description of a late notification
+    // with the task id itself.
+    const agents = agentsIn([
+      message('user', 'go'),
+      message('assistant', [
+        text('[Claude Code · Task {"status":"stopped","description":"a8de7d982d824b56a"}]'),
+      ]),
+    ])
+    expect(agents).toHaveLength(1)
+    expect(agents[0]?.description).toBeUndefined()
+    expect(agents[0]?.status).toBe('stopped')
+  })
+
+  it('summarizes a fan-out by agents, not by markers', () => {
+    const rows = rowsFor([
+      message('user', 'go'),
+      message('assistant', [
+        text('[Claude Code · Agent {"description":"one"}]'),
+        text('[Claude Code · Task {"status":"started","description":"one"}]'),
+        text('[Claude Code · Agent {"description":"two"}]'),
+        text('[Claude Code · Task {"status":"started","description":"two"}]'),
+        text('[Claude Code · WebSearch {"query":"x"}]'),
+      ]),
+    ])
+    const steps = rows
+      .filter((r) => r.kind === 'activity')
+      .flatMap((r) => (r as { steps: ActivityStep[] }).steps)
+    const summary = summarizeActivity(steps, {}, (t) => settledVerb(t.toolName ?? ''))
+    expect(summary.detail).toBe('launched 2 agents, claude code 1 tool')
+  })
+})
+
+describe('trailingUnfinishedAgents', () => {
+  const message = (role: string, content: unknown): AgentMessage =>
+    ({ role, content, stopReason: 'stop' }) as unknown as AgentMessage
+  const text = (t: string): unknown => ({ type: 'text', text: t })
+  const agentText = '[Claude Code · Agent {"description":"scout"}]'
+
+  it('counts agents that never reached a terminal state', () => {
+    const state = hydrateFromMessages([
+      message('user', 'go'),
+      message('assistant', [text(agentText), text('Launched a scout.')]),
+    ])
+    expect(trailingUnfinishedAgents(buildTranscriptRows(state.items))).toBe(1)
+  })
+
+  it('stays silent once the agent reports back', () => {
+    // The 0.4.14 shape: the CLI keeps running, the agent finishes, and its
+    // report lands in the same turn. Nothing was lost, so nothing is warned
+    // about.
     const state = hydrateFromMessages([
       message('user', 'go'),
       message('assistant', [
-        { type: 'text', text: agentText },
-        { type: 'text', text: 'Launched a scout.' },
+        text('[Claude Code · Agent {"description":"scout","task_id":"cccccccccccc1"}]'),
+        text(
+          '[Claude Code · Task {"status":"started","description":"scout","task_id":"cccccccccccc1"}]',
+        ),
+        text(
+          '[Claude Code · Task {"status":"completed","description":"scout","task_id":"cccccccccccc1"}]',
+        ),
+        text('The scout reported back.'),
       ]),
     ])
-    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(1)
+    expect(trailingUnfinishedAgents(buildTranscriptRows(state.items))).toBe(0)
+  })
+
+  it('counts a killed agent, which is the failure worth reporting', () => {
+    const state = hydrateFromMessages([
+      message('user', 'go'),
+      message('assistant', [
+        text('[Claude Code · Agent {"description":"scout"}]'),
+        text('[Claude Code · Agent {"description":"other"}]'),
+        text('[Claude Code · Task {"status":"started","description":"scout"}]'),
+      ]),
+    ])
+    expect(trailingUnfinishedAgents(buildTranscriptRows(state.items))).toBe(2)
   })
 
   it('resets once the user replies', () => {
     const state = hydrateFromMessages([
       message('user', 'go'),
-      message('assistant', [{ type: 'text', text: agentText }]),
+      message('assistant', [text(agentText)]),
       message('user', 'any news?'),
     ])
-    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(0)
+    expect(trailingUnfinishedAgents(buildTranscriptRows(state.items))).toBe(0)
   })
 
   it('ignores ordinary external tools', () => {
     const state = hydrateFromMessages([
       message('user', 'go'),
-      message('assistant', [{ type: 'text', text: '[Claude Code · WebSearch {"query":"x"}]' }]),
+      message('assistant', [text('[Claude Code · WebSearch {"query":"x"}]')]),
     ])
-    expect(trailingAgentLaunches(buildTranscriptRows(state.items))).toBe(0)
+    expect(trailingUnfinishedAgents(buildTranscriptRows(state.items))).toBe(0)
   })
 })

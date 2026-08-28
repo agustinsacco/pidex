@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs'
 import { access } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { claudeSessionFileForCwd } from './pi-paths'
+import { claudeSessionIdFor } from './claude-session-map'
 
 /**
  * Deleting a session means deleting every ledger it wrote.
@@ -107,7 +108,12 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
 
   if (!claudeRef) return
   try {
-    await trashIfPresent(claudeSessionFileForCwd(claudeRef.cwd, claudeRef.sessionId))
+    // Observer mode files the CLI transcript under the CLI's OWN session id,
+    // so deleting by the pi id trashed nothing and left a transcript (often
+    // megabytes) behind for every session ever deleted. The pi id remains the
+    // right fallback for sessions recorded before that change.
+    const cliSessionId = (await claudeSessionIdFor(claudeRef.sessionId)) ?? claudeRef.sessionId
+    await trashIfPresent(claudeSessionFileForCwd(claudeRef.cwd, cliSessionId))
   } catch {
     // Best-effort: the pi transcript is already gone, and failing the whole
     // delete over the second copy would be a worse outcome than an orphan.

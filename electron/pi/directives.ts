@@ -73,32 +73,32 @@ export function laneCharterBlock(charter: LaneCharter): string {
 }
 
 /**
- * Sub-agents: allowed, but they must finish inside the turn.
+ * Sub-agents: allowed, and synchronous is the form that always works.
  *
- * The default is the broken one. Claude Code's `Agent` tool backgrounds the
+ * The default is the risky one. Claude Code's `Agent` tool backgrounds the
  * sub-agent unless the caller passes `run_in_background: false`, and its tool
- * result even promises "you will be notified automatically when it
- * completes" — true inside Claude Code's own long-lived harness, false here,
- * where the provider runs `claude -p` as a per-turn model server that exits
- * with the answer. The agent dies with it.
+ * result promises "you will be notified automatically when it completes".
+ * That promise was false here until `pi-claude-cli` 0.4.14: the provider
+ * killed `claude -p` at the turn's first `result`, which for a background
+ * call lands while the agents are still working. Measured 2026-08-27 on one
+ * lane: five background agents, two more nested inside them, 352 shell calls
+ * and 28.6M cache-read tokens, all seven killed at the same millisecond, not
+ * one finding returned.
  *
- * Measured 2026-08-27 on one lane: five background agents, two more nested
- * inside them, 352 shell calls and 28.6M cache-read tokens, all seven killed
- * at the same millisecond, not one finding returned. A synchronous sub-agent
- * completes and returns inside a single `claude -p` invocation, so the fix is
- * the flag, not a ban.
+ * 0.4.14 waits for them, but pidex pins no provider version and this text is
+ * fixed at spawn — so it must be true under both. Synchronous delegation is:
+ * it returns inside the turn either way.
  *
  * Deliberately short. This is spent on every request for the life of the lane.
  */
 export function subagentPolicyBlock(): string {
   return [
     '<pidex_subagents>',
-    'Sub-agents are available, but this harness does not outlive the turn: one',
-    'launched in the background is killed when the turn ends and its findings are',
-    'lost.',
+    'Sub-agents are available, and the synchronous form is the reliable one:',
+    'run_in_background: false returns the findings inside this turn on every',
+    'provider version. A backgrounded agent reports back only on pi-claude-cli',
+    '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
     '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-    '- If you do delegate, pass run_in_background: false so the result comes back',
-    '  inside this turn.',
     '</pidex_subagents>',
   ].join('\n')
 }

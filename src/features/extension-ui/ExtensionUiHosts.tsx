@@ -10,6 +10,11 @@ import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBr
 import { LANE_LOOP_STATUS_KEY } from '@/features/lanes/laneLoop'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 import { MCP_STATUS_STATUS_KEY, parseMcpStatus, stateLabel } from '@/features/connectors/mcpStatus'
+import {
+  SUBAGENTS_STATUS_KEY,
+  parseSubagentStatus,
+  summarizeSubagents,
+} from '@/features/chat/subagentStatus'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 /**
@@ -235,6 +240,7 @@ const STRUCTURED_STATUS_KEYS = new Set([
   RATE_LIMIT_STATUS_KEY,
   LANE_LOOP_STATUS_KEY,
   MCP_STATUS_STATUS_KEY,
+  SUBAGENTS_STATUS_KEY,
 ])
 
 /**
@@ -282,16 +288,50 @@ function McpChip({ sessionId }: { sessionId: string }): React.JSX.Element | null
   )
 }
 
+/**
+ * Sub-agents as a chip: how many are out there, and what the newest one is
+ * doing right now.
+ *
+ * The provider clears this key when the episode ends (0.4.14), so the chip is
+ * live state and disappears with the turn — the transcript's own agent rows
+ * are what remain. On an older provider the key is never cleared, which is
+ * why the chip says "done" rather than "running" once nothing is active.
+ */
+function SubagentChip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[SUBAGENTS_STATUS_KEY])
+  const snapshot = parseSubagentStatus(statusText)
+  if (!snapshot) return null
+  return (
+    <span
+      data-testid="subagent-chip"
+      title={snapshot.tasks
+        .map((task) => `${task.description || task.taskId}: ${task.status}`)
+        .join('\n')}
+      className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-xs"
+    >
+      <span
+        className={clsx(
+          'h-1.5 w-1.5 shrink-0 rounded-full',
+          snapshot.active > 0 ? 'bg-accent' : 'bg-text-tertiary/50',
+        )}
+      />
+      <span className="truncate">{summarizeSubagents(snapshot)}</span>
+    </span>
+  )
+}
+
 /** Status strip entries for a session (extension setStatus). */
 export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const statuses = useExtensionUiStore((s) => s.statuses[sessionId])
   if (!statuses) return null
   const entries = Object.entries(statuses).filter(([key]) => !STRUCTURED_STATUS_KEYS.has(key))
   const hasMcp = statuses[MCP_STATUS_STATUS_KEY] !== undefined
-  if (entries.length === 0 && !hasMcp) return null
+  const hasAgents = statuses[SUBAGENTS_STATUS_KEY] !== undefined
+  if (entries.length === 0 && !hasMcp && !hasAgents) return null
   return (
     <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 border-t px-3">
       <McpChip sessionId={sessionId} />
+      <SubagentChip sessionId={sessionId} />
       {entries.map(([key, text]) => (
         <span
           key={key}
