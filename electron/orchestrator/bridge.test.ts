@@ -80,6 +80,59 @@ describe('fleet_status', () => {
     const data = (result as { data: { sessions: FleetSession[] } }).data
     expect(data.sessions.map((s) => s.sessionId)).toEqual([WORKER])
   })
+
+  it('slices the fleet by scope', async () => {
+    const d = deps({
+      snapshot: () => [
+        session(ORCHESTRATOR, { isOrchestrator: true }),
+        session('busy', { phase: 'streaming' }),
+        session('quiet', { phase: 'idle' }),
+        session('stuck', {
+          phase: 'awaiting-input',
+          pendingQuestion: { requestId: 'r1', method: 'confirm', title: 'ok?', askedAt: 0 },
+        }),
+      ],
+    })
+    const ids = async (scope?: string) => {
+      const result = await call(d, ORCHESTRATOR, 'fleet_status', scope ? { scope } : {})
+      return (result as { data: { sessions: FleetSession[] } }).data.sessions.map(
+        (s) => s.sessionId,
+      )
+    }
+    expect(await ids('blocked')).toEqual(['stuck'])
+    expect(await ids('idle')).toEqual(['quiet'])
+    expect(await ids('all')).toEqual(['busy', 'quiet', 'stuck'])
+  })
+
+  /**
+   * `scope` exists to keep the arguments object non-empty on the Claude
+   * provider, not to gate the answer. A value the model invented must still
+   * return the fleet.
+   */
+  it('falls back to the whole fleet for a missing or unknown scope', async () => {
+    for (const args of [{}, { scope: 'everything' }]) {
+      const result = await call(deps(), ORCHESTRATOR, 'fleet_status', args)
+      const data = (result as { data: { sessions: FleetSession[]; total: number } }).data
+      expect(data.sessions.map((s) => s.sessionId)).toEqual([WORKER])
+      expect(data.total).toBe(1)
+    }
+  })
+})
+
+describe('git_status', () => {
+  it('treats "." and a missing path as this project', async () => {
+    for (const args of [{}, { workspacePath: '.' }]) {
+      const d = deps()
+      await call(d, ORCHESTRATOR, 'git_status', args)
+      expect(d.gitStatus).toHaveBeenCalledWith('/repo')
+    }
+  })
+
+  it('passes any other path through', async () => {
+    const d = deps()
+    await call(d, ORCHESTRATOR, 'git_status', { workspacePath: '/repo/.pidex/worktrees/a' })
+    expect(d.gitStatus).toHaveBeenCalledWith('/repo/.pidex/worktrees/a')
+  })
 })
 
 describe('session_send', () => {
