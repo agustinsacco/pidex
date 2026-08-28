@@ -1668,6 +1668,25 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     // to that list did exactly that; caught by looking at a screenshot.
     await expect(page.getByText(/"rungs":/)).toHaveCount(0)
 
+    // The banner and composer use the same gutter and max-width contract. Open
+    // a side pane to narrow the chat column, then compare their actual boxes:
+    // a banner with its own padding used to remain wider than the input here.
+    await page.getByTitle(/Files pane/).click()
+    const composerCard = page.locator('.composer-field').locator('..')
+    await expect
+      .poll(async () => {
+        const [bannerBox, composerBox] = await Promise.all([
+          banner.boundingBox(),
+          composerCard.boundingBox(),
+        ])
+        if (!bannerBox || !composerBox) return false
+        return (
+          Math.abs(bannerBox.x - composerBox.x) < 1 &&
+          Math.abs(bannerBox.width - composerBox.width) < 1
+        )
+      })
+      .toBe(true)
+
     // MOUNT 2 — the same component on the fleet card, so the two surfaces
     // cannot disagree about where the work is.
     await page.getByRole('button', { name: /^New$/ }).click()

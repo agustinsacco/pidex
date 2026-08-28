@@ -22,13 +22,16 @@ export function ChatView({
   workspacePath: string
 }): React.JSX.Element {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
       <NoModelsBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
       {/* The lane's STATE, directly above where you decide what to type next.
-          The transcript above is only its history. */}
-      <LaneBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl px-4" />
+          It deliberately shares the composer's horizontal gutter and maximum
+          width: a right pane must narrow both surfaces together. */}
+      <div className="shrink-0 px-6 pt-1">
+        <LaneBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
+      </div>
       <Composer sessionId={sessionId} workspacePath={workspacePath} />
       <StatusStrip sessionId={sessionId} />
       <ForkPickerModal sessionId={sessionId} />
