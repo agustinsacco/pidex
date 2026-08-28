@@ -367,7 +367,8 @@ function handle(cmd) {
       else if (message.includes('lane pr please')) runPrLaneTurn()
       // The banner actions must start a turn, not merely queue a follow-up
       // after a turn that has already settled.
-      else if (message.includes('The test check is failing') || message.includes('gh pr create')) runLaneActionTurn()
+      else if (message.includes('The test check is failing') || message.includes('gh pr create'))
+        runLaneActionTurn()
       else runTurn()
       break
     }
