@@ -6,8 +6,6 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
-import { LaneLadder } from '@/features/lanes/LaneLadder'
-import { useLaneLoop } from '@/features/lanes/LaneBanner'
 
 /**
  * One live session on the home screen: what it is doing, and a box to talk to
@@ -29,9 +27,6 @@ export function SessionCard({ session }: { session: FleetSession }): React.JSX.E
     (s) => s.sessions[session.sessionId]?.items.find((item) => item.kind === 'user')?.text,
   )
   const title = sessionTitle({ explicitName: session.title, firstUserText }) ?? 'Untitled session'
-  // Same component the lane's own banner renders, so the fleet view and the
-  // lane can never disagree about where the work is.
-  const loop = useLaneLoop(session.sessionId)
 
   const send = async (): Promise<void> => {
     const message = text.trim()
@@ -84,8 +79,6 @@ export function SessionCard({ session }: { session: FleetSession }): React.JSX.E
           ? `Waiting on you: ${session.pendingQuestion.title}`
           : (session.lastLine ?? 'No output yet.')}
       </p>
-
-      {loop ? <LaneLadder loop={loop} className="mt-2" /> : null}
 
       <div className="mt-2.5 flex items-center gap-1.5">
         <input
