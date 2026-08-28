@@ -1653,8 +1653,13 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     await banner.getByRole('button', { name: /Expand lane status/i }).click()
     await expect(banner).toHaveAttribute('data-open', 'true')
 
-    // And it offers the next action as a button rather than a sentence.
-    await expect(banner.getByRole('button', { name: /Fix test/i })).toBeVisible()
+    // The action starts a new turn in the same session. This used to call
+    // `follow_up`, which only queues work behind an active turn; after the
+    // banner's settled-state render it was a successful no-op.
+    const fixTest = banner.getByRole('button', { name: /Fix test/i })
+    await expect(fixTest).toBeVisible()
+    await fixTest.click()
+    await expect(page.getByText('Lane action received.')).toBeVisible({ timeout: 20_000 })
 
     // The status strip must NOT print the raw payload. `setStatus` is the only
     // channel an extension has, so it doubles as a data bus, and every
@@ -1662,6 +1667,25 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     // at the bottom of the window. Shipping `pidex-lane-loop` without adding it
     // to that list did exactly that; caught by looking at a screenshot.
     await expect(page.getByText(/"rungs":/)).toHaveCount(0)
+
+    // The banner and composer use the same gutter and max-width contract. Open
+    // a side pane to narrow the chat column, then compare their actual boxes:
+    // a banner with its own padding used to remain wider than the input here.
+    await page.getByTitle(/Files pane/).click()
+    const composerCard = page.locator('.composer-field').locator('..')
+    await expect
+      .poll(async () => {
+        const [bannerBox, composerBox] = await Promise.all([
+          banner.boundingBox(),
+          composerCard.boundingBox(),
+        ])
+        if (!bannerBox || !composerBox) return false
+        return (
+          Math.abs(bannerBox.x - composerBox.x) < 1 &&
+          Math.abs(bannerBox.width - composerBox.width) < 1
+        )
+      })
+      .toBe(true)
 
     // MOUNT 2 — the same component on the fleet card, so the two surfaces
     // cannot disagree about where the work is.
@@ -1671,6 +1695,33 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     const cardLadder = card.getByTestId('lane-ladder')
     await expect(cardLadder.locator('[data-rung]')).toHaveCount(6)
     await expect(cardLadder.locator('[data-rung="test"]')).toHaveAttribute('data-state', 'fail')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('a pending PR is the banner CTA without redundant copy', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-lane-pr-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('lane pr please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const banner = page.getByTestId('lane-banner')
+    await expect(banner).toBeVisible({ timeout: 30_000 })
+    // There is no expanded success prose or duplicate PR button. The final
+    // rung is the CTA and stays available while the compact banner is closed.
+    await expect(banner).toHaveAttribute('data-open', 'false')
+    await expect(banner.getByText(/All checks pass\. This lane still owes/i)).toHaveCount(0)
+    await expect(banner.getByRole('button', { name: /^Open the PR$/i })).toHaveCount(0)
+
+    const pr = banner.getByRole('button', { name: 'Open a pull request for this lane' })
+    await expect(pr).toHaveAttribute('data-rung', 'pr')
+    await pr.click()
+    await expect(page.getByText('Lane action received.')).toBeVisible({ timeout: 20_000 })
   } finally {
     await shutdown(harness)
   }

@@ -5,6 +5,7 @@ import {
   laneAction,
   laneHint,
   laneIsGreen,
+  lanePrAction,
   overDiffBudget,
   parseLaneLoop,
 } from './laneLoop'
@@ -110,13 +111,13 @@ describe('laneHint', () => {
     expect(laneHint(loop)).toBe('Running tsc…')
   })
 
-  it('says the lane owes a PR when everything else passes', () => {
+  it('does not repeat the PR call to action in expanded copy', () => {
     const loop = parseLaneLoop(
       payload(
         DEFAULT_LANE_RUNGS.map((r) => ({ key: r.key, state: r.key === 'pr' ? 'stale' : 'pass' })),
       ),
     )!
-    expect(laneHint(loop)).toContain('still owes a pull request')
+    expect(laneHint(loop)).toBe('pr has not run since the last edit.')
   })
 
   it('says so plainly when the lane is ready', () => {
@@ -181,10 +182,12 @@ describe('laneAction', () => {
     expect(laneAction(ladder({}))).toBeNull()
   })
 
-  it('asks for the PR when that is the only thing left', () => {
-    const action = laneAction(ladder({ pr: 'stale' }))
+  it('leaves a pending PR to the final ladder-rung CTA', () => {
+    const loop = ladder({ pr: 'stale' })
+    expect(laneAction(loop)).toBeNull()
+    const action = lanePrAction(loop)
     expect(action?.rung).toBe('pr')
-    expect(action?.label).toBe('Open the PR')
+    expect(action?.label).toBe('Open a pull request for this lane')
     expect(action?.prompt).toContain('gh pr create')
   })
 
