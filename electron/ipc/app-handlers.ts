@@ -6,6 +6,14 @@ import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
 import { userInfo } from 'node:os'
 import {
+  deleteDraftBlobs,
+  listDraftBlobs,
+  readDraftBlob,
+  wouldExceedBlobCap,
+  writeDraftBlob,
+} from '../drafts-blobs'
+import { orphanBlobIds, sweepDrafts } from '../prefs-utils'
+import {
   getPrefs,
   markSessionSeen,
   recordWorkspace,
@@ -20,6 +28,9 @@ import {
   setAgentDirectives,
   setWorktreePrefs,
   setNotificationsMuted,
+  setDraft,
+  clearDraft,
+  setDrafts,
 } from '../store'
 
 /**
@@ -71,6 +82,44 @@ export function registerAppHandlers(): void {
 
   handle('app:recordWorkspace', (_event, path: string) => {
     recordWorkspace(path, basename(path))
+  })
+
+  handle('app:setDraft', async (_event, draft) => {
+    // Anything the prune dropped takes its images with it.
+    await deleteDraftBlobs(setDraft(draft))
+  })
+
+  handle('app:clearDraft', async (_event, key) => {
+    await deleteDraftBlobs(clearDraft(key))
+  })
+
+  handle('app:writeDraftBlob', async (_event, blobId, base64) => {
+    // Refuse rather than silently drop: the composer says so out loud.
+    const bytes = Math.floor((base64.length * 3) / 4)
+    if (await wouldExceedBlobCap(bytes)) return false
+    await writeDraftBlob(blobId, base64)
+    return true
+  })
+
+  handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
+
+  handle('app:sweepDrafts', async () => {
+    const drafts = getPrefs().drafts
+    // Resolve existence up front: `sweepDrafts` is pure so it can be tested
+    // without a filesystem.
+    const folders = [...new Set(Object.keys(drafts).filter((k) => k.startsWith('home:')))].map(
+      (k) => k.slice('home:'.length),
+    )
+    const alive = new Set(
+      (await Promise.all(folders.map(async (f) => ((await pathExists(f)) ? f : null)))).filter(
+        (f): f is string => f !== null,
+      ),
+    )
+    const swept = sweepDrafts(drafts, (path) => alive.has(path))
+    setDrafts(swept.drafts)
+    const orphans = orphanBlobIds(swept.drafts, await listDraftBlobs())
+    await deleteDraftBlobs([...swept.dropped, ...orphans])
+    return swept.drafts
   })
 
   handle('app:resumeTarget', async () => {

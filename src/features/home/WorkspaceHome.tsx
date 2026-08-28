@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
@@ -7,31 +7,44 @@ import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
-import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
+import { AttachButton, FormatButtons, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { projectName } from '@/lib/path'
-import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
-import { ChatImage } from '@/features/chat/ChatImage'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { BranchControl } from '@/features/worktrees/BranchControl'
-import {
-  composePrompt,
-  formatFileSize,
-  toAttachment,
-  toImageContents,
-  type PendingAttachment,
-} from '@/features/chat/attachments'
+import { composePrompt, toImageContents, type PendingAttachment } from '@/features/chat/attachments'
+import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
+import { useAttachments } from '@/features/chat/composer/useAttachments'
+import { ComposerField, useComposerFormatting } from '@/features/chat/composer/ComposerField'
+import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
-  const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingAttachment[]>([])
-  const [dragging, setDragging] = useState(false)
+  /*
+   * The first-prompt draft, per workspace, persisted.
+   *
+   * It used to be local state with one escape hatch: a failed session start
+   * pushed the text back through `startingChat`. Everything else lost it —
+   * switching workspace, opening a session, quitting the app. Keyed by folder
+   * so composing against two projects keeps two drafts.
+   */
+  const draftKey = homeDraftKey(workspacePath)
+  const draft = useDraftsStore((s) => s.drafts[draftKey])
+  const text = draft?.text ?? ''
+  const images = draft?.attachments ?? EMPTY_ATTACHMENTS
+  const setText = useCallback(
+    (next: string) => useDraftsStore.getState().setText(draftKey, next),
+    [draftKey],
+  )
+  const setImages = useCallback(
+    (next: PendingAttachment[]) => useDraftsStore.getState().setAttachments(draftKey, next),
+    [draftKey],
+  )
   const [warning, setWarning] = useState<string | null>(null)
   const [isRepo, setIsRepo] = useState(false)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
@@ -39,50 +52,17 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   // flag could never be read again. It stays true for the frame between the
   // keystroke and the swap.
   const starting = useStartingChatStore((s) => s.starting !== null)
-  const draft = useStartingChatStore((s) => s.draft)
+  const failedDraft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
+  const attachments = useAttachments({
+    attachments: images,
+    onChange: setImages,
+    onReject: setWarning,
+  })
+  const format = useComposerFormatting(textareaRef, setText)
   // The project, never the worktree folder this home screen may be pointed at.
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
   const workspaceName = projectName(workspacePath, git)
-
-  /** Images inline; everything else attaches by path (see attachments.ts). */
-  const addFile = async (file: File): Promise<void> => {
-    const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
-    if (!attachment) return
-    setImages((current) => [...current, attachment])
-  }
-
-  const handlePaste = (event: React.ClipboardEvent): void => {
-    const files = [...event.clipboardData.items]
-      .filter((item) => item.kind === 'file')
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
-
-  /** Without preventDefault on dragover the card is never a drop target. */
-  const handleDragOver = (event: React.DragEvent): void => {
-    if (!event.dataTransfer.types.includes('Files')) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-    if (!dragging) setDragging(true)
-  }
-
-  const handleDragLeave = (event: React.DragEvent): void => {
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    setDragging(false)
-  }
-
-  const handleDrop = (event: React.DragEvent): void => {
-    const files = [...event.dataTransfer.files]
-    setDragging(false)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
 
   useEffect(() => {
     void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
@@ -112,13 +92,16 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
    * different project's composer if the user moved on.
    */
   useEffect(() => {
-    if (!draft || draft.workspacePath !== workspacePath) return
-    setText(draft.text)
-    setImages(draft.attachments)
-    setWarning(draft.message)
+    if (!failedDraft || failedDraft.workspacePath !== workspacePath) return
+    useDraftsStore.getState().patch(draftKey, {
+      text: failedDraft.text,
+      attachments: failedDraft.attachments,
+      workspacePath,
+    })
+    setWarning(failedDraft.message)
     useStartingChatStore.getState().clearDraft()
     textareaRef.current?.focus()
-  }, [draft, workspacePath])
+  }, [failedDraft, workspacePath, draftKey])
 
   const start = async (): Promise<void> => {
     const message = text.trim()
@@ -137,6 +120,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     // trip, so until then a second Enter started a second session and a
     // second branch. This screen is gone before the next keystroke lands.
     useStartingChatStore.getState().begin({ workspacePath, prompt, images: sent })
+    // The send is committed, so the draft is spent. A failure re-fills it
+    // through `startingChat` below.
+    useDraftsStore.getState().clear(draftKey)
     try {
       // Resolves once the session is live and its first prompt is away (see
       // startChat) — the branch is cut from the message slug first because a
@@ -237,73 +223,24 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
           <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDragOver={attachments.handleDragOver}
+            onDragLeave={attachments.handleDragLeave}
+            onDrop={attachments.handleDrop}
             className={clsx(
               'bg-surface relative rounded-xl border shadow-sm transition-colors',
-              dragging
+              attachments.dragging
                 ? 'border-accent ring-accent/25 ring-2'
                 : 'border-border hover:border-border-focus focus-within:border-border-focus',
             )}
           >
-            {dragging && (
-              <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-                <span className="text-text text-base font-medium">
-                  Drop to attach — images inline, other files by path
-                </span>
-              </div>
-            )}
-            {images.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-3 pt-3">
-                {images.map((attachment, index) => (
-                  <div key={index} className="group/img relative">
-                    {attachment.kind === 'image' ? (
-                      // Openable (click) and copyable (right-click) like the
-                      // same image once it lands in the transcript.
-                      <ChatImage
-                        image={{
-                          type: 'image',
-                          data: attachment.data,
-                          mimeType: attachment.mimeType,
-                        }}
-                        className="border-border h-16 w-16 rounded-lg border object-cover"
-                      />
-                    ) : (
-                      <div
-                        title={attachment.path}
-                        className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
-                      >
-                        <span className="text-text truncate text-sm font-medium">
-                          {attachment.name}
-                        </span>
-                        <span className="text-text-tertiary font-mono text-xs">
-                          {formatFileSize(attachment.size)} · sent as path
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
-                      aria-label="Remove attachment"
-                      className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-full text-xs group-hover/img:flex"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={textareaRef}
+            <DropOverlay visible={attachments.dragging} />
+            <AttachmentChips attachments={images} onRemove={attachments.remove} />
+            <ComposerField
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void start()
-                }
-              }}
-              onPaste={handlePaste}
+              textareaRef={textareaRef}
+              onChange={setText}
+              onSubmit={() => void start()}
+              onPasteFiles={attachments.addFiles}
               placeholder="Describe a task or ask a question"
               rows={2}
               className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
@@ -313,15 +250,19 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 model + thinking on the right, submit at the far right. */}
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 items-center gap-1.5">
-                <AttachButton
-                  onFiles={(files) => {
-                    for (const file of files) void addFile(file)
-                  }}
+                <AttachButton onFiles={attachments.addFiles} />
+                <FormatButtons
+                  onBullet={format.toggleBullet}
+                  onOrdered={format.toggleOrdered}
+                  onCode={format.codeBlock}
                 />
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
-                <HomeModelPicker />
+                <HomeModelPicker
+                  override={draft?.model}
+                  onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
+                />
                 <SubmitIconButton
                   busy={starting}
                   disabled={!text.trim()}
@@ -469,3 +410,6 @@ function prettifyName(username: string): string {
 function formatNumber(n: number): string {
   return n.toLocaleString()
 }
+
+/** Stable empty list: a fresh `[]` per render would remount the chip row. */
+const EMPTY_ATTACHMENTS: PendingAttachment[] = []

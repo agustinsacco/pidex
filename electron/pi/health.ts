@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { MIN_PI_VERSION, type PiHealth } from '@shared/models'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { createTtlCache } from './ttl-cache'
 
 const execFileAsync = promisify(execFile)
 
@@ -147,4 +148,35 @@ async function probeWindows(): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/** How long a healthy pi stays believed without re-running `pi --version`. */
+const HEALTH_TTL_MS = 5 * 60_000
+
+/**
+ * A healthy answer, cached; an unhealthy one always re-checked.
+ *
+ * Only success is worth caching. A user who installs pi while the setup screen
+ * is up must see it work on the next check, not five minutes later — so the
+ * loader throws on `!ok`, which `createTtlCache` deliberately does not store.
+ */
+const healthCache = createTtlCache(async () => {
+  const health = await checkPiHealth()
+  if (!health.ok) throw health
+  return health
+}, HEALTH_TTL_MS)
+
+export async function cachedPiHealth(): Promise<PiHealth> {
+  try {
+    return await healthCache.get()
+  } catch (rejected) {
+    // The loader rejects WITH the unhealthy result, so there is nothing to
+    // re-run: hand it straight back.
+    if (rejected && typeof rejected === 'object' && 'ok' in rejected) return rejected as PiHealth
+    throw rejected
+  }
+}
+
+export function invalidatePiHealth(): void {
+  healthCache.invalidate()
 }

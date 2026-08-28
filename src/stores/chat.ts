@@ -47,6 +47,12 @@ export interface ChatSession extends ChatSessionState {
   meta: RpcSessionState | null
   stats: SessionStats | null
   models: Model[]
+  /**
+   * False until `bootstrapSession` has heard back from `get_available_models`.
+   * Without it an empty `models` is ambiguous, and the picker renders "no
+   * models configured" while the answer is still in flight.
+   */
+  modelsLoaded: boolean
   commands: RpcSlashCommand[]
   /**
    * Levels the current model supports, straight from pi
@@ -69,6 +75,7 @@ const emptySession = (): ChatSession => ({
   meta: null,
   stats: null,
   models: [],
+  modelsLoaded: false,
   commands: [],
   thinkingLevels: null,
   resuming: false,
@@ -215,7 +222,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   setStats: (sessionId, stats) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stats }) })),
   setModels: (sessionId, models) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models }) })),
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models, modelsLoaded: true }) })),
   setCommands: (sessionId, commands) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { commands }) })),
   setThinkingLevels: (sessionId, levels) =>

@@ -1,5 +1,6 @@
 import { PiSpark } from '@/components/PiSpark'
 import { ChatImage } from '@/features/chat/ChatImage'
+import { UserText } from '@/features/chat/UserText'
 import type { StartingChat as StartingChatState } from '@/stores/startingChat'
 
 /**
@@ -36,8 +37,8 @@ export function StartingChat({ starting }: { starting: StartingChatState }): Rea
                 ))}
               </div>
             )}
-            <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg whitespace-pre-wrap">
-              {starting.prompt}
+            <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg">
+              <UserText text={starting.prompt} />
             </div>
             {/* Same zero-height meta row the real bubble reserves, so the
                 swap does not shift the message up by 16px. */}

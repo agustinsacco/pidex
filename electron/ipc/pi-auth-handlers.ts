@@ -4,7 +4,8 @@ import type { LoginFlowState } from '@shared/models'
 import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
 import { cancelLogin, startLogin } from '../pi/login-flow'
-import { checkPiHealth } from '../pi/health'
+import { checkPiHealth, invalidatePiHealth } from '../pi/health'
+import { invalidateCatalogueModels } from './pi-config-handlers'
 import { piProcessEnv } from '../pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
 
@@ -27,6 +28,12 @@ function openAuthPage(url: string): void {
 }
 
 function broadcastLoginState(state: LoginFlowState): void {
+  // Signing in adds providers, so the cached catalogue no longer describes
+  // what the user can pick.
+  if (state.phase === 'signed-in') {
+    invalidateCatalogueModels()
+    invalidatePiHealth()
+  }
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send('pi:loginState', state)
   }

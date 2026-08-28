@@ -12,6 +12,7 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { entryIdForUserMessageOrdinal, rewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import { ChatImage } from './ChatImage'
+import { UserText } from './UserText'
 import type { TranscriptRow } from './items/transcriptRows'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
@@ -162,8 +163,8 @@ function UserMessage({
         </div>
       )}
       {item.text && (
-        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg whitespace-pre-wrap">
-          {item.text}
+        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg">
+          <UserText text={item.text} />
         </div>
       )}
 

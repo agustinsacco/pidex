@@ -22,6 +22,18 @@ export interface GroupedSessions {
   attempted: boolean
   /** True when any folder's most recent scan threw. */
   errored: boolean
+  /**
+   * True once ANY folder in this group has been scanned.
+   *
+   * The collapse default keys off this rather than `scanned`. A lane
+   * (`<repo>/.pidex/worktrees/<slug>`) is discovered asynchronously and folds
+   * into its repo's group, so with `scanned` an already-open group flipped
+   * shut the moment discovery added one unscanned folder — which also
+   * unwatched it.
+   */
+  anyScanned: boolean
+  /** Folders in this group with no scan attempt yet; drives "loading N more". */
+  unscannedPaths: string[]
 }
 
 /**
@@ -62,6 +74,8 @@ export function groupSessionsByProject(
       scanned: boolean
       attempted: boolean
       errored: boolean
+      anyScanned: boolean
+      unscannedPaths: string[]
     }
   >()
   for (const path of knownWorkspaces) {
@@ -85,6 +99,8 @@ export function groupSessionsByProject(
       existing.scanned &&= scanned
       existing.attempted &&= attempted
       existing.errored ||= errored
+      existing.anyScanned ||= scanned
+      if (!attempted) existing.unscannedPaths.push(path)
     } else {
       byProject.set(projectKey, {
         paths: [path],
@@ -93,6 +109,8 @@ export function groupSessionsByProject(
         scanned,
         attempted,
         errored,
+        anyScanned: scanned,
+        unscannedPaths: attempted ? [] : [path],
       })
     }
   }
@@ -112,6 +130,8 @@ export function groupSessionsByProject(
           scanned: entry.scanned,
           attempted: entry.attempted,
           errored: entry.errored,
+          anyScanned: entry.anyScanned,
+          unscannedPaths: entry.unscannedPaths,
         }
       })
       // Unscanned workspaces (beyond the boot-scan cap) still get a header —

@@ -11,6 +11,7 @@ import { useFleetStore } from '@/stores/fleet'
 import { modelRisksMalformedToolNames } from '@/features/orchestrator/threadHealth'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
+import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { Button, NumberField, Row, SectionTitle, Toggle } from '@/components/form'
 import { projectPathFor, workspaceName } from '@/lib/path'
 
@@ -42,7 +43,7 @@ export function OrchestrationTab(): React.JSX.Element {
   const storedPrefs = useFleetStore((s) => s.prefs[projectPath])
   const prefs = useMemo(() => ({ ...DEFAULT_ORCHESTRATOR_PREFS, ...storedPrefs }), [storedPrefs])
   const enabled = useFleetStore((s) => s.prefs[projectPath]?.enabled ?? false)
-  const [models, setModels] = useState<{ id: string; name: string; provider: string }[]>([])
+  const models = useModelCatalogueStore((s) => s.models)
   const [rules, setRules] = useState('')
   const [rulesPath, setRulesPath] = useState('')
   const [saved, setSaved] = useState(false)
@@ -50,7 +51,7 @@ export function OrchestrationTab(): React.JSX.Element {
 
   useEffect(() => {
     void window.pidex.invoke('app:getPrefs').then((p) => setMuted(p.notificationsMuted))
-    void window.pidex.invoke('pi:catalogueModels').then(setModels)
+    void useModelCatalogueStore.getState().hydrate()
   }, [])
 
   useEffect(() => {

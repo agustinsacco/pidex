@@ -3,7 +3,6 @@ import clsx from 'clsx'
 import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { fuzzyFilter } from '@/lib/fuzzy'
-import { ChatImage } from './ChatImage'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { cycleOrchestratorMode } from '@/features/orchestrator/OrchestratorModePicker'
@@ -21,20 +20,23 @@ import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
 import { Spinner } from '@/components/icons'
-import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
+import {
+  AttachButton,
+  FormatButtons,
+  StopIconButton,
+  SubmitIconButton,
+} from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
-import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
-import {
-  composePrompt,
-  formatFileSize,
-  toAttachment,
-  toImageContents,
-  type PendingAttachment,
-} from './attachments'
+import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
+import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
+import { useAttachments } from './composer/useAttachments'
+import { ComposerField, useComposerFormatting } from './composer/ComposerField'
+import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
+import { useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
 
 interface MentionState {
@@ -58,9 +60,40 @@ export function Composer({
   // thread's banner now (it is per-project, not per-message), but ⇧Tab still
   // has to know whether this composer belongs to one.
   const orchestratorWorkspace = useIsOrchestrator(sessionId)
-  const [text, setText] = useState('')
-  const [images, setImages] = useState<PendingAttachment[]>([])
-  const [dragging, setDragging] = useState(false)
+  /*
+   * Draft state lives in the store, not in `useState`.
+   *
+   * `App` renders `<ChatView key={activeSessionId}>`, so switching session
+   * unmounts this whole subtree — a local draft went with it, silently, along
+   * with any pasted image. Keyed by the session's FILE path once we know it,
+   * because that is the only identity that survives a restart; `rekey` below
+   * moves the draft across when pi finally tells us the path.
+   */
+  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
+  const draftKey = sessionDraftKey(diskPath, sessionId)
+  const draft = useDraftsStore((s) => s.drafts[draftKey])
+  const text = draft?.text ?? ''
+  const images = draft?.attachments ?? EMPTY_ATTACHMENTS
+  const setText = useCallback(
+    (next: string) => useDraftsStore.getState().setText(draftKey, next),
+    [draftKey],
+  )
+  const setImages = useCallback(
+    (next: PendingAttachment[]) => useDraftsStore.getState().setAttachments(draftKey, next),
+    [draftKey],
+  )
+  const [attachWarning, setAttachWarning] = useState<string | null>(null)
+
+  // The file path arrives asynchronously (see `bootstrapSession`), so a draft
+  // typed in the first moments is filed under the pidexId. Move it rather than
+  // stranding it under a key nothing will read again.
+  const previousKey = useRef(draftKey)
+  useEffect(() => {
+    if (previousKey.current !== draftKey) {
+      useDraftsStore.getState().rekey(previousKey.current, draftKey)
+      previousKey.current = draftKey
+    }
+  }, [draftKey])
   const [mention, setMention] = useState<MentionState | null>(null)
   const [command, setCommand] = useState<CommandState | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -71,7 +104,15 @@ export function Composer({
   const draftRef = useRef('')
   /** Timestamp of the last bare Escape, for Claude Code's Esc-Esc rewind. */
   const lastEscapeRef = useRef(0)
-  useAutoResizeTextarea(textareaRef, text, COMPOSER_MAX_HEIGHT)
+  const attachments = useAttachments({
+    attachments: images,
+    onChange: setImages,
+    onReject: setAttachWarning,
+  })
+  const format = useComposerFormatting(textareaRef, (value) => {
+    setText(value)
+    setHistoryIndex(null)
+  })
 
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
@@ -163,7 +204,7 @@ export function Composer({
         const exclude = message.startsWith('!!')
         const shellCommand = message.slice(exclude ? 2 : 1).trim()
         if (!shellCommand) return
-        setText('')
+        useDraftsStore.getState().clear(draftKey)
         const itemId = chat.addBashItem(sessionId, {
           command: shellCommand,
           output: '',
@@ -211,8 +252,8 @@ export function Composer({
       // has no document type, so the agent opens them with its own tools.
       const messageWithFiles = composePrompt(message, images)
 
-      setText('')
-      setImages([])
+      useDraftsStore.getState().clear(draftKey)
+      setAttachWarning(null)
       setCommand(null)
       setMention(null)
       setHistoryIndex(null)
@@ -238,7 +279,7 @@ export function Composer({
         chat.setError(sessionId, errorText(error))
       }
     },
-    [sessionId, text, images, isStreaming],
+    [sessionId, text, images, isStreaming, draftKey],
   )
 
   const abort = useCallback(async () => {
@@ -249,13 +290,14 @@ export function Composer({
       await piCallOk(sessionId, { type: 'abort' })
       // Escape semantics: restore queued messages into the composer.
       if (queuedText) {
-        setText((current) => (current ? current + '\n' + queuedText : queuedText))
+        const current = useDraftsStore.getState().get(draftKey).text
+        setText(current ? current + '\n' + queuedText : queuedText)
         textareaRef.current?.focus()
       }
     } catch (error) {
       chat.setError(sessionId, errorText(error))
     }
-  }, [sessionId])
+  }, [sessionId, draftKey, setText])
 
   const pickMention = (file: string): void => {
     if (!mention) return
@@ -278,21 +320,22 @@ export function Composer({
     textareaRef.current?.focus()
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+  /** Runs before the field's own keymap; true means the key was consumed. */
+  const handleKeyDownFirst = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
     // Popup navigation captures arrows/enter/escape while open.
     const popupItems = command ? commandMatches.length : mention ? mentionMatches.length : 0
     if (popupItems > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         setActiveIndex((i) => (i + 1) % popupItems)
-        return
+        return true
       }
       if (event.key === 'ArrowUp') {
         event.preventDefault()
         setActiveIndex((i) => (i - 1 + popupItems) % popupItems)
-        return
+        return true
       }
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
         event.preventDefault()
         if (command) {
           const entry = commandMatches[activeIndex]
@@ -301,24 +344,13 @@ export function Composer({
           const file = mentionMatches[activeIndex]
           if (file) pickMention(file)
         }
-        return
+        return true
       }
       if (event.key === 'Escape') {
         event.preventDefault()
         setCommand(null)
         setMention(null)
-        return
-      }
-      if (event.key === 'Tab') {
-        event.preventDefault()
-        if (command) {
-          const entry = commandMatches[activeIndex]
-          if (entry) pickCommand(entry)
-        } else if (mention) {
-          const file = mentionMatches[activeIndex]
-          if (file) pickMention(file)
-        }
-        return
+        return true
       }
     }
 
@@ -327,7 +359,7 @@ export function Composer({
     if (event.key === 'Tab' && event.shiftKey && orchestratorWorkspace) {
       event.preventDefault()
       void cycleOrchestratorMode(orchestratorWorkspace)
-      return
+      return true
     }
 
     // ↑/↓ recall earlier prompts (Claude Code's REPL history). Browsing starts
@@ -338,91 +370,44 @@ export function Composer({
     const browsing = historyIndex !== null
     if (plainArrow && event.key === 'ArrowUp' && (browsing || text === '')) {
       const recalled = recallPrevious(promptHistory(sessionId), historyIndex)
-      if (!recalled) return
+      if (!recalled) return false
       event.preventDefault()
       if (!browsing) draftRef.current = text
       setHistoryIndex(recalled.index)
       setText(recalled.text)
-      return
+      return true
     }
     if (plainArrow && event.key === 'ArrowDown' && browsing) {
       const recalled = recallNext(promptHistory(sessionId), historyIndex, draftRef.current)
-      if (!recalled) return
+      if (!recalled) return false
       event.preventDefault()
       setHistoryIndex(recalled.index)
       setText(recalled.text)
-      return
+      return true
     }
 
-    if (event.key === 'Enter' && !event.shiftKey) {
+    return false
+  }
+
+  /** Runs for keys neither the popups nor the field's keymap claimed. */
+  const handleKeyDownLast = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (event.key !== 'Escape') return
+    if (isStreaming) {
       event.preventDefault()
-      // Alt/Cmd+Enter during streaming → follow-up; plain Enter → steer.
-      void send(event.altKey || event.metaKey ? 'followUp' : 'steer')
+      lastEscapeRef.current = 0
+      void abort()
       return
     }
-    if (event.key === 'Escape') {
-      if (isStreaming) {
-        event.preventDefault()
-        lastEscapeRef.current = 0
-        void abort()
-        return
-      }
-      // Esc Esc → rewind, as in Claude Code. The first press is left alone so
-      // it can still blur/close whatever else is listening.
-      const now = Date.now()
-      if (now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
-        event.preventDefault()
-        lastEscapeRef.current = 0
-        useChatUiStore.getState().openForkPicker(sessionId)
-        return
-      }
-      lastEscapeRef.current = now
+    // Esc Esc → rewind, as in Claude Code. The first press is left alone so
+    // it can still blur/close whatever else is listening.
+    const now = Date.now()
+    if (now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
+      event.preventDefault()
+      lastEscapeRef.current = 0
+      useChatUiStore.getState().openForkPicker(sessionId)
+      return
     }
-  }
-
-  const handlePaste = (event: React.ClipboardEvent): void => {
-    const files = [...event.clipboardData.items]
-      .filter((item) => item.kind === 'file')
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
-
-  /**
-   * `dragover` must preventDefault or the element is never a valid drop
-   * target: the drop then either never fires or Electron navigates the window
-   * to the dropped file. This was the whole reason drag-and-drop appeared
-   * broken even though the drop handler existed.
-   */
-  const handleDragOver = (event: React.DragEvent): void => {
-    if (!event.dataTransfer.types.includes('Files')) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-    if (!dragging) setDragging(true)
-  }
-
-  const handleDragLeave = (event: React.DragEvent): void => {
-    // Only clear when the pointer leaves the drop zone itself, not when it
-    // crosses between children.
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    setDragging(false)
-  }
-
-  const handleDrop = (event: React.DragEvent): void => {
-    const files = [...event.dataTransfer.files]
-    setDragging(false)
-    if (files.length === 0) return
-    event.preventDefault()
-    for (const file of files) void addFile(file)
-  }
-
-  /** Images inline; everything else attaches by path (see attachments.ts). */
-  const addFile = async (file: File): Promise<void> => {
-    const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
-    if (!attachment) return
-    setImages((current) => [...current, attachment])
+    lastEscapeRef.current = now
   }
 
   const placeholder = isStreaming
@@ -459,81 +444,37 @@ export function Composer({
         )}
 
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={attachments.handleDragOver}
+          onDragLeave={attachments.handleDragLeave}
+          onDrop={attachments.handleDrop}
           className={clsx(
             'bg-surface relative rounded-xl border shadow-sm transition-colors',
-            dragging
+            attachments.dragging
               ? 'border-accent ring-accent/25 ring-2'
               : 'border-border hover:border-border-focus focus-within:border-border-focus',
           )}
         >
-          {dragging && (
-            <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
-              <span className="text-text text-base font-medium">
-                Drop to attach — images inline, other files by path
-              </span>
-            </div>
-          )}
-          {images.length > 0 && (
-            <div className="flex flex-wrap gap-2 px-3 pt-3">
-              {images.map((attachment, index) => (
-                <div key={index} className="group/img relative">
-                  {attachment.kind === 'image' ? (
-                    // Openable (click) and copyable (right-click) like the
-                    // same image in the transcript; the ✕ above stays for
-                    // removing it before sending.
-                    <ChatImage
-                      image={{
-                        type: 'image',
-                        data: attachment.data,
-                        mimeType: attachment.mimeType,
-                      }}
-                      className="border-border h-16 w-16 rounded-lg border object-cover"
-                    />
-                  ) : (
-                    <div
-                      title={attachment.path}
-                      className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
-                    >
-                      <span className="text-text truncate text-sm font-medium">
-                        {attachment.name}
-                      </span>
-                      <span className="text-text-tertiary font-mono text-xs">
-                        {formatFileSize(attachment.size)} · sent as path
-                      </span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
-                    className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <DropOverlay visible={attachments.dragging} />
+          <AttachmentChips attachments={images} onRemove={attachments.remove} />
 
-          <textarea
-            ref={textareaRef}
+          <ComposerField
             value={text}
-            onChange={(event) => {
-              setText(event.target.value)
+            textareaRef={textareaRef}
+            onChange={(value, caret) => {
+              setText(value)
               // Typing leaves history-browsing mode: the next ↑ starts again
               // from the newest prompt rather than from wherever it was.
               setHistoryIndex(null)
-              updateOverlays(
-                event.target.value,
-                event.target.selectionStart ?? event.target.value.length,
-              )
+              updateOverlays(value, caret)
             }}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
+            onSubmit={(event) => {
+              // Alt/Cmd+Enter during streaming → follow-up; plain Enter → steer.
+              void send(event.altKey || event.metaKey ? 'followUp' : 'steer')
+            }}
+            onKeyDown={handleKeyDownFirst}
+            onKeyDownFallthrough={handleKeyDownLast}
+            onPasteFiles={attachments.addFiles}
             placeholder={placeholder}
-            rows={1}
-            className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none"
           />
 
           {/* Footer mirrors the reference: attach on the left, model +
@@ -541,10 +482,11 @@ export function Composer({
               the far right — never a filled pill. */}
           <div className="flex items-center justify-between gap-3 px-2.5 pb-2">
             <div className="flex min-w-0 items-center gap-1.5">
-              <AttachButton
-                onFiles={(files) => {
-                  for (const file of files) void addFile(file)
-                }}
+              <AttachButton onFiles={attachments.addFiles} />
+              <FormatButtons
+                onBullet={format.toggleBullet}
+                onOrdered={format.toggleOrdered}
+                onCode={format.codeBlock}
               />
               {isCompacting && (
                 <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-sm">
@@ -579,6 +521,11 @@ export function Composer({
           </div>
         </div>
 
+        {attachWarning && (
+          <div className="text-warning px-2 pt-1.5 text-xs" role="alert">
+            {attachWarning}
+          </div>
+        )}
         <div
           className={clsx(
             'text-text-tertiary px-2 pt-1.5 text-xs',
@@ -620,3 +567,6 @@ function promptHistory(sessionId: string): string[] {
   }
   return prompts
 }
+
+/** Stable empty list: a fresh `[]` per render would remount the chip row. */
+const EMPTY_ATTACHMENTS: PendingAttachment[] = []
