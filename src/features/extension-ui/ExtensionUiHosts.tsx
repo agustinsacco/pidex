@@ -7,7 +7,6 @@ import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
-import { LANE_LOOP_STATUS_KEY } from '@/features/lanes/laneLoop'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 import { MCP_STATUS_STATUS_KEY, parseMcpStatus, stateLabel } from '@/features/connectors/mcpStatus'
 import {
@@ -238,7 +237,6 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
 const STRUCTURED_STATUS_KEYS = new Set([
   CONTEXT_BREAKDOWN_STATUS_KEY,
   RATE_LIMIT_STATUS_KEY,
-  LANE_LOOP_STATUS_KEY,
   MCP_STATUS_STATUS_KEY,
   SUBAGENTS_STATUS_KEY,
 ])

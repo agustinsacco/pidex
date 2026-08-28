@@ -63,10 +63,8 @@ export function laneCharterBlock(charter: LaneCharter): string {
     '- Open a pull request when the work is done. That is how this lane closes.',
     '- Keep the change reviewable: aim under 400 changed lines and 20 files. If the',
     '  work is genuinely larger, land it as a stack of smaller PRs rather than one.',
-    '- pidex runs typecheck, tests and lint itself when your turn settles, and shows',
-    '  the results as a fixed ladder above the composer. Those results come from',
-    '  running the commands, never from what you report, so saying work is done',
-    '  does not make a rung green. Check the ladder before you claim completion.',
+    "- Run the project's own typecheck, tests and lint before you claim the work is",
+    '  done. Saying it is done is not evidence; an exit code is.',
     '</pidex_lane>',
   )
   return lines.join('\n')

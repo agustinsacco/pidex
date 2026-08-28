@@ -2,6 +2,12 @@
 
 2026-08-27
 
+> **Superseded 2026-08-28.** The ladder and its banner were removed; the
+> feature is meant to return in a different shape. Everything below is history.
+> See [2026-08-28-removing-the-lane-loop-pane.md](2026-08-28-removing-the-lane-loop-pane.md).
+> The lane charter in `electron/pi/directives.ts` and the worktree-per-lane
+> flow both stay.
+
 ## Why
 
 A research pass over the agentic inner loop (published as a five-part series;

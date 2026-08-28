@@ -150,7 +150,7 @@ export function DirectivesSection(): React.JSX.Element {
 
       <Row
         title="Lane charter"
-        description="States that this is a lane, that it owns its branch, that it ends in a pull request, and that the acceptance ladder is run by pidex rather than reported by the agent."
+        description="States that this is a lane, that it owns its branch, that it ends in a pull request, that the change stays reviewable, and that checks are run rather than claimed."
       >
         <Toggle on={editing.laneCharter} onChange={(on) => patch({ laneCharter: on })} />
       </Row>

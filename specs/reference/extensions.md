@@ -152,11 +152,13 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread     |
 | `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus         |
 
-Plus `orchestrator.ts` and `lane-loop.ts`, loaded only for the sessions that
-need them: `orchestrator.ts` for orchestrator sessions, `lane-loop.ts` for
-every session that is **not** one. An orchestrator manages lanes and is not a
-lane — it runs in the project's main checkout, so a ladder there would grade
-whatever branch happens to be out and offer to steer work that is not its own.
+Plus `orchestrator.ts`, loaded only into orchestrator sessions.
+
+`lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
+turn settled and published the result to a banner above the composer. Both the
+extension and the banner were removed on 2026-08-28; the idea is meant to come
+back in a different shape. See
+[specs/log/2026-08-28-removing-the-lane-loop-pane.md](../log/2026-08-28-removing-the-lane-loop-pane.md).
 
 Every tool `orchestrator.ts` registers declares at least one **required**
 parameter. A tool call carrying no arguments reaches pi as `arguments: ""` on
