@@ -34,6 +34,13 @@ let envInFlight: Promise<Record<string, string>> | null = null
  * An allowlist rather than a wholesale env import on purpose: copying every
  * shell variable would clobber Electron's own runtime vars and leak unrelated
  * shell state into the subprocess.
+ *
+ * `LLAMA_` is a capability rather than a credential. pi ships llama.cpp as an
+ * always-loaded built-in extension, and its provider resolves a server only
+ * from `LLAMA_BASE_URL` (or from the auth.json entry `/login llama.cpp`
+ * writes). Forwarded, a local GGUF server's loaded models show up in every
+ * model list with their real context windows, read from the server's own
+ * `/models` catalog — no hand-declared `models.json` entry to keep current.
  */
 const FORWARDED_ENV_PREFIXES = [
   'AWS_', // Bedrock: profile, region, keys, endpoint + cache overrides
@@ -52,6 +59,7 @@ const FORWARDED_ENV_PREFIXES = [
   'BASETEN_',
   'FIREWORKS_',
   'QWEN_',
+  'LLAMA_', // pi's built-in llama.cpp provider: LLAMA_BASE_URL + LLAMA_API_KEY
   'PI_', // pi's own knobs, e.g. PI_CACHE_RETENTION
 ]
 

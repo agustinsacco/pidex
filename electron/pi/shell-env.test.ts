@@ -249,6 +249,26 @@ describe('piProcessEnv provider credentials', () => {
     expect((await piProcessEnv()).AWS_PROFILE).toBe('inherited')
   })
 
+  /**
+   * pi's built-in llama.cpp provider resolves its server from LLAMA_BASE_URL
+   * and then lists the router's LOADED models — so this pair, not a
+   * `models.json` entry, is what puts a local GGUF server in the pickers.
+   * Without it a GUI-launched pidex has no way to name the server at all.
+   */
+  it('forwards the llama.cpp server config so pi can discover local models', async () => {
+    delete process.env.LLAMA_BASE_URL
+    delete process.env.LLAMA_API_KEY
+    shellReturns(
+      envRecords({
+        LLAMA_BASE_URL: 'http://stark:8080',
+        LLAMA_API_KEY: 'router-key',
+      }),
+    )
+    const env = await piProcessEnv()
+    expect(env.LLAMA_BASE_URL).toBe('http://stark:8080')
+    expect(env.LLAMA_API_KEY).toBe('router-key')
+  })
+
   it('still lets explicit extra vars win over the shell', async () => {
     delete process.env.AWS_REGION
     shellReturns(envRecords({ AWS_REGION: 'eu-central-1' }))
