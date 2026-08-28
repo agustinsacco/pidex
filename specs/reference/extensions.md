@@ -153,7 +153,19 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 | `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus         |
 
 Plus `orchestrator.ts` and `lane-loop.ts`, loaded only for the sessions that
-need them (orchestrator sessions and lanes respectively).
+need them: `orchestrator.ts` for orchestrator sessions, `lane-loop.ts` for
+every session that is **not** one. An orchestrator manages lanes and is not a
+lane — it runs in the project's main checkout, so a ladder there would grade
+whatever branch happens to be out and offer to steer work that is not its own.
+
+Every tool `orchestrator.ts` registers declares at least one **required**
+parameter. A tool call carrying no arguments reaches pi as `arguments: ""` on
+the Claude Code provider (no `input_json_delta` is streamed, so the bridge's
+accumulated JSON is empty), and pi validates before `execute` runs — so an
+empty-or-all-optional schema fails every call with `root: must be object` and
+the extension never runs. `fleet_status` and `memory_read` both shipped that
+way. `pi-ext/orchestrator.test.ts` guards it; see
+[specs/log/2026-08-27-orchestrator-empty-tool-arguments.md](../log/2026-08-27-orchestrator-empty-tool-arguments.md).
 
 `worktree-paths.ts` is the only pidex code that can refuse a tool call. A
 session in `.pidex/worktrees/<name>` was observed reading files out of the main

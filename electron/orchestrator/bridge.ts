@@ -261,8 +261,19 @@ export async function handleFleetCommand(
     case 'fleet_status': {
       // The orchestrator never sees itself: a sweep that observes its own
       // activity feeds back into the next sweep.
-      const sessions = deps.snapshot().filter((s) => !s.isOrchestrator)
-      return ok({ sessions })
+      const all = deps.snapshot().filter((s) => !s.isOrchestrator)
+      // Anything but the two known slices is "all": the scope field exists
+      // first to keep the arguments object non-empty on the Claude provider
+      // (see pi-ext/orchestrator.ts), so a model that invents a value must
+      // still get the full fleet rather than an error.
+      const scope = asString(args.scope)
+      const sessions =
+        scope === 'blocked'
+          ? all.filter((s) => s.pendingQuestion)
+          : scope === 'idle'
+            ? all.filter((s) => s.phase === 'idle')
+            : all
+      return ok({ sessions, scope: scope ?? 'all', total: all.length })
     }
 
     case 'session_read': {
@@ -354,7 +365,9 @@ export async function handleFleetCommand(
     }
 
     case 'git_status': {
-      const path = asString(args.workspacePath) ?? callerWorkspace
+      // "." is what the tool tells the model to send for "this project".
+      const asked = asString(args.workspacePath)
+      const path = !asked || asked === '.' ? callerWorkspace : asked
       if (!path) return fail('workspacePath is required')
       return ok(await deps.gitStatus(path))
     }
