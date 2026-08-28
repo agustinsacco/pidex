@@ -79,12 +79,19 @@ export async function copySessionDebugInfo(
   livePidexId?: string,
 ): Promise<void> {
   const chat = livePidexId ? useChatStore.getState().sessions[livePidexId]?.meta : undefined
+  // The CLI's transcript is filed under the CLI's own session id, which only
+  // the provider's sidecar map knows. Best-effort: a failed lookup falls back
+  // to the pi id inside formatSessionDebugInfo.
+  const claudeSessionId = await window.pidex
+    .invoke('sessions:claudeSessionId', meta.sessionId)
+    .catch(() => null)
   const text = formatSessionDebugInfo({
     path: meta.path,
     sessionId: meta.sessionId,
     cwd: meta.cwd,
     provider: chat?.model?.provider,
     model: chat?.model?.id,
+    claudeSessionId,
   })
   const toast = useExtensionUiStore.getState().pushToast
   try {

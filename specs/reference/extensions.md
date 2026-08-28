@@ -256,25 +256,51 @@ families through pidex's own hydration and transcript builder; the fixture in
 `chat/__fixtures__/claude-cli-blocks.json` is trimmed from those captures and
 guards the behaviour (`items/claudeCliRendering.test.ts`).
 
-- **Sub-agent launches** — `Agent`/`Task` markers render as sub-agent rows
-  (badge, description, expandable prompt) and feed the "N agents launched in
-  background" strip. What the provider forwards is the **launch and nothing
-  else**, so the UI makes no liveness claim: no progress, no result, and the
-  CLI does not outlive the turn.
+- **Sub-agents** — `Agent`/`Task` markers render as sub-agent rows (badge,
+  description, status, cost, expandable prompt).
 
-  The tool's default is the destructive one. `Agent` backgrounds the
-  sub-agent unless the caller passes `run_in_background: false`, and its own
-  tool result promises "you will be notified automatically when it
-  completes" — true inside Claude Code's harness, false here. Measured
+  **One row per AGENT, not per marker.** The CLI reports the same agent three
+  times: the model's `Agent` tool call, then `Task started`, then
+  `Task completed`. Rendering each of them turned a three-agent fan-out into
+  eight rows and a strip that said "8 sub-agents were started".
+  `buildTranscriptRows` folds them — by `task_id` when the provider sends one
+  (0.4.14+), otherwise by pairing markers of each phase under one description,
+  which keeps three same-named parallel agents as three rows.
+
+  **The row claims only what the markers prove.** `launched` means the model
+  called the tool and the CLI never confirmed anything; `running` means a
+  `task_started` arrived; a terminal status carries the agent's tool count,
+  tokens and duration. The sub-agent's own transcript is still not forwarded,
+  so the expandable detail is the launch PROMPT, never the agent's work.
+
+  **Background agents used to die, and old sessions still show it.** `Agent`
+  backgrounds the sub-agent unless the caller passes `run_in_background:
+false`, and its tool result promises "you will be notified automatically when
+  it completes". Until provider 0.4.14 that promise was false here: the
+  provider killed `claude -p` at the turn's first `result`, which for a
+  background call lands while the agents are still working. Measured
   2026-08-27: one lane launched five, two more nested inside them, and all
   seven were killed at the same millisecond having run 352 shell calls and
-  spent 28.6M cache-read tokens that nothing ever read. A **synchronous**
-  sub-agent completes and returns inside a single `claude -p` invocation
-  (verified directly), so the `subagentPolicy` directive block asks for that
-  form rather than banning the tool. It is prose, so it is a bias and not a
-  guarantee; `PI_CLAUDE_CLI_SETTINGS` → `--settings` with
-  `permissions.deny: ["Agent","Task"]` is the hard block if one is ever
-  needed, and it removes the tool from the model's list entirely.
+  spent 28.6M cache-read tokens that nothing ever read. 0.4.14 treats that
+  `result` as a cycle boundary and lets the CLI re-invoke the model when the
+  agents report, so their findings land in the same turn.
+
+  pidex pins no provider version, so both shapes keep arriving. Nothing in
+  the renderer checks a version: `trailingUnfinishedAgents` counts agents that
+  never reached a terminal state, and only those raise the "never reported
+  back" strip. `PI_CLAUDE_CLI_SETTINGS` → `--settings` with
+  `permissions.deny: ["Agent","Task"]` remains the hard block, and it removes
+  the tool from the model's list entirely.
+
+  **Live progress rides the status channel, not the transcript.**
+  `task_progress` fires once per sub-agent tool call (~700 times in the
+  incident that motivated the channel), so the provider publishes a snapshot
+  on `claude-subagents` instead. `chat/subagentStatus.ts` parses it into the
+  strip's agent chip. That key MUST stay in `STRUCTURED_STATUS_KEYS` — while
+  it was missing, `StatusStrip` printed the whole JSON payload along the
+  bottom of the window. The provider clears the key when the episode ends
+  (0.4.14), so a finished turn leaves the chip empty rather than pinning dead
+  agents as "running".
 
   Sub-agent **spend** is no longer invisible, though their transcripts still
   are: from provider 0.4.10 the episode's billing comes from

@@ -49,11 +49,205 @@ export function parseExternalToolMarker(text: string): { name: string; args?: st
   return { name: match[1]!, args: args && args.length > 0 ? args : undefined }
 }
 
-/** Claude Code's sub-agent tools, as they appear in marker blocks. */
+/**
+ * Claude Code's sub-agent tools, as they appear in marker blocks.
+ *
+ * `Agent` is the model's own tool call. `Task` is the CLI's lifecycle
+ * channel, which reports the SAME agent again when it starts and once more
+ * when it finishes. Three markers, one agent — counting these as three
+ * launches is how a three-agent fan-out reported "8 sub-agents were started".
+ * `buildTranscriptRows` folds them; see `agentMarkerInfo`.
+ */
 const AGENT_MARKER_NAMES = new Set(['Agent', 'Task'])
 
 export function isAgentMarker(name: string): boolean {
   return AGENT_MARKER_NAMES.has(name)
+}
+
+/**
+ * Where a sub-agent got to, as far as the transcript can prove.
+ *
+ * `launched` is the model's tool call with no lifecycle event yet; `running`
+ * is a `task_started` the CLI confirmed. They are kept apart because the gap
+ * between them is exactly the failure this rendering exists to expose: a
+ * `launched` row that never became anything is an agent that died with the
+ * CLI (provider < 0.4.14).
+ */
+export type SubagentStatus = 'launched' | 'running' | 'completed' | 'stopped' | 'failed'
+
+/** Statuses that mean the agent is not coming back, for better or worse. */
+const TERMINAL_AGENT_STATUSES = new Set<SubagentStatus>(['completed', 'stopped', 'failed'])
+
+export function isTerminalAgentStatus(status: SubagentStatus): boolean {
+  return TERMINAL_AGENT_STATUSES.has(status)
+}
+
+/**
+ * One sub-agent, folded from every marker that mentions it.
+ *
+ * Not an `externalTool` block: those are one row per marker, always settled,
+ * with no status. A sub-agent is one row per AGENT that changes state as the
+ * CLI reports on it — which only became possible when the provider started
+ * letting agents finish (`pi-claude-cli` 0.4.14).
+ */
+export interface SubagentBlock {
+  type: 'subagent'
+  /** Index of the FIRST marker that produced this agent, for row keying. */
+  index: number
+  status: SubagentStatus
+  /** The CLI's task id, once a lifecycle event names it. */
+  taskId?: string
+  description?: string
+  subagentType?: string
+  /** The launch prompt, when it survived the provider's preview cap. */
+  prompt?: string
+  toolUses?: number
+  totalTokens?: number
+  durationMs?: number
+  /**
+   * Which markers have already been folded in. A fan-out routinely launches
+   * several agents under ONE description ("Explore the codebase" x3), so
+   * "same description" cannot mean "same agent" on its own — but a second
+   * `Agent` call for a description that already has one must start a new row.
+   */
+  seen: Set<AgentMarkerPhase>
+}
+
+/** The three markers a single sub-agent produces, in order. */
+export type AgentMarkerPhase = 'call' | 'start' | 'end'
+
+export interface AgentMarkerInfo {
+  phase: AgentMarkerPhase
+  status: SubagentStatus
+  taskId?: string
+  description?: string
+  subagentType?: string
+  prompt?: string
+  toolUses?: number
+  totalTokens?: number
+  durationMs?: number
+}
+
+/**
+ * A description that is really a raw task id.
+ *
+ * `task_notification` carries no description, and provider 0.4.13 filled that
+ * hole with the task id — so a late notification rendered as an AGENT row
+ * named `a8de7d982d824b56a`. 0.4.14 drops those events instead, but sessions
+ * recorded before it are on disk forever, so the id is recognised and
+ * suppressed rather than shown as a name.
+ */
+const RAW_TASK_ID = /^[0-9a-f]{12,}$/i
+
+const num = (value: string | number | undefined): number | undefined =>
+  typeof value === 'number' ? value : undefined
+
+/** Read one `Agent` / `Task` marker into the lifecycle it reports. */
+export function agentMarkerInfo(name: string, args?: string): AgentMarkerInfo {
+  const fields = args ? parseMarkerFields(args) : {}
+  const str = (key: string): string | undefined => {
+    const value = fields[key]
+    return typeof value === 'string' && value.length > 0 ? value : undefined
+  }
+  const rawStatus = str('status')
+  const description = str('description')
+  const phase: AgentMarkerPhase =
+    name === 'Agent' ? 'call' : rawStatus === 'started' ? 'start' : 'end'
+  const status: SubagentStatus =
+    phase === 'call'
+      ? 'launched'
+      : phase === 'start'
+        ? 'running'
+        : rawStatus === 'completed'
+          ? 'completed'
+          : rawStatus === 'stopped'
+            ? 'stopped'
+            : 'failed'
+
+  return {
+    phase,
+    status,
+    taskId: str('task_id'),
+    description: description && !RAW_TASK_ID.test(description) ? description : undefined,
+    subagentType: str('subagent_type'),
+    prompt: str('prompt'),
+    toolUses: num(fields['tool_uses']),
+    totalTokens: num(fields['total_tokens']),
+    durationMs: num(fields['duration_ms']),
+  }
+}
+
+/** Rank so a later marker can never walk a finished agent back to "launched". */
+const STATUS_RANK: Record<SubagentStatus, number> = {
+  launched: 0,
+  running: 1,
+  completed: 2,
+  stopped: 2,
+  failed: 2,
+}
+
+/**
+ * Folds every marker for one sub-agent into a single block.
+ *
+ * The join is `task_id` when the provider sends one (0.4.14+). Older sessions
+ * have only the description, so those fall back to pairing by description:
+ * each block absorbs at most one marker of each phase, in launch order, which
+ * keeps three same-named parallel agents as three rows instead of one.
+ */
+function createAgentFolder(): (info: AgentMarkerInfo, index: number) => SubagentBlock | null {
+  const byTaskId = new Map<string, SubagentBlock>()
+  const byDescription = new Map<string, SubagentBlock[]>()
+
+  const absorb = (block: SubagentBlock, info: AgentMarkerInfo): void => {
+    block.seen.add(info.phase)
+    if (STATUS_RANK[info.status] >= STATUS_RANK[block.status]) block.status = info.status
+    block.taskId ??= info.taskId
+    block.description ??= info.description
+    block.subagentType ??= info.subagentType
+    block.prompt ??= info.prompt
+    block.toolUses ??= info.toolUses
+    block.totalTokens ??= info.totalTokens
+    block.durationMs ??= info.durationMs
+    if (info.taskId && !byTaskId.has(info.taskId)) byTaskId.set(info.taskId, block)
+  }
+
+  return (info, index) => {
+    const known = info.taskId ? byTaskId.get(info.taskId) : undefined
+    if (known) {
+      absorb(known, info)
+      return null
+    }
+
+    if (info.description) {
+      const candidates = byDescription.get(info.description) ?? []
+      const match = candidates.find((block) => !block.seen.has(info.phase))
+      if (match) {
+        absorb(match, info)
+        return null
+      }
+    }
+
+    const block: SubagentBlock = {
+      type: 'subagent',
+      index,
+      status: info.status,
+      taskId: info.taskId,
+      description: info.description,
+      subagentType: info.subagentType,
+      prompt: info.prompt,
+      toolUses: info.toolUses,
+      totalTokens: info.totalTokens,
+      durationMs: info.durationMs,
+      seen: new Set([info.phase]),
+    }
+    if (info.taskId) byTaskId.set(info.taskId, block)
+    if (info.description) {
+      const list = byDescription.get(info.description)
+      if (list) list.push(block)
+      else byDescription.set(info.description, [block])
+    }
+    return block
+  }
 }
 
 /** What an external-tool row should actually say, instead of raw JSON. */
@@ -109,42 +303,70 @@ function unescapeJsonFragment(value: string): string {
 }
 
 /**
- * Best-effort read of a marker's argument preview.
+ * Best-effort read of a marker's argument preview, keeping numbers as numbers.
  *
  * The provider caps the preview, so `args` is often TRUNCATED mid-string and
  * `JSON.parse` fails; the fallback pulls out whichever complete `"key":"value"`
  * pairs survived. Values are unescaped through JSON.parse per field so `\"`
  * and `\n` read naturally.
+ *
+ * The numeric scan exists for the sub-agent lifecycle markers, whose whole
+ * payload is numbers — `tool_uses`, `total_tokens`, `duration_ms`. A
+ * string-only reader dropped every one of them silently, so a finished agent
+ * had nothing to show for itself.
+ */
+function parseMarkerFields(args: string): Record<string, string | number> {
+  const fields: Record<string, string | number> = {}
+  try {
+    const parsed: unknown = JSON.parse(args)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'string' || typeof value === 'number') fields[key] = value
+      }
+    }
+    return fields
+  } catch {
+    // Truncated preview: recover pair by pair below.
+  }
+
+  const pair = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+  for (let match = pair.exec(args); match; match = pair.exec(args)) {
+    fields[match[1]!] = unescapeJsonFragment(match[2]!)
+  }
+  // A number is only trustworthy when the cap did not land inside it, so it
+  // must be followed by the delimiter that proves it ended.
+  const numeric = /"([^"\\]+)"\s*:\s*(-?\d+(?:\.\d+)?)\s*(?=[,}])/g
+  for (let match = numeric.exec(args); match; match = numeric.exec(args)) {
+    if (fields[match[1]!] === undefined) fields[match[1]!] = Number(match[2])
+  }
+  // The pair scan needs a CLOSING quote, so a tool whose only interesting
+  // argument is the one the cap cut through recovers nothing at all. That
+  // is the common case, not an edge case: every `Bash` marker carries just
+  // `command`, so a long command rendered as a bare "Claude Code Bash" row
+  // with the command — the entire content of the row — missing.
+  // The trailing `\\?` matters: a cut landing right after a backslash leaves
+  // one with nothing to escape, which `\\.` cannot consume.
+  const dangling = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*\\?)$/.exec(args)
+  if (dangling && fields[dangling[1]!] === undefined) {
+    fields[dangling[1]!] = unescapeJsonFragment(dangling[2]!)
+  }
+  return fields
+}
+
+/**
+ * Best-effort read of a marker's argument preview.
+ *
+ * Strings only: every caller renders these as text, and a number reaching a
+ * `Record<string, string>` would be a lie the type system stopped catching.
+ * Sub-agent rows read the numeric fields through `agentMarkerInfo`.
  */
 export function externalToolInfo(name: string, args?: string): ExternalToolInfo {
   const isAgent = isAgentMarker(name)
   if (!args) return { isAgent, fields: {} }
 
-  let fields: Record<string, string> = {}
-  try {
-    const parsed: unknown = JSON.parse(args)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value === 'string') fields[key] = value
-      }
-    }
-  } catch {
-    fields = {}
-    const pair = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g
-    for (let match = pair.exec(args); match; match = pair.exec(args)) {
-      fields[match[1]!] = unescapeJsonFragment(match[2]!)
-    }
-    // The pair scan needs a CLOSING quote, so a tool whose only interesting
-    // argument is the one the cap cut through recovers nothing at all. That
-    // is the common case, not an edge case: every `Bash` marker carries just
-    // `command`, so a long command rendered as a bare "Claude Code Bash" row
-    // with the command — the entire content of the row — missing.
-    // The trailing `\\?` matters: a cut landing right after a backslash leaves
-    // one with nothing to escape, which `\\.` cannot consume.
-    const dangling = /"([^"\\]+)"\s*:\s*"((?:[^"\\]|\\.)*\\?)$/.exec(args)
-    if (dangling && fields[dangling[1]!] === undefined) {
-      fields[dangling[1]!] = unescapeJsonFragment(dangling[2]!)
-    }
+  const fields: Record<string, string> = {}
+  for (const [key, value] of Object.entries(parseMarkerFields(args))) {
+    if (typeof value === 'string') fields[key] = value
   }
 
   if (isAgent) {
@@ -162,7 +384,7 @@ export function externalToolInfo(name: string, args?: string): ExternalToolInfo 
 export interface ActivityStep {
   /** Owning assistant item — needed for streaming/stop-reason context. */
   itemId: string
-  block: Exclude<AssistantBlock, { type: 'text' }> | ExternalToolBlock
+  block: Exclude<AssistantBlock, { type: 'text' }> | ExternalToolBlock | SubagentBlock
   /** The owning item is still streaming. */
   streaming: boolean
   /** This block is the last one in its message (streaming tail detection). */
@@ -189,6 +411,9 @@ export type TranscriptRow =
  */
 export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
   const rows: TranscriptRow[] = []
+  // One folder per transcript: an agent launched in one message finishes in
+  // the next, so the join has to outlive a single item.
+  const foldAgent = createAgentFolder()
 
   /** Append to the open activity row, or start one. */
   const pushStep = (step: ActivityStep): void => {
@@ -212,6 +437,22 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
       if (block.type === 'text') {
         const marker = parseExternalToolMarker(block.text)
         if (marker) {
+          if (isAgentMarker(marker.name)) {
+            // Three markers per agent, one row. A marker folded into an
+            // agent that already has a row adds no step — which is the
+            // point: the row it belongs to updates in place, wherever it
+            // is, instead of a "completed" row appearing pages later.
+            const agent = foldAgent(agentMarkerInfo(marker.name, marker.args), block.index)
+            if (agent) {
+              pushStep({
+                itemId: item.id,
+                block: agent,
+                streaming: item.streaming,
+                isLastInItem,
+              })
+            }
+            continue
+          }
           pushStep({
             itemId: item.id,
             block: { type: 'externalTool', index: block.index, ...marker },
@@ -269,24 +510,25 @@ export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): s
 }
 
 /**
- * Sub-agent launches in the transcript's trailing assistant run — everything
- * after the last user message. Once the user prompts again, Claude Code gets
- * its chance to report on them and the count resets to zero.
+ * Sub-agents in the transcript's trailing assistant run — everything after
+ * the last user message — that never reached a terminal state.
  *
- * This is marker counting, not live tracking: the provider today neither
- * streams sub-agent progress nor keeps the CLI alive past the turn's result,
- * so pidex cannot know whether these agents finished (see
- * specs/reference/extensions.md). The strip fed by this says "launched", never
- * "running".
+ * Evidence, not assumption. Until `pi-claude-cli` 0.4.14 the CLI was killed
+ * at the turn's first `result`, so a background agent always died unreported
+ * and every launch belonged in this count. Now agents normally finish and the
+ * count is zero — but an older provider is still installed on plenty of
+ * machines and pidex pins nothing, so the same session can produce either
+ * shape. Counting what the markers actually show keeps the strip honest under
+ * both, with no version check anywhere in the renderer.
  */
-export function trailingAgentLaunches(rows: TranscriptRow[]): number {
+export function trailingUnfinishedAgents(rows: TranscriptRow[]): number {
   let count = 0
   for (let index = rows.length - 1; index >= 0; index--) {
     const row = rows[index]
     if (row?.kind === 'item' && row.item.kind === 'user') break
     if (row?.kind !== 'activity') continue
     for (const step of row.steps) {
-      if (step.block.type === 'externalTool' && isAgentMarker(step.block.name)) count++
+      if (step.block.type === 'subagent' && !isTerminalAgentStatus(step.block.status)) count++
     }
   }
   return count
@@ -296,6 +538,9 @@ export function trailingAgentLaunches(rows: TranscriptRow[]): number {
 export function isActivityLive(steps: ActivityStep[], tools: Record<string, ToolState>): boolean {
   return steps.some((s) => {
     if (s.block.type === 'externalTool') return false
+    // A running sub-agent IS live work, and the group must stay open while it
+    // is out there — that is the whole difference 0.4.14 made.
+    if (s.block.type === 'subagent') return !isTerminalAgentStatus(s.block.status)
     if (s.block.type === 'thinking') {
       return s.streaming && s.isLastInItem && !s.block.closed
     }
@@ -349,12 +594,16 @@ export function summarizeActivity(
       thinkingCount++
       continue
     }
+    if (step.block.type === 'subagent') {
+      // Sub-agents summarize as "launched N agents", not as anonymous
+      // "claude code N tools" — they are the headline of a turn.
+      if (!counts.has('Launched')) order.push('Launched')
+      counts.set('Launched', (counts.get('Launched') ?? 0) + 1)
+      continue
+    }
     if (step.block.type === 'externalTool') {
-      // Sub-agent launches summarize as "launched N agents", not as
-      // anonymous "claude code N tools" — they are the headline of a turn.
-      const label = isAgentMarker(step.block.name) ? 'Launched' : 'Claude Code'
-      if (!counts.has(label)) order.push(label)
-      counts.set(label, (counts.get(label) ?? 0) + 1)
+      if (!counts.has('Claude Code')) order.push('Claude Code')
+      counts.set('Claude Code', (counts.get('Claude Code') ?? 0) + 1)
       continue
     }
     const tool = tools[step.block.toolCallId]

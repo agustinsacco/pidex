@@ -1,5 +1,10 @@
 # 2026-08-22 — Claude Code sub-agents never report back
 
+> **Superseded 2026-08-28.** The cause was not the CLI: it was one SIGKILL
+> in the provider, at a `result` that ends a cycle rather than the episode.
+> `pi-claude-cli` 0.4.14 waits, and background agents now report back — see
+> [2026-08-28-subagents-report-back.md](2026-08-28-subagents-report-back.md).
+
 ## The symptom
 
 A pidex session on the Claude provider was asked to investigate two bugs. It

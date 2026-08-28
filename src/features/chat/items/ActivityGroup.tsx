@@ -4,15 +4,18 @@ import type { ToolState } from '../reducer'
 import {
   externalToolInfo,
   isActivityLive,
+  isTerminalAgentStatus,
   summarizeActivity,
   type ActivityStep,
   type ExternalToolInfo,
+  type SubagentBlock,
 } from './transcriptRows'
 import { ToolCard, ToolDetail } from '../tools/ToolCard'
 import { settledVerb, summarizeExternalTool } from '../tools/toolSummaries'
 import { useSessionsStore } from '@/stores/sessions'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
+import { formatDuration, formatTokens } from '@/lib/format'
 import { useChatUiStore } from '../uiState'
 
 /**
@@ -228,12 +231,13 @@ function ActivityRow({
   // Tools Claude Code ran inside its own process while acting as the model
   // provider. There is no pi tool result to show — only what was invoked —
   // so this is a compact, always-settled row rather than a ToolCard.
+  if (step.block.type === 'subagent') {
+    return <SubagentRow agent={step.block} />
+  }
+
   if (step.block.type === 'externalTool') {
     const { name, args } = step.block
     const info = externalToolInfo(name, args)
-    if (info.isAgent) {
-      return <SubagentRow headline={info.headline} detail={info.detail} />
-    }
     return <ExternalToolRow name={name} args={args} info={info} sessionId={sessionId} />
   }
 
@@ -362,26 +366,35 @@ function ExternalToolRow({
 }
 
 /**
- * A Claude Code sub-agent launch (`Agent`/`Task` marker).
+ * One Claude Code sub-agent, from launch to whatever became of it.
  *
- * Rendered as its own labeled step — an agent spinning up is the headline of
- * a turn, not an anonymous tool. Only the invocation is knowable: the
- * provider neither streams the agent's transcript nor keeps the CLI alive
- * past the turn (specs/reference/extensions.md), so this row makes no claims about
- * progress or completion. The prompt expands on click when it survived the
- * provider's argument-preview cap.
+ * ONE row per agent, not per marker. The CLI reports the same agent three
+ * times — the model's `Agent` call, `Task started`, `Task completed` — and
+ * rendering each of them made a three-agent fan-out look like eight
+ * launches, with the finished agents indistinguishable from the new ones.
+ * `buildTranscriptRows` folds them; this row shows the folded state.
+ *
+ * What it may claim is bounded by what the markers prove. `launched` means
+ * the model called the tool and the CLI never confirmed a thing — on a
+ * provider older than 0.4.14 that is an agent that died with the subprocess,
+ * so it must not be dressed up as running. The sub-agent's own transcript is
+ * still not forwarded (specs/reference/extensions.md), so the expandable
+ * detail is the launch prompt, never the agent's work.
  */
-function SubagentRow({
-  headline,
-  detail,
-}: {
-  headline?: string
-  detail?: string
-}): React.JSX.Element {
+function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const expandable = Boolean(detail)
+  const expandable = Boolean(agent.prompt)
+  const done = isTerminalAgentStatus(agent.status)
+  const stats = [
+    agent.toolUses === undefined
+      ? undefined
+      : `${agent.toolUses} tool${agent.toolUses === 1 ? '' : 's'}`,
+    agent.totalTokens === undefined ? undefined : `${formatTokens(agent.totalTokens)} tokens`,
+    agent.durationMs === undefined ? undefined : formatDuration(agent.durationMs),
+  ].filter(Boolean)
+
   return (
-    <div data-testid="subagent-row">
+    <div data-testid="subagent-row" data-status={agent.status}>
       <button
         onClick={() => expandable && setOpen((o) => !o)}
         aria-expanded={expandable ? open : undefined}
@@ -392,22 +405,59 @@ function SubagentRow({
           expandable && 'hover:bg-bg-secondary/60',
         )}
       >
-        <span className="bg-accent-soft text-accent shrink-0 rounded px-1.5 py-px text-xs font-semibold uppercase tracking-wide">
+        <span
+          className={clsx(
+            'shrink-0 rounded px-1.5 py-px text-xs font-semibold uppercase tracking-wide',
+            agent.status === 'completed'
+              ? 'bg-bg-secondary text-text-secondary'
+              : done
+                ? 'bg-bg-secondary text-warning'
+                : 'bg-accent-soft text-accent',
+          )}
+        >
           agent
         </span>
-        <span className="text-text min-w-0 truncate font-medium">
-          {headline ?? 'Sub-agent task'}
+        <span
+          className={clsx(
+            'min-w-0 truncate font-medium',
+            done ? 'text-text-secondary' : 'text-text',
+          )}
+        >
+          {agent.description ?? agent.subagentType ?? 'Sub-agent task'}
         </span>
+        {/* The status word only earns its space when it says something the
+            row does not: "running" while it is out there, and the reason a
+            terminal agent produced nothing. A completed agent says so with
+            its stats. */}
+        {agent.status !== 'completed' && (
+          <span
+            className={clsx(
+              'shrink-0 text-sm',
+              agent.status === 'running' ? 'text-accent' : 'text-text-tertiary',
+            )}
+          >
+            {agent.status === 'running'
+              ? 'running'
+              : agent.status === 'launched'
+                ? 'launched'
+                : agent.status}
+          </span>
+        )}
+        {stats.length > 0 && (
+          <span className="text-text-tertiary shrink-0 truncate font-mono text-sm">
+            {stats.join(' · ')}
+          </span>
+        )}
         {expandable && (
           <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
         )}
       </button>
-      {open && detail && (
+      {open && agent.prompt && (
         <div
           data-testid="subagent-prompt"
           className="border-accent/30 text-text-secondary mb-1.5 ml-4 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
         >
-          {detail}
+          {agent.prompt}
         </div>
       )}
     </div>

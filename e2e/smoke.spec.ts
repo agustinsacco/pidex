@@ -1392,6 +1392,53 @@ test('a long tool run collapses to one dense group', async () => {
   }
 })
 
+test('a Claude fan-out is one row per sub-agent, with the ones that died named', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // The stub replays a captured Claude Code fan-out: three `Agent` calls,
+    // two of which the CLI also reports as started and finished. Eight markers,
+    // three agents.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('fanout please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText('Two agents reported; one never did.')).toBeVisible({
+      timeout: 60_000,
+    })
+
+    // Open the settled group; the rows live inside it.
+    const summary = page.getByTestId('activity-summary').first()
+    await expect(summary).toContainText(/launched 3 agents/)
+    await summary.click()
+
+    const rows = page.getByTestId('subagent-row')
+    // THREE. Not eight — one row per agent, not one per marker.
+    await expect(rows).toHaveCount(3)
+    await expect(rows.nth(0)).toHaveAttribute('data-status', 'completed')
+    await expect(rows.nth(1)).toHaveAttribute('data-status', 'completed')
+    await expect(rows.nth(2)).toHaveAttribute('data-status', 'launched')
+
+    // A finished agent shows what it cost; the launch-only one does not
+    // pretend to have done anything.
+    await expect(rows.nth(0)).toContainText('Dig into pi-claude-cli internals')
+    await expect(rows.nth(0)).toContainText('2 tools')
+    await expect(rows.nth(2)).toContainText('Find failing AskUserQuestion session')
+    await expect(rows.nth(2)).toContainText('launched')
+
+    // The strip counts the ONE agent that never reported, not all three.
+    const strip = page.getByTestId('agent-launch-strip')
+    await expect(strip).toBeVisible()
+    await expect(strip).toContainText('A sub-agent never reported back')
+
+    // The live channel was cleared when the turn ended, so no chip remains —
+    // and at no point was its raw JSON printed into the status strip.
+    await expect(page.getByTestId('subagent-chip')).toHaveCount(0)
+    expect(await page.evaluate(() => document.body.innerText)).not.toContain('currentStep')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('the updater stays dormant in an unpackaged run', async () => {
   const harness = await launch()
   const { page } = harness

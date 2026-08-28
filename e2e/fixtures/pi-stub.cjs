@@ -380,6 +380,7 @@ function handle(cmd) {
       }
       if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
+      else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
       else if (message.includes('lane pr please')) runPrLaneTurn()
       // The banner actions must start a turn, not merely queue a follow-up
@@ -864,6 +865,107 @@ function runLongStreamTurn() {
             arguments: { command: 'npm test' },
           },
         ],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
+    }),
+  )
+  steps.push(() => out({ type: 'agent_end', messages: [] }))
+  steps.push(() => out({ type: 'agent_settled' }))
+
+  play(steps)
+}
+
+/**
+ * A Claude Code sub-agent fan-out, replayed marker for marker.
+ *
+ * The strings below are copied from a real captured session (pi session
+ * 01a04614, 2026-08-28) and are the ONE shape pidex cannot get from any
+ * pi-native provider: the CLI reports each agent three times — the model's
+ * `Agent` call, `Task started`, `Task completed` — and pidex must fold them
+ * into one row per agent. In that capture it did not, and three agents
+ * rendered as eight rows above a strip claiming "8 sub-agents were started".
+ *
+ * Two agents finish; the third only ever launches, which is what a provider
+ * older than 0.4.14 produces for every background agent. Both shapes appear
+ * in one turn on purpose — the strip must count only the unfinished one.
+ */
+function runSubagentTurn() {
+  const marker = (text) => [
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
+      }),
+  ]
+
+  const steps = [() => out({ type: 'agent_start' }), () => out({ type: 'turn_start' })]
+
+  // Live per-agent progress rides the status channel, never the transcript:
+  // `task_progress` fires once per sub-agent tool call. Unparsed, this whole
+  // payload was printed verbatim along the bottom of the window.
+  steps.push(() =>
+    out({
+      type: 'extension_ui_request',
+      id: 'ext-status-subagents',
+      method: 'setStatus',
+      statusKey: 'claude-subagents',
+      statusText: JSON.stringify({
+        tasks: [
+          {
+            taskId: 'a8de7d982d824b56a',
+            description: 'Dig into pi-claude-cli internals',
+            subagentType: 'general-purpose',
+            status: 'running',
+            currentStep: 'Running Read stream-parser.ts',
+          },
+        ],
+        active: 1,
+        completed: 0,
+      }),
+    }),
+  )
+
+  for (const text of [
+    '[Claude Code · Agent {"description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","prompt":"Investigate how the @saccolabs provider keeps its CLI alive…]',
+    '[Claude Code · Task {"status":"started","description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","task_id":"a8de7d982d824b56a"}]',
+    '[Claude Code · Agent {"description":"Map pidex/pi dialog surfaces","subagent_type":"Explore","prompt":"Search breadth: very thorough. Read-only…]',
+    '[Claude Code · Task {"status":"started","description":"Map pidex/pi dialog surfaces","subagent_type":"Explore","task_id":"a600d45bcde2ddb13"}]',
+    // The third agent never gets a lifecycle event: the pre-0.4.14 shape.
+    '[Claude Code · Agent {"description":"Find failing AskUserQuestion session","subagent_type":"general-purpose","prompt":"Read-only forensic task…]',
+    // The two lifecycle finishes, which fold into the rows above rather than
+    // adding rows of their own.
+    '[Claude Code · Task {"status":"completed","description":"Dig into pi-claude-cli internals","task_id":"a8de7d982d824b56a","tool_uses":2,"total_tokens":1234,"duration_ms":900}]',
+    '[Claude Code · Task {"status":"completed","description":"Map pidex/pi dialog surfaces","task_id":"a600d45bcde2ddb13","tool_uses":12,"total_tokens":48210,"duration_ms":91000}]',
+  ]) {
+    steps.push(...marker(text))
+  }
+
+  // The episode is over, so the live channel is cleared — the provider does
+  // this at 0.4.14 so a finished turn stops claiming running agents.
+  steps.push(() =>
+    out({
+      type: 'extension_ui_request',
+      id: 'ext-status-subagents-clear',
+      method: 'setStatus',
+      statusKey: 'claude-subagents',
+      statusText: undefined,
+    }),
+  )
+
+  steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+  steps.push(() =>
+    out({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Two agents reported; one never did.' }],
         stopReason: 'stop',
         timestamp: Date.now(),
       },

@@ -76,11 +76,15 @@ const step = (block: ActivityStep['block']): ActivityStep => ({
 const MIXED: ActivityStep[] = [
   step({ type: 'tool', index: 0, toolCallId: 't1' }),
   step({ type: 'externalTool', index: 1, name: 'WebSearch', args: '{"query":"pygame docs"}' }),
+  // A sub-agent reaches the renderer already folded: one block per AGENT,
+  // built by buildTranscriptRows from the three markers the CLI emits for it.
   step({
-    type: 'externalTool',
+    type: 'subagent',
     index: 2,
-    name: 'Agent',
-    args: '{"description":"Find rename code","prompt":"In this Electron app…"}',
+    status: 'launched',
+    description: 'Find rename code',
+    prompt: 'In this Electron app…',
+    seen: new Set(['call']),
   }),
   step({ type: 'thinking', index: 3, text: 'weighing options', closed: true }),
 ]
@@ -233,6 +237,64 @@ describe('ActivityGroup row shapes', () => {
     expect(subagent).not.toBeNull()
     expect(subagent!.textContent).toContain('agent')
     expect(subagent!.textContent).toContain('Find rename code')
+    // "launched" and nothing more: the CLI has not confirmed a start, so the
+    // row must not imply the agent is out there working.
+    expect(subagent!.textContent).toContain('launched')
+    expect(subagent!.getAttribute('data-status')).toBe('launched')
+  })
+
+  it('shows what a finished sub-agent cost, and drops the status word', () => {
+    render(
+      <ActivityGroup
+        steps={[
+          step({
+            type: 'subagent',
+            index: 0,
+            status: 'completed',
+            description: 'Dig into pi-claude-cli internals',
+            subagentType: 'general-purpose',
+            taskId: 'a8de7d982d824b56a',
+            toolUses: 2,
+            totalTokens: 1234,
+            durationMs: 900,
+            seen: new Set(['call', 'start', 'end']),
+          }),
+        ]}
+        tools={{}}
+        hideThinking={false}
+        sessionId="s1"
+        active={false}
+      />,
+    )
+    const row = document.querySelector('[data-testid="subagent-row"]')!
+    expect(row.textContent).toContain('Dig into pi-claude-cli internals')
+    expect(row.textContent).toContain('2 tools')
+    expect(row.textContent).toContain('1.2k tokens')
+    expect(row.textContent).toContain('900ms')
+    // A completed agent says so with its stats; the word would be noise.
+    expect(row.textContent).not.toContain('completed')
+  })
+
+  it('names a killed sub-agent by its outcome', () => {
+    render(
+      <ActivityGroup
+        steps={[
+          step({
+            type: 'subagent',
+            index: 0,
+            status: 'stopped',
+            description: 'Find failing AskUserQuestion session',
+            seen: new Set(['end']),
+          }),
+        ]}
+        tools={{}}
+        hideThinking={false}
+        sessionId="s1"
+        active={false}
+      />,
+    )
+    const row = document.querySelector('[data-testid="subagent-row"]')!
+    expect(row.textContent).toContain('stopped')
   })
 
   it('keeps trailing reasoning as its own row', () => {
