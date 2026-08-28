@@ -4,7 +4,7 @@ import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
 import { piCall, piCallOk } from '@/lib/rpc'
-import { refreshThinkingLevels } from '@/stores/sessions'
+import { refreshThinkingLevels, useSessionsStore } from '@/stores/sessions'
 import { ModelMenu } from './ModelMenu'
 import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
 
@@ -57,14 +57,34 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   const setModel = async (model: Model): Promise<void> => {
     setOpen(null)
-    const ok = await piCallOk(sessionId, {
+    const selected = await piCall(sessionId, {
       type: 'set_model',
       provider: model.provider,
       modelId: model.id,
     })
-    if (ok) {
+    if (selected) {
       const chat = useChatStore.getState()
-      chat.patchMeta(sessionId, { model })
+      // A provider quota failure is recorded on the session-wide error surface.
+      // Once pi confirms a different model, that error is no longer actionable;
+      // leaving it set makes a successful Claude → Bedrock recovery look broken.
+      chat.setError(sessionId, null)
+      // Use pi's response rather than the menu row: pi may normalize or enrich
+      // the model record, and it is the authority for the live session.
+      const live = useSessionsStore.getState().live[sessionId]
+      const crossedProvider = currentModel?.provider !== selected.provider
+      if (crossedProvider && live?.diskPath) {
+        // A provider switch changes more than the model record: provider
+        // runtimes may have different context/message contracts. Rebind pi
+        // from disk so the next turn starts with the persisted model change,
+        // rather than asking the old process to reinterpret its in-memory
+        // provider state (Claude CLI → Bedrock was the observed failure).
+        await useSessionsStore.getState().disposeSession(sessionId)
+        await useSessionsStore
+          .getState()
+          .createSession(live.workspacePath, { sessionPath: live.diskPath })
+        return
+      }
+      chat.patchMeta(sessionId, { model: selected })
       // Supported levels are per-model. Clear the previous model's list
       // synchronously so the ?? fallback derives from the NEW model during
       // the refresh gap (and permanently, if the refresh fails) — a stale
