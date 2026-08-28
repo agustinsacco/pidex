@@ -46,6 +46,18 @@ Two consequences worth knowing before switching a server over:
   before the refresh lands, so the first picker open may not show them. The
   next open does — pi answers from the cache at t=0 once it exists.
 
+## Deleting the entry is not a safe intermediate state
+
+"What if we just remove the hardcoded model?" Tested all three shapes — `"models": []`, no
+`models` key, whole provider block deleted — and pi reports **zero** local models for each: a
+plain `openai-completions` custom provider prints exactly what it was declared, it never asks
+the server. Removal is only safe once the discovered provider already exists, for a nastier
+reason than an empty list: `settings.json` still named `local-stark` / `"Qwen 3.5 122b"`, and pi
+does not complain about a missing default — it silently resolves another provider. Measured here:
+`get_state.model` came back `amazon-bedrock / us.anthropic.claude-opus-4-6-v1` and then
+`agent_start`. A prompt intended for the LAN would have billed Opus, and pidex's composer shows
+only an unselected picker in that state.
+
 ## What pidex was missing: one prefix
 
 `LLAMA_BASE_URL` never reached a pi session launched from the GUI, so the
