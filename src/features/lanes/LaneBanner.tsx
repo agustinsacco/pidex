@@ -9,7 +9,7 @@ import {
   diffLabel,
   laneAction,
   laneHint,
-  laneIsGreen,
+  lanePrAction,
   overDiffBudget,
   parseLaneLoop,
 } from './laneLoop'
@@ -58,19 +58,20 @@ export function LaneBanner({
 
   if (!loop) return null
 
-  const green = laneIsGreen(loop)
   const action = laneAction(loop)
-  // A quiet lane needs one line. A lane that needs something opens itself.
-  const open = override ?? !green
+  const prAction = lanePrAction(loop)
+  // A failed rung opens itself. A pending PR is already the final rung CTA.
+  const open = override ?? action !== null
   const diff = diffLabel(loop)
   const over = overDiffBudget(loop)
 
-  const send = async (): Promise<void> => {
-    if (!action || sending) return
+  const send = async (nextAction: NonNullable<typeof action>): Promise<void> => {
+    if (sending) return
     setSending(true)
     try {
-      useChatStore.getState().addUserMessage(sessionId, action.prompt)
-      await piCallOk(sessionId, { type: 'prompt', message: action.prompt })
+      const ok = await piCallOk(sessionId, { type: 'prompt', message: nextAction.prompt })
+      // Do not create a transcript entry for a command pi rejected.
+      if (ok) useChatStore.getState().addUserMessage(sessionId, nextAction.prompt)
     } finally {
       setSending(false)
     }
@@ -82,22 +83,30 @@ export function LaneBanner({
       data-open={open ? 'true' : 'false'}
       className={clsx('border-border-strong bg-surface flex flex-col rounded-lg border', className)}
     >
-      <button
-        type="button"
-        onClick={() => setOverride(!open)}
-        aria-expanded={open}
-        aria-label={open ? 'Collapse lane status' : 'Expand lane status'}
-        className="text-text-tertiary hover:text-text-secondary flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 text-left font-mono text-[10px] tracking-[0.08em] uppercase transition-colors"
-      >
-        <span aria-hidden className="text-[8px] leading-none">
-          {open ? '▾' : '▸'}
-        </span>
-        {loop.branch ? <span className="text-text-secondary truncate">⎇ {loop.branch}</span> : null}
-        {diff ? <span className={over ? 'text-danger' : undefined}>{diff}</span> : null}
-        {/* Collapsed still has to answer "is anything wrong", so the ladder
-            rides the summary line rather than hiding behind the chevron. */}
-        <LaneLadder loop={loop} className="ml-auto" />
-      </button>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setOverride(!open)}
+          aria-expanded={open}
+          aria-label={open ? 'Collapse lane status' : 'Expand lane status'}
+          className="text-text-tertiary hover:text-text-secondary inline-flex min-w-0 items-center gap-2 text-left font-mono text-[10px] tracking-[0.08em] uppercase transition-colors"
+        >
+          <span aria-hidden className="text-[8px] leading-none">
+            {open ? '▾' : '▸'}
+          </span>
+          {loop.branch ? (
+            <span className="text-text-secondary truncate">⎇ {loop.branch}</span>
+          ) : null}
+          {diff ? <span className={over ? 'text-danger' : undefined}>{diff}</span> : null}
+        </button>
+        {/* Collapsed still answers "is anything wrong": the ladder remains visible,
+            and the final stale PR rung is its own action. */}
+        <LaneLadder
+          loop={loop}
+          className="ml-auto"
+          onRungAction={prAction ? () => void send(prAction) : undefined}
+        />
+      </div>
 
       {open ? (
         <div className="border-border flex flex-col gap-2 border-t px-3 py-2">
@@ -106,7 +115,7 @@ export function LaneBanner({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void send()}
+                onClick={() => void send(action)}
                 disabled={sending}
                 title={action.prompt}
                 className="border-accent text-accent bg-accent-soft hover:border-accent-hover shrink-0 rounded-md border px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.08em] uppercase transition-colors disabled:opacity-50"

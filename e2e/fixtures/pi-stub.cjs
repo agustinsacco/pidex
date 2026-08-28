@@ -364,9 +364,10 @@ function handle(cmd) {
       if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
+      else if (message.includes('lane pr please')) runPrLaneTurn()
       // The banner actions must start a turn, not merely queue a follow-up
       // after a turn that has already settled.
-      else if (message.includes('The test check is failing')) runLaneActionTurn()
+      else if (message.includes('The test check is failing') || message.includes('gh pr create')) runLaneActionTurn()
       else runTurn()
       break
     }
@@ -423,6 +424,42 @@ function persist(message) {
   }
 }
 
+function laneStatus(rungs) {
+  return {
+    type: 'extension_ui_request',
+    id: 'ext-status-lane',
+    method: 'setStatus',
+    statusKey: 'pidex-lane-loop',
+    statusText: JSON.stringify({
+      rungs,
+      diff: { added: 118, removed: 22, files: 4 },
+      diffBudget: { lines: 400, files: 20 },
+      branch: 'pidex/stub-lane',
+      updatedAt: Date.now(),
+    }),
+  }
+}
+
+function runPrLaneTurn() {
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () =>
+      out(
+        laneStatus([
+          { key: 'tsc', state: 'pass', command: 'npm run typecheck', exitCode: 0 },
+          { key: 'test', state: 'pass', command: 'npm run test', exitCode: 0 },
+          { key: 'lint', state: 'pass', command: 'npm run lint', exitCode: 0 },
+          { key: 'diff', state: 'pass' },
+          { key: 'merge', state: 'pass' },
+          { key: 'pr', state: 'stale' },
+        ]),
+      ),
+    () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
+  ])
+}
+
 function runLaneActionTurn() {
   play([
     () => out({ type: 'agent_start' }),
@@ -465,26 +502,16 @@ function runTurn() {
   // so it publishes a fixed payload — enough to prove the wire contract, the
   // parser and both mount points, which is the part that can regress.
   push(() =>
-    out({
-      type: 'extension_ui_request',
-      id: 'ext-status-lane',
-      method: 'setStatus',
-      statusKey: 'pidex-lane-loop',
-      statusText: JSON.stringify({
-        rungs: [
-          { key: 'tsc', state: 'pass', command: 'npm run typecheck', exitCode: 0 },
-          { key: 'test', state: 'fail', exitCode: 1, detail: '2 failing in auth/ttl.test.ts' },
-          { key: 'lint', state: 'pass', command: 'npm run lint', exitCode: 0 },
-          { key: 'diff', state: 'pass' },
-          { key: 'merge', state: 'pass' },
-          { key: 'pr', state: 'stale' },
-        ],
-        diff: { added: 118, removed: 22, files: 4 },
-        diffBudget: { lines: 400, files: 20 },
-        branch: 'pidex/stub-lane',
-        updatedAt: Date.now(),
-      }),
-    }),
+    out(
+      laneStatus([
+        { key: 'tsc', state: 'pass', command: 'npm run typecheck', exitCode: 0 },
+        { key: 'test', state: 'fail', exitCode: 1, detail: '2 failing in auth/ttl.test.ts' },
+        { key: 'lint', state: 'pass', command: 'npm run lint', exitCode: 0 },
+        { key: 'diff', state: 'pass' },
+        { key: 'merge', state: 'pass' },
+        { key: 'pr', state: 'stale' },
+      ]),
+    ),
   )
   // Third consecutive call: makes this a 3-tool run (grouping) and stays
   // "running" for several ticks so the in-flight animation is observable.

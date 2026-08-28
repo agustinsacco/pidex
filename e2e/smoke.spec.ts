@@ -1681,6 +1681,33 @@ test('the lane loop renders above the composer and on the fleet card', async () 
   }
 })
 
+test('a pending PR is the banner CTA without redundant copy', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-lane-pr-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('lane pr please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const banner = page.getByTestId('lane-banner')
+    await expect(banner).toBeVisible({ timeout: 30_000 })
+    // There is no expanded success prose or duplicate PR button. The final
+    // rung is the CTA and stays available while the compact banner is closed.
+    await expect(banner).toHaveAttribute('data-open', 'false')
+    await expect(banner.getByText(/All checks pass\. This lane still owes/i)).toHaveCount(0)
+    await expect(banner.getByRole('button', { name: /^Open the PR$/i })).toHaveCount(0)
+
+    const pr = banner.getByRole('button', { name: 'Open a pull request for this lane' })
+    await expect(pr).toHaveAttribute('data-rung', 'pr')
+    await pr.click()
+    await expect(page.getByText('Lane action received.')).toBeVisible({ timeout: 20_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('the workspace header carries fixed settings / new / orchestrator controls', async () => {
   const harness = await launch({
     userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-orc-')),
