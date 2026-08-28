@@ -13,6 +13,13 @@ export type UpdatePhase =
   | 'idle'
   | 'checking'
   | 'downloading'
+  /**
+   * Verifying and expanding a download. Only the macOS self-install path
+   * reaches this: `electron-updater` does its own extraction inside
+   * `download-progress`, so on Linux `downloading` runs straight to
+   * `downloaded`.
+   */
+  | 'installing'
   /** Verified and staged; a restart installs it. */
   | 'downloaded'
   /**
@@ -39,9 +46,16 @@ export type UpdateEvent =
   | { type: 'update-available'; version: string }
   | { type: 'update-not-available' }
   | { type: 'download-progress'; percent: number }
+  /** Download finished and verified; extraction and the swap begin. */
+  | { type: 'install-started' }
   | { type: 'update-downloaded'; version: string }
   /** The install can detect but not self-apply. */
   | { type: 'manual-required'; version: string; releaseUrl: string }
+  /**
+   * A self-install attempt failed. Degrades to the manual path rather than to
+   * silence: the user keeps a working way to update.
+   */
+  | { type: 'install-failed'; version: string; releaseUrl: string }
   | { type: 'error' }
 
 export const IDLE: UpdateState = { phase: 'idle' }
@@ -56,8 +70,16 @@ export const IDLE: UpdateState = { phase: 'idle' }
 export function reduceUpdate(state: UpdateState, event: UpdateEvent): UpdateState {
   switch (event.type) {
     case 'check-started':
-      // Never interrupt a download or discard a staged update to say "checking".
-      if (state.phase === 'downloading' || state.phase === 'downloaded') return state
+      // Never interrupt work in flight, or discard a staged update, to say
+      // "checking". The periodic timer fires on its own schedule and will land
+      // mid-download sooner or later.
+      if (
+        state.phase === 'downloading' ||
+        state.phase === 'installing' ||
+        state.phase === 'downloaded'
+      ) {
+        return state
+      }
       return { phase: 'checking' }
 
     case 'update-available':
@@ -67,16 +89,22 @@ export function reduceUpdate(state: UpdateState, event: UpdateEvent): UpdateStat
       // A staged update stays staged: a later check finding nothing newer does
       // not mean the one already on disk went away.
       if (state.phase === 'downloaded' || state.phase === 'manual-download') return state
+      if (state.phase === 'downloading' || state.phase === 'installing') return state
       return IDLE
 
     case 'download-progress':
       if (state.phase !== 'downloading') return state
       return { ...state, progressPercent: clampPercent(event.percent) }
 
+    case 'install-started':
+      if (state.phase !== 'downloading') return state
+      return { phase: 'installing', version: state.version }
+
     case 'update-downloaded':
       return { phase: 'downloaded', version: event.version }
 
     case 'manual-required':
+    case 'install-failed':
       return { phase: 'manual-download', version: event.version, releaseUrl: event.releaseUrl }
 
     case 'error':

@@ -51,6 +51,7 @@ export const useUpdatesStore = create<UpdatesStoreState>((set, get) => ({
 export function isUpdateVisible(update: UpdateState): boolean {
   return (
     update.phase === 'downloading' ||
+    update.phase === 'installing' ||
     update.phase === 'downloaded' ||
     update.phase === 'manual-download'
   )
