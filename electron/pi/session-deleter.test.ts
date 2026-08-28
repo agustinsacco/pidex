@@ -23,6 +23,8 @@ vi.mock('electron', () => ({ shell: { trashItem: (path: string) => trashItem(pat
 const { deleteSession } = await import('./session-deleter')
 
 const SESSION_ID = '01a0272a-7be5-76ed-b420-36b363924622'
+/** What the provider's sidecar maps that pi session to under observer mode. */
+const CLI_SESSION_ID = 'dea87c8e-4de1-4f0e-9d5b-9a3c2f10c0b7'
 
 function line(obj: unknown): string {
   return JSON.stringify(obj) + '\n'
@@ -85,6 +87,9 @@ describe('deleteSession', () => {
     piPath = join(root, `2026-08-22T22-56-30-785Z_${SESSION_ID}.jsonl`)
 
     process.env.CLAUDE_CONFIG_DIR = join(root, 'claude-config')
+    // The provider's sidecar lives here; an empty state dir means "no
+    // mapping", which is the pre-observer-mode shape.
+    process.env.PI_CLAUDE_CLI_STATE_DIR = join(root, 'cli-state')
     claudeDir = join(
       process.env.CLAUDE_CONFIG_DIR,
       'projects',
@@ -95,8 +100,20 @@ describe('deleteSession', () => {
 
   afterEach(async () => {
     delete process.env.CLAUDE_CONFIG_DIR
+    delete process.env.PI_CLAUDE_CLI_STATE_DIR
     await rm(root, { recursive: true, force: true })
   })
+
+  /** Pair the pi session with a CLI session, the way the provider does. */
+  async function writeSessionMap(cliSessionId: string): Promise<void> {
+    const dir = process.env.PI_CLAUDE_CLI_STATE_DIR!
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'session-map.json'),
+      JSON.stringify({ [SESSION_ID]: cliSessionId }),
+      'utf8',
+    )
+  }
 
   async function writeClaudeLedger(): Promise<void> {
     await mkdir(claudeDir, { recursive: true })
@@ -110,6 +127,24 @@ describe('deleteSession', () => {
     await deleteSession(piPath)
 
     expect(trashed).toEqual([piPath, claudeLedger])
+  })
+
+  it('trashes the copy filed under the CLI’s OWN session id', async () => {
+    // Observer mode: the CLI gets a session id of its own, and the transcript
+    // is filed under THAT. Deleting by the pi id trashed nothing at all and
+    // orphaned the copy — which is megabytes, every time.
+    await writeFile(piPath, transcript(workspace, 'pi-claude-cli'), 'utf8')
+    await writeSessionMap(CLI_SESSION_ID)
+    const mappedLedger = join(claudeDir, `${CLI_SESSION_ID}.jsonl`)
+    await mkdir(claudeDir, { recursive: true })
+    await writeFile(mappedLedger, line({ type: 'summary', summary: 'the CLI copy' }), 'utf8')
+    // The path derived from the pi id exists too, and must be left alone: it
+    // belongs to no session this delete is responsible for.
+    await writeClaudeLedger()
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath, mappedLedger])
   })
 
   it('trashes only pi’s transcript when no CLI copy exists', async () => {

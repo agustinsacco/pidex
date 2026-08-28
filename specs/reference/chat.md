@@ -54,11 +54,16 @@ The marker string is a **cross-repo wire contract**; the emitting side
 documents its shape. The argument preview is truncation-prone and therefore
 frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
 (JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
-headline — `Agent`/`Task` markers additionally render as sub-agent rows and
-feed the composer's sub-agent strip (`trailingAgentLaunches`). **A Claude
-Code sub-agent never returns its results to pidex** — it dies when the
-per-turn CLI exits, so no surface may imply one is still running; see
-[log/2026-08-22-claude-subagents-never-return.md](../log/2026-08-22-claude-subagents-never-return.md).
+headline — `Agent`/`Task` markers instead fold into `subagent` steps, one per
+AGENT rather than one per marker (three markers describe each), and feed the
+composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row
+claims only what its markers prove**: `launched` until the CLI confirms a
+start, and no completion until one is reported. Background agents ran to their
+death before provider 0.4.14
+([log/2026-08-22-claude-subagents-never-return.md](../log/2026-08-22-claude-subagents-never-return.md),
+[log/2026-08-28-subagents-report-back.md](../log/2026-08-28-subagents-report-back.md));
+pidex pins no version, so both shapes are rendered from evidence and neither
+is assumed.
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
 

@@ -1155,6 +1155,11 @@ export function installMockPidex(): void {
           return Promise.resolve({ checkedOut: true, branch: args[1] as string })
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
+        // No provider sidecar in the browser harness, so the debug block
+        // falls back to the pi session id — the same shape a real
+        // pre-observer-mode session produces.
+        case 'sessions:claudeSessionId':
+          return Promise.resolve(null)
         case 'fs:readDir': {
           const dir = args[1] as string
           return Promise.resolve(mockDir(dir))

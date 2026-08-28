@@ -55,6 +55,22 @@ describe('claudeSessionPath', () => {
     expect(claudeSessionPath({ ...source, provider: 'anthropic' })).toBeNull()
     expect(claudeSessionPath({ ...source, provider: undefined })).toBeNull()
   })
+
+  it('files the copy under the CLI’s own session id when there is one', () => {
+    // Observer mode: pi's id and the CLI's id are different, and the CLI's is
+    // the one the transcript is named after. Building the path from the pi id
+    // printed a file that has never existed.
+    expect(
+      claudeSessionPath({ ...source, claudeSessionId: 'dea87c8e-4de1-4f0e-9d5b-9a3c2f10c0b7' }),
+    ).toBe('~/.claude/projects/-home-dev-proj/dea87c8e-4de1-4f0e-9d5b-9a3c2f10c0b7.jsonl')
+  })
+
+  it('falls back to the pi id when the provider recorded no mapping', () => {
+    // Sessions from before observer mode, where the two really were one id.
+    expect(claudeSessionPath({ ...source, claudeSessionId: null })).toBe(
+      '~/.claude/projects/-home-dev-proj/01a02bb0-a041-7109-9d1c-8333ecea33c4.jsonl',
+    )
+  })
 })
 
 describe('formatSessionDebugInfo', () => {

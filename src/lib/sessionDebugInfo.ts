@@ -25,12 +25,23 @@ export { claudeProjectDirName }
 export interface SessionDebugSource {
   /** pi's session file (.jsonl), absolute. */
   path: string
-  /** pi's session id — also the Claude CLI's session id, which pi passes through. */
+  /** pi's session id. */
   sessionId: string
   /** The session's own working directory. */
   cwd: string
   provider?: string
   model?: string
+  /**
+   * The Claude Code CLI's own session id, from the provider's sidecar map
+   * (`sessions:claudeSessionId`).
+   *
+   * NOT the pi session id. It used to be — pi passed its id through to
+   * `claude --session-id` — but observer mode gives the CLI a session of its
+   * own and records the pairing. Deriving the path from the pi id printed a
+   * file that has never existed, in the one block whose entire job is to be
+   * pasted into a bug report and opened by someone else.
+   */
+  claudeSessionId?: string | null
 }
 
 /**
@@ -55,7 +66,11 @@ export function piSessionDirName(cwd: string): string {
  */
 export function claudeSessionPath(source: SessionDebugSource): string | null {
   if (source.provider !== 'pi-claude-cli') return null
-  return `~/.claude/projects/${claudeProjectDirName(source.cwd)}/${source.sessionId}.jsonl`
+  // No mapping means the session predates observer mode, where the two ids
+  // really were the same. A miss is a path that may not exist; a WRONG id is
+  // a path that cannot.
+  const id = source.claudeSessionId ?? source.sessionId
+  return `~/.claude/projects/${claudeProjectDirName(source.cwd)}/${id}.jsonl`
 }
 
 /**

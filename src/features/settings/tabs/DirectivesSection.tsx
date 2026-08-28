@@ -96,12 +96,11 @@ export function DirectivesSection(): React.JSX.Element {
       blocks.push(
         [
           '<pidex_subagents>',
-          'Sub-agents are available, but this harness does not outlive the turn: one',
-          'launched in the background is killed when the turn ends and its findings are',
-          'lost.',
+          'Sub-agents are available, and the synchronous form is the reliable one:',
+          'run_in_background: false returns the findings inside this turn on every',
+          'provider version. A backgrounded agent reports back only on pi-claude-cli',
+          '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
           '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-          '- If you do delegate, pass run_in_background: false so the result comes back',
-          '  inside this turn.',
           '</pidex_subagents>',
         ].join('\n'),
       )
@@ -158,7 +157,7 @@ export function DirectivesSection(): React.JSX.Element {
 
       <Row
         title="Sub-agent policy"
-        description="A backgrounded sub-agent is killed when the turn ends and its findings are lost, because the CLI does not outlive the turn. Asks for direct answers on small work, and run_in_background: false when delegating is genuinely warranted."
+        description="Asks for direct answers on small work, and run_in_background: false when delegating is genuinely warranted — a synchronous sub-agent returns inside the turn on any provider version, while a backgrounded one needs pi-claude-cli 0.4.14 or newer to report back at all."
       >
         <Toggle on={editing.subagentPolicy} onChange={(on) => patch({ subagentPolicy: on })} />
       </Row>

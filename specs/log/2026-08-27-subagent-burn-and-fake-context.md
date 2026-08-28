@@ -1,5 +1,10 @@
 # 2026-08-27 — sub-agents that never reported, and a context gauge that counted round trips
 
+> **Update 2026-08-28.** Section 1 is fixed at the root: the provider was
+> killing the CLI at the turn's first `result` while the agents were still
+> working. `pi-claude-cli` 0.4.14 treats that result as a cycle boundary —
+> see [2026-08-28-subagents-report-back.md](2026-08-28-subagents-report-back.md).
+
 A review of the day's live lanes, prompted by one plain observation: "the
 claude-cli usage is really pushing on using sub agents, is this correct?"
 
