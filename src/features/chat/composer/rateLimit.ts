@@ -112,3 +112,20 @@ export function resetLabel(resetsAt: number | null, nowMs: number = Date.now()):
   if (hours > 0) return `Resets in ${hours} hr${minutes > 0 ? ` ${minutes} min` : ''}`
   return `Resets in ${Math.max(1, minutes)} min`
 }
+
+/**
+ * Whether this window's state is worth interrupting the user for, rather
+ * than leaving it to the opt-in popup. Mirrors the popup's own warn/danger
+ * thresholds (`ContextMeter.tsx`'s `PlanLimits`) so the two surfaces can
+ * never disagree about what counts as urgent.
+ *
+ * A window whose reset has already passed is stale — the CLI just hasn't
+ * sent a fresh event yet — and a warning that outlives its own window is
+ * worse than no warning.
+ */
+export function needsAttention(limit: ClaudeRateLimit, nowMs: number = Date.now()): boolean {
+  if (limit.resetsAt !== null && limit.resetsAt <= Math.floor(nowMs / 1000)) return false
+  if (limit.status === 'rejected') return true
+  const percent = utilizationPercent(limit.utilization)
+  return percent !== null && percent >= 75
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   isPaidWindow,
+  needsAttention,
   parseRateLimit,
   resetLabel,
   utilizationPercent,
@@ -145,5 +146,51 @@ describe('the over-credits state (what a real Team account hit)', () => {
     // The CLI hardcodes this false on the warning path — the percentage and
     // the window type are the only trustworthy signals.
     expect(parsed.isUsingOverage).toBe(false)
+  })
+})
+
+describe('needsAttention', () => {
+  const now = 1_787_363_602_000
+
+  it('stays quiet for the plain allowed capture (no percentage at all)', () => {
+    expect(needsAttention(parseRateLimit(LIVE)!, now)).toBe(false)
+  })
+
+  it('fires for the real over-credits capture', () => {
+    expect(needsAttention(parseRateLimit(OVER_CREDITS)!, now)).toBe(true)
+  })
+
+  it('stays quiet below the 75% warn threshold', () => {
+    const limit = parseRateLimit(JSON.stringify({ rateLimitType: 'five_hour', utilization: 0.74 }))!
+    expect(needsAttention(limit, now)).toBe(false)
+  })
+
+  it('fires at and above the 75% warn threshold', () => {
+    const limit = parseRateLimit(JSON.stringify({ rateLimitType: 'five_hour', utilization: 0.75 }))!
+    expect(needsAttention(limit, now)).toBe(true)
+  })
+
+  it('fires on a hard cap regardless of percentage', () => {
+    const limit = parseRateLimit(
+      JSON.stringify({ status: 'rejected', rateLimitType: 'five_hour' }),
+    )!
+    expect(needsAttention(limit, now)).toBe(true)
+  })
+
+  it('goes quiet once the window has reset, even at a capped/high reading', () => {
+    const past = Math.floor(now / 1000) - 60
+    const capped = parseRateLimit(
+      JSON.stringify({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: past }),
+    )!
+    const high = parseRateLimit(
+      JSON.stringify({ rateLimitType: 'five_hour', utilization: 0.99, resetsAt: past }),
+    )!
+    expect(needsAttention(capped, now)).toBe(false)
+    expect(needsAttention(high, now)).toBe(false)
+  })
+
+  it('still fires when resetsAt is unknown but the reading is high', () => {
+    const limit = parseRateLimit(JSON.stringify({ rateLimitType: 'five_hour', utilization: 0.9 }))!
+    expect(needsAttention(limit, now)).toBe(true)
   })
 })
