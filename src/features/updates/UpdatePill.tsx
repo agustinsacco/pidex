@@ -20,13 +20,16 @@ export function UpdatePill(): React.JSX.Element | null {
 
   const ready = update.phase === 'downloaded'
   const manual = update.phase === 'manual-download'
+  const installing = update.phase === 'installing'
   const clickable = ready || manual
 
   const label = ready
     ? 'Restart to update'
     : manual
       ? 'Update available — Download'
-      : 'Downloading update…'
+      : installing
+        ? 'Installing update…'
+        : 'Downloading update…'
 
   return (
     <button
@@ -41,7 +44,9 @@ export function UpdatePill(): React.JSX.Element | null {
             ? `Version ${update.version} is ready — restart to apply it`
             : manual
               ? `Version ${update.version} is available. This install can't update itself, so this opens the download page.`
-              : `Downloading version ${update.version}`
+              : installing
+                ? `Verifying and unpacking version ${update.version}`
+                : `Downloading version ${update.version}`
           : undefined
       }
       className={clsx(
