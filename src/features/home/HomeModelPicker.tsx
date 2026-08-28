@@ -1,28 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { ModelCost, ThinkingLevel, ThinkingLevelMap } from '@shared/rpc'
+import type { ThinkingLevel } from '@shared/rpc'
 import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { ThinkingMenu, thinkingLabel } from '@/features/chat/composer/ThinkingMenu'
-
-/**
- * One selectable model as returned by `pi:catalogueModels` (home screen only).
- * Same source as the session composer in substance: main asks a throwaway pi
- * RPC process `get_available_models`, so this carries the real display name
- * and `thinkingLevelMap` — home derives levels with the same rules as a live
- * session instead of guessing.
- */
-interface CatalogueModel {
-  id: string
-  name: string
-  provider: string
-  reasoning: boolean
-  thinkingLevelMap?: ThinkingLevelMap | null
-  /** Comparison metadata for the menu rows; absent when pi could not be run. */
-  contextWindow?: number
-  cost?: ModelCost
-  input?: string[]
-}
+import {
+  catalogueEmptyText,
+  modelChipLabel,
+  useModelCatalogueStore,
+  type CatalogueModel,
+} from '@/stores/modelCatalogue'
 
 /**
  * Model + thinking pickers for the home screen, where no session exists yet.
@@ -41,14 +28,18 @@ interface CatalogueModel {
  * new session will get, computed from the same data pi computes it from.
  */
 export function HomeModelPicker(): React.JSX.Element | null {
-  const [models, setModels] = useState<CatalogueModel[]>([])
+  const status = useModelCatalogueStore((s) => s.status)
+  const models = useModelCatalogueStore((s) => s.models)
+  const providers = useModelCatalogueStore((s) => s.providers)
   const [provider, setProvider] = useState<string | null>(null)
   const [modelId, setModelId] = useState<string | null>(null)
   const [thinking, setThinking] = useState<ThinkingLevel>('off')
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
 
   useEffect(() => {
-    void window.pidex.invoke('pi:catalogueModels').then(setModels)
+    // Usually a no-op — App hydrates this at boot, well before the home
+    // screen renders. It stays here so the picker still works if it does not.
+    void useModelCatalogueStore.getState().hydrate()
     void window.pidex.invoke('pi:agentSettings').then((settings) => {
       const defaultProvider = settings.defaultProvider
       const defaultModel = settings.defaultModel
@@ -65,6 +56,8 @@ export function HomeModelPicker(): React.JSX.Element | null {
   }, [])
 
   const current = models.find((m) => m.id === modelId && m.provider === provider)
+  const chip = modelChipLabel(status, current, modelId)
+  const busy = status === 'idle' || status === 'loading'
 
   /** Levels to render, derived per-model — including xhigh/max when mapped. */
   const levelsToRender: ThinkingLevel[] = useMemo(
@@ -100,17 +93,31 @@ export function HomeModelPicker(): React.JSX.Element | null {
 
   return (
     <div className="relative flex items-center gap-0.5">
+      {/* Disabled until the catalogue lands: picking writes pi's global
+          default, so a click on a half-known list is a real mis-set, not a
+          cosmetic one. */}
       <button
         onClick={() => setOpen(open === 'model' ? null : 'model')}
+        disabled={busy}
         data-testid="home-model-picker"
+        data-loading={busy ? 'true' : undefined}
+        title={chip.unavailable ? `${chip.text} is not in pi's catalogue` : undefined}
         className={clsx(
-          'cursor-pointer rounded-md px-2 py-1 text-base font-medium transition-colors',
+          'rounded-md px-2 py-1 text-base font-medium transition-colors',
+          busy ? 'cursor-default' : 'cursor-pointer',
           open === 'model'
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
         )}
       >
-        {current?.name ?? modelId ?? 'Select model'}
+        {chip.loading ? (
+          <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
+        ) : (
+          <span className={clsx(chip.unavailable && 'text-warning')}>
+            {chip.text}
+            {chip.unavailable && ' · unavailable'}
+          </span>
+        )}
       </button>
 
       {levelsToRender.length > 1 && (
@@ -137,7 +144,8 @@ export function HomeModelPicker(): React.JSX.Element | null {
             if (model) chooseModel(model)
           }}
           onClose={() => setOpen(null)}
-          emptyText="No models found in pi's models.json. The next session starts with pi's default model — you can switch in the session composer once it's running."
+          loading={busy}
+          emptyText={catalogueEmptyText(status, providers)}
           className="absolute bottom-full right-0 mb-2 w-[30rem] max-w-[90vw]"
         />
       )}

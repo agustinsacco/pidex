@@ -31,6 +31,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { attachConnectorAuthListener } from '@/stores/connectors'
 import { useWorktreesStore } from '@/stores/worktrees'
+import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { worktreeAwareName } from '@/lib/path'
 
 export function App(): React.JSX.Element {
@@ -50,6 +51,10 @@ export function App(): React.JSX.Element {
     void useSettingsStore.getState().hydrate()
     void useWorkspacesStore.getState().hydrate()
     void useWorktreesStore.getState().hydratePrefs()
+    // Preload the model catalogue: it spawns a pi process, so paying for it
+    // now means the first picker open is instant instead of showing an empty
+    // list that reads as "nothing configured".
+    void useModelCatalogueStore.getState().hydrate()
     void window.pidex.invoke('pi:health').then(setHealth)
   }, [])
 
