@@ -27,10 +27,13 @@ export function ChatView({
       <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
       <NoModelsBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
-      <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl px-4" />
+      {/* Both share the composer's horizontal gutter and maximum width: a
+          right pane must narrow every surface above the composer together. */}
+      <div className="shrink-0 px-6 pt-1">
+        <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
+      </div>
       {/* The lane's STATE, directly above where you decide what to type next.
-          It deliberately shares the composer's horizontal gutter and maximum
-          width: a right pane must narrow both surfaces together. */}
+          The transcript above is only its history. */}
       <div className="shrink-0 px-6 pt-1">
         <LaneBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
       </div>
