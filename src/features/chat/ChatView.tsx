@@ -4,6 +4,7 @@ import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 import { CrashBanner, NoModelsBanner } from './banners'
 import { LaneBanner } from '@/features/lanes/LaneBanner'
+import { RateLimitBanner } from './composer/RateLimitBanner'
 
 /**
  * The chat column: banners, transcript, composer.
@@ -26,6 +27,7 @@ export function ChatView({
       <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
       <NoModelsBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
+      <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl px-4" />
       {/* The lane's STATE, directly above where you decide what to type next.
           It deliberately shares the composer's horizontal gutter and maximum
           width: a right pane must narrow both surfaces together. */}

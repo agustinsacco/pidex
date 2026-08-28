@@ -150,6 +150,16 @@ than from a token count, which makes it the one to trust when they disagree:
 sub-agent spend reached it (server-side) long before provider 0.4.10 taught
 the token rows about sub-agents at all.
 
+Crossing the CLI's own warning threshold (≥75% utilized, or a hard cap) also
+opens a dismissible banner above the composer (`composer/RateLimitBanner.tsx`),
+gated by `needsAttention` — the same threshold the popover's own warn/danger
+coloring uses, so the two surfaces can't disagree about what counts as urgent.
+It goes quiet again once a fresh event reports a healthy percentage or
+`resetsAt` has passed; an always-on banner for a number that's fine most of
+the time is the alarm-fatigue mistake `LaneBanner` was rewritten to avoid
+repeating. A dismiss is keyed to the exact reading shown, so a later event
+that's worse reopens it rather than staying hidden.
+
 Both keys arrive through pi's extension-UI status channel and land in
 `stores/extensionUi.ts` keyed by session; parsing lives in
 `composer/contextBreakdown.ts` and `composer/rateLimit.ts`, each of which
