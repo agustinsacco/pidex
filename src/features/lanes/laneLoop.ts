@@ -137,7 +137,6 @@ export function laneHint(loop: LaneLoop): string {
   const next = currentRung(loop)
   if (!next) return 'Every check passes. This lane can open its PR.'
 
-  if (next.key === 'pr') return 'All checks pass. This lane still owes a pull request.'
   return `${next.label} has not run since the last edit.`
 }
 
@@ -192,19 +191,21 @@ export function laneAction(loop: LaneLoop): LaneAction | null {
     }
   }
 
-  const next = currentRung(loop)
-  if (next?.key === 'pr') {
-    return {
-      rung: 'pr',
-      label: 'Open the PR',
-      prompt:
-        `Every check passes. Commit anything outstanding, push the branch, and open a pull ` +
-        `request with \`gh pr create\`. Title it for the change, and in the body say what it ` +
-        `does, how it was verified, and anything you deliberately left out.`,
-    }
-  }
-
   return null
+}
+
+/** The pending PR rung is its own compact CTA, not a second button below it. */
+export function lanePrAction(loop: LaneLoop): LaneAction | null {
+  const next = currentRung(loop)
+  if (next?.key !== 'pr') return null
+  return {
+    rung: 'pr',
+    label: 'Open a pull request for this lane',
+    prompt:
+      `Every check passes. Commit anything outstanding, push the branch, and open a pull ` +
+      `request with \`gh pr create\`. Title it for the change, and in the body say what it ` +
+      `does, how it was verified, and anything you deliberately left out.`,
+  }
 }
 
 /** `+118 −22 · 4 files`, or undefined when there is nothing to say. */

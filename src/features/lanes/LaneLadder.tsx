@@ -35,9 +35,12 @@ const STATE_CLASS: Record<LaneRung['state'], string> = {
 export function LaneLadder({
   loop,
   className,
+  onRungAction,
 }: {
   loop: LaneLoop
   className?: string
+  /** An optional CTA for one rung (currently the pending PR rung). */
+  onRungAction?: (rung: LaneRung) => void
 }): React.JSX.Element {
   const here = currentRung(loop)
   return (
@@ -47,24 +50,45 @@ export function LaneLadder({
     >
       {loop.rungs.map((rung, index) => {
         const isHere = here?.key === rung.key && rung.state !== 'fail'
-        return (
+        const actionable = rung.key === 'pr' && rung.state === 'stale' && onRungAction
+        const className = clsx(
+          'inline-flex items-center gap-1.5 whitespace-nowrap border border-r-0 px-1.5 py-0.5',
+          'font-semibold uppercase tracking-[0.07em]',
+          index === 0 && 'rounded-l-[5px]',
+          index === loop.rungs.length - 1 && 'rounded-r-[5px] border-r',
+          isHere && rung.state === 'stale'
+            ? 'border-accent text-accent bg-accent-soft z-[1] [&>i]:border-accent [&>i]:bg-accent'
+            : STATE_CLASS[rung.state],
+          actionable && 'cursor-pointer hover:border-accent hover:text-accent',
+        )
+        const contents = (
+          <>
+            <i className="inline-block h-[5px] w-[5px] rounded-full border" />
+            {rung.label}
+          </>
+        )
+        return actionable ? (
+          <button
+            key={rung.key}
+            type="button"
+            data-rung={rung.key}
+            data-state={rung.state}
+            title="Open a pull request for this lane"
+            aria-label="Open a pull request for this lane"
+            onClick={() => onRungAction(rung)}
+            className={className}
+          >
+            {contents}
+          </button>
+        ) : (
           <span
             key={rung.key}
             data-rung={rung.key}
             data-state={rung.state}
             title={rungTitle(rung)}
-            className={clsx(
-              'inline-flex items-center gap-1.5 whitespace-nowrap border border-r-0 px-1.5 py-0.5',
-              'font-semibold uppercase tracking-[0.07em]',
-              index === 0 && 'rounded-l-[5px]',
-              index === loop.rungs.length - 1 && 'rounded-r-[5px] border-r',
-              isHere && rung.state === 'stale'
-                ? 'border-accent text-accent bg-accent-soft z-[1] [&>i]:border-accent [&>i]:bg-accent'
-                : STATE_CLASS[rung.state],
-            )}
+            className={className}
           >
-            <i className="inline-block h-[5px] w-[5px] rounded-full border" />
-            {rung.label}
+            {contents}
           </span>
         )
       })}
