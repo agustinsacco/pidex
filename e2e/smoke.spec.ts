@@ -1653,8 +1653,13 @@ test('the lane loop renders above the composer and on the fleet card', async () 
     await banner.getByRole('button', { name: /Expand lane status/i }).click()
     await expect(banner).toHaveAttribute('data-open', 'true')
 
-    // And it offers the next action as a button rather than a sentence.
-    await expect(banner.getByRole('button', { name: /Fix test/i })).toBeVisible()
+    // The action starts a new turn in the same session. This used to call
+    // `follow_up`, which only queues work behind an active turn; after the
+    // banner's settled-state render it was a successful no-op.
+    const fixTest = banner.getByRole('button', { name: /Fix test/i })
+    await expect(fixTest).toBeVisible()
+    await fixTest.click()
+    await expect(page.getByText('Lane action received.')).toBeVisible({ timeout: 20_000 })
 
     // The status strip must NOT print the raw payload. `setStatus` is the only
     // channel an extension has, so it doubles as a data bus, and every

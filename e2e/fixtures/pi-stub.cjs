@@ -364,6 +364,9 @@ function handle(cmd) {
       if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
+      // The banner actions must start a turn, not merely queue a follow-up
+      // after a turn that has already settled.
+      else if (message.includes('The test check is failing')) runLaneActionTurn()
       else runTurn()
       break
     }
@@ -418,6 +421,26 @@ function persist(message) {
   } catch {
     /* best effort */
   }
+}
+
+function runLaneActionTurn() {
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Lane action received.' }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
+      }),
+    () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
+  ])
 }
 
 function runTurn() {

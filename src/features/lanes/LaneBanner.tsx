@@ -70,7 +70,7 @@ export function LaneBanner({
     setSending(true)
     try {
       useChatStore.getState().addUserMessage(sessionId, action.prompt)
-      await piCallOk(sessionId, { type: 'follow_up', message: action.prompt })
+      await piCallOk(sessionId, { type: 'prompt', message: action.prompt })
     } finally {
       setSending(false)
     }
@@ -114,7 +114,7 @@ export function LaneBanner({
                 {sending ? 'Sending…' : action.label}
               </button>
               <span className="text-text-tertiary font-mono text-[10px]">
-                sends a follow-up to this lane
+                starts a turn in this lane
               </span>
             </div>
           ) : null}
