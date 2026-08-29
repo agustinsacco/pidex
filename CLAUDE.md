@@ -203,8 +203,14 @@ you want to watch.
   it to throw. Ask for text with `promptText` / show fallback text with
   `presentText` from `src/stores/prompt.ts` (rendered by `PromptHost`).
   ESLint (`no-restricted-syntax`) enforces this in `src/`.
-- Model-authored HTML renders **only** inside a sandboxed iframe under the
-  strict CSP. Never widen this.
+- Model-authored HTML renders **only** inside a sandboxed iframe, served over
+  `pidex-artifact://` with its own `default-src 'none'` policy
+  (`electron/artifacts/artifact-protocol.ts`). It is deliberately NOT `srcdoc`:
+  a srcdoc document inherits the app's CSP, which refused every inline script
+  and made `sandbox="allow-scripts"` a no-op. Two things must never change —
+  the iframe must never gain `allow-same-origin` (it is what keeps the origin
+  opaque), and the served policy must never gain a `connect-src` (it is what
+  denies the document any network reach). Widen neither.
 - Renderer path aliases: `@/` → `src/`, `@shared/` → `shared/`.
 - Browser-only dev (vite without Electron) auto-installs
   `src/dev/mockPidex.ts` when `window.pidex` is undefined — new IPC channels

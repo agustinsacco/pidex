@@ -10,6 +10,7 @@ import { MermaidBlock } from '@/components/markdown/MermaidBlock'
 import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
+import { SandboxedHtml } from '@/components/SandboxedHtml'
 import { DownloadIcon, FileIcon } from '@/components/icons'
 import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
@@ -238,9 +239,8 @@ function ArtifactPreview({
   switch (artifact.type) {
     case 'html':
       return (
-        <iframe
-          sandbox="allow-scripts"
-          srcDoc={content}
+        <SandboxedHtml
+          html={content}
           title={artifact.title}
           className="h-full min-h-[400px] w-full bg-white"
         />

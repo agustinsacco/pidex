@@ -110,6 +110,7 @@ export function ToolDetail({
       return <ListDetail tool={tool} />
     case 'artifact_create':
     case 'artifact_update':
+    case 'artifact_edit':
       return <ArtifactDetail tool={tool} sessionId={sessionId} />
     default:
       return <GenericDetail tool={tool} />

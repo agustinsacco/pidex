@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeChecks } from './gh-cli'
+import { summarizeChecks, indexPrsByBranch } from './gh-cli'
 
 describe('summarizeChecks', () => {
   it('is undefined when there are no checks at all', () => {
@@ -56,5 +56,45 @@ describe('summarizeChecks', () => {
         { status: 'COMPLETED', conclusion: 'TIMED_OUT' },
       ]),
     ).toEqual({ passed: 0, failed: 2, pending: 0, total: 2 })
+  })
+})
+
+describe('indexPrsByBranch', () => {
+  const row = (over: Record<string, unknown>): never =>
+    ({ number: 1, url: 'https://x/1', state: 'OPEN', headRefName: 'b', ...over }) as never
+
+  it('keys by head branch and shapes each PR', () => {
+    const byBranch = indexPrsByBranch([
+      row({ number: 412, headRefName: 'feat/a', state: 'MERGED', title: 'A' }),
+      row({ number: 418, headRefName: 'feat/b', state: 'OPEN', reviewDecision: 'APPROVED' }),
+    ])
+    expect(byBranch['feat/a']?.state).toBe('MERGED')
+    expect(byBranch['feat/b']?.reviewDecision).toBe('APPROVED')
+  })
+
+  it('marks a draft, which gh reports as OPEN plus a flag', () => {
+    const byBranch = indexPrsByBranch([row({ headRefName: 'd', state: 'OPEN', isDraft: true })])
+    expect(byBranch['d']?.state).toBe('DRAFT')
+  })
+
+  it('prefers the open PR when a branch has been reused', () => {
+    const byBranch = indexPrsByBranch([
+      row({ number: 500, headRefName: 'reused', state: 'CLOSED' }),
+      row({ number: 300, headRefName: 'reused', state: 'OPEN' }),
+    ])
+    expect(byBranch['reused']?.number).toBe(300)
+  })
+
+  it('falls back to the newest when both are closed', () => {
+    const byBranch = indexPrsByBranch([
+      row({ number: 300, headRefName: 'old', state: 'CLOSED' }),
+      row({ number: 500, headRefName: 'old', state: 'MERGED' }),
+    ])
+    expect(byBranch['old']?.number).toBe(500)
+  })
+
+  it('skips rows with no branch or no url rather than inventing entries', () => {
+    expect(indexPrsByBranch([row({ headRefName: undefined })])).toEqual({})
+    expect(indexPrsByBranch([row({ url: undefined })])).toEqual({})
   })
 })

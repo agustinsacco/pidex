@@ -12,6 +12,7 @@ import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
 import { initDebugLog, log } from './debug-log'
+import { registerArtifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -111,6 +112,10 @@ function createWindow(): BrowserWindow {
  * E2E launches deliberately opt out: Playwright drives several app instances,
  * and the lock would make the second one exit instead of starting.
  */
+// Must precede app.whenReady(): privileged scheme registration is only read
+// during Chromium's startup. See artifacts/artifact-protocol.ts.
+registerArtifactScheme()
+
 const singleInstance = process.env.PIDEX_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
 
 if (!singleInstance) {
@@ -130,6 +135,7 @@ if (!singleInstance) {
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }
+    registerArtifactProtocol()
     registerIpcHandlers()
     createWindow()
     // No-op unless packaged: dev and E2E must never poll GitHub.
