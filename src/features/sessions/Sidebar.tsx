@@ -8,6 +8,13 @@ import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
+import { PrBadge } from './PrBadge'
+import { LaneMarker } from './LaneMarker'
+import { MarkerPickerModal } from './MarkerPickerModal'
+import { BulkDeleteModal } from './BulkDeleteModal'
+import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
+import { laneMarker } from '@/lib/laneMarker'
+import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import {
   ArtifactsIcon,
@@ -25,7 +32,8 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { projectName, isWorktreeFolder } from '@/lib/path'
+import { projectName, isWorktreeFolder, basename } from '@/lib/path'
+import { presentText } from '@/stores/prompt'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -70,6 +78,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
+  /**
+   * Multi-select, scoped to ONE workspace group.
+   *
+   * Never global: a group is exactly one repo (worktrees fold into their main
+   * checkout), and a destructive confirm spanning two repos is how you delete
+   * the wrong branch. Selecting inside a second group replaces the selection
+   * rather than extending it.
+   */
+  const [selection, setSelection] = useState<{ repoPath: string; paths: string[] } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
+  /** Anchor for shift-click ranges. */
+  const rangeAnchor = useRef<string | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /** Worktree folders discovered under each known repo workspace. */
@@ -328,6 +348,133 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     collapsed?.[group.workspacePath] ??
     (group.anyScanned ? false : !group.paths.includes(workspacePath))
 
+  /**
+   * PR chips: one `gh` subprocess per EXPANDED group, never one per lane.
+   *
+   * Event-driven rather than on a timer — window focus and the disk listing
+   * changing are the two moments a PR's state plausibly moved. The store
+   * coalesces anything inside `PR_STALE_MS`, so calling this from several
+   * triggers is free. A collapsed group is not fetched at all, matching the
+   * session-dir watchers: invisible means unwatched.
+   */
+  const expandedRepoPaths = useMemo(
+    () => groups.filter((group) => !isGroupCollapsed(group)).map((g) => g.workspacePath),
+    // isGroupCollapsed closes over `collapsed` and `workspacePath`; both are
+    // listed so an expand/collapse refetches the group that just appeared.
+    [groups, collapsed, workspacePath],
+  )
+
+  useEffect(() => {
+    if (expandedRepoPaths.length === 0) return
+    const refreshAll = (): void => {
+      const store = usePullRequestsStore.getState()
+      for (const repoPath of expandedRepoPaths) void store.refresh(repoPath)
+    }
+    refreshAll()
+    window.addEventListener('focus', refreshAll)
+    return () => window.removeEventListener('focus', refreshAll)
+  }, [expandedRepoPaths])
+
+  /**
+   * Toggle one lane, or extend a range with shift.
+   *
+   * Selecting in a different group starts over rather than merging the two:
+   * see the `selection` comment. `paths` stays in group order so the confirm
+   * lists lanes the way the sidebar does.
+   */
+  const toggleLaneSelection = (group: GroupedSessions, path: string, shiftKey: boolean): void => {
+    const order = group.metas.map((m) => m.path)
+    setSelection((current) => {
+      const base = current?.repoPath === group.workspacePath ? current.paths : []
+      const anchorPath = rangeAnchor.current
+      if (shiftKey && anchorPath && order.includes(anchorPath)) {
+        const from = order.indexOf(anchorPath)
+        const to = order.indexOf(path)
+        if (from !== -1 && to !== -1) {
+          const range = order.slice(Math.min(from, to), Math.max(from, to) + 1)
+          const merged = new Set([...base, ...range])
+          return { repoPath: group.workspacePath, paths: order.filter((p) => merged.has(p)) }
+        }
+      }
+      rangeAnchor.current = path
+      const next = new Set(base)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      const paths = order.filter((p) => next.has(p))
+      return paths.length ? { repoPath: group.workspacePath, paths } : null
+    })
+  }
+
+  const clearSelection = (): void => {
+    setSelection(null)
+    rangeAnchor.current = null
+  }
+
+  const selectWholeGroup = (group: GroupedSessions): void => {
+    setSelection({ repoPath: group.workspacePath, paths: group.metas.map((m) => m.path) })
+  }
+
+  /**
+   * Build the confirm's preflight at click time rather than per render.
+   *
+   * Reads live state through `getState()` on purpose: the streaming flag and
+   * the live session name are only needed at the moment the user asks to
+   * delete, and subscribing every row to them would re-render the sidebar on
+   * every token.
+   */
+  const openBulkDelete = (): void => {
+    if (!selection) return
+    const chat = useChatStore.getState()
+    const sessions = useSessionsStore.getState()
+    const prState = usePullRequestsStore.getState()
+    const metaByPath = new Map(
+      Object.values(disk)
+        .flat()
+        .map((meta) => [meta.path, meta] as const),
+    )
+
+    const lanes = selection.paths.flatMap((path) => {
+      const meta = metaByPath.get(path)
+      if (!meta) return []
+      const livePidexId = liveByDisk.get(path)
+      const git = gitByCwd[meta.cwd || workspacePath]
+      const liveName = livePidexId ? chat.sessions[livePidexId]?.meta?.sessionName : undefined
+      const explicit = sessions.laneMarkers[path]
+      return [
+        classifyLane({
+          meta,
+          title:
+            sessionTitle({
+              explicitName: liveName ?? meta.name,
+              firstUserText: meta.firstUserText,
+            }) ?? 'Untitled session',
+          marker: laneMarker(explicit, git?.branch, meta.cwd),
+          git,
+          pr: pullRequestFor(prState, git?.mainRepoPath ?? meta.cwd, git?.branch),
+          isLive: Boolean(livePidexId),
+          isStreaming: livePidexId ? (chat.sessions[livePidexId]?.isStreaming ?? false) : false,
+        }),
+      ]
+    })
+    setPendingDelete(summarizePreflight(lanes))
+  }
+
+  /**
+   * Escape exits select mode.
+   *
+   * Deliberately NOT a window-level listener when a modal is up: the confirm
+   * is a `ModalOverlay`, whose depth-aware Escape must win, or one keypress
+   * would both close the dialog and drop the selection behind it.
+   */
+  useEffect(() => {
+    if (!selection || pendingDelete) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') clearSelection()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selection, pendingDelete])
+
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
     const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
     setCollapsed(next)
@@ -558,6 +705,29 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 >
                   <PlusIcon size={12} strokeWidth={2.5} />
                 </button>
+                {group.metas.length > 1 && (
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (selection?.repoPath === group.workspacePath) clearSelection()
+                      else selectWholeGroup(group)
+                    }}
+                    data-testid="workspace-group-select"
+                    title={
+                      selection?.repoPath === group.workspacePath
+                        ? 'Clear selection'
+                        : 'Select every lane in this project'
+                    }
+                    className={clsx(
+                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-2xs transition-colors active:scale-90',
+                      selection?.repoPath === group.workspacePath
+                        ? 'bg-accent-soft text-accent'
+                        : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
+                    )}
+                  >
+                    ☑
+                  </button>
+                )}
                 <OrchestratorHeaderButton
                   workspacePath={group.workspacePath}
                   projectName={group.name}
@@ -574,7 +744,17 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                 ))}
               {!isCollapsed &&
                 group.metas.map((meta) => (
-                  <SessionRow key={meta.path} {...rowProps(meta)} isPinned={false} />
+                  <SessionRow
+                    key={meta.path}
+                    {...rowProps(meta)}
+                    isPinned={false}
+                    selected={
+                      selection?.repoPath === group.workspacePath &&
+                      selection.paths.includes(meta.path)
+                    }
+                    selecting={selection?.repoPath === group.workspacePath}
+                    onToggleSelect={(shiftKey) => toggleLaneSelection(group, meta.path, shiftKey)}
+                  />
                 ))}
               {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
@@ -643,6 +823,64 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           repoPath={worktreeModal.repoPath}
           worktree={worktreeModal.worktree}
           onClose={() => setWorktreeModal(null)}
+        />
+      )}
+
+      {/* Bulk bar: only in select mode, so it costs no pixels the rest of the
+          time. Sits over the list rather than adding a permanent toolbar row. */}
+      {selection && selection.paths.length > 0 && (
+        <div
+          data-testid="bulk-bar"
+          className="bg-surface-raised border-border-strong absolute inset-x-2 bottom-2 z-20 flex items-center gap-2 rounded-lg border px-2.5 py-2 shadow-lg"
+        >
+          <span className="text-sm font-semibold">{selection.paths.length} selected</span>
+          <span className="flex-1" />
+          <button
+            onClick={openBulkDelete}
+            className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white"
+          >
+            Delete…
+          </button>
+          <button
+            onClick={clearSelection}
+            className="border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-xs"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <BulkDeleteModal
+          summary={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={(options) => {
+            const lanes = pendingDelete.deletable.map((lane) => ({
+              path: lane.path,
+              worktreePath: lane.worktreePath,
+              mainRepoPath: lane.mainRepoPath,
+            }))
+            setPendingDelete(null)
+            clearSelection()
+            void useSessionsStore
+              .getState()
+              .deleteManySessions(workspacePath, lanes, options)
+              .then((results) => {
+                // A worktree that would not remove is the common failure, and
+                // a row that silently stays put reads as the delete having
+                // worked. Say what happened.
+                const failures = results.filter((r) => !r.ok)
+                const notes = results.filter((r) => r.ok && r.error)
+                if (failures.length === 0 && notes.length === 0) return
+                void presentText({
+                  title: 'Delete finished with warnings',
+                  text: [
+                    ...failures.map((r) => `Kept ${basename(r.path)} — ${r.error}`),
+                    ...notes.map((r) => `Deleted ${basename(r.path)}, but ${r.error}`),
+                  ].join('\n'),
+                })
+              })
+          }}
         />
       )}
 
@@ -745,6 +983,9 @@ function SessionRow({
   isPinned,
   showWorkspace = false,
   onOpenTree,
+  selected = false,
+  selecting = false,
+  onToggleSelect,
 }: {
   meta: SessionMeta
   workspacePath: string
@@ -760,11 +1001,31 @@ function SessionRow({
    */
   showWorkspace?: boolean
   onOpenTree: () => void
+  /** This row is in the current selection. */
+  selected?: boolean
+  /** The group this row belongs to has an active selection. */
+  selecting?: boolean
+  /**
+   * Absent for rows that cannot be selected — the Pinned list, which mixes
+   * projects, so a selection there would span repos.
+   */
+  onToggleSelect?: (shiftKey: boolean) => void
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) =>
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
+  // A worktree lane's PRs live under the MAIN repo, which is also the key the
+  // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
+  // through `rowProps` so a Pinned row — which may belong to a different
+  // project than the one on screen — still resolves against its own repo.
+  const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
+  const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
+  const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
+  // Keyed on the branch, not the title: pidex names a session only after its
+  // first turn ends, so a title-derived marker would change under the user the
+  // moment the auto-namer landed.
+  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd)
   const naming = useNameTransition(livePidexId)
   // A live session's own name beats the scanned one. pi writes its session
   // file only when a turn ENDS (measured), so a name set mid-turn does not
@@ -779,6 +1040,21 @@ function SessionRow({
 
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [pickingMarker, setPickingMarker] = useState(false)
+
+  /**
+   * Markers already spoken for in this workspace, so the picker can dim them.
+   * Derived from EXPLICIT choices only: auto markers collide by design (the
+   * palette is finite) and dimming them would grey out most of the grid.
+   */
+  const usedMarkers = useSessionsStore((s) => s.laneMarkers)
+  const takenMarkers = useMemo(() => {
+    const taken = new Set<string>()
+    for (const [path, glyph] of Object.entries(usedMarkers)) {
+      if (path !== meta.path && glyph) taken.add(glyph)
+    }
+    return taken
+  }, [usedMarkers, meta.path])
 
   const beginRename = (): void => {
     setRenameValue(title)
@@ -814,6 +1090,7 @@ function SessionRow({
         label: isPinned ? 'Unpin' : 'Pin',
         onClick: () => store.togglePin(meta.path),
       },
+      { label: 'Lane marker…', onClick: () => setPickingMarker(true) },
       ...(livePidexId
         ? [
             {
@@ -876,11 +1153,40 @@ function SessionRow({
     // step squarer, and the left edge is flush again. State (live, streaming,
     // unseen) stays the indicator dot's job — see SessionIndicator.
     active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
+    selected && 'bg-accent-soft',
   )
 
   const body = (
     <>
-      <SessionIndicator state={indicatorState} />
+      {onToggleSelect ? (
+        /* The checkbox replaces the indicator in the SAME gutter, so entering
+           select mode shifts nothing. Revealed on hover, or whenever the group
+           already has a selection — a permanent column would cost every row
+           20px forever for a rare action. */
+        <span
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`Select ${title}`}
+          tabIndex={-1}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleSelect(event.shiftKey)
+          }}
+          className={clsx(
+            'grid size-4 shrink-0 place-items-center rounded-[4px] border text-2xs',
+            selected
+              ? 'bg-accent border-accent text-accent-text'
+              : 'border-border-strong bg-surface',
+            !selected && !selecting && 'hidden group-hover:grid',
+          )}
+        >
+          {selected ? '✓' : ''}
+        </span>
+      ) : null}
+      <span className={clsx(onToggleSelect && (selecting ? 'hidden' : 'group-hover:hidden'))}>
+        <SessionIndicator state={indicatorState} />
+      </span>
+      <LaneMarker marker={marker} />
       <span className="min-w-0 flex-1">
         {renaming ? (
           <input
@@ -927,6 +1233,7 @@ function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} />
+          {pullRequest && <PrBadge pr={pullRequest} />}
         </span>
       </span>
       {showWorkspace && rowWorkspaceName && (
@@ -948,26 +1255,48 @@ function SessionRow({
   // Enter/Space inside it are the button's to claim). Swapping the tag also
   // means there are no row handlers to suppress while editing — no
   // `renaming ? undefined : open` and no stopPropagation on the input.
+  // ModalOverlay portals, so this is a sibling of the row in the DOM rather
+  // than a dialog nested inside a <button>.
+  const markerPicker = pickingMarker && (
+    <MarkerPickerModal
+      title={title}
+      current={explicitMarker}
+      autoKey={git?.branch || meta.cwd}
+      usedMarkers={takenMarkers}
+      onPick={(next) => {
+        useSessionsStore.getState().setLaneMarker(meta.path, next)
+        setPickingMarker(false)
+      }}
+      onClose={() => setPickingMarker(false)}
+    />
+  )
+
   if (renaming) {
     return (
-      <div data-testid="session-row" data-workspace={rowWorkspaceName} className={rowClassName}>
-        {body}
-      </div>
+      <>
+        <div data-testid="session-row" data-workspace={rowWorkspaceName} className={rowClassName}>
+          {body}
+        </div>
+        {markerPicker}
+      </>
     )
   }
 
   return (
-    <button
-      onClick={open}
-      onContextMenu={contextMenu}
-      onDoubleClick={beginRename}
-      data-testid="session-row"
-      data-workspace={rowWorkspaceName}
-      title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
-      className={rowClassName}
-    >
-      {body}
-    </button>
+    <>
+      <button
+        onClick={open}
+        onContextMenu={contextMenu}
+        onDoubleClick={beginRename}
+        data-testid="session-row"
+        data-workspace={rowWorkspaceName}
+        title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
+        className={rowClassName}
+      >
+        {body}
+      </button>
+      {markerPicker}
+    </>
   )
 }
 
@@ -1006,6 +1335,12 @@ function PendingSessionRow({
   // Synthesised meta so this row and the disk-backed one format their
   // subtitle through the same function. Created now, nothing spent yet.
   const subtitle = sessionSubtitle({ mtimeMs: Date.now(), cost: 0 }, git)
+  // The marker slot has to be here too, and derived the same way. This row is
+  // swapped for a real SessionRow the moment the session file lands, and a
+  // slot that appeared only after the swap would shift the title mid-turn —
+  // the exact twitch the shared subtitle above exists to avoid. There is no
+  // meta.path yet, so there can be no explicit override: always Auto.
+  const marker = laneMarker(undefined, git?.branch, null)
 
   return (
     <button
@@ -1021,6 +1356,7 @@ function PendingSessionRow({
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
+      <LaneMarker marker={marker} />
       <span className="min-w-0 flex-1">
         <span
           key={title}

@@ -49,6 +49,12 @@
   --px-warning: #a8842e;
   --px-danger: #bb4a3c;
   --px-danger-soft: #f8e8e4;
+  /* Merged PRs. Deliberately NOT --px-success: "merged" and "open and green"
+     are the two states the sidebar is scanned to tell apart, and rendering
+     both green makes the one that means "this lane is done, delete it"
+     invisible. Violet is the only hue not already spoken for here. */
+  --px-merged: #7c5cbf;
+  --px-merged-soft: #efe9fa;
   --px-info: #47708f;
   --px-user-bubble: #eeeef1;
   --px-code-bg: #f2f2f4;
@@ -101,6 +107,8 @@
   --px-warning: #d8ab52;
   --px-danger: #dd7663;
   --px-danger-soft: #46302a;
+  --px-merged: #a98ce0;
+  --px-merged-soft: #2f2740;
   --px-info: #82a9c9;
   --px-user-bubble: #2f2b24;
   --px-code-bg: #24211c;
@@ -131,6 +139,8 @@
   --color-warning: var(--px-warning);
   --color-danger: var(--px-danger);
   --color-danger-soft: var(--px-danger-soft);
+  --color-merged: var(--px-merged);
+  --color-merged-soft: var(--px-merged-soft);
   --color-info: var(--px-info);
   --color-user-bubble: var(--px-user-bubble);
   --color-code-bg: var(--px-code-bg);

@@ -78,3 +78,22 @@ export function orphanBlobIds(
   const referenced = new Set(blobIdsOf(Object.values(drafts)))
   return onDisk.filter((id) => !referenced.has(id))
 }
+
+/**
+ * Bound the lane-marker override map.
+ *
+ * Unlike `seenSessions` there is no timestamp to sort by, so this keeps the
+ * most recently INSERTED entries (JS preserves string-key insertion order, and
+ * setting a marker re-inserts it). That is safe here in a way it would not be
+ * for seen-markers: a lane whose override is dropped falls back to its derived
+ * marker, so the worst case is a glyph change, never a blank row.
+ */
+export function pruneLaneMarkers(
+  markers: Record<string, string>,
+  max = 500,
+  keep = 400,
+): Record<string, string> {
+  const entries = Object.entries(markers)
+  if (entries.length <= max) return markers
+  return Object.fromEntries(entries.slice(entries.length - keep))
+}

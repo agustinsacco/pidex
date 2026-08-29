@@ -2,10 +2,19 @@
  * pidex artifacts extension — loaded into every pidex session via
  * `pi --mode rpc -e <this file>`.
  *
- * Registers `artifact_create` / `artifact_update`. Tool results keep chat
- * output short (confirmation text) while the full payload rides in
- * `details`, which pidex consumes from tool_execution_end events and from
- * session history on resume (toolResult messages persist in the JSONL).
+ * Registers the artifact tool family. Tool results keep chat output short
+ * (confirmation text) while the full payload rides in `details`, which pidex
+ * consumes from tool_execution_end events and from session history on resume
+ * (toolResult messages persist in the JSONL).
+ *
+ * `details` is NEVER sent to the model — pi-ai's `convertToolResult` reads
+ * only `content`, `toolCallId` and `isError`. So the token cost of an
+ * artifact is entirely the ARGUMENTS the model writes, which is why
+ * `artifact_edit` exists: re-sending a 75k-char document to change nine lines
+ * cost ~20k output tokens, and the same edit costs ~120.
+ *
+ * The mirror of `ArtifactDetails` lives in `src/stores/artifacts.ts`
+ * (`ArtifactToolDetails`) — change both together.
  *
  * Imports resolve against pi's own runtime when it loads the extension.
  */
@@ -34,22 +43,104 @@ interface PiExtensionApi {
 
 const ARTIFACT_TYPES = ['html', 'markdown', 'svg', 'mermaid', 'code', 'chart'] as const
 
-export default function artifactsExtension(pi: PiExtensionApi): void {
-  /** Per-artifact version counters; rebuilt from history on session start. */
-  const versions = new Map<string, number>()
+/** Longest single-line excerpt echoed back in an edit confirmation. */
+const EXCERPT_LIMIT = 80
 
-  const slugify = (text: string): string =>
+export function slugifyArtifactId(text: string): string {
+  return (
     text
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 48) || 'artifact'
+  )
+}
+
+/**
+ * Exact-string replacement with Claude Code's `Edit` semantics: the match must
+ * be unique unless `replaceAll` is set, and a no-op is an error rather than a
+ * silent new version.
+ *
+ * Pure and exported so the failure modes are unit-testable without a fake pi.
+ */
+export function applyArtifactEdit(
+  content: string,
+  oldString: string,
+  newString: string,
+  replaceAll = false,
+): { content: string; replacements: number } {
+  if (oldString === '') {
+    throw new Error('old_string is empty — use artifact_update to replace the whole document.')
+  }
+  if (oldString === newString) {
+    throw new Error('No changes to make: old_string and new_string are exactly the same.')
+  }
+
+  const occurrences = content.split(oldString).length - 1
+  if (occurrences === 0) {
+    throw new Error(
+      'String to replace not found in the artifact. Whitespace and indentation must match ' +
+        'exactly — call artifact_read to see the current content.',
+    )
+  }
+  if (occurrences > 1 && !replaceAll) {
+    throw new Error(
+      `Found ${occurrences} matches of old_string, but replace_all is false. Add surrounding ` +
+        'context to identify one instance, or set replace_all to true.',
+    )
+  }
+
+  // NB: never String.replace here. Even with a string pattern it expands `$&`,
+  // `$\'`, "$`" and `$1` in the REPLACEMENT, so a new_string containing `$&`
+  // (CSS, shell, regex source) would be silently corrupted. split/join and
+  // slice are both literal.
+  if (replaceAll) {
+    return { content: content.split(oldString).join(newString), replacements: occurrences }
+  }
+  const at = content.indexOf(oldString)
+  return {
+    content: content.slice(0, at) + newString + content.slice(at + oldString.length),
+    replacements: 1,
+  }
+}
+
+/** One-line, length-capped preview of an edit, for the confirmation text. */
+export function editExcerpt(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > EXCERPT_LIMIT ? `${flat.slice(0, EXCERPT_LIMIT)}…` : flat
+}
+
+export default function artifactsExtension(pi: PiExtensionApi): void {
+  /**
+   * Full current state per artifact, not just a version counter: `artifact_edit`
+   * has to apply a patch to the live content, and after a resume that content
+   * only exists in session history. Rebuilt in `session_start`.
+   */
+  const artifacts = new Map<string, ArtifactDetails>()
 
   const uniqueId = (base: string): string => {
-    if (!versions.has(base)) return base
+    if (!artifacts.has(base)) return base
     let i = 2
-    while (versions.has(`${base}-${i}`)) i++
+    while (artifacts.has(`${base}-${i}`)) i++
     return `${base}-${i}`
+  }
+
+  const mustGet = (id: string): ArtifactDetails => {
+    const record = artifacts.get(id)
+    if (!record) {
+      const known = [...artifacts.keys()]
+      throw new Error(
+        `No artifact with id "${id}" in this session.` +
+          (known.length ? ` Known ids: ${known.join(', ')}.` : ' Use artifact_create first.'),
+      )
+    }
+    return record
+  }
+
+  /** Store the next version of a record and return the tool result for it. */
+  const commit = (record: ArtifactDetails, text: string): ToolResultLike => {
+    artifacts.set(record.id, record)
+    return { content: [{ type: 'text', text }], details: record }
   }
 
   pi.registerTool({
@@ -65,7 +156,8 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'Create a rich artifact (html/svg/markdown/mermaid/chart/code) in the side panel',
     promptGuidelines: [
       'Use artifact_create for substantial self-contained deliverables (HTML mockups, SVG graphics, diagrams, documents, reports, chart specs) so they render in the artifact panel; keep short snippets inline in chat.',
-      'When revising an artifact you already created, call artifact_update with its id instead of creating a new one.',
+      'To revise an artifact, call artifact_edit with the smallest old_string that uniquely identifies the region. artifact_update re-sends the ENTIRE document and costs tokens proportional to its size — reserve it for rewrites that touch most of the content.',
+      'If you no longer have an artifact’s current text in context (after compaction, or in a resumed session), call artifact_list then artifact_read before editing. Never guess at old_string.',
     ],
     parameters: Type.Object({
       id: Type.Optional(
@@ -90,26 +182,63 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
           `Unknown artifact type "${params.type}" — use one of: ${ARTIFACT_TYPES.join(', ')}`,
         )
       }
-      const id = params.id ? slugify(params.id) : uniqueId(slugify(params.title))
-      const version = (versions.get(id) ?? 0) + 1
-      versions.set(id, version)
-      const details: ArtifactDetails = {
-        id,
-        title: params.title,
-        type,
-        language: params.language,
-        content: params.content,
-        version,
-      }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Created artifact "${params.title}" (id: ${id}, v${version}, ${type}, ${params.content.length} chars). It is now visible in the artifact panel.`,
-          },
-        ],
-        details,
-      }
+      const id = params.id
+        ? slugifyArtifactId(params.id)
+        : uniqueId(slugifyArtifactId(params.title))
+      const version = (artifacts.get(id)?.version ?? 0) + 1
+      return commit(
+        {
+          id,
+          title: params.title,
+          type,
+          language: params.language,
+          content: params.content,
+          version,
+        },
+        `Created artifact "${params.title}" (id: ${id}, v${version}, ${type}, ` +
+          `${params.content.length} chars). It is now visible in the artifact panel. ` +
+          'Use artifact_edit to revise it.',
+      )
+    },
+  })
+
+  pi.registerTool({
+    name: 'artifact_edit',
+    label: 'Edit artifact',
+    description:
+      'Replace an exact string inside an existing artifact, creating the next version. ' +
+      'This is the cheap way to revise an artifact: prefer it over artifact_update, which ' +
+      're-sends the whole document. old_string must match the current content EXACTLY, ' +
+      'including whitespace and indentation, and must be unique unless replace_all is true. ' +
+      'Call artifact_read first if you are not certain of the current text.',
+    promptSnippet: 'Edit part of an existing artifact by exact string replacement',
+    parameters: Type.Object({
+      id: Type.String({ description: 'Id of the artifact to edit' }),
+      old_string: Type.String({ description: 'Exact text to replace (must be unique)' }),
+      new_string: Type.String({ description: 'Replacement text' }),
+      replace_all: Type.Optional(
+        Type.Boolean({ description: 'Replace every occurrence instead of requiring uniqueness' }),
+      ),
+    }),
+    async execute(
+      _toolCallId: string,
+      params: { id: string; old_string: string; new_string: string; replace_all?: boolean },
+    ): Promise<ToolResultLike> {
+      const previous = mustGet(slugifyArtifactId(params.id))
+      const { content, replacements } = applyArtifactEdit(
+        previous.content,
+        params.old_string,
+        params.new_string,
+        params.replace_all ?? false,
+      )
+      const version = previous.version + 1
+      const delta = content.length - previous.content.length
+      return commit(
+        { ...previous, content, version },
+        `Edited ${previous.id} → v${version}: ${replacements} replacement` +
+          `${replacements === 1 ? '' : 's'}, ${previous.content.length} → ${content.length} chars ` +
+          `(${delta >= 0 ? '+' : ''}${delta}). Replaced "${editExcerpt(params.old_string)}".`,
+      )
     },
   })
 
@@ -117,9 +246,10 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     name: 'artifact_update',
     label: 'Update artifact',
     description:
-      'Update an existing artifact by id with new content (and optionally a new title). ' +
-      'Creates the next version; the panel shows version history.',
-    promptSnippet: 'Update an existing artifact by id (new version)',
+      'Replace an existing artifact’s ENTIRE content, creating the next version. ' +
+      'Costs tokens proportional to the whole document, so use artifact_edit for targeted ' +
+      'changes and reserve this for rewrites that touch most of the content.',
+    promptSnippet: 'Rewrite an existing artifact in full (new version)',
     parameters: Type.Object({
       id: Type.String({ description: 'Id of the artifact to update' }),
       content: Type.String({ description: 'Full replacement content' }),
@@ -129,37 +259,77 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       _toolCallId: string,
       params: { id: string; content: string; title?: string },
     ): Promise<ToolResultLike> {
-      const id = slugify(params.id)
-      const previous = versions.get(id)
-      if (!previous) {
-        throw new Error(
-          `No artifact with id "${id}" exists in this session — use artifact_create first.`,
-        )
-      }
-      const version = previous + 1
-      versions.set(id, version)
-      const details: ArtifactDetails = {
-        id,
-        title: params.title ?? id,
-        type: 'update',
-        content: params.content,
-        version,
-      }
+      const previous = mustGet(slugifyArtifactId(params.id))
+      const version = previous.version + 1
+      return commit(
+        {
+          ...previous,
+          // Carry the real type and previous title forward. This used to emit
+          // `type: 'update'` and fall back to the slug id, which the renderer
+          // store had to defend against — see ArtifactToolDetails.
+          title: params.title ?? previous.title,
+          content: params.content,
+          version,
+        },
+        `Updated ${previous.id} to v${version} (${params.content.length} chars).`,
+      )
+    },
+  })
+
+  pi.registerTool({
+    name: 'artifact_read',
+    label: 'Read artifact',
+    description:
+      'Return the current content of an artifact. Use before artifact_edit when the text is ' +
+      'not already in context (after compaction, or in a resumed session) so old_string can ' +
+      'be matched exactly. This is the one artifact tool whose output enters the context ' +
+      'window, so read only what you need to edit.',
+    promptSnippet: 'Read an artifact’s current content back into context',
+    parameters: Type.Object({
+      id: Type.String({ description: 'Id of the artifact to read' }),
+    }),
+    async execute(_toolCallId: string, params: { id: string }): Promise<ToolResultLike> {
+      const record = mustGet(slugifyArtifactId(params.id))
       return {
         content: [
           {
             type: 'text',
-            text: `Updated artifact ${id} to v${version} (${params.content.length} chars).`,
+            text:
+              `${record.id} v${record.version} (${record.type}, ${record.content.length} chars)\n\n` +
+              record.content,
           },
         ],
-        details,
+        details: record,
       }
     },
   })
 
-  // Rebuild version counters from history so resumed sessions keep counting.
+  pi.registerTool({
+    name: 'artifact_list',
+    label: 'List artifacts',
+    description:
+      'List the artifacts that exist in this session with their ids, types, versions and ' +
+      'sizes. Cheap — it never returns content. Use it to recover ids after compaction.',
+    promptSnippet: 'List this session’s artifacts',
+    parameters: Type.Object({}),
+    async execute(): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+      if (artifacts.size === 0) {
+        return { content: [{ type: 'text', text: 'No artifacts in this session yet.' }] }
+      }
+      const lines = [...artifacts.values()].map(
+        (a) => `${a.id}  v${a.version}  ${a.type}  ${a.content.length} chars  "${a.title}"`,
+      )
+      return { content: [{ type: 'text', text: lines.join('\n') }] }
+    },
+  })
+
+  /**
+   * Rebuild state from history so resumed sessions keep counting AND can still
+   * be edited. Reading only the version number here was survivable while
+   * `artifact_update` resent everything; `artifact_edit` needs the content.
+   */
   pi.on('session_start', (_event, ctx) => {
-    versions.clear()
+    artifacts.clear()
     const manager = (ctx as { sessionManager?: { getBranch?: () => unknown[] } }).sessionManager
     const entries = manager?.getBranch?.() ?? []
     for (const entry of entries) {
@@ -168,13 +338,24 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
         message?: { role?: string; toolName?: string; details?: Partial<ArtifactDetails> }
       }
       if (record.type !== 'message' || record.message?.role !== 'toolResult') continue
-      const toolName = record.message.toolName
-      if (toolName !== 'artifact_create' && toolName !== 'artifact_update') continue
+      if (!record.message.toolName?.startsWith('artifact_')) continue
       const details = record.message.details
-      if (details?.id && typeof details.version === 'number') {
-        const current = versions.get(details.id) ?? 0
-        if (details.version > current) versions.set(details.id, details.version)
-      }
+      if (!details?.id || typeof details.version !== 'number') continue
+      if (typeof details.content !== 'string') continue
+      const current = artifacts.get(details.id)
+      if (current && current.version >= details.version) continue
+      artifacts.set(details.id, {
+        id: details.id,
+        title: details.title ?? current?.title ?? details.id,
+        // Old sessions carry the `'update'` sentinel; never let it become the type.
+        type:
+          details.type && (ARTIFACT_TYPES as readonly string[]).includes(details.type)
+            ? details.type
+            : (current?.type ?? 'code'),
+        language: details.language ?? current?.language,
+        content: details.content,
+        version: details.version,
+      })
     }
   })
 }

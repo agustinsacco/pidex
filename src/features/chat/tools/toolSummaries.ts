@@ -71,6 +71,8 @@ export function settledVerb(toolName: string | null): string {
       return 'Created'
     case 'artifact_update':
       return 'Updated'
+    case 'artifact_edit':
+      return 'Edited'
     default:
       return 'Used'
   }
@@ -167,8 +169,16 @@ export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSumm
       return { label: running ? 'Listing' : 'Listed', object: path ? basename(path) : 'directory' }
     }
     case 'artifact_create':
-    case 'artifact_update': {
-      const updating = tool.toolName === 'artifact_update'
+    case 'artifact_update':
+    case 'artifact_edit': {
+      // Distinct verbs per tool: "Edited" is the cheap targeted revision,
+      // "Updated" the whole-document rewrite. Conflating them hid which one ran.
+      const verb =
+        tool.toolName === 'artifact_edit'
+          ? ({ running: 'Editing artifact', done: 'Edited artifact' } as const)
+          : tool.toolName === 'artifact_update'
+            ? ({ running: 'Updating artifact', done: 'Updated artifact' } as const)
+            : ({ running: 'Writing artifact', done: 'Created artifact' } as const)
       // While the (large) content field streams, `args` won't parse yet, so
       // recover the title from the raw prefix — models emit `title` first.
       const details = toolDetails<ArtifactToolDetails>(tool)
@@ -178,13 +188,7 @@ export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSumm
         partialStringArg(tool.argsText, 'title')
       const version = details?.version
       return {
-        label: running
-          ? updating
-            ? 'Updating artifact'
-            : 'Writing artifact'
-          : updating
-            ? 'Updated artifact'
-            : 'Created artifact',
+        label: running ? verb.running : verb.done,
         object: title ? truncate(title, 56) : undefined,
         hint: running
           ? tool.argsText

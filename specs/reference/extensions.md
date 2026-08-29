@@ -144,15 +144,59 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
 
-| File                   | Why it must run inside pi                                                      |
-| ---------------------- | ------------------------------------------------------------------------------ |
-| `artifacts.ts`         | registers the artifact tools (see [07-artifacts.md](../build/07-artifacts.md)) |
-| `context-breakdown.ts` | measures context composition — the parts are only visible in-process           |
-| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout         |
-| `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread     |
-| `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus         |
+| File                   | Why it must run inside pi                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `artifacts.ts`         | registers the artifact tools (see below, and [07-artifacts.md](../build/07-artifacts.md)) |
+| `context-breakdown.ts` | measures context composition — the parts are only visible in-process                      |
+| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                    |
+| `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                |
+| `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus                    |
 
 Plus `orchestrator.ts`, loaded only into orchestrator sessions.
+
+### The artifact tools, and what each one costs
+
+`artifacts.ts` registers five tools. The split exists for one reason: an
+artifact's token cost is **entirely the arguments the model writes**. pi-ai's
+`convertToolResult` reads only `content`, `toolCallId` and `isError`, so the
+full payload riding in `details` never reaches the model and is free. What is
+not free is resending a document to change part of it.
+
+| Tool              | Cost                             | Use                                       |
+| ----------------- | -------------------------------- | ----------------------------------------- |
+| `artifact_create` | the whole document               | new artifact                              |
+| `artifact_edit`   | just the changed region          | **the default way to revise**             |
+| `artifact_update` | the whole document, again        | rewrites that touch most of the content   |
+| `artifact_read`   | the whole document, into context | recovering text after compaction, to edit |
+| `artifact_list`   | ids and sizes only               | recovering ids after compaction           |
+
+Measured: one artifact plus two revisions cost ~55k output tokens, and the last
+revision changed nine lines. The same change through `artifact_edit` is ~116
+tokens.
+
+`artifact_edit` follows Claude Code's `Edit` semantics — exact match, unique
+unless `replace_all`, and a no-op is an error rather than a silent new version.
+It must never use `String.replace`: even with a string pattern that expands
+`$&`, `` $` ``, `$'` and `$1` in the _replacement_, which silently corrupts any
+`new_string` containing them.
+
+`session_start` rebuilds the full artifact record — content included, not just
+version numbers — because an edit has to apply to the live text in a resumed
+session.
+
+**Artifacts execute JavaScript, on their own origin.** They are NOT rendered
+with `srcdoc` — a `srcdoc` document inherits the embedder's policy container,
+so `script-src 'self'` from `src/index.html` refused every inline script and
+the `sandbox="allow-scripts"` attribute was a no-op. `blob:` and `data:`
+inherit the same way. `electron/artifacts/artifact-protocol.ts` serves staged
+HTML over `pidex-artifact://` with its own `default-src 'none'` policy, and the
+iframe keeps `sandbox="allow-scripts"` **without** `allow-same-origin`, which
+keeps the origin opaque. The result is measured, not assumed: scripts run;
+storage, cookies, parent and sibling DOM, top navigation, `fetch`,
+`sendBeacon`, WebSocket, remote images and form POSTs are all refused. Never
+add `allow-same-origin`, and never add a `connect-src` to that policy — either
+one hands model-authored HTML a channel out. See
+[specs/log/2026-08-28-lane-management-and-artifact-edits.md](../log/2026-08-28-lane-management-and-artifact-edits.md).
 
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the

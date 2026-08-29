@@ -364,3 +364,17 @@ describe('partialStringArg', () => {
     expect(partialStringArg('{"title": "Caf\\uZZZZ"}', 'title')).toBeUndefined()
   })
 })
+
+describe('artifact tool labels', () => {
+  it('distinguishes the cheap edit from the whole-document update', () => {
+    expect(summarizeTool(tool({ toolName: 'artifact_edit', status: 'running' })).label).toBe(
+      'Editing artifact',
+    )
+    expect(summarizeTool(tool({ toolName: 'artifact_edit', status: 'done' })).label).toBe(
+      'Edited artifact',
+    )
+    expect(summarizeTool(tool({ toolName: 'artifact_update', status: 'done' })).label).toBe(
+      'Updated artifact',
+    )
+  })
+})

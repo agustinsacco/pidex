@@ -6,6 +6,7 @@ import {
   pruneDrafts,
   pruneSeenSessions,
   sweepDrafts,
+  pruneLaneMarkers,
 } from './prefs-utils'
 
 const draft = (key: string, updatedAt: number, blobIds: string[] = []): ComposerDraftRecord => ({
@@ -119,5 +120,23 @@ describe('orphanBlobIds', () => {
 
   it('returns nothing when the directory is empty', () => {
     expect(orphanBlobIds(byKey(draft('a', 1, ['x'])), [])).toEqual([])
+  })
+})
+
+describe('pruneLaneMarkers', () => {
+  it('leaves a small map identical, preserving identity', () => {
+    const markers = { '/a': '🚀', '/b': '🦊' }
+    expect(pruneLaneMarkers(markers)).toBe(markers)
+  })
+
+  it('keeps the most recently inserted entries once over the cap', () => {
+    const markers = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`/s${i}`, '🚀']))
+    const pruned = pruneLaneMarkers(markers, 8, 5)
+    expect(Object.keys(pruned)).toEqual(['/s5', '/s6', '/s7', '/s8', '/s9'])
+  })
+
+  it('does not prune at exactly the cap', () => {
+    const markers = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`/s${i}`, '🚀']))
+    expect(pruneLaneMarkers(markers, 8, 5)).toBe(markers)
   })
 })

@@ -1060,6 +1060,35 @@ export function installMockPidex(): void {
             mergeStateStatus: 'CLEAN',
             checks: { passed: 3, failed: 0, pending: 1, total: 4 },
           })
+        case 'artifacts:stageHtml':
+          // The browser harness has no custom protocol; a blob URL previews
+          // the same content. It inherits the page CSP, so scripts stay
+          // blocked here — only the packaged app runs artifact JS.
+          return Promise.resolve(
+            URL.createObjectURL(new Blob([args[0] as string], { type: 'text/html' })),
+          )
+        case 'app:setLaneMarkers':
+          return Promise.resolve(undefined)
+        case 'gh:prsForRepo':
+          // Branch keys must match the mock git:infoBatch branches below, or
+          // the harness renders a sidebar with no PR chips at all.
+          return Promise.resolve({
+            'fix/phase0-chat-ux': {
+              number: 42,
+              title: 'Composer attachments and worktree controls',
+              state: 'OPEN',
+              url: 'https://github.com/agustinsacco/pidex/pull/42',
+              checks: { passed: 3, failed: 0, pending: 1, total: 4 },
+              reviewDecision: 'APPROVED',
+            },
+            main: {
+              number: 39,
+              title: 'Lane loop removal',
+              state: 'MERGED',
+              url: 'https://github.com/agustinsacco/pidex/pull/39',
+              checks: { passed: 4, failed: 0, pending: 0, total: 4 },
+            },
+          })
         case 'git:info':
           return Promise.resolve({
             isRepo: true,
