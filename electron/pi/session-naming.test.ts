@@ -1,5 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { dedupeTitle, sanitizeTitle, titlePrompt } from './session-naming'
+import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from './session-naming'
+
+describe('titleArgs', () => {
+  it('always strips tools, context files, skills and templates', () => {
+    const args = titleArgs({ claudeCli: false })
+    for (const flag of [
+      '-p',
+      '--no-session',
+      '--no-tools',
+      '--no-context-files',
+      '--no-skills',
+      '--no-prompt-templates',
+    ]) {
+      expect(args).toContain(flag)
+    }
+    expect(args).not.toContain('--model')
+  })
+
+  it('never disables extension discovery — providers register through it', () => {
+    // `-ne` turns pi-claude-cli into an unknown provider and the whole
+    // naming run errors. Verified against real pi; see titleArgs docs.
+    for (const claudeCli of [true, false]) {
+      expect(titleArgs({ claudeCli })).not.toContain('--no-extensions')
+    }
+  })
+
+  it('pins the Claude provider run to Haiku with an explicit provider', () => {
+    const args = titleArgs({ claudeCli: true })
+    expect(args[args.indexOf('--provider') + 1]).toBe('pi-claude-cli')
+    expect(args[args.indexOf('--model') + 1]).toBe('claude-haiku-4-5')
+  })
+})
 
 describe('titlePrompt', () => {
   it('carries the message and the existing names', () => {
