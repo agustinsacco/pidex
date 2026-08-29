@@ -233,6 +233,12 @@ export interface GhPullRequest {
   mergeable?: string
   mergeStateStatus?: string
   checks?: GhChecks
+  /**
+   * Review verdict. Distinct from `checks`: a PR can be fully green and still
+   * blocked on a human, which is a different action for the reader than a red
+   * build, so the sidebar chip renders the two differently.
+   */
+  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED'
 }
 
 export interface DirEntry {
@@ -509,6 +515,13 @@ export interface AppPrefs {
    * sidebar's "unseen activity" pill; pruned to a bounded size in the store.
    */
   seenSessions: Record<string, number>
+  /**
+   * Session file path → chosen lane marker. Only EXPLICIT choices are stored;
+   * every other lane derives its marker from its branch (`lib/laneMarker.ts`),
+   * so this map stays small and is safe to prune. An empty string is a real
+   * value meaning "no marker, on purpose".
+   */
+  laneMarkers: Record<string, string>
   fonts: FontPrefs
   /** Whose system prompt Claude Code sessions run under. */
   claudeSystemPrompt: ClaudeSystemPromptMode
@@ -666,6 +679,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   modelPicks: DEFAULT_MODEL_PICKS,
   collapsedWorkspaces: [],
   seenSessions: {},
+  laneMarkers: {},
   fonts: DEFAULT_FONT_PREFS,
   // Matches the extension's own default: keep Claude Code's prompt unless the
   // user opts out of it.

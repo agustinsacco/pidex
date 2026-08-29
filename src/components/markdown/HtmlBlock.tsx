@@ -1,4 +1,5 @@
 import { memo, useState } from 'react'
+import { SandboxedHtml } from '@/components/SandboxedHtml'
 import clsx from 'clsx'
 import { CodeBlock } from './CodeBlock'
 
@@ -21,12 +22,7 @@ export const HtmlBlock = memo(function HtmlBlock({ code }: { code: string }): Re
         </ToggleTab>
       </div>
       {mode === 'preview' ? (
-        <iframe
-          sandbox="allow-scripts"
-          srcDoc={code}
-          title="HTML preview"
-          className="h-96 w-full bg-white"
-        />
+        <SandboxedHtml html={code} title="HTML preview" className="h-96 w-full bg-white" />
       ) : (
         <div className="[&>div]:my-0 [&>div]:rounded-none [&>div]:border-0">
           <CodeBlock code={code} language="html" />

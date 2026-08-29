@@ -91,6 +91,38 @@ interface RawPr {
   mergeable?: string
   mergeStateStatus?: string
   statusCheckRollup?: RollupEntry[]
+  reviewDecision?: string
+  headRefName?: string
+}
+
+/** The `--json` field set both queries request. */
+const PR_FIELDS =
+  'number,title,state,url,isDraft,mergeable,mergeStateStatus,statusCheckRollup,reviewDecision'
+
+/** Shared shaping so the single-branch and whole-repo queries cannot diverge. */
+export function toPullRequest(pr: RawPr | undefined): GhPullRequest | null {
+  if (!pr?.number || !pr.url) return null
+  return {
+    number: pr.number,
+    title: pr.title ?? '',
+    // gh reports OPEN | CLOSED | MERGED; draft is a separate flag.
+    state:
+      pr.isDraft && pr.state === 'OPEN'
+        ? 'DRAFT'
+        : ((pr.state ?? 'OPEN') as GhPullRequest['state']),
+    url: pr.url,
+    mergeable: pr.mergeable,
+    mergeStateStatus: pr.mergeStateStatus,
+    checks: summarizeChecks(pr.statusCheckRollup),
+    reviewDecision: pr.reviewDecision as GhPullRequest['reviewDecision'],
+  }
+}
+
+/** An open PR outranks a closed one; otherwise the newest number wins. */
+export function preferPr(a: GhPullRequest, b: GhPullRequest): GhPullRequest {
+  const live = (pr: GhPullRequest): number => (pr.state === 'OPEN' || pr.state === 'DRAFT' ? 1 : 0)
+  if (live(a) !== live(b)) return live(a) > live(b) ? a : b
+  return a.number >= b.number ? a : b
 }
 
 /**
@@ -114,28 +146,63 @@ export async function ghPrForBranch(
     '--limit',
     '1',
     '--json',
-    'number,title,state,url,isDraft,mergeable,mergeStateStatus,statusCheckRollup',
+    PR_FIELDS,
   ])
   if (!raw) return null
+  try {
+    return toPullRequest((JSON.parse(raw) as RawPr[])[0])
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Every recent PR in a repo, indexed by head branch.
+ *
+ * The sidebar shows a PR chip per lane, and a lane is a branch — so the naive
+ * shape is one `ghPrForBranch` per row. That is 8-20 `gh` subprocesses per
+ * refresh on a normal workspace. This is the batched sibling, the same way
+ * `git:info` gained `git:infoBatch`: one subprocess for the whole group.
+ *
+ * The `--limit` is a real cap, not a formality: a repo with more open+closed
+ * PRs than this resolves only the most recent ones, and older lanes render
+ * with no chip rather than a wrong one. gh sorts newest-first, which is the
+ * order that matches what is still open in the sidebar.
+ */
+export async function ghPrsForRepo(
+  repoPath: string,
+  limit = 100,
+): Promise<Record<string, GhPullRequest>> {
+  const raw = await gh(repoPath, [
+    'pr',
+    'list',
+    '--state',
+    'all',
+    '--limit',
+    String(limit),
+    '--json',
+    `${PR_FIELDS},headRefName`,
+  ])
+  if (!raw) return {}
   let parsed: RawPr[]
   try {
     parsed = JSON.parse(raw) as RawPr[]
   } catch {
-    return null
+    return {}
   }
-  const pr = parsed[0]
-  if (!pr?.number || !pr.url) return null
-  return {
-    number: pr.number,
-    title: pr.title ?? '',
-    // gh reports OPEN | CLOSED | MERGED; draft is a separate flag.
-    state:
-      pr.isDraft && pr.state === 'OPEN'
-        ? 'DRAFT'
-        : ((pr.state ?? 'OPEN') as GhPullRequest['state']),
-    url: pr.url,
-    mergeable: pr.mergeable,
-    mergeStateStatus: pr.mergeStateStatus,
-    checks: summarizeChecks(pr.statusCheckRollup),
+  return indexPrsByBranch(parsed)
+}
+
+/** Exported for tests: fixture JSON in, branch-keyed map out. */
+export function indexPrsByBranch(rows: RawPr[]): Record<string, GhPullRequest> {
+  const byBranch: Record<string, GhPullRequest> = {}
+  for (const row of rows) {
+    const branch = row.headRefName
+    if (!branch) continue
+    const pr = toPullRequest(row)
+    if (!pr) continue
+    const existing = byBranch[branch]
+    byBranch[branch] = existing ? preferPr(existing, pr) : pr
   }
+  return byBranch
 }

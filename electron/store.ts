@@ -1,5 +1,5 @@
 import Store from 'electron-store'
-import { blobIdsOf, pruneDrafts, pruneSeenSessions } from './prefs-utils'
+import { blobIdsOf, pruneDrafts, pruneLaneMarkers, pruneSeenSessions } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
@@ -52,6 +52,7 @@ export function getPrefs(): AppPrefs {
     modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
+    laneMarkers: s.get('laneMarkers') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
     agentDirectives: {
@@ -208,6 +209,10 @@ export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): v
 
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
+}
+
+export function setLaneMarkers(markers: Record<string, string>): void {
+  prefs().set('laneMarkers', pruneLaneMarkers(markers))
 }
 
 export function setModelPicks(picks: AppPrefs['modelPicks']): void {

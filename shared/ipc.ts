@@ -112,7 +112,16 @@ export interface IpcInvokeMap {
   'app:getPrefs': { args: []; result: AppPrefs }
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
+  /**
+   * Stage model-authored HTML for the artifact iframe and return a
+   * `pidex-artifact://` URL for it. The document is served on its own opaque
+   * origin with `default-src 'none'`, which is what lets it run scripts
+   * without the app's CSP — see electron/artifacts/artifact-protocol.ts.
+   */
+  'artifacts:stageHtml': { args: [html: string]; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  /** Explicit lane-marker choices, keyed by session file path. */
+  'app:setLaneMarkers': { args: [Record<string, string>]; result: void }
   /** Model picker memory (pinned + recent), keyed `provider/id`. */
   'app:setModelPicks': { args: [ModelPicks]; result: void }
   'app:setLastSession': { args: [sessionPath: string | undefined]; result: void }
@@ -456,6 +465,15 @@ export interface IpcInvokeMap {
   'gh:prForBranch': {
     args: [repoPath: string, branch: string]
     result: GhPullRequest | null
+  }
+  /**
+   * Every recent PR in a repo, keyed by head branch — one `gh` subprocess for
+   * a whole sidebar group. `gh:prForBranch` stays for the single-branch popup;
+   * fanning it out across N lanes is N subprocesses per refresh.
+   */
+  'gh:prsForRepo': {
+    args: [repoPath: string]
+    result: Record<string, GhPullRequest>
   }
   'gh:available': { args: []; result: boolean }
 

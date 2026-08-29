@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
 import { drop } from './keyedSlice'
+import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { useLayoutStore, sessionPanes } from './layout'
 
 export type ArtifactType = 'html' | 'markdown' | 'svg' | 'mermaid' | 'code' | 'chart'
@@ -27,10 +28,11 @@ export interface Artifact {
  * Import this everywhere the payload is read (store ingest, tool cards,
  * summaries) instead of re-declaring the shape.
  *
- * Caveat carried by the payload, owned here: `artifact_update` results ship
+ * Legacy caveat, still defended here: `artifact_update` results USED TO ship
  * `type: 'update'` (a tool sentinel, not an artifact type) and default their
- * `title` to the slug id — use `normalizeArtifactType` and prefer the
- * store's metadata when rendering.
+ * `title` to the slug id. The extension now carries the real type and title
+ * forward, but sessions recorded before that fix still hold the sentinel, so
+ * `normalizeArtifactType` stays and the store's metadata still wins.
  */
 export interface ArtifactToolDetails {
   id?: string
@@ -71,7 +73,7 @@ const VALID_TYPES = new Set(['html', 'markdown', 'svg', 'mermaid', 'code', 'char
 
 /**
  * A payload `type` is only trustworthy when it names a real artifact type —
- * `artifact_update` payloads carry the sentinel `'update'` instead.
+ * pre-fix `artifact_update` payloads carry the sentinel `'update'` instead.
  */
 export function normalizeArtifactType(
   type: string | undefined,
@@ -100,7 +102,7 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
         createdAt: Date.now(),
       }
 
-      if (toolName === 'artifact_update' && existing) {
+      if (toolName !== 'artifact_create' && existing) {
         session[details.id!] = {
           ...existing,
           title:
@@ -160,7 +162,7 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
     for (const message of messages) {
       if (!('role' in message) || message.role !== 'toolResult') continue
       const result = message as ToolResultMessage
-      if (result.toolName !== 'artifact_create' && result.toolName !== 'artifact_update') continue
+      if (!isArtifactWriteTool(result.toolName)) continue
       if (result.isError) continue
       get().ingest(sessionId, result.toolName, result.details, { autoOpen: false })
     }

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename } from 'node:path'
 import { access } from 'node:fs/promises'
 import { handle } from './handle'
+import { stageArtifactHtml } from '../artifacts/artifact-protocol'
 import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
 import { userInfo } from 'node:os'
@@ -22,6 +23,7 @@ import {
   setFontPrefs,
   setLastSession,
   setModelPicks,
+  setLaneMarkers,
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
@@ -66,6 +68,12 @@ export function registerAppHandlers(): void {
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)
+  })
+
+  handle('artifacts:stageHtml', (_event, html: string) => stageArtifactHtml(html))
+
+  handle('app:setLaneMarkers', (_event, markers) => {
+    setLaneMarkers(markers)
   })
 
   handle('app:setModelPicks', (_event, picks) => {

@@ -7,6 +7,7 @@ import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
+import { isArtifactWriteTool } from '@/lib/artifactTools'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -52,6 +53,12 @@ interface SessionsState {
   /** pidexId → git session baseline ref (null = not a repo). */
   baselines: Record<string, string | null>
   pinned: string[]
+  /**
+   * Session file path → EXPLICIT lane marker. Absent means "never chose" and
+   * the row derives one from the branch; an empty string means "no marker, on
+   * purpose". See `lib/laneMarker.ts`.
+   */
+  laneMarkers: Record<string, string>
   /** sessionPath → epoch ms last viewed (mirrors the persisted pref). */
   seenSessions: Record<string, number>
   /** cwd → cached git summary for sidebar subtitles. */
@@ -111,6 +118,18 @@ interface SessionsState {
   suspendedPaths: string[]
   deleteDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<void>
   togglePin: (path: string) => void
+  /**
+   * Set or clear a lane's explicit marker. `null` forgets the choice, so the
+   * lane goes back to its derived marker; `''` is a real choice meaning "no
+   * marker". Those are deliberately different.
+   */
+  setLaneMarker: (path: string, marker: string | null) => void
+  /** Bulk delete. See the implementation for the ordering guarantee. */
+  deleteManySessions: (
+    workspacePath: string,
+    lanes: Array<{ path: string; worktreePath?: string; mainRepoPath?: string }>,
+    options: { removeWorktree: boolean; deleteBranch: boolean; discardChanges: boolean },
+  ) => Promise<Array<{ path: string; ok: boolean; error?: string }>>
 }
 
 const unsubscribers = new Map<string, () => void>()
@@ -278,7 +297,7 @@ function attachSessionPushHandler(pidexId: string): void {
         if (
           push.event.type === 'tool_execution_end' &&
           !push.event.isError &&
-          (push.event.toolName === 'artifact_create' || push.event.toolName === 'artifact_update')
+          isArtifactWriteTool(push.event.toolName)
         ) {
           void import('./artifacts').then(({ useArtifactsStore }) =>
             useArtifactsStore
@@ -347,6 +366,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   unread: {},
   baselines: {},
   pinned: [],
+  laneMarkers: {},
   suspendedPaths: [],
   seenSessions: {},
   gitByCwd: {},
@@ -354,7 +374,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   hydratePinned: async () => {
     const prefs = await window.pidex.invoke('app:getPrefs')
-    set({ pinned: prefs.pinnedSessions, seenSessions: prefs.seenSessions ?? {} })
+    set({
+      pinned: prefs.pinnedSessions,
+      seenSessions: prefs.seenSessions ?? {},
+      laneMarkers: prefs.laneMarkers ?? {},
+    })
   },
 
   markSeen: (sessionPath) => {
@@ -681,6 +705,97 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     if (live) await get().disposeSession(live.pidexId)
     await window.pidex.invoke('sessions:delete', meta.path)
     await get().refreshDisk(workspacePath)
+  },
+
+  /**
+   * Delete several lanes, sequentially, reporting per lane.
+   *
+   * Three things here are deliberate:
+   *
+   * 1. **Sequential, not `Promise.all`.** Each lane disposes a subprocess and
+   *    runs git; N of those at once is how you get a worktree removed while
+   *    its own pi is still writing.
+   * 2. **Worktree BEFORE session file.** `git worktree remove` is the step
+   *    that actually fails in practice — a terminal cwd'd into the lane, or a
+   *    dirty tree. Removing it first means a failure leaves the lane whole and
+   *    still in the sidebar; the other order leaves a lane whose transcript is
+   *    in the Trash and whose directory is still on disk, which is worse than
+   *    doing nothing.
+   * 3. **A failure is reported, never swallowed.** A row that silently stays
+   *    put reads as the delete having worked and the UI being stale.
+   */
+  deleteManySessions: async (workspacePath, lanes, options) => {
+    const results: Array<{ path: string; ok: boolean; error?: string }> = []
+    const { removeWorktree } = await import('./worktrees').then((m) => ({
+      removeWorktree: m.useWorktreesStore.getState().removeWorktree,
+    }))
+
+    for (const lane of lanes) {
+      const live = Object.values(get().live).find((l) => l.diskPath === lane.path)
+      if (live) await get().disposeSession(live.pidexId)
+
+      if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
+        try {
+          const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
+            force: options.discardChanges,
+            deleteBranch: options.deleteBranch,
+          })
+          if (!outcome.removed) {
+            results.push({
+              path: lane.path,
+              ok: false,
+              error: `worktree kept — ${outcome.dirtyCount} uncommitted change${
+                outcome.dirtyCount === 1 ? '' : 's'
+              }`,
+            })
+            continue
+          }
+          // A branch that would not safe-delete is reported, but the lane is
+          // still gone: `git branch -d` refusing is not a reason to keep the
+          // transcript. Never escalate to -D here.
+          if (outcome.branchError) {
+            results.push({ path: lane.path, ok: true, error: outcome.branchError })
+            await window.pidex.invoke('sessions:delete', lane.path)
+            continue
+          }
+        } catch (error) {
+          results.push({ path: lane.path, ok: false, error: String(error) })
+          continue
+        }
+      }
+
+      try {
+        await window.pidex.invoke('sessions:delete', lane.path)
+        results.push({ path: lane.path, ok: true })
+      } catch (error) {
+        results.push({ path: lane.path, ok: false, error: String(error) })
+      }
+    }
+
+    // Forget markers for lanes that are actually gone, so the prefs map does
+    // not accumulate entries for paths that no longer exist.
+    const gone = new Set(results.filter((r) => r.ok).map((r) => r.path))
+    if (gone.size > 0) {
+      set((s) => {
+        const laneMarkers = { ...s.laneMarkers }
+        for (const path of gone) delete laneMarkers[path]
+        void window.pidex.invoke('app:setLaneMarkers', laneMarkers)
+        return { laneMarkers }
+      })
+    }
+
+    await get().refreshDisk(workspacePath)
+    return results
+  },
+
+  setLaneMarker: (path, marker) => {
+    set((s) => {
+      const laneMarkers = { ...s.laneMarkers }
+      if (marker === null) delete laneMarkers[path]
+      else laneMarkers[path] = marker
+      void window.pidex.invoke('app:setLaneMarkers', laneMarkers)
+      return { laneMarkers }
+    })
   },
 
   togglePin: (path) => {

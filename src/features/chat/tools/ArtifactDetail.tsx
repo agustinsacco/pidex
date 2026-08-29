@@ -11,7 +11,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { formatBytes } from '@/lib/format'
 
 /**
- * Detail view for `artifact_create` / `artifact_update`.
+ * Detail view for `artifact_create` / `artifact_update` / `artifact_edit`.
  *
  * The generic view was actively unhelpful here: an artifact's whole payload is
  * one giant `content` argument, so it rendered a wall of raw JSON above a
@@ -51,7 +51,7 @@ export function ArtifactDetail({
   }
 
   const artifactId = details.id
-  // The store's metadata wins: artifact_update payloads carry the sentinel
+  // The store's metadata wins: pre-fix artifact_update payloads carry the sentinel
   // type 'update' and default their title to the slug id, so trusting the
   // payload rendered wrong glyph/type/title on every completed update card.
   const type = known?.type ?? normalizeArtifactType(details.type)
