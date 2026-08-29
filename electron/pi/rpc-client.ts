@@ -41,6 +41,12 @@ export interface PiSpawnOptions {
   appendSystemPrompt?: string
   /** Disable session persistence (`--no-session`). */
   noSession?: boolean
+  /**
+   * Skip AGENTS.md/CLAUDE.md discovery (`--no-context-files`). Set for
+   * Claude-provider sessions, where the Claude CLI loads CLAUDE.md itself
+   * and pi's copy would bill the same file twice on every request.
+   */
+  noContextFiles?: boolean
   /** Extra environment variables. */
   env?: Record<string, string>
 }
@@ -104,6 +110,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (o.provider) args.push('--provider', o.provider)
     if (o.thinkingLevel) args.push('--thinking', o.thinkingLevel)
     if (o.noSession) args.push('--no-session')
+    if (o.noContextFiles) args.push('--no-context-files')
     for (const ext of o.extensions ?? []) args.push('-e', ext)
     if (o.appendSystemPrompt) args.push('--append-system-prompt', o.appendSystemPrompt)
 

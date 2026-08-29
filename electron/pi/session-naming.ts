@@ -12,7 +12,38 @@ const MAX_TITLE_LENGTH = 60
 const MAX_MESSAGE_LENGTH = 1200
 const MAX_EXISTING_NAMES = 40
 
-/** The naming request sent to `pi -p --no-session --no-tools`. */
+/**
+ * Argv for the naming run, everything except the prompt itself.
+ *
+ * A title needs none of a session's context, so this strips everything pi
+ * would otherwise load: tools, CLAUDE.md/AGENTS.md, skills, prompt templates.
+ * Measured before the strip, the naming call carried ~35,000 tokens of
+ * harness to produce a 15-token title — see
+ * specs/log/2026-08-29-claude-provider-token-overhead.md.
+ *
+ * `--no-extensions` is conspicuously ABSENT: providers register through
+ * extension discovery, so `-ne` makes pi-claude-cli an unknown provider and
+ * the run errors out ("Unknown provider") — verified against real pi. Do not
+ * add it back.
+ *
+ * When pi's default provider is the Claude CLI, the run is also pinned to
+ * Haiku with an explicit `--provider` (never a bare fuzzy `--model` pattern,
+ * which could resolve into another provider): a title does not need the
+ * default model, which in practice is an Opus-tier one.
+ */
+export function titleArgs(options: { claudeCli: boolean }): string[] {
+  return [
+    '-p',
+    '--no-session',
+    '--no-tools',
+    '--no-context-files',
+    '--no-skills',
+    '--no-prompt-templates',
+    ...(options.claudeCli ? ['--provider', 'pi-claude-cli', '--model', 'claude-haiku-4-5'] : []),
+  ]
+}
+
+/** The naming request sent to `pi -p` (see `titleArgs` for the flag set). */
 export function titlePrompt(message: string, existingNames: string[]): string {
   const names = existingNames
     .map((name) => name.trim())
