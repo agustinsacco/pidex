@@ -7,7 +7,9 @@ import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { composeDirectives } from '../pi/directives'
-import { dedupeTitle, sanitizeTitle, titlePrompt } from '../pi/session-naming'
+import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
+import { usesClaudeCliProvider } from '../pi/provider-detect'
+import { readAgentSettings } from '../pi/agent-settings'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace } from '../store'
 import { broadcast } from '../orchestrator/broadcast'
@@ -126,6 +128,19 @@ async function spawnSession(
     ...(options.appendSystemPrompt ? { extra: options.appendSystemPrompt } : {}),
   })
 
+  // Claude-provider sessions get `--no-context-files`: the Claude CLI loads
+  // CLAUDE.md itself as memory, so pi's copy in the system prompt bills the
+  // same file twice on EVERY request (~4,900 tokens measured on this repo).
+  // Known trade-off: pi's prompt is fixed at spawn, so a session switched to
+  // a non-Claude provider mid-conversation runs without pi's CLAUDE.md copy.
+  // See specs/log/2026-08-29-claude-provider-token-overhead.md.
+  const noContextFiles = stub
+    ? false
+    : usesClaudeCliProvider(
+        options,
+        (await readAgentSettings(options.workspacePath)).defaultProvider,
+      )
+
   const session = registry.create(options.workspacePath, {
     binaryPath,
     prefixArgs,
@@ -135,6 +150,7 @@ async function spawnSession(
     model: options.model,
     provider: options.provider,
     thinkingLevel: options.thinkingLevel,
+    ...(noContextFiles ? { noContextFiles } : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
     // The bundled artifacts extension rides along in every session.
     ...(stub ? {} : { extensions }),
@@ -311,17 +327,31 @@ export function registerPiSessionHandlers(): void {
         const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
         if (!health.ok || !health.binaryPath) return null
         binaryPath = health.binaryPath
-        env = { ...process.env, ...(await piProcessEnv()) }
+        env = {
+          ...process.env,
+          ...(await piProcessEnv()),
+          // Naming-only, regardless of the user's session prefs: a title run
+          // through the Claude provider should not load Claude Code's own
+          // prompt, skills, MCP servers or settings either. Harmless env for
+          // every other provider. Measured saving: ~8,000 tokens per run.
+          PI_CLAUDE_CLI_HERMETIC: '1',
+          PI_CLAUDE_CLI_SYSTEM_PROMPT: 'pi',
+        }
       }
 
       // `--no-session` keeps this run out of the sidebar; `--no-tools`
-      // keeps a title request from being able to touch anything. Spawned
-      // through runPrintMode because `pi -p` blocks until stdin hits EOF —
-      // see electron/pi/print-mode.ts, and never reintroduce execFile here.
+      // keeps a title request from being able to touch anything; the rest of
+      // `titleArgs` keeps a five-word title from paying for a full session's
+      // context. Spawned through runPrintMode because `pi -p` blocks until
+      // stdin hits EOF — see electron/pi/print-mode.ts, and never
+      // reintroduce execFile here.
+      const claudeCli = stub
+        ? false
+        : usesClaudeCliProvider({}, (await readAgentSettings(workspacePath)).defaultProvider)
       const started = Date.now()
       const { stdout, error } = await runPrintMode(
         binaryPath,
-        [...prefixArgs, '-p', '--no-session', '--no-tools', titlePrompt(message, existingNames)],
+        [...prefixArgs, ...titleArgs({ claudeCli }), titlePrompt(message, existingNames)],
         { cwd: workspacePath, env },
       )
       const title = stdout ? sanitizeTitle(stdout) : null
