@@ -296,3 +296,14 @@ export function Spinner({ className = 'text-accent' }: { className?: string }): 
     </svg>
   )
 }
+
+/** Warning triangle, for a decision the user has to make before proceeding. */
+export function WarningIcon({ size = 14, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className} strokeLinecap="round">
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </svg>
+  )
+}

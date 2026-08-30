@@ -105,6 +105,51 @@ fallback). A successful install lands on `GettingStartedScreen`: provider
 guidance (subscription `/login` in a terminal, API keys → Agent tab) plus
 the same catalogue cards, then Continue.
 
+## Command approval dialogs
+
+A permission gate is an extension that hooks `tool_call`, decides a `bash`
+command is dangerous and asks the user through `ctx.ui.select` /
+`ctx.ui.confirm`. pidex has no special protocol for this: what arrives is an
+ordinary `extension_ui_request` whose title is **prose the extension wrote,
+with the whole command inside it**. Rendered generically, a 60-line heredoc
+became a dialog _title_ — unwrapped, unscrollable, off both edges of the
+screen, with nothing marking which four characters tripped the gate.
+
+`src/features/extension-ui/commandApproval.ts` claims those dialogs and
+`CommandApprovalSheet.tsx` renders them as a review surface. Two pure steps:
+
+- **`parseCommandApproval`** recognises the shape — a heading line naming a
+  command, the command, a trailing `Allow?` / `Proceed?` — and for a `select`
+  also requires options that clearly mean yes and no. Tolerant on purpose:
+  gates are third-party and their wording drifts. A miss falls through to the
+  generic dialog, which now caps and scrolls its title rather than growing.
+- **`analyzeCommand`** says which part is dangerous and why. **The gate never
+  tells us** — its answer is a boolean — so pidex re-derives the risk from the
+  same pattern classes gates match on (`rm -rf`, `sudo`, force-push,
+  `chmod 777`, …). Two honest consequences: pidex can name a risk the gate did
+  not fire on, and it can find nothing at all. `risks.length === 0` is a real
+  state and the sheet says so instead of inventing a reason.
+
+**A match's `context` is the point.** `command` means it runs. `heredoc` and
+`quoted` mean the text is being written to a file or passed as an argument —
+the single biggest source of "why is this dangerous?", because a script full
+of `rm -rf` trips every gate on its way to disk. Incidental matches are
+marked, never coloured like a live one, and a command whose every match is
+incidental says so at the top.
+
+Rules the sheet keeps:
+
+- **Answer in the gate's own words.** A `select` response echoes the option
+  string the gate offered (`Yes`, `Allow once`), never an invented one — the
+  gate compares against what it sent.
+- **Deny is the safe answer**, so it holds focus, Escape denies, and the
+  backdrop does not dismiss. Nothing approves on a keypress.
+- **The panel is height-capped and scrolls.** Over 14 lines it opens folded to
+  the flagged lines with the rest one click away.
+
+`src/dev/mockPidex.ts` raises a real one in the browser harness when a prompt
+starts with `danger`, since the harness has no pi and therefore no gate.
+
 ## Foreign config files
 
 Some packages keep config outside pi's settings. pidex mirrors each
