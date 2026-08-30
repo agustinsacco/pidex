@@ -96,7 +96,7 @@ async function spawnSession(
   // cached — at the cost of losing Claude Code's own tuned guidance for the
   // native tools this provider actually runs. Not worth doubling the number
   // of system-prompt code paths that have to reach the model correctly; see
-  // specs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
+  // docs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
   // that one path already turned out to be. The naming call below keeps its
   // own internal `pi` override — a no-tools, no-guidance-needed case.
   const spawnEnv: Record<string, string> = stub
@@ -139,7 +139,7 @@ async function spawnSession(
   // same file twice on EVERY request (~4,900 tokens measured on this repo).
   // Known trade-off: pi's prompt is fixed at spawn, so a session switched to
   // a non-Claude provider mid-conversation runs without pi's CLAUDE.md copy.
-  // See specs/log/2026-08-29-claude-provider-token-overhead.md.
+  // See docs/log/2026-08-29-claude-provider-token-overhead.md.
   const noContextFiles = stub
     ? false
     : usesClaudeCliProvider(

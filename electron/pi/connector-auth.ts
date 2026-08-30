@@ -21,7 +21,7 @@ import { log } from '../debug-log'
  * immediately without an LLM call, and this process is never prompted with
  * anything else.
  *
- * The rule from specs/reference/mcp.md holds here too: **never auto-answer
+ * The rule from docs/mcp.md holds here too: **never auto-answer
  * the adapter's authorization prompt.** pi's RPC has no server→client cancel,
  * so an empty answer wins the race against the loopback callback and kills a
  * flow that already succeeded. The pending request is simply left pending, and
