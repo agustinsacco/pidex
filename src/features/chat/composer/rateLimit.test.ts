@@ -57,10 +57,19 @@ describe('windowLabel', () => {
 describe('resetLabel', () => {
   const now = 1_787_363_602_000
 
-  it('renders hours and minutes', () => {
+  it('renders hours and minutes for short windows', () => {
     expect(resetLabel(1_787_363_602 + 8640, now)).toBe('Resets in 2 hr 24 min')
     expect(resetLabel(1_787_363_602 + 7200, now)).toBe('Resets in 2 hr')
     expect(resetLabel(1_787_363_602 + 600, now)).toBe('Resets in 10 min')
+  })
+
+  it('renders days and hours for longer windows (weekly reset)', () => {
+    // 7 days exactly
+    expect(resetLabel(1_787_363_602 + 604_800, now)).toBe('Resets in 7d 0h')
+    // 6 days 16 hours
+    expect(resetLabel(1_787_363_602 + 518_400 + 57_600, now)).toBe('Resets in 6d 16h')
+    // 1 day 2 hours 30 minutes
+    expect(resetLabel(1_787_363_602 + 86_400 + 7_200 + 1_800, now)).toBe('Resets in 1d 2h')
   })
 
   it('goes quiet once the window has passed, rather than showing a stale countdown', () => {

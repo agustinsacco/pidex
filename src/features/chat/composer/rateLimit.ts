@@ -100,15 +100,18 @@ export function isPaidWindow(windowType: string | null): boolean {
 }
 
 /**
- * "Resets in 2 hr 24 min". Returns null once the reset has passed, since a
- * stale countdown is worse than no countdown — the next turn re-reports.
+ * "Resets in 2 hr 24 min" or "Resets in 1d 2h" for longer windows. Returns
+ * null once the reset has passed, since a stale countdown is worse than no
+ * countdown — the next turn re-reports.
  */
 export function resetLabel(resetsAt: number | null, nowMs: number = Date.now()): string | null {
   if (resetsAt === null) return null
   const seconds = resetsAt - Math.floor(nowMs / 1000)
   if (seconds <= 0) return null
-  const hours = Math.floor(seconds / 3600)
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.round((seconds % 3600) / 60)
+  if (days > 0) return `Resets in ${days}d ${hours}h`
   if (hours > 0) return `Resets in ${hours} hr${minutes > 0 ? ` ${minutes} min` : ''}`
   return `Resets in ${Math.max(1, minutes)} min`
 }
