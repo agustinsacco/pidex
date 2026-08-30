@@ -131,6 +131,34 @@ describe('projectPathFor', () => {
     ).toBe('/Users/u/pidex')
   })
 
+  it('uses a known root for a worktree the path shape cannot recognise', () => {
+    // The startup bug: worktrees living outside `<repo>/.pidex/worktrees/`
+    // each opened their own sidebar group, named after their branch, until
+    // `git:infoBatch` answered. `git worktree list` already reported the repo
+    // they belong to, so no round trip is needed.
+    expect(projectPathFor('/tmp/pr15889-wt', undefined, '/Users/u/services')).toBe(
+      '/Users/u/services',
+    )
+    expect(
+      projectPathFor(
+        '/Users/u/services/.claude/worktrees/blissful',
+        undefined,
+        '/Users/u/services',
+      ),
+    ).toBe('/Users/u/services')
+    expect(projectPathFor('/Users/u/services-know719', undefined, '/Users/u/services')).toBe(
+      '/Users/u/services',
+    )
+  })
+
+  it('still prefers git info over a known root', () => {
+    // The root comes from whichever repo we happened to list; git's own
+    // answer is authoritative for the folder itself.
+    expect(
+      projectPathFor('/tmp/wt', { isWorktree: true, mainRepoPath: '/Users/u/a' }, '/Users/u/b'),
+    ).toBe('/Users/u/a')
+  })
+
   it('cuts at the outermost worktree folder', () => {
     expect(projectPathFor('/Users/u/pidex/.pidex/worktrees/a/.pidex/worktrees/b')).toBe(
       '/Users/u/pidex',
