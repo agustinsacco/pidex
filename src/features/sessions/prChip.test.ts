@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { GhPullRequest } from '@shared/models'
-import { prChip } from './prChip'
+import { prChip, noPrChip } from './prChip'
 
 const pr = (over: Partial<GhPullRequest> = {}): GhPullRequest => ({
   number: 412,
@@ -58,5 +58,38 @@ describe('prChip', () => {
 
   it('always labels with the PR number', () => {
     expect(prChip(pr({ number: 7 })).label).toBe('#7')
+  })
+
+  it('flags merge conflicts even when checks are green', () => {
+    const chip = prChip(pr({ mergeable: 'CONFLICTING', checks: checks(4, 0, 0) }))
+    expect(chip.variant).toBe('conflict')
+    expect(chip.title).toContain('merge conflicts')
+  })
+
+  it('lets a conflict outrank a failing check, not just a passing one', () => {
+    expect(prChip(pr({ mergeable: 'CONFLICTING', checks: checks(0, 1, 0) })).variant).toBe(
+      'conflict',
+    )
+  })
+
+  it('keeps a conflicting draft neutral — draft still wins', () => {
+    expect(prChip(pr({ state: 'DRAFT', mergeable: 'CONFLICTING' })).variant).toBe('draft')
+  })
+
+  it('lets terminal states outrank conflicts too', () => {
+    expect(prChip(pr({ state: 'MERGED', mergeable: 'CONFLICTING' })).variant).toBe('merged')
+  })
+
+  it('does not flag an unknown or clean mergeable state', () => {
+    expect(prChip(pr({ mergeable: 'UNKNOWN' })).variant).toBe('open')
+    expect(prChip(pr({ mergeable: 'MERGEABLE' })).variant).toBe('open')
+  })
+})
+
+describe('noPrChip', () => {
+  it('is inert — no PR number, no link target', () => {
+    const chip = noPrChip()
+    expect(chip.variant).toBe('no-pr')
+    expect(chip.label).not.toMatch(/#\d/)
   })
 })

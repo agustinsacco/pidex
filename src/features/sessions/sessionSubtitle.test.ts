@@ -62,4 +62,13 @@ describe('sessionSubtitle', () => {
     const segments = sessionSubtitle(meta({ cost: 0.0042 }), undefined)
     expect(segments.find((s) => s.key === 'cost')?.text).toBe('$0.0042')
   })
+
+  it('drops cost when the PR chip is taking its place', () => {
+    const segments = sessionSubtitle(
+      meta({ cost: 1.24 }),
+      git({ branch: 'fix/chat-ux', dirtyCount: 3 }),
+      { showCost: false },
+    )
+    expect(segments.map((s) => s.key)).toEqual(['time', 'branch', 'dirty'])
+  })
 })

@@ -11,7 +11,7 @@ Related: [orchestration.md](orchestration.md) for how lanes are supervised,
 
 ```
 ● 🚀  Give Me The Text Here
-      9m · wt · give-me-the-text-here · ±2 · $1.17          #418 ✓✓
+      9m · wt · give-me-the-text-here · ±2                  #418 ✓✓
 ```
 
 Five parts, each owned by a different module:
@@ -28,6 +28,17 @@ The subtitle and the PR chip are deliberately separate. Segments are joined
 with `·` and truncate in order; the chip is `ml-auto` so it forms a scannable
 column down the sidebar instead of floating after a branch name whose width
 varies per lane.
+
+**The chip and cost are mutually exclusive, not stacked.** `LanePrefs.prStatus`
+(default **on**) decides which one a lane's trailer _can_ show, but cost only
+steps aside once a chip is actually about to render in its place:
+`showChip = prStatus && (pullRequest || confirmedNoPr)`, and
+`sessionSubtitle(meta, git, { showCost: !showChip })`. Gating cost on the raw
+preference instead of on `showChip` was tried first and blanked the trailer —
+neither cost nor chip — on every plain non-worktree branch with no confirmed
+PR, which is strictly worse than the cost it replaced. Off reverts to plain
+cost and no chip, the behaviour from before this existed. Settings →
+Workspaces → "PR status instead of cost".
 
 ## Markers
 
@@ -90,6 +101,18 @@ Every `gh` failure is a normal state, not an error: not installed, not
 authenticated, no GitHub remote. All of them land as an empty map and render as
 no chip. Nothing here raises a toast.
 
+**"No PR yet" is inferred, and inference needs a stricter gate than a real
+chip does.** `gh` never reports absence — a branch with no PR just doesn't
+appear in the map, which is indistinguishable from gh being unavailable
+entirely. The sidebar only renders the `↑ no PR` fallback once a fetch for
+that repo has actually completed (`fetchedAt > 0`, never true while gh is
+missing/unauthenticated/remote-less) **and** the lane is a worktree. A
+non-worktree branch — most commonly the trunk itself, checked out directly —
+isn't "a lane" in the sense this document opens with, and guessing "you could
+open a PR" there is wrong far more often than it's right. A **confirmed**
+chip carries no such restriction: if `gh` reports a PR for a non-worktree
+branch, it renders same as any other lane.
+
 ### The chip is one token carrying two signals
 
 Colour is PR state; the trailing glyph is the check/review verdict. A second
@@ -103,13 +126,19 @@ it green").
 | `failing`           | checks red. The only state that earns colour at rest           |
 | `pending`           | checks still running                                           |
 | `blocked`           | green, but changes requested: blocked on a person, not a build |
+| `conflict`          | ⚠ can't merge no matter what checks say — needs a rebase       |
 | `draft`             | neutral. A draft is not a claim on your attention              |
 | `merged`            | violet. The "this lane is done" signal                         |
 | `closed`            | closed unmerged                                                |
+| `no-pr`             | inert fallback — `↑ no PR`, no number, not a link              |
 
-**Terminal states beat check state.** A merged PR whose last run was red is
-still merged; colouring it red sends the reader to fix a branch that is already
-in.
+**Terminal states beat check state, and conflict beats check state too.** A
+merged PR whose last run was red is still merged; colouring it red sends the
+reader to fix a branch that is already in. A conflicting PR is unmergeable
+regardless of how its checks come back, so `conflict` outranks `failing` and
+`pending` the same way — but loses to `draft`, which stays neutral even when
+the underlying branch has conflicts, because a draft isn't ready for review
+either way.
 
 `--px-merged` exists because in `--px-success`, "merged" and "open and green"
 are indistinguishable — and those are the two states the sidebar is scanned to
