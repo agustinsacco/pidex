@@ -44,12 +44,29 @@ jobs:
         run: npm run build
 
   e2e:
-    name: E2E smoke (${{ matrix.os }})
+    name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          # Sharded 3-way: the ubuntu (xvfb) run is CI's longest single step,
+          # and the suite's 33 tests have no cross-test ordering or shared
+          # state, so splitting them across jobs is safe.
+          - os: ubuntu-latest
+            shardIndex: 1
+            shardTotal: 3
+          - os: ubuntu-latest
+            shardIndex: 2
+            shardTotal: 3
+          - os: ubuntu-latest
+            shardIndex: 3
+            shardTotal: 3
+          # macOS runner-minutes bill at a much higher multiplier, and this
+          # job isn't the critical path — left unsharded.
+          - os: macos-latest
+            shardIndex: 1
+            shardTotal: 1
     steps:
       - uses: actions/checkout@v4
 
@@ -70,16 +87,16 @@ jobs:
       # The Electron window needs a display server on Linux runners.
       - name: E2E (Linux, xvfb)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: E2E (macOS)
         if: runner.os == 'macOS'
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-${{ matrix.os }}
+          name: playwright-report-${{ matrix.os }}-${{ matrix.shardIndex }}
           path: |
             playwright-report/
             test-results/
