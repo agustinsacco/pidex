@@ -120,6 +120,12 @@ export function WorkspacesTab(): React.JSX.Element {
             ))}
           </span>
         </Row>
+        <Row
+          title="PR status instead of cost"
+          description="Replaces each lane's session cost with its GitHub PR status — open, checks, review, merged, conflicts. Off shows cost instead, like before this existed."
+        >
+          <Toggle on={lanes.prStatus} onChange={(on) => setLanePrefs({ prStatus: on })} />
+        </Row>
       </div>
 
       <SectionTitle>New sessions</SectionTitle>

@@ -1038,6 +1038,23 @@ function SessionRow({
   // project than the one on screen — still resolves against its own repo.
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
+  const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
+  // "No PR yet" is inferred, not reported by gh, so it needs its own gate: only
+  // once a fetch for this repo has actually completed (never for gh missing /
+  // unauthenticated / no GitHub remote, which all land as the same empty map —
+  // see gh-cli.ts), and only for a worktree lane. A non-worktree branch (most
+  // commonly the trunk itself) is not "a lane" in the PR sense, and inferring
+  // "you could open a PR" there is far more often wrong than right.
+  const ghCliAvailable = usePullRequestsStore((s) => s.available)
+  const prFetchedAt = usePullRequestsStore((s) => s.byRepo[repoPath]?.fetchedAt ?? 0)
+  const confirmedNoPr =
+    !pullRequest && Boolean(git?.isWorktree) && ghCliAvailable === true && prFetchedAt > 0
+  // Cost only steps aside for a chip that is actually about to render. A
+  // non-worktree branch with no confirmed PR gets neither — gating this on
+  // the raw preference instead would blank the trailer on every plain-main
+  // session the moment the flag is on, which is strictly worse than the cost
+  // it replaced.
+  const showChip = showPrStatus && Boolean(pullRequest || confirmedNoPr)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: pidex names a session only after its
@@ -1160,7 +1177,7 @@ function SessionRow({
     ])
   }
 
-  const subtitle = sessionSubtitle(meta, git)
+  const subtitle = sessionSubtitle(meta, git, { showCost: !showChip })
   const indicatorState = isStreaming
     ? 'streaming'
     : unseen
@@ -1265,7 +1282,7 @@ function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} />
-          {pullRequest && <PrBadge pr={pullRequest} />}
+          {showChip && <PrBadge pr={pullRequest ?? null} />}
         </span>
       </span>
       {showWorkspace && rowWorkspaceName && (

@@ -323,6 +323,12 @@ export interface LanePrefs {
    * is read in a sidebar, a slug is read in `git branch` output and in a path.
    */
   branchSlugMaxLength: number
+  /**
+   * Show each lane's GitHub PR status (open, checks, review, merged,
+   * conflicts) in place of its session cost. Off reverts to cost, matching
+   * pidex's behaviour before the PR chip existed.
+   */
+  prStatus: boolean
 }
 
 /** Bounds the settings UI enforces, and the store clamps to. */
@@ -339,6 +345,7 @@ export const DEFAULT_LANE_PREFS: LanePrefs = {
   nameMaxWords: 5,
   nameMaxLength: 60,
   branchSlugMaxLength: 40,
+  prStatus: true,
 }
 
 /**
@@ -386,6 +393,7 @@ export function normalizeLanePrefs(input: Partial<LanePrefs> | undefined): LaneP
       LANE_PREF_LIMITS.branchSlugMaxLength.max,
       DEFAULT_LANE_PREFS.branchSlugMaxLength,
     ),
+    prStatus: Boolean(merged.prStatus),
   }
 }
 

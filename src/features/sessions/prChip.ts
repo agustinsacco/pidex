@@ -15,9 +15,11 @@ export type PrChipVariant =
   | 'failing' // checks red — the only state that earns colour at rest
   | 'pending' // checks still running
   | 'blocked' // green, but changes requested: blocked on a person, not a build
+  | 'conflict' // can't merge no matter what checks say — needs a rebase
   | 'draft'
   | 'merged'
   | 'closed'
+  | 'no-pr' // branch has no PR yet; inert, there is no one-click create
 
 export interface PrChip {
   variant: PrChipVariant
@@ -75,6 +77,18 @@ export function prChip(pr: GhPullRequest): PrChip {
     }
   }
 
+  // Outranks check state deliberately: green checks don't make a conflicting
+  // branch mergeable, so this is more actionable than a pending or even a
+  // passing run. Draft is handled above and wins over this — a draft with
+  // conflicts is still not ready for review, so it stays neutral.
+  if (pr.mergeable === 'CONFLICTING') {
+    return {
+      variant: 'conflict',
+      label,
+      glyph: '⚠',
+      title: `${base} — open, ${checks}, has merge conflicts`,
+    }
+  }
   if (phase === 'fail') {
     return { variant: 'failing', label, glyph: '✕', title: `${base} — open, ${checks}` }
   }
@@ -93,4 +107,19 @@ export function prChip(pr: GhPullRequest): PrChip {
     return { variant: 'approved', label, glyph: '✓✓', title: `${base} — open, ${checks}, approved` }
   }
   return { variant: 'open', label, glyph: '✓', title: `${base} — open, ${checks}` }
+}
+
+/**
+ * The fallback chip for a lane whose branch has no PR yet.
+ *
+ * Inert on purpose — `gh-cli.ts` is read-only, so this is a hint, not a
+ * one-click create button. There is deliberately no PR number to show.
+ */
+export function noPrChip(): PrChip {
+  return {
+    variant: 'no-pr',
+    label: '↑ no PR',
+    glyph: '',
+    title: 'No pull request yet for this branch',
+  }
 }

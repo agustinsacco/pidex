@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
-import { prChip, type PrChipVariant } from './prChip'
+import { prChip, noPrChip, type PrChipVariant } from './prChip'
 
 /**
  * Per-variant colours. `soft` grounds plus a tinted border, so the chip stays
@@ -13,9 +13,11 @@ const VARIANTS: Record<PrChipVariant, string> = {
   failing: 'text-danger bg-danger-soft border-danger/30',
   pending: 'text-warning bg-warning/10 border-warning/25',
   blocked: 'text-warning bg-warning/10 border-warning/25',
+  conflict: 'text-danger bg-danger-soft border-danger/25',
   draft: 'text-text-tertiary bg-chip border-transparent',
   merged: 'text-merged bg-merged-soft border-merged/25',
   closed: 'text-danger bg-danger-soft border-danger/25',
+  'no-pr': 'text-text-tertiary bg-chip border-transparent',
 }
 
 /**
@@ -36,32 +38,40 @@ const VARIANTS: Record<PrChipVariant, string> = {
  * That leaves keyboard users without a path to the PR, so the row's context
  * menu carries an "Open pull request" item. The chip is the shortcut; the menu
  * is the accessible route. Changing one without the other regresses it.
+ *
+ * `pr={null}` renders the "no PR yet" fallback instead — still a chip (same
+ * column, same width discipline), but not a link: there is nothing to open.
  */
-export function PrBadge({ pr }: { pr: GhPullRequest }): React.JSX.Element {
-  const chip = prChip(pr)
+export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element {
+  const chip = pr ? prChip(pr) : noPrChip()
   return (
     <span
       data-testid="session-pr-badge"
       data-variant={chip.variant}
-      role="link"
+      role={pr ? 'link' : undefined}
       tabIndex={-1}
-      aria-label={`${chip.title}. Open on GitHub`}
-      title={`${chip.title}\nClick to open on GitHub`}
-      onClick={(event) => {
-        // The row underneath opens the session. Without this, one click both
-        // opens the PR in a browser and switches the session out from under it.
-        event.stopPropagation()
-        event.preventDefault()
-        void openPullRequest(pr)
-      }}
+      aria-label={pr ? `${chip.title}. Open on GitHub` : chip.title}
+      title={pr ? `${chip.title}\nClick to open on GitHub` : chip.title}
+      onClick={
+        pr
+          ? (event) => {
+              // The row underneath opens the session. Without this, one click
+              // both opens the PR in a browser and switches the session out
+              // from under it.
+              event.stopPropagation()
+              event.preventDefault()
+              void openPullRequest(pr)
+            }
+          : undefined
+      }
       className={clsx(
-        'ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded-full border px-1.5 font-mono text-2xs font-semibold',
+        'ml-auto flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 font-mono text-2xs font-semibold',
         // Hover derives from the chip's OWN colour (`border-current`) rather
         // than a `dark:` variant: pidex themes via a `.dark` CLASS, but no
         // `@custom-variant dark` is defined, so Tailwind's `dark:` would key
         // off the OS preference and be wrong whenever the two disagree. No
         // other component in the renderer uses `dark:` either.
-        'hover:border-current hover:underline hover:underline-offset-2',
+        pr && 'cursor-pointer hover:border-current hover:underline hover:underline-offset-2',
         VARIANTS[chip.variant],
       )}
     >
