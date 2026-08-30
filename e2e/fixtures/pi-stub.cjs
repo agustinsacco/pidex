@@ -379,9 +379,10 @@ function handle(cmd) {
         break
       }
       if (message.includes('longartifact')) runLongArtifactTurn()
-      else if (message.includes('manyitems')) runManyItemsTurn()
+      else if (message.includes('manyitems')) runManyItemsTurn(message.includes('slow'))
       else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
+      else if (message.includes('manyturns')) runManyTurnsTurn()
       else runTurn()
       break
     }
@@ -800,6 +801,85 @@ function runLongStreamTurn() {
 }
 
 /**
+ * A finished transcript with MANY rows: prose turn, tool group, prose turn, …
+ *
+ * `longstream` is one giant text row, so it never exercises the case the user
+ * actually hits — reading back through dozens of rows the virtualizer has
+ * never measured. Each prose block here is tall enough that its real height
+ * dwarfs the unmeasured-row estimate, which is what made scrolling up fight
+ * back.
+ */
+function runManyTurnsTurn() {
+  const steps = [() => out({ type: 'agent_start' }), () => out({ type: 'turn_start' })]
+  for (let i = 0; i < 12; i++) {
+    const body = Array.from(
+      { length: 6 },
+      (_, line) =>
+        `Paragraph ${line + 1} of reply ${i + 1}: a block of prose tall enough to matter.`,
+    ).join('\n\n')
+    steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+    steps.push(() =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: body }],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    )
+    const id = `turns_${i}`
+    steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+    steps.push(() =>
+      out({
+        type: 'tool_execution_start',
+        toolCallId: id,
+        toolName: 'bash',
+        args: { command: `echo turn ${i}` },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: id,
+        toolName: 'bash',
+        isError: false,
+        result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id, name: 'bash', arguments: { command: `echo turn ${i}` } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    )
+  }
+  steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+  steps.push(() =>
+    out({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'many turns complete' }],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
+    }),
+  )
+  steps.push(() => out({ type: 'agent_end', messages: [] }))
+  steps.push(() => out({ type: 'agent_settled' }))
+  play(steps, 3)
+}
+
+/**
  * A Claude Code sub-agent fan-out, replayed marker for marker.
  *
  * The strings below are copied from a real captured session (pi session
@@ -906,7 +986,7 @@ function runSubagentTurn() {
  * matters: only a window of rows is in the DOM, so an over-large size estimate
  * for the rest shows up as dead space between rendered rows.
  */
-function runManyItemsTurn() {
+function runManyItemsTurn(slow = false) {
   const steps = [() => out({ type: 'agent_start' }), () => out({ type: 'turn_start' })]
   for (let i = 0; i < 40; i++) {
     const id = `many_${i}`
@@ -963,5 +1043,5 @@ function runManyItemsTurn() {
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
   steps.push(() => out({ type: 'agent_settled' }))
-  play(steps, 4)
+  play(steps, slow ? 40 : 4)
 }

@@ -1409,6 +1409,117 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
   }
 })
 
+test('transcript: reading back through a finished transcript is never fought', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('do manyturns now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const scroller = page.getByTestId('transcript-scroll')
+    await expect(page.getByText('many turns complete')).toBeVisible({ timeout: 60_000 })
+    await expect
+      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(2000)
+
+    const box = (await scroller.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+
+    // Walk up the way a reader does: many small wheel notches, not one jump.
+    // Every notch must move the viewport UP. The regression this covers is the
+    // virtualizer compensating the estimate→actual delta of each row entering
+    // from the top, which shoves scrollTop back down by hundreds of pixels and
+    // makes a long transcript impossible to read back.
+    let previous = await scroller.evaluate((el) => el.scrollTop)
+    const start = previous
+    let fought = 0
+    for (let i = 0; i < 25; i++) {
+      await page.mouse.wheel(0, -120)
+      await page.waitForTimeout(80)
+      const top = await scroller.evaluate((el) => el.scrollTop)
+      if (top > previous + 1) fought += 1
+      previous = top
+    }
+
+    expect(fought).toBe(0)
+    expect(previous).toBeLessThan(start - 1000)
+
+    // Nothing re-pins it afterwards either.
+    await page.waitForTimeout(600)
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBeLessThan(start - 1000)
+    await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeVisible()
+
+    // Flicking back down to the tail resumes the follow with no pill click:
+    // the scroll lands long after the last wheel event, so the gesture is
+    // settled at `scrollend` rather than inferred from geometry.
+    await page.mouse.wheel(0, 5000)
+    await page.waitForTimeout(600)
+    await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeHidden()
+    const tail = await scroller.evaluate((el) => ({
+      top: Math.round(el.scrollTop),
+      max: Math.round(el.scrollHeight - el.clientHeight),
+    }))
+    expect(tail.top).toBe(tail.max)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('transcript: a settling run cannot drag a reader back to the tail', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // 40 tool calls in ONE activity group: expanded while it runs, collapsed
+    // the instant it settles. That collapse is the shrink that used to clamp
+    // scrollTop and drop the reader at the bottom — measured before the fix:
+    // reading back at 324 of 444, settling moved the reader to 0.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('do manyitems slow now')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const scroller = page.getByTestId('transcript-scroll')
+    await expect(scroller).toBeVisible({ timeout: 30_000 })
+    await expect
+      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(300)
+
+    const box = (await scroller.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, -120)
+    await page.waitForTimeout(150)
+    const read = await scroller.evaluate((el) => el.scrollTop)
+    expect(read).toBeGreaterThan(100)
+
+    // Let the run settle and the group collapse.
+    await expect(page.getByText('many items complete')).toBeVisible({ timeout: 30_000 })
+    await page.waitForTimeout(1500)
+
+    // Within a row's worth of where they were reading. Before the fix this was
+    // 0 — the whole 324px of read-back thrown away.
+    const after = await scroller.evaluate((el) => el.scrollTop)
+    expect(Math.abs(after - read)).toBeLessThan(40)
+    await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeVisible()
+
+    // …and the reserved tail is not a trap: jumping to the bottom releases it
+    // and lands on the real end of the transcript.
+    await page.getByRole('button', { name: /Follow stream|Jump to bottom/ }).click()
+    await page.waitForTimeout(400)
+    const end = await scroller.evaluate((el) => ({
+      top: Math.round(el.scrollTop),
+      max: Math.round(el.scrollHeight - el.clientHeight),
+    }))
+    expect(end.top).toBe(end.max)
+    await expect(page.getByText('many items complete')).toBeInViewport()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('a long tool run collapses to one dense group', async () => {
   const harness = await launch()
   const { page } = harness

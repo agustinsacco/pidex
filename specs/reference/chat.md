@@ -22,6 +22,8 @@
 - **Thinking deltas** stream into a collapsed-by-default "Thinking…" block with subdued styling; respect pi's `hideThinkingBlock` setting; expandable during and after streaming.
 - **Tool calls** appear as cards at `toolcall_start`, args fill from deltas, then live output attaches via `tool_execution_update` (partialResult is accumulated — replace displayed output each update), final state at `tool_execution_end` (success/error styling).
 - Virtualized message list; long sessions (1000+ entries) stay smooth. Autoscroll with "jump to bottom" pill when the user scrolls up.
+- **Following the tail is one-way from geometry.** A scroll sample can stop the follow, never start it: a transcript that shrinks (an activity group collapsing when its run settles) clamps `scrollTop` to the tail, and that clamp is indistinguishable from a reader who chose the bottom. Following resumes only on a gesture — wheel/keys toward the tail, a scrollbar drag back to it, the pill, or sending a message.
+- **A reader who scrolled away keeps their place through any layout change.** While unpinned the content box is floored at the reader's own viewport bottom, so a shrink reserves empty space below the last row instead of dragging them down. The floor only lowers (further read-back) and is dropped on re-pin.
 
 ## Message affordances
 
