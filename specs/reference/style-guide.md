@@ -34,17 +34,37 @@ accent too — the two decisions are one decision.
 
 ## Logo
 
-`build/icon.svg` — the **prompt bubble**: a chat bubble carrying a terminal
-prompt (`>_`). Bubble in phosphor amber (`#f2ab4e → #e2922e` vertical), prompt
-glyph and tile in graphite `#1f1c18`, tile radius 228/1024.
+`build/icon.svg` — the **aperture**: a ring of six discrete segments around a
+phosphor core. One orchestrator, many agents holding position. It replaced the
+prompt bubble on 2026-08-29, which was a chat bubble carrying a `>_` — two
+stock devtool motifs stacked, saying "you can talk to this" about a product
+whose actual claim is that many agents run at once. See
+[2026-08-29-aperture-mark.md](../log/2026-08-29-aperture-mark.md).
 
-- **App icon:** always the full tile (graphite square + amber bubble).
-- **In-app / monochrome:** the bubble path alone, single color `currentColor`,
-  for empty states and the About screen. Never recolor the two-tone lockup.
-- **Clear space:** half the bubble's height on all sides. Don't add text to the
+Core and ring in phosphor amber (`#f2ab4e → #e2922e` vertical), tile in
+graphite `#1f1c18`, tile radius 228/1024.
+
+- **App icon:** always the full tile (graphite square + amber aperture).
+- **Light backgrounds:** `build/icon-light.svg` — same geometry, ember
+  (`#b35c0f → #9d500b`) on paper `#f7f7f8`. Documentation only; the platform
+  icon is always the dark tile, and `generate-icons.mjs` reads only
+  `icon.svg`. The README swaps the two on `prefers-color-scheme`.
+- **In-app / monochrome:** ring plus core in a single `currentColor`, drop the
+  bloom. Never recolor the two-tone lockup. **Not built yet** — the previous
+  mark specified an in-app variant from 2026-08-07 and nothing in `src/` ever
+  drew one; don't let this line repeat that.
+- **Clear space:** half the ring's diameter on all sides. Don't add text to the
   mark; "pidex" is set separately, lowercase, in the mono face.
 - Regenerate platform assets with `node scripts/generate-icons.mjs`
-  (Playwright-rendered; icns is darwin-only).
+  (Playwright-rendered; icns is darwin-only). `icon-light.svg` is hand-kept —
+  edit both or neither.
+
+**Two numbers are load-bearing.** The dash pattern divides the circumference
+exactly six times (`2π × 258 = 1621.0618 = 6 × (144.17697 + 126)`); any other
+pair leaves a visible seam where the ring closes. And the bloom must stay a
+`radialGradient` — stacked translucent circles rasterize into two hard-edged
+discs, which reads as a bullseye rather than a glow. Both mistakes were made
+and fixed on the way in.
 
 The mark keeps its own graphite `#1f1c18`, which is not `--px-bg` in either
 theme. It is a fixed brand asset, not a themed surface; don't token-ize it.

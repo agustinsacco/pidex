@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="build/icon.svg">
+  <source media="(prefers-color-scheme: light)" srcset="build/icon-light.svg">
+  <img src="build/icon.svg" alt="pidex" width="88" height="88">
+</picture>
+
 # pidex
 
 A desktop coding-agent app for macOS, Linux and Windows, powered entirely by the
