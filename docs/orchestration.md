@@ -37,6 +37,38 @@ judgment, not for plumbing; Layer 3 is off by default.
   `SessionRegistry`, speaks the same RPC, renders in `ChatView`. It is not a
   second agent runtime.
 
+### How a fleet tool call is gated
+
+The mode is read at CALL time, never trusted from the system prompt. The
+preamble is fixed when the orchestrator spawns and goes stale the moment the
+user switches modes, so a refusal decided in `bridge.ts` is the only version
+that is a guarantee rather than a request.
+
+```mermaid
+flowchart TB
+  CALL["orchestrator model calls a fleet tool"] --> READ["bridge.ts reads modeFor workspace"]
+  READ --> MUT{"is it a mutating command"}
+  MUT -->|"no — read-only projection"| RUN["execute against the fleet hub"]
+  MUT -->|"yes"| CTRL{"mode allows session control"}
+  CTRL -->|"observe"| REFUSE["refuse, and tell the model<br/>which mode forbade it"]
+  CTRL -->|"supervise or autopilot"| START{"does it start new work"}
+  START -->|"no"| RUN
+  START -->|"yes"| AUTO{"mode is autopilot"}
+  AUTO -->|"no"| PROPOSE["record a proposal in the inbox<br/>for the user to approve"]
+  AUTO -->|"yes"| CAP{"under maxConcurrent"}
+  CAP -->|"no"| PROPOSE
+  CAP -->|"yes"| RUN
+```
+
+The four mutating commands are `session_send`, `session_stop`,
+`session_answer` and `propose_work`; everything else is a read-only projection
+and is never gated. `observe` refuses all four. `supervise` allows the first
+three but turns `propose_work` into an inbox item. Only `autopilot` starts
+work, and never beyond `maxConcurrent`.
+
+A refusal is phrased so the model is told what it may not do and can report
+instead of retrying blindly — a silent failure would just get retried.
+
 ## Explicitly cut
 
 - **Burn-rate circuit breaker.** The 2026-08-21 runaway was a
