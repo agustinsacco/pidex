@@ -137,7 +137,12 @@ you want to watch.
   A fix merged there is NOT live until it is published _and_ reinstalled —
   0.4.8 sat merged-but-unpublished for a day while sessions kept dying, because
   the publish workflow only ships a version npm does not already have.
-  Rate-limit percentages need >= 0.4.9.
+  Rate-limit percentages need >= 0.4.9. **A session resumed on < 0.4.15 runs
+  every turn after the first under Claude Code's DEFAULT system prompt** — pi's
+  instructions silently gone, and the whole transcript re-billed as cache write
+  for the swap. If a session stops honouring its charter after turn 1, check the
+  installed version first. See
+  [specs/log/2026-08-29-claude-cli-lifecycle-verification.md](specs/log/2026-08-29-claude-cli-lifecycle-verification.md).
 
 - **pidex ships seven extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e`; the bundled six are listed in `bundledExtensions()` in
