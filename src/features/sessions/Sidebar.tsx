@@ -8,7 +8,7 @@ import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
-import { PrBadge } from './PrBadge'
+import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { BulkDeleteModal } from './BulkDeleteModal'
@@ -1091,6 +1091,18 @@ function SessionRow({
         onClick: () => store.togglePin(meta.path),
       },
       { label: 'Lane marker…', onClick: () => setPickingMarker(true) },
+      // The chip itself is a mouse-only shortcut (it cannot be a tab stop
+      // inside the row button — see PrBadge). This is the keyboard route, and
+      // the only way to discover the PR number without hovering.
+      ...(pullRequest
+        ? [
+            {
+              label: `Open pull request #${pullRequest.number}`,
+              hint: pullRequest.state.toLowerCase(),
+              onClick: () => void openPullRequest(pullRequest),
+            },
+          ]
+        : []),
       ...(livePidexId
         ? [
             {
