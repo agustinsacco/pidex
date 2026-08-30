@@ -9,11 +9,11 @@ causes. Two are fixed in this diff; the largest lives in the provider package.
 
 ## What the transcripts showed
 
-| Cause                                                                                                                                                                                                  | Cost                                                                                                                              | Where it lives                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Turn-boundary cache loss: the provider SIGKILLs the Claude CLI after every turn and respawns with `--resume`; the CLI re-serializes its transcript and the server matches only a shorter cached prefix | median **~35,300 tokens** re-billed as 1h cache _write_ (2× base) per user turn, on ~71% of boundaries (native control: median 0) | `@saccolabs/pi-claude-cli` (`provider.ts`, `process-manager.ts`) — **not fixed here** |
-| CLAUDE.md billed twice: pi embeds it in `<project_context>` in its system prompt, and the Claude CLI loads the same file again as memory                                                               | **+4,890 tokens on every request** (this repo's CLAUDE.md)                                                                        | fixed here                                                                            |
-| Session auto-naming ran a full-fat `claude -p` on the default model (Opus): full Claude Code prompt, skills, MCP instructions, agent listings                                                          | **~35,000 tokens per new session** for a ~15-token title                                                                          | fixed here                                                                            |
+| Cause                                                                                                                                                                                                                                                               | Cost                                                                                        | Where it lives                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Turn-boundary cache loss — **root cause later corrected, see below**: the provider passed `--system-prompt` only on the session-creating spawn, and the CLI does not persist it across `--resume`, so turn 2 rebuilt the request under Claude Code's default prompt | **~35,000 tokens** re-billed as 1h cache _write_ (2× base), once per session (not per turn) | `@saccolabs/pi-claude-cli` — **fixed in 0.4.15**, not here |
+| CLAUDE.md billed twice: pi embeds it in `<project_context>` in its system prompt, and the Claude CLI loads the same file again as memory                                                                                                                            | **+4,890 tokens on every request** (this repo's CLAUDE.md)                                  | fixed here                                                 |
+| Session auto-naming ran a full-fat `claude -p` on the default model (Opus): full Claude Code prompt, skills, MCP instructions, agent listings                                                                                                                       | **~35,000 tokens per new session** for a ~15-token title                                    | fixed here                                                 |
 
 Static prefix was _not_ bloated: a pidex session's first-call prefix measured
 31,698 tokens vs 33,421 for plain `claude -p` in the same worktree. Of the
@@ -25,6 +25,17 @@ deferred tool names eagerly; schemas load on demand). `context-breakdown`,
 One measurement trap for anyone repeating this: the Claude CLI transcript
 duplicates assistant rows 2–3× per request. Dedupe on `requestId` before
 summing `usage`, or everything overcounts ~2.5×.
+
+> **Correction (same day).** The first row above originally read "median
+> ~35,300 tokens per user turn, on ~71% of boundaries", blamed on
+> kill-and-resume re-serializing the transcript. Direct measurement with a
+> shimmed `claude` disproved that: steady-state boundaries cost 21–173 tokens,
+> and kill-and-resume is cache-continuous. The real cause was a single dropped
+> flag, costing one rebuild per session rather than one per turn. The 71%
+> figure came from a sample dominated by short sessions, where turn-2 swaps and
+>
+> > 1h TTL expiries were most of the boundaries. Full evidence and the shipped
+> > fix: [2026-08-29-claude-cli-lifecycle-verification.md](2026-08-29-claude-cli-lifecycle-verification.md).
 
 ## Fix 1: `--no-context-files` for Claude-provider spawns
 
