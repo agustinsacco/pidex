@@ -640,6 +640,17 @@ export interface AppPrefs {
   /** Suppress orchestrator desktop notifications. */
   notificationsMuted: boolean
   /**
+   * Claude Code auto-compact window for pi-claude-cli sessions, passed as
+   * `PI_CLAUDE_CLI_AUTOCOMPACT` when a session spawns. Empty string means
+   * "the provider's default" (200k as of pi-claude-cli 0.5.0). Other accepted
+   * values mirror the provider: a window from 100k to 1M (`400k`, `400000`,
+   * bare `400` = thousands), `auto` (the CLI's own default — effectively the
+   * model's full 1M window), or `off` (omit the flag, for CLIs that predate
+   * `--autocompact`). The provider validates again and falls back to its
+   * default rather than passing a bad value to the CLI.
+   */
+  claudeAutocompact: string
+  /**
    * Unsent composer drafts, keyed by `session:<pidexId>` or
    * `home:<workspacePath>`.
    *
@@ -775,6 +786,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   orchestratorSessions: {},
   orchestratorDigests: {},
   notificationsMuted: false,
+  claudeAutocompact: '',
   drafts: {},
 }
 

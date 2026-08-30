@@ -151,6 +151,7 @@ export interface IpcInvokeMap {
   }
   /** Suppress orchestrator desktop notifications (global, not per project). */
   'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
+  'app:setClaudeAutocompact': { args: [value: string]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   /** Absolute path of the main-process debug log, or null if it could not be opened. */
   'app:debugLogPath': { args: []; result: string | null }

@@ -30,6 +30,7 @@ import {
   setAgentDirectives,
   setWorktreePrefs,
   setNotificationsMuted,
+  setClaudeAutocompact,
   setDraft,
   clearDraft,
   setDrafts,
@@ -190,6 +191,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setNotificationsMuted', (_event, muted: boolean) => {
     setNotificationsMuted(muted)
+  })
+
+  handle('app:setClaudeAutocompact', (_event, value: string) => {
+    setClaudeAutocompact(value)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {

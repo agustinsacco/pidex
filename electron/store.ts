@@ -77,6 +77,7 @@ export function getPrefs(): AppPrefs {
     orchestratorSessions: s.get('orchestratorSessions') ?? {},
     orchestratorDigests: s.get('orchestratorDigests') ?? {},
     notificationsMuted: s.get('notificationsMuted') ?? false,
+    claudeAutocompact: s.get('claudeAutocompact') ?? '',
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -162,6 +163,11 @@ export function setOrchestratorDigest(digest: OrchestratorDigest): void {
 
 export function setNotificationsMuted(muted: boolean): void {
   prefs().set('notificationsMuted', muted)
+}
+
+/** See AppPrefs.claudeAutocompact — stored trimmed; '' means provider default. */
+export function setClaudeAutocompact(value: string): void {
+  prefs().set('claudeAutocompact', value.trim())
 }
 
 /** Record that the user has viewed a session's current state. */
