@@ -1,7 +1,8 @@
 # Connectors: OAuth MCP servers as a first-class surface
 
 Audit + build plan. Written 2026-08-27 against `pi-mcp-adapter@2.29.0`.
-Nothing here has shipped; every finding below carries its own status.
+All four build phases below have since shipped; every finding carries its own
+status, and only F4 (upstream) is still open.
 
 **The ask.** Settings → **Connectors**: a catalog of real services (Linear,
 Notion, Braintrust, Datadog, Fellow, Slack first), each connected with OAuth in
