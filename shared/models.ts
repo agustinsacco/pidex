@@ -772,6 +772,40 @@ export interface ClaudeStatus {
 }
 
 /**
+ * One plan-usage window, as the CLI renders it in `claude -p /usage`.
+ *
+ * The CLI prints Claude Desktop's own live numbers (fed by the internal
+ * `/api/oauth/usage` endpoint) as text; these are the parsed windows of that
+ * text. The percent is the server's own accounting — always visible, not
+ * gated on any warning threshold like `rate_limit_event`'s `utilization`.
+ */
+export interface ClaudeUsageWindow {
+  /** The CLI's rendered label, e.g. "Current session" (the 5-hour block). */
+  label: string
+  /** Window family, derived from the label; `other` for kinds pidex doesn't know. */
+  kind: 'five_hour' | 'weekly' | 'weekly_model' | 'other'
+  /** Fraction of the window consumed, 0–100 (the CLI prints whole percents). */
+  percentUsed: number
+  /** When the window resets, Unix ms; null when the reset didn't parse. */
+  resetsAt: number | null
+}
+
+/** Result of one `claude -p /usage` run. */
+export interface ClaudeUsageSnapshot {
+  fetchedAt: number
+  /** True when the CLI served its cache ("Showing last-known usage"). */
+  stale: boolean
+  windows: ClaudeUsageWindow[]
+  /** The "What's contributing to your limits usage?" block, verbatim, when present. */
+  contributing: string | null
+}
+
+/** `claude:usageSnapshot` channel result. */
+export type ClaudeUsageSnapshotResult =
+  | { ok: true; snapshot: ClaudeUsageSnapshot }
+  | { ok: false; error: 'claude-not-found' | 'run-failed' | 'no-usage' }
+
+/**
  * Where an in-app `claude auth login` has got to.
  *
  * Deliberately not `LoginFlowState`: this is a different flow with a different

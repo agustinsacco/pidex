@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type { ClaudeLoginState, ClaudeStatus, PiPackageEntry } from '@shared/models'
+import type {
+  ClaudeLoginState,
+  ClaudeStatus,
+  ClaudeUsageSnapshotResult,
+  PiPackageEntry,
+} from '@shared/models'
 import { Button, TextInput } from '@/components/form'
 import { Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
+import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -128,6 +134,8 @@ export function ClaudeProviderTab(): React.JSX.Element {
           {status.binary.version}. It may still work — run the test below.
         </p>
       )}
+
+      <UsageSection binaryOk={binaryOk} />
 
       <h3 className="mt-6 text-lg font-semibold">Prove it end to end</h3>
       <p className="text-text-secondary mt-1 text-base">
@@ -378,5 +386,90 @@ function StatusRow({
         <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Live subscription usage — the same windows Claude Desktop shows (5-hour,
+ * weekly, per-model weekly), plus the "what's contributing" context the CLI
+ * renders from the same data. This is the diagnostics surface: the popover
+ * hides failures, this tab says what they were.
+ *
+ * The fetch spawns `claude -p /usage`: zero quota, no API key, no credential
+ * pidex touches — the CLI reads its own keychain login, so it needs nothing
+ * from the user beyond being signed in to a subscription.
+ */
+function UsageSection({ binaryOk }: { binaryOk: boolean | undefined }): React.JSX.Element {
+  const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setState(await window.pidex.invoke('claude:usageSnapshot'))
+  }, [])
+
+  useEffect(() => {
+    if (binaryOk) void refresh()
+  }, [binaryOk, refresh])
+
+  return (
+    <>
+      <h3 className="mt-6 text-lg font-semibold">Usage</h3>
+      <div className="border-border mt-2 rounded-lg border px-3.5 py-3">
+        {!binaryOk ? (
+          <p className="text-text-secondary text-base">claude CLI not found — see Health above.</p>
+        ) : state === null ? (
+          <div className="text-text-secondary flex items-center gap-2 text-base">
+            <Spinner /> Checking your plan usage…
+          </div>
+        ) : !state.ok ? (
+          <p className="text-text-secondary text-base">
+            {state.error === 'claude-not-found'
+              ? 'claude CLI not found on your login-shell PATH.'
+              : state.error === 'run-failed'
+                ? 'The usage check ran but did not complete — try again in a moment.'
+                : 'No subscription usage to show — sign in to a Claude Pro/Max account above.'}
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {state.snapshot.stale && (
+              <p className="text-warning text-sm">
+                Last-known usage — the CLI could not refresh it just now.
+              </p>
+            )}
+            {state.snapshot.windows.map((window) => {
+              const percent = Math.round(window.percentUsed)
+              const reset = windowResetLabel(window.resetsAt)
+              return (
+                <div key={window.label}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-base">{windowTitle(window)}</span>
+                    <span
+                      className={clsx('font-mono text-sm tabular-nums', usageTextClass(percent))}
+                    >
+                      {percent}% used{reset ? ` · ${reset}` : ''}
+                    </span>
+                  </div>
+                  <div className="bg-bg-secondary mt-1 h-1.5 overflow-hidden rounded-full">
+                    <div
+                      className={clsx('h-full rounded-full', usageBarClass(percent))}
+                      style={{ width: `${Math.min(100, percent)}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+            {state.snapshot.contributing && (
+              <div className="border-border/60 border-t pt-2">
+                <div className="text-text-tertiary pb-1 font-mono text-2xs uppercase tracking-wider">
+                  What&apos;s contributing
+                </div>
+                <pre className="text-text-tertiary max-h-52 overflow-auto whitespace-pre-wrap font-sans text-sm leading-snug">
+                  {state.snapshot.contributing}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
