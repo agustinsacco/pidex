@@ -4,6 +4,8 @@ import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
 import { useSessionsStore } from '@/stores/sessions'
 import { openFileInWorkspace } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
+import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { ChevronDownIcon } from '@/components/icons'
 import { Markdown } from '@/components/markdown/Markdown'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { MermaidBlock } from '@/components/markdown/MermaidBlock'
@@ -59,36 +61,22 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   }
 
   return (
+    // The artifact IS the pane title. The old header spent four stacked rows
+    // (shell label, gallery chips, title band, toolbar) before any content;
+    // the switcher dropdown replaces the chip row and the title band both.
     <PaneShell
       title={
-        <PaneTitle
-          label="Artifacts"
-          meta={`${list.length} artifact${list.length === 1 ? '' : 's'}`}
-        />
+        selected && (
+          <ArtifactSwitcher
+            list={list}
+            selected={selected}
+            onSelect={(id) =>
+              activeSessionId && useArtifactsStore.getState().select(activeSessionId, id)
+            }
+          />
+        )
       }
     >
-      {list.length > 1 && (
-        <div className="border-border flex shrink-0 gap-1.5 overflow-x-auto border-b px-2 py-1.5">
-          {list.map((artifact) => (
-            <button
-              key={artifact.id}
-              onClick={() =>
-                activeSessionId && useArtifactsStore.getState().select(activeSessionId, artifact.id)
-              }
-              className={clsx(
-                'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-medium transition-colors',
-                selected?.id === artifact.id
-                  ? 'border-accent/40 bg-accent-soft text-accent'
-                  : 'border-border text-text-secondary hover:text-text',
-              )}
-            >
-              <span className="text-lg leading-none">{artifactGlyph(artifact.type)}</span>
-              <span className="max-w-36 truncate">{artifact.title}</span>
-              <span className="text-text-tertiary">v{artifact.versions.length}</span>
-            </button>
-          ))}
-        </div>
-      )}
       {selected && (
         <ArtifactViewer
           key={selected.id}
@@ -100,6 +88,71 @@ export const ArtifactsPane = memo(function ArtifactsPane({
     </PaneShell>
   )
 })
+
+/**
+ * Header title = the selected artifact itself (glyph, name, age). With more
+ * than one artifact it becomes a dropdown switcher; with one it is a plain
+ * label. Replaces the old chip gallery row AND the per-artifact title band.
+ */
+function ArtifactSwitcher({
+  list,
+  selected,
+  onSelect,
+}: {
+  list: Artifact[]
+  selected: Artifact
+  onSelect: (id: string) => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const multiple = list.length > 1
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <button
+        ref={triggerRef}
+        disabled={!multiple}
+        aria-haspopup={multiple ? 'listbox' : undefined}
+        aria-expanded={multiple ? open : undefined}
+        title={multiple ? 'Switch artifact' : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className={clsx(
+          'flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors',
+          multiple && 'hover:bg-bg-secondary',
+        )}
+      >
+        <span className="shrink-0 text-lg leading-none">{artifactGlyph(selected.type)}</span>
+        <span className="min-w-0 truncate text-lg font-semibold">{selected.title}</span>
+        <span className="text-text-tertiary shrink-0 text-xs">
+          {relativeTimeShort(selected.updatedAt)}
+        </span>
+        {multiple && <ChevronDownIcon size={12} className="text-text-tertiary shrink-0" />}
+      </button>
+      {open && (
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
+          className="absolute left-0 top-full mt-1 w-72 py-1"
+        >
+          {list.map((artifact) => (
+            <MenuRow
+              key={artifact.id}
+              active={artifact.id === selected.id}
+              onClick={() => {
+                onSelect(artifact.id)
+                setOpen(false)
+              }}
+              trailing={`v${artifact.versions.length} · ${relativeTimeShort(artifact.updatedAt)}`}
+            >
+              <span className="mr-1.5">{artifactGlyph(artifact.type)}</span>
+              {artifact.title}
+            </MenuRow>
+          ))}
+        </PopupMenu>
+      )}
+    </div>
+  )
+}
 
 function ArtifactViewer({
   artifact,
@@ -158,14 +211,6 @@ function ArtifactViewer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-3 py-2">
-        <span className="text-lg leading-none">{artifactGlyph(artifact.type)}</span>
-        <span className="min-w-0 flex-1 truncate text-lg font-semibold">
-          {shown.title || artifact.title}
-        </span>
-        <span className="text-text-tertiary text-xs">{relativeTimeShort(artifact.updatedAt)}</span>
-      </div>
-
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
         <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>
           Preview
