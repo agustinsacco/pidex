@@ -77,6 +77,12 @@ export interface FleetQuestion {
 export interface FleetSession {
   sessionId: string
   workspacePath: string
+  /**
+   * Repo the workspace belongs to — the main checkout for a worktree session.
+   * This is what groups a worktree under its project instead of stranding it
+   * as its own row.
+   */
+  projectRoot?: string
   diskPath?: string
   title?: string
   phase: FleetPhase
@@ -232,18 +238,35 @@ rather than hanging a tool forever. Failures come back as
 
 ### Tools
 
-| Tool             | Args                                         | Does                                                       |
-| ---------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `fleet_status`   | —                                            | the snapshot, plus on-disk sessions for this project       |
-| `session_read`   | `sessionId`, `limit?`                        | recent transcript tail (`get_messages` on the live client) |
-| `session_send`   | `sessionId`, `text`, `mode: steer\|followUp` | speak to a running agent                                   |
-| `session_stop`   | `sessionId`                                  | `abort`                                                    |
-| `session_answer` | `sessionId`, `requestId`, `value`            | resolve a pending clarifying question                      |
-| `git_status`     | `sessionId \| path`                          | branch, dirty count, PR state (wraps `git:*` / `gh:*`)     |
-| `propose_work`   | `title`, `prompt`, `workspacePath?`          | queue an inbox suggestion — or spawn, under autopilot      |
-| `memory_read`    | —                                            | the memory file                                            |
-| `memory_write`   | `content`                                    | replace it (whole-file; the model owns its own notes)      |
-| `publish_digest` | `DigestPayload`                              | what the home screen and sidebar render                    |
+| Tool             | Args                                | Does                                                       |
+| ---------------- | ----------------------------------- | ---------------------------------------------------------- |
+| `fleet_status`   | `scope`                             | the snapshot, plus on-disk sessions for this project       |
+| `session_read`   | `sessionId`, `limit?`               | recent transcript tail (`get_messages` on the live client) |
+| `session_send`   | `sessionId`, `text`, `mode?`        | speak to a running agent                                   |
+| `session_stop`   | `sessionId`                         | `abort`                                                    |
+| `session_answer` | `sessionId`, `value`, `requestId?`  | resolve a pending clarifying question                      |
+| `git_status`     | `workspacePath`                     | branch, dirty count, PR state (wraps `git:*` / `gh:*`)     |
+| `propose_work`   | `title`, `prompt`, `workspacePath?` | queue an inbox suggestion — or spawn, under autopilot      |
+| `memory_read`    | `purpose`                           | the memory file                                            |
+| `memory_write`   | `content`                           | replace it (whole-file; the model owns its own notes)      |
+| `publish_digest` | `headline`, `items?`                | what the home screen and sidebar render                    |
+
+This table is enforced. `pi-ext/orchestrator-doc.test.ts` reads it and fails if
+a tool's arguments here stop matching the schema the extension registers — five
+of these ten rows were wrong before that guard existed. A trailing `?` means
+optional. Notes on the ones that look odd:
+
+- **`fleet_status` and `memory_read` need an argument they barely use.** Every
+  tool here declares at least one required parameter, because a no-argument
+  call on the Claude provider streams no `input_json_delta` and dies at
+  `root: must be object`. See the header of `pi-ext/orchestrator.ts`.
+- **`git_status` takes a path, not a session.** `"."` means this project.
+- **`session_send`'s `mode`** is `steer` (interrupt), `followUp` (queue) or
+  `prompt`; `steer` and `followUp` both fall back to `prompt` when the target
+  is not streaming.
+- **`publish_digest`'s `items`** is a union of an array and a JSON-encoded
+  string of that array, because Opus 5 on Bedrock sends the string form and pi
+  validates before the handler runs.
 
 `session_send`, `session_stop`, `session_answer` and `propose_work` are
 mutations and are the ones autopilot governs.
@@ -258,11 +281,13 @@ A sweep is a prompt main injects into the orchestrator session. Kinds:
   check git/PR state, and recommend — _this feature merged, archive the chat_,
   _this one stalled_, _this one drifted from its charter_. This is the case
   that motivated the design: judgment applied deliberately, not continuously.
-- **`question`** — a free-form user message; an ordinary prompt.
+  There is no third kind. A free-form user message is not a sweep — it is an
+  ordinary prompt to the orchestrator session.
 
-Triggers: the "Brief me" button, a per-group "Review" action, and (opt-in)
-once when a workspace opens. Guards: a minimum interval between automatic
-sweeps, and a skip when nothing in the snapshot changed since the last one.
+Triggers: the "Brief me" button and a per-group "Review" action. Both are user
+clicks; nothing sweeps on its own, which is what "nothing spends tokens unless
+the user asks" means in practice. The guard is a 60-second floor between
+automatic sweeps.
 The orchestrator's own session is excluded from the fleet it reports on, so a
 sweep cannot trigger itself.
 
@@ -277,9 +302,15 @@ export interface DigestItem {
   kind: 'attention' | 'suggestion' | 'note'
   sessionPath?: string
   text: string
+  /**
+   * Synthesized by the bridge from a per-item `startPrompt`, never sent by the
+   * model directly. `start` is the only kind: this used to also list `open`,
+   * `resume`, `archive` and `merge`, none of which anything ever produced or
+   * rendered.
+   */
   action?: {
     label: string
-    kind: 'open' | 'resume' | 'archive' | 'merge' | 'start'
+    kind: 'start'
     payload?: string
   }
 }
@@ -395,7 +426,8 @@ injected carries an explicit badge in that session's transcript, per
 always be able to tell which messages they wrote and which the manager did.
 
 **Everywhere else, one predicate.** `isOrchestratorSession()` gates the sidebar
-list, `groupSessionsByProject` and `workspaceStats()` (home tiles + heatmap).
+list and `groupSessionsByProject`. The home tiles exclude it further
+upstream, in the scanner behind `sessions:stats`.
 
 ---
 
@@ -467,15 +499,15 @@ way — this only fixes what the live UI shows.
 
 All three layers, in one PR. Code map:
 
-| Area               | Files                                                                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hub (no inference) | `electron/orchestrator/{fleet,fleetReducer,collisions,broadcast}.ts`, `SessionRegistry` events                                                                                                |
-| Control channel    | `electron/orchestrator/{protocol,bridge}.ts`, interception in `ipc/pi-session-handlers.ts`                                                                                                    |
-| Orchestrator       | `electron/orchestrator/{manager,prompt,files,instance}.ts`, `pi-ext/orchestrator.ts`                                                                                                          |
-| Notifications      | `electron/orchestrator/{notifications,notifier}.ts`, single-instance lock in `main.ts`                                                                                                        |
-| Identity           | `shared/orchestratorIdentity.ts` — the one predicate                                                                                                                                          |
-| Renderer           | `src/stores/fleet.ts`, `src/features/home/{FleetOverview,FleetInbox,SessionCard,inbox}.*`, `src/features/orchestrator/OrchestratorRow.tsx`, `src/features/settings/tabs/OrchestrationTab.tsx` |
-| IPC                | `fleet:state`, `orchestrator:{ensure,sweep,rules,writeRules,overview,setPrefs,acceptProposal}`, `app:setNotificationsMuted`                                                                   |
+| Area               | Files                                                                                                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Hub (no inference) | `electron/orchestrator/{fleet,fleetReducer,collisions,broadcast}.ts`, `SessionRegistry` events                                                                                                                                             |
+| Control channel    | `electron/orchestrator/{protocol,bridge}.ts`, interception in `ipc/pi-session-handlers.ts`                                                                                                                                                 |
+| Orchestrator       | `electron/orchestrator/{manager,prompt,files,instance}.ts`, `pi-ext/orchestrator.ts`                                                                                                                                                       |
+| Notifications      | `electron/orchestrator/{notifications,notifier}.ts`, single-instance lock in `main.ts`                                                                                                                                                     |
+| Identity           | `shared/orchestratorIdentity.ts` — the one predicate                                                                                                                                                                                       |
+| Renderer           | `src/stores/fleet.ts`, `src/features/home/{FleetOverview,FleetInbox,SessionCard,inbox}.*`, `src/features/orchestrator/{OrchestratorHeaderButton,OrchestratorModePicker,threadHealth}.*`, `src/features/settings/tabs/OrchestrationTab.tsx` |
+| IPC                | `fleet:state`, `fleet:changed` (push), `orchestrator:{ensure,sweep,rules,writeRules,overview,setPrefs,acceptProposal,reset,restart}`, `app:setNotificationsMuted`                                                                          |
 
 ## Manual test plan
 
@@ -498,9 +530,9 @@ anywhere, which is itself the first thing to check.
 4. **Steer from home** — type into a card's composer while the agent is
    streaming and press Enter. The message reaches that session (open it and
    see it in the transcript). Idle sessions take the same box as a prompt.
-5. **Sidebar separation** — each project group shows one **Orchestrator** row
-   above its sessions, with a ✳ mark and no branch subtitle. It must not
-   appear among the session rows.
+5. **Sidebar separation** — each project group's header carries the
+   orchestrator control (a button, not a session row). The orchestrator must
+   never appear among the session rows.
 6. **Blocked session → inbox** — trigger a clarifying question (an extension
    that calls `ctx.ui.select`). Home shows it under **Needs you** with its real
    options as buttons; clicking one answers it without opening the session, and
@@ -511,7 +543,7 @@ anywhere, which is itself the first thing to check.
 
 ### B · Orchestrator, no tokens spent
 
-8. **First click explains itself** — click the sidebar spark on a project that
+8. **First click explains itself** — click the orchestrator button on a project group that
    has never had an orchestrator. It opens a chat; it must not silently start
    a sweep.
 9. **The chat is unmistakable** — the orchestrator's view carries an accent
@@ -521,8 +553,8 @@ anywhere, which is itself the first thing to check.
     meter all work in the orchestrator chat exactly as in any other.
 11. **It stays out of the numbers** — with an orchestrator thread present,
     check that the home "Project stats" session count does **not** include it.
-12. **Settings → Orchestration** — autopilot off by default, cap of 2, brief-on-
-    open off, notifications on. The rules box shows `<repo>/.pidex/orchestrator.md`
+12. **Settings → Orchestration** — mode, model, a concurrency cap of 2 and
+    notification mute. Autopilot is off by default; notifications are on. The rules box shows `<repo>/.pidex/orchestrator.md`
     and saving reports "Applies next session".
 
 ### C · Sweeps (these spend tokens)

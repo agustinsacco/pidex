@@ -379,9 +379,14 @@ export interface DigestItem {
   /** Session file path this item is about, when it is about one. */
   sessionPath?: string
   text: string
+  /**
+   * Synthesized by the bridge from a per-item `startPrompt` — the model never
+   * sends it. `start` is the only kind: `open`, `resume`, `archive` and
+   * `merge` sat in this union unproduced and unrendered until 2026-08-30.
+   */
   action?: {
     label: string
-    kind: 'open' | 'resume' | 'archive' | 'merge' | 'start'
+    kind: 'start'
     payload?: string
   }
 }
