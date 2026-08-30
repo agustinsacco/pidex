@@ -65,6 +65,7 @@ import type {
   WorktreeInfo,
   WorktreePrefs,
   ComposerDraftRecord,
+  LanePrefs,
 } from './models'
 
 /** Parsed session tree (subset of entries) for the tree view. */
@@ -122,6 +123,8 @@ export interface IpcInvokeMap {
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }
+  /** How lanes name and brand themselves; clamped in the main process. */
+  'app:setLanePrefs': { args: [LanePrefs]; result: void }
   /** Model picker memory (pinned + recent), keyed `provider/id`. */
   'app:setModelPicks': { args: [ModelPicks]; result: void }
   'app:setLastSession': { args: [sessionPath: string | undefined]; result: void }

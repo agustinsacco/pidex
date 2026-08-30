@@ -202,14 +202,23 @@ export function autoMarker(key: string | null | undefined): string {
  *
  * An explicit empty string means "no marker, on purpose" and is honoured —
  * that is distinct from having no entry at all, which means "never chose".
+ *
+ * `mode` is the user preference (`LanePrefs.markers`):
+ * - `auto`   derive one for lanes that never chose. The default.
+ * - `manual` respect choices, derive nothing. Someone who wants markers only
+ *            on the handful of lanes they care about gets a quiet sidebar.
+ * - `off`    no marker at all. The caller drops the whole column, rather than
+ *            rendering an empty one, so turning this off reclaims the width.
  */
 export function laneMarker(
   explicit: string | undefined,
   branch: string | null | undefined,
   cwd: string | null | undefined,
+  mode: 'auto' | 'manual' | 'off' = 'auto',
 ): string {
+  if (mode === 'off') return ''
   if (explicit !== undefined) return explicit
-  return autoMarker(branch || cwd)
+  return mode === 'manual' ? '' : autoMarker(branch || cwd)
 }
 
 /** Every glyph the picker offers, flattened. */

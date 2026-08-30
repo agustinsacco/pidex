@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
+import { useSessionsStore } from '@/stores/sessions'
 import { prChip } from './prChip'
 import { describeWarnings, type PreflightSummary } from './deletePreflight'
 
@@ -221,4 +222,139 @@ function Option({
       </span>
     </label>
   )
+}
+
+/**
+ * The progress and summary view for a bulk delete in flight.
+ *
+ * Separate from `BulkDeleteModal` because it is driven by store state rather
+ * than by props: the run outlives the confirm dialog, and a delete of ten
+ * lanes disposes ten subprocesses and runs git ten times. Without this the
+ * sidebar simply froze for several seconds and rows vanished in one jump,
+ * which reads as a crash rather than as work.
+ *
+ * The summary is not a toast. Per-lane outcomes matter here — a worktree that
+ * would not remove because a terminal is cwd'd into it is the common case, and
+ * that lane is still in the sidebar. A toast that says "3 deleted" while four
+ * were selected is exactly the silent-failure this is meant to prevent.
+ */
+export function BulkDeleteProgressModal({
+  onDone,
+}: {
+  onDone: () => void
+}): React.JSX.Element | null {
+  const progress = useSessionsStore((s) => s.bulkDelete)
+  if (!progress) return null
+
+  const { total, done, current, results, running, cancelled } = progress
+  const failed = results.filter((r) => !r.ok)
+  const warned = results.filter((r) => r.ok && r.error)
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+
+  const close = (): void => {
+    useSessionsStore.getState().dismissBulkDelete()
+    onDone()
+  }
+
+  return (
+    <ModalOverlay
+      onClose={running ? () => undefined : close}
+      closeOnBackdrop={!running}
+      closeOnEscape={!running}
+    >
+      <div
+        data-testid="bulk-delete-progress"
+        className="bg-surface-raised border-border w-[min(34rem,94vw)] rounded-lg border shadow-2xl"
+      >
+        <div className="border-border border-b px-5 py-4">
+          <h2 className="text-base font-semibold">
+            {running
+              ? cancelled
+                ? 'Finishing the current lane…'
+                : `Deleting ${done + 1} of ${total}`
+              : summaryTitle(results.length, failed.length, cancelled)}
+          </h2>
+          <p className="text-text-secondary mt-1 truncate text-sm">
+            {running ? current || 'Starting…' : 'Transcripts are in the Trash. Worktrees are gone.'}
+          </p>
+        </div>
+
+        <div className="px-5 pt-4">
+          <div className="bg-chip h-1.5 w-full overflow-hidden rounded-full">
+            <div
+              className={clsx(
+                'h-full rounded-full transition-[width] duration-200',
+                failed.length > 0 ? 'bg-warning' : 'bg-accent',
+              )}
+              style={{ width: `${running ? Math.max(percent, 4) : 100}%` }}
+            />
+          </div>
+        </div>
+
+        {results.length > 0 && (
+          <div className="max-h-56 overflow-y-auto px-5 py-3">
+            <div className="border-border divide-border divide-y overflow-hidden rounded-md border">
+              {results.map((result) => (
+                <div key={result.path} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span
+                    aria-hidden
+                    className={clsx('shrink-0', result.ok ? 'text-success' : 'text-danger')}
+                  >
+                    {result.ok ? '✓' : '✕'}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{result.title}</span>
+                  {result.error && (
+                    <span
+                      title={result.error}
+                      className={clsx(
+                        'max-w-[14rem] shrink-0 truncate text-2xs',
+                        result.ok ? 'text-warning' : 'text-danger',
+                      )}
+                    >
+                      {result.error}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {warned.length > 0 && (
+              <p className="text-text-tertiary mt-2 text-xs">
+                Deleted, but the branch was kept. `git branch -d` refuses an unmerged branch and
+                pidex never forces it.
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="border-border bg-bg-secondary flex items-center gap-2 rounded-b-lg border-t px-5 py-3">
+          <span className="text-text-tertiary text-xs">
+            {running ? `${done} of ${total} done` : `${results.length} processed`}
+          </span>
+          <span className="flex-1" />
+          {running ? (
+            <button
+              onClick={() => useSessionsStore.getState().cancelBulkDelete()}
+              disabled={cancelled}
+              className="border-border text-text-secondary hover:text-text rounded-md border px-3 py-1 text-sm disabled:opacity-40"
+            >
+              {cancelled ? 'Stopping…' : 'Stop'}
+            </button>
+          ) : (
+            <button
+              onClick={close}
+              className="bg-accent text-accent-text rounded-md px-3 py-1 text-sm font-semibold"
+            >
+              Done
+            </button>
+          )}
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
+function summaryTitle(processed: number, failed: number, cancelled: boolean): string {
+  if (failed > 0) return `${processed - failed} deleted, ${failed} kept`
+  if (cancelled) return `Stopped after ${processed}`
+  return `Deleted ${processed} lane${processed === 1 ? '' : 's'}`
 }

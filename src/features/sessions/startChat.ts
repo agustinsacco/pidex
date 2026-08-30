@@ -6,6 +6,7 @@ import { useChatStore } from '@/stores/chat'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { branchNameFor } from '@shared/branchName'
+import { lanePrefs } from '@/stores/lanePrefs'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { workspaceName } from '@/lib/path'
 import { piCallOk } from '@/lib/rpc'
@@ -139,8 +140,12 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
 
   const branch = created.worktree.branch ?? undefined
   // Deliberately not awaited: this is the ~13s call that used to be in front
-  // of the send button.
-  void nameChat({ sessionId, repoPath, cwd, prompt, branch })
+  // of the send button. Skipped entirely when the user turned auto-naming off,
+  // in which case the session keeps its first-message title and the branch
+  // keeps the slug it was created with.
+  if (lanePrefs().autoName) {
+    void nameChat({ sessionId, repoPath, cwd, prompt, branch })
+  }
 
   return { sessionId, workspacePath: cwd, branch }
 }
@@ -243,6 +248,7 @@ async function applyGeneratedName({
     // title that already slugs to the branch we have from being suffixed "2".
     takenBranches: repo.branches.map((b) => b.name).filter((name) => name !== branch),
     takenFolders: [],
+    maxSlug: lanePrefs().branchSlugMaxLength,
   })
   if (renamed === branch) return
   await store.renameBranch(repoPath, branch, renamed)
@@ -361,6 +367,7 @@ async function createBranchWorktree(
     prefix: useWorktreesStore.getState().branchPrefix,
     takenBranches: repo.branches.map((b) => b.name),
     takenFolders: repo.worktrees.filter((w) => !w.isMain).map((w) => workspaceName(w.path)),
+    maxSlug: lanePrefs().branchSlugMaxLength,
   })
 
   try {

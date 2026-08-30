@@ -1140,6 +1140,8 @@ export function installMockPidex(): void {
           return Promise.resolve(
             URL.createObjectURL(new Blob([args[0] as string], { type: 'text/html' })),
           )
+        case 'app:setLanePrefs':
+          return Promise.resolve(undefined)
         case 'app:setLaneMarkers':
           return Promise.resolve(undefined)
         case 'gh:prsForRepo':

@@ -17,6 +17,12 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 ## Workspaces
 
+- **New sessions**: whether a chat gets its own branch and worktree, and the
+  branch prefix (`WorktreePrefs`).
+- **Naming and markers**: auto-naming on/off, the word range and character cap
+  for generated titles, the branch-slug cap, and the lane marker mode
+  (`LanePrefs`). Every number is clamped in both the renderer and main; see
+  [lanes.md](lanes.md#preferences) for what each one reaches.
 - Recent workspace list management (remove, reorder, clear).
 - Per-workspace: default layout reset.
 

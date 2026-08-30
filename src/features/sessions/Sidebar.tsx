@@ -11,9 +11,10 @@ import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
-import { BulkDeleteModal } from './BulkDeleteModal'
+import { BulkDeleteModal, BulkDeleteProgressModal } from './BulkDeleteModal'
 import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import {
@@ -32,8 +33,7 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { projectName, isWorktreeFolder, basename } from '@/lib/path'
-import { presentText } from '@/stores/prompt'
+import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -427,6 +427,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const chat = useChatStore.getState()
     const sessions = useSessionsStore.getState()
     const prState = usePullRequestsStore.getState()
+    const markerPrefMode = useLanePrefsStore.getState().lanes.markers
     const metaByPath = new Map(
       Object.values(disk)
         .flat()
@@ -448,7 +449,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
               explicitName: liveName ?? meta.name,
               firstUserText: meta.firstUserText,
             }) ?? 'Untitled session',
-          marker: laneMarker(explicit, git?.branch, meta.cwd),
+          marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
           git,
           pr: pullRequestFor(prState, git?.mainRepoPath ?? meta.cwd, git?.branch),
           isLive: Boolean(livePidexId),
@@ -857,32 +858,21 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           onConfirm={(options) => {
             const lanes = pendingDelete.deletable.map((lane) => ({
               path: lane.path,
+              title: lane.title,
               worktreePath: lane.worktreePath,
               mainRepoPath: lane.mainRepoPath,
             }))
+            // The dialog stays up and switches to its progress view; the store
+            // publishes each lane as it goes. Clearing the selection now would
+            // empty the list the progress view is describing, so it waits
+            // until the run is dismissed.
             setPendingDelete(null)
-            clearSelection()
-            void useSessionsStore
-              .getState()
-              .deleteManySessions(workspacePath, lanes, options)
-              .then((results) => {
-                // A worktree that would not remove is the common failure, and
-                // a row that silently stays put reads as the delete having
-                // worked. Say what happened.
-                const failures = results.filter((r) => !r.ok)
-                const notes = results.filter((r) => r.ok && r.error)
-                if (failures.length === 0 && notes.length === 0) return
-                void presentText({
-                  title: 'Delete finished with warnings',
-                  text: [
-                    ...failures.map((r) => `Kept ${basename(r.path)} — ${r.error}`),
-                    ...notes.map((r) => `Deleted ${basename(r.path)}, but ${r.error}`),
-                  ].join('\n'),
-                })
-              })
+            void useSessionsStore.getState().deleteManySessions(workspacePath, lanes, options)
           }}
         />
       )}
+
+      <BulkDeleteProgressModal onDone={clearSelection} />
 
       {/* Width resize handle: an invisible strip over the right border. */}
       <div
@@ -1022,10 +1012,11 @@ function SessionRow({
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
+  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: pidex names a session only after its
   // first turn ends, so a title-derived marker would change under the user the
   // moment the auto-namer landed.
-  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd)
+  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
   const naming = useNameTransition(livePidexId)
   // A live session's own name beats the scanned one. pi writes its session
   // file only when a turn ENDS (measured), so a name set mid-turn does not
@@ -1090,7 +1081,9 @@ function SessionRow({
         label: isPinned ? 'Unpin' : 'Pin',
         onClick: () => store.togglePin(meta.path),
       },
-      { label: 'Lane marker…', onClick: () => setPickingMarker(true) },
+      ...(markerMode === 'off'
+        ? []
+        : [{ label: 'Lane marker…', onClick: () => setPickingMarker(true) }]),
       // The chip itself is a mouse-only shortcut (it cannot be a tab stop
       // inside the row button — see PrBadge). This is the keyboard route, and
       // the only way to discover the PR number without hovering.
@@ -1198,7 +1191,7 @@ function SessionRow({
       <span className={clsx(onToggleSelect && (selecting ? 'hidden' : 'group-hover:hidden'))}>
         <SessionIndicator state={indicatorState} />
       </span>
-      <LaneMarker marker={marker} />
+      {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         {renaming ? (
           <input
@@ -1352,7 +1345,8 @@ function PendingSessionRow({
   // slot that appeared only after the swap would shift the title mid-turn —
   // the exact twitch the shared subtitle above exists to avoid. There is no
   // meta.path yet, so there can be no explicit override: always Auto.
-  const marker = laneMarker(undefined, git?.branch, null)
+  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
+  const marker = laneMarker(undefined, git?.branch, null, markerMode)
 
   return (
     <button
@@ -1368,7 +1362,7 @@ function PendingSessionRow({
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
-      <LaneMarker marker={marker} />
+      {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         <span
           key={title}
