@@ -7,6 +7,7 @@ import {
   pruneSeenSessions,
   sweepDrafts,
   pruneLaneMarkers,
+  visibleWorkspaces,
 } from './prefs-utils'
 
 const draft = (key: string, updatedAt: number, blobIds: string[] = []): ComposerDraftRecord => ({
@@ -138,5 +139,27 @@ describe('pruneLaneMarkers', () => {
   it('does not prune at exactly the cap', () => {
     const markers = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`/s${i}`, '🚀']))
     expect(pruneLaneMarkers(markers, 8, 5)).toBe(markers)
+  })
+})
+
+describe('visibleWorkspaces', () => {
+  const ws = (path: string) => ({ path, name: path.split('/').pop()!, lastOpenedAt: 1 })
+  const isWorktree = (p: string) => p.includes('/.pidex/worktrees/')
+
+  it('drops worktree folders and folders that are gone', () => {
+    const alive = new Set(['/repo'])
+    expect(
+      visibleWorkspaces(
+        [ws('/repo'), ws('/repo/.pidex/worktrees/lane'), ws('/deleted')],
+        isWorktree,
+        (p) => alive.has(p),
+      ).map((w) => w.path),
+    ).toEqual(['/repo'])
+  })
+
+  it('keeps the caller order', () => {
+    expect(
+      visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, () => true).map((w) => w.path),
+    ).toEqual(['/b', '/a'])
   })
 })

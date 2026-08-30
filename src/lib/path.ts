@@ -47,24 +47,35 @@ export function isWorktreeFolder(path: string): boolean {
  * The project a path belongs to: the repo root for a linked worktree, the path
  * itself for anything else.
  *
- * Two sources, in order, because they fail in opposite directions:
+ * Three sources, in order, because they fail in opposite directions:
  *
  *  1. `git.isWorktree` + `mainRepoPath`, which is authoritative and works for
  *     a worktree anywhere on disk — but arrives over a batched `git:infoBatch`
  *     round trip, so it is `undefined` on the first paint of every surface.
- *  2. The path shape `<repo>/.pidex/worktrees/<name>`, which needs no I/O and
+ *  2. `knownRoot` — the repo `git worktree list` reported this folder under.
+ *     The sidebar's worktree discovery already has it at the moment it learns
+ *     the path, so passing it costs nothing and needs no round trip. Covers
+ *     worktrees anywhere on disk, unlike step 3.
+ *  3. The path shape `<repo>/.pidex/worktrees/<name>`, which needs no I/O and
  *     is true the moment the path exists. It only knows about worktrees pidex
- *     created, which is why it is the fallback and not the primary.
+ *     created, which is why it is the last fallback and not the primary.
  *
- * Without step 2 the identity flashed — or stuck, whenever git info for that
+ * Without step 2, a worktree that is not under `.pidex/worktrees` (a sibling
+ * folder, `.claude/worktrees/`, `/tmp`) opened its OWN sidebar group, headed
+ * by the branch slug, for as long as `git:infoBatch` took to answer — a wall
+ * of fake "workspaces" on every cold start.
+ *
+ * Without step 3 the identity flashed — or stuck, whenever git info for that
  * cwd never loaded — on the worktree folder's own basename. Those folders are
  * named after their branch, so the top bar read "hey-2" for the `pidex` repo.
  */
 export function projectPathFor(
   path: string,
   git?: { isWorktree?: boolean; mainRepoPath?: string },
+  knownRoot?: string,
 ): string {
   if (git?.isWorktree && git.mainRepoPath) return git.mainRepoPath
+  if (knownRoot) return knownRoot
   return /^(.*?)[/\\]\.pidex[/\\]worktrees[/\\]/.exec(path)?.[1] ?? path
 }
 

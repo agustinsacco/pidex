@@ -1219,6 +1219,30 @@ export function installMockPidex(): void {
               prunable: false,
               dirtyCount: 0,
             },
+            {
+              // Outside `.pidex/worktrees`, so nothing about the path says
+              // "worktree". It must still fold into the pidex group on the
+              // first render, from the root this call was made against.
+              path: '/tmp/pidex-pr-4821',
+              realPath: '/tmp/pidex-pr-4821',
+              branch: 'pr-4821',
+              head: '9876fedcba543210',
+              isMain: false,
+              locked: false,
+              prunable: false,
+              dirtyCount: 1,
+            },
+            {
+              // Folder deleted behind git's back. Never a sidebar group.
+              path: '/Users/dev/projects/pidex-gone',
+              realPath: '/Users/dev/projects/pidex-gone',
+              branch: 'gone',
+              head: '0000000000000000',
+              isMain: false,
+              locked: false,
+              prunable: true,
+              dirtyCount: -1,
+            },
           ])
         case 'git:listBranches':
           return Promise.resolve({

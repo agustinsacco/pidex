@@ -1,5 +1,12 @@
+import { existsSync } from 'node:fs'
 import Store from 'electron-store'
-import { blobIdsOf, pruneDrafts, pruneLaneMarkers, pruneSeenSessions } from './prefs-utils'
+import {
+  blobIdsOf,
+  pruneDrafts,
+  pruneLaneMarkers,
+  pruneSeenSessions,
+  visibleWorkspaces,
+} from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
@@ -44,10 +51,13 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
-    // Prune worktree folders on read too: a pre-fix install may have recorded
-    // one per session worktree, which used to flood the sidebar/switcher with
-    // a header per chat instead of one per project.
-    recentWorkspaces: (s.get('recentWorkspaces') ?? []).filter((ws) => !isWorktreeFolder(ws.path)),
+    // Read-only prune: worktree folders (never workspaces) and folders that
+    // no longer exist. Deliberately not written back — see `visibleWorkspaces`.
+    recentWorkspaces: visibleWorkspaces(
+      s.get('recentWorkspaces') ?? [],
+      isWorktreeFolder,
+      existsSync,
+    ),
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],

@@ -40,6 +40,52 @@ describe('groupSessionsByProject', () => {
     expect(groups[0]).toMatchObject({ workspacePath: '/repo', paths: ['/repo'], name: 'repo' })
   })
 
+  it('folds an externally-placed worktree via its known root, before git info lands', () => {
+    // The startup bug: `git worktree list` reports worktrees anywhere on
+    // disk, but only `<repo>/.pidex/worktrees/` is recognisable from the path
+    // alone. Every other one opened its own branch-named group for as long as
+    // `git:infoBatch` took — a wall of fake "workspaces" on every cold start.
+    const known = [
+      '/repo',
+      '/tmp/pr15889-wt',
+      '/repo/.claude/worktrees/blissful',
+      '/src/repo-know719',
+    ]
+    const worktreeRoots = {
+      '/tmp/pr15889-wt': '/repo',
+      '/repo/.claude/worktrees/blissful': '/repo',
+      '/src/repo-know719': '/repo',
+    }
+    const groups = groupSessionsByProject(
+      known,
+      { '/repo': [meta({ path: '/repo/a.jsonl' })] },
+      {}, // no git info yet — this is the first paint
+      notPinned,
+      notLive,
+      '/repo',
+      [],
+      {},
+      worktreeRoots,
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({ workspacePath: '/repo', name: 'repo' })
+    expect(groups[0]!.paths).toEqual(known)
+  })
+
+  it('shows a branch-named group for each worktree when the roots are missing', () => {
+    // Guards the fix above: without `worktreeRoots` the same input is four
+    // groups, which is exactly what the user saw.
+    const groups = groupSessionsByProject(
+      ['/repo', '/tmp/pr15889-wt', '/src/repo-know719'],
+      { '/repo': [meta({ path: '/repo/a.jsonl' })] },
+      {},
+      notPinned,
+      notLive,
+      '/repo',
+    )
+    expect(groups.map((g) => g.name)).toEqual(['repo', 'pr15889-wt', 'repo-know719'])
+  })
+
   it('folds a linked worktree into its main repo group instead of a second header', () => {
     const gitByCwd: Record<string, GitInfo> = {
       '/repo': { isRepo: true, branch: 'main' },

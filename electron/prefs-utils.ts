@@ -1,5 +1,25 @@
 /** Pure pref helpers, separate from electron-store so tests can import them. */
-import { MAX_DRAFTS, type ComposerDraftRecord } from '@shared/models'
+import { MAX_DRAFTS, type ComposerDraftRecord, type WorkspaceInfo } from '@shared/models'
+
+/**
+ * The recents worth answering with: real folders that still exist.
+ *
+ * Both filters keep the sidebar honest about what a "workspace" is. A
+ * worktree is a branch of a project, not a project (a pre-fix install may
+ * have persisted one per session). A folder that is gone is not a project at
+ * all, and until this it kept its own sidebar header forever.
+ *
+ * Applied on READ only. Callers must not write the result back: a workspace
+ * on an unmounted volume is missing today and back tomorrow, and forgetting
+ * it on the strength of one boot loses the user's sidebar order for good.
+ */
+export function visibleWorkspaces(
+  workspaces: WorkspaceInfo[],
+  isWorktree: (path: string) => boolean,
+  exists: (path: string) => boolean,
+): WorkspaceInfo[] {
+  return workspaces.filter((ws) => !isWorktree(ws.path) && exists(ws.path))
+}
 
 /**
  * Drop the oldest seen-markers once the map outgrows `max`, keeping the
