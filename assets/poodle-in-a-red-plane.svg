@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480" role="img" aria-labelledby="t2 d2">
+  <title id="t2">Brown poodle flying a red plane</title>
+  <desc id="d2">A curly brown poodle in aviator goggles peeks out of the cockpit of a small red aeroplane with a spinning propeller.</desc>
+
+  <defs>
+    <linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfeaff"/>
+      <stop offset="1" stop-color="#f2f8ff"/>
+    </linearGradient>
+    <g id="poodleFluff">
+      <circle cx="306" cy="212" r="24"/>
+      <circle cx="336" cy="204" r="22"/>
+      <circle cx="294" cy="222" r="16"/>
+      <circle cx="358" cy="212" r="16"/>
+    </g>
+    <g id="poodleCurls">
+      <circle cx="326" cy="168" r="30"/>
+      <circle cx="304" cy="156" r="21"/>
+      <circle cx="328" cy="140" r="23"/>
+      <circle cx="352" cy="152" r="19"/>
+      <circle cx="358" cy="174" r="16"/>
+      <circle cx="298" cy="182" r="18"/>
+    </g>
+  </defs>
+
+  <rect width="640" height="480" fill="url(#sky2)"/>
+
+  <!-- sun -->
+  <g fill="#ffd66b">
+    <circle cx="566" cy="72" r="34"/>
+    <g stroke="#ffd66b" stroke-width="7" stroke-linecap="round">
+      <path d="M566 18v-10M566 126v10M512 72h-10M620 72h10M528 34l-8-8M604 110l8 8M604 34l8-8M528 110l-8 8" fill="none"/>
+    </g>
+  </g>
+
+  <!-- clouds -->
+  <g fill="#ffffff" opacity="0.92">
+    <circle cx="96" cy="126" r="26"/><circle cx="126" cy="114" r="22"/><circle cx="70" cy="136" r="18"/><circle cx="150" cy="132" r="16"/>
+    <rect x="66" y="130" width="90" height="22" rx="11"/>
+    <circle cx="470" cy="404" r="24"/><circle cx="500" cy="392" r="20"/><circle cx="446" cy="412" r="16"/>
+    <rect x="442" y="406" width="76" height="20" rx="10"/>
+  </g>
+
+  <!-- speed lines -->
+  <g stroke="#a8cbe6" stroke-width="5" stroke-linecap="round" fill="none">
+    <path d="M28 236h74"/><path d="M12 262h86"/><path d="M36 288h66"/>
+  </g>
+
+  <!-- aeroplane -->
+  <path d="M126 240C118 206 128 184 150 180C168 178 176 196 174 238Z" fill="#a92320" stroke="#7d1a17" stroke-width="3"/>
+  <path d="M472 224C497 227 508 240 508 258C508 277 497 289 472 292L160 296C134 296 122 288 122 274L122 246C122 232 134 224 160 224Z" fill="#d9382e" stroke="#7d1a17" stroke-width="4"/>
+  <path d="M130 262C220 258 360 254 500 260L502 274C360 268 220 272 130 276Z" fill="#fdfcf8" stroke="none"/>
+  <path d="M110 250C142 240 174 242 198 248L198 262C172 258 142 260 110 268Z" fill="#c22f27" stroke="#7d1a17" stroke-width="3"/>
+
+  <!-- cockpit tub -->
+  <path d="M270 232C270 204 296 188 332 188C368 188 394 204 394 232Z" fill="#22314a" stroke="#7d1a17" stroke-width="4"/>
+
+  <!-- poodle -->
+  <path d="M302 154C280 166 272 198 286 222C294 234 310 232 312 214Z" fill="#6b4426" stroke="#4a2f19" stroke-width="3"/>
+  <g fill="#6b4426" stroke="#6b4426" stroke-width="7" stroke-linejoin="round">
+    <use href="#poodleFluff"/><use href="#poodleCurls"/>
+  </g>
+  <g fill="#8a5a34" stroke="none">
+    <use href="#poodleFluff"/><use href="#poodleCurls"/>
+  </g>
+  <path d="M348 160C372 161 391 169 395 177C391 187 371 193 348 189Z" fill="#b98a5c" stroke="#6b4426" stroke-width="3"/>
+  <circle cx="391" cy="171" r="8" fill="#33251c"/>
+  <path d="M388 181C384 191 372 193 366 187" fill="none" stroke="#4a2f19" stroke-width="3" stroke-linecap="round"/>
+  <path d="M338 150C358 158 362 188 348 206C338 218 324 212 326 196Z" fill="#7d5330" stroke="#4a2f19" stroke-width="3"/>
+  <g fill="#2b2f36">
+    <circle cx="338" cy="161" r="5"/><circle cx="367" cy="169" r="4.5"/>
+  </g>
+  <g fill="#bfe0f5" fill-opacity="0.55" stroke="#4a3320" stroke-width="4">
+    <circle cx="338" cy="160" r="14"/><circle cx="367" cy="168" r="12"/>
+  </g>
+  <path d="M352 159h4" stroke="#4a3320" stroke-width="4" fill="none"/>
+  <path d="M320 144C302 154 296 174 304 190" fill="none" stroke="#4a3320" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- cockpit near lip, glass, paws -->
+  <path d="M270 228C298 246 366 246 396 228" fill="none" stroke="#a92320" stroke-width="10" stroke-linecap="round"/>
+  <path d="M356 196C372 202 382 216 384 232L354 232C354 216 350 204 344 198Z" fill="#cfe8fa" fill-opacity="0.8" stroke="#5b6a7d" stroke-width="3"/>
+  <g fill="#b98a5c" stroke="#6b4426" stroke-width="3">
+    <circle cx="300" cy="224" r="13"/><circle cx="338" cy="228" r="12"/>
+  </g>
+  <g fill="none" stroke="#6b4426" stroke-width="2.5">
+    <path d="M296 215v9M304 215v9M334 219v8M342 219v8"/>
+  </g>
+
+  <!-- wing, gear, propeller -->
+  <path d="M286 288L404 286L474 322L318 324Z" fill="#ef4f42" stroke="#7d1a17" stroke-width="4"/>
+  <path d="M330 292L318 320" stroke="#7d1a17" stroke-width="5" fill="none"/>
+  <g stroke="#566070" stroke-width="8" fill="none">
+    <path d="M348 292v38"/><path d="M152 296v16"/>
+  </g>
+  <circle cx="348" cy="344" r="21" fill="#2b2f36" stroke="#1b1f24" stroke-width="3"/>
+  <circle cx="348" cy="344" r="7" fill="#cfd6e0"/>
+  <circle cx="152" cy="318" r="11" fill="#2b2f36" stroke="#1b1f24" stroke-width="3"/>
+  <g fill="#566070">
+    <ellipse cx="512" cy="258" rx="6" ry="52" transform="rotate(15 512 258)"/>
+    <ellipse cx="512" cy="258" rx="6" ry="52" transform="rotate(-15 512 258)"/>
+  </g>
+  <circle cx="505" cy="258" r="11" fill="#cfd6e0" stroke="#566070" stroke-width="3"/>
+  <path d="M520 206A58 58 0 0 1 520 310" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="6"/>
+</svg>
