@@ -1,5 +1,23 @@
 # 2026-08-29 — Live verification: how pi-claude-cli drives Claude Code, and exactly what was broken
 
+> **Second correction, same day, after re-verifying with real limits
+> restored.** Everything below up to "The fix, as shipped in 0.4.15" describes
+> the FIRST bug found and fixed (PR #27, 0.4.15): the CLI drops
+> `--system-prompt` across `--resume`, causing a turn-2 cache rebuild. That
+> diagnosis and fix were correct as far as cost goes.
+>
+> But re-verifying it live turned up a SECOND, older, and worse bug:
+> `--system-prompt` / `--append-system-prompt` take a **literal string**, not
+> a path, and the provider has always passed them a **temp-file path**. So pi's
+> actual instructions have never reached Claude Code, on any turn, since this
+> provider first supported a system prompt — not just from turn 2 as 0.4.15
+> believed, but from turn 1 too, on every session ever run. 0.4.15's fix
+> re-sent the same broken flag, so it fixed the cache cost but not the missing
+> instructions. Fixed in **0.4.16**
+> ([PR #28](https://github.com/agustinsacco/pi-claude-cli/pull/28)). See
+> "Second bug, found on live re-verification" below for the full account —
+> read that section first if you only have time for one.
+
 Verdict: **the defect was real, and is now fixed and shipped** in
 `@saccolabs/pi-claude-cli` 0.4.15
 ([PR #27](https://github.com/agustinsacco/pi-claude-cli/pull/27)). It was
@@ -15,6 +33,8 @@ The fix was mechanically verified before being written: re-passing the same
 system prompt on resume spawns drops the turn-2 cost from 9,761 to **112
 tokens** and keeps pi's instructions live. It was a small provider change, not
 the persistent-process rewrite this audit originally proposed.
+
+**This verdict was incomplete — see the box above.**
 
 ## How pi manages Claude Code
 
@@ -169,6 +189,74 @@ monthly spend limit mid-investigation. Instead: the installed
 `~/.pi/agent/npm/node_modules/@saccolabs/pi-claude-cli/src` is byte-identical
 (`diff -r`) to merge commit `336f81a`, on which the full suite passes
 including the real-spawn argv guard. Worth one live run once the limit resets.
+
+## Second bug, found on live re-verification: the flag was ALWAYS wrong
+
+The verification of 0.4.15 above proved cache-continuity (`create 112 / read
+21,424`) and that a follow-up question got _an_ answer. It never proved the
+answer used pi's system prompt, because the probe question ("reply with
+BRAVO") didn't require the system prompt to answer correctly. That gap is
+what let this second bug through the first verification pass.
+
+Once real API limits were available again, re-running the live suite
+(`PI_CLAUDE_CLI_LIVE=1`) against the actually-installed 0.4.15 package hit a
+distinguishing probe: assign the model a fictitious codename via the system
+prompt, then ask for it.
+
+```
+$ claude -p --model claude-haiku-4-5 --system-prompt /tmp/sys.txt "What is your codename?"
+I'm Claude, made by Anthropic. No codename—just Claude.
+
+$ claude -p --model claude-haiku-4-5 --system-prompt "$(cat /tmp/sys.txt)" "What is your codename?"
+Bartholomew Quirk.
+```
+
+`--system-prompt` (and `--append-system-prompt`) take a **literal string**.
+`claude --help` names the real path-taking flags separately:
+`--system-prompt-file` / `--append-system-prompt-file`. `spawnClaude()` in
+`process-manager.ts` has, since the provider first grew system-prompt support
+(long before 2026-08-29), written the prompt to a temp file and handed the
+**path** to the unsuffixed, string-only flag. No error, no warning — the CLI
+just silently ran on Claude Code's default prompt (`pi` mode) or appended a
+stray filesystem path as noise the model ignored (`claude` mode).
+
+This is strictly worse than what PR #27 diagnosed: it isn't a turn-2 problem,
+it's a turn-1 problem, present in every pidex Claude-provider session that
+has ever run, on both `PI_CLAUDE_CLI_SYSTEM_PROMPT` modes, independent of
+resume. pi's instructions — replaced or appended — never reached the model at
+all. 0.4.15's fix (re-send the prompt on every `--resume`) was necessary and
+its cache-cost math was correct, but it re-sent the same broken flag, so a
+0.4.15 session still ran on Claude Code's defaults from turn 1 onward.
+
+**Fixed in 0.4.16** ([PR #28](https://github.com/agustinsacco/pi-claude-cli/pull/28)):
+switch to `--system-prompt-file` / `--append-system-prompt-file`. Verified
+live against the installed 0.4.16, both prompt modes, turn 1 through a resume
+boundary:
+
+| mode                           | turn 1 reply         | turn 2 reply (post-resume) | turn-2 cacheWrite |
+| ------------------------------ | -------------------- | -------------------------- | ----------------- |
+| `pi` (`--system-prompt-file`)  | "Bartholomew Quirk." | "Bartholomew Quirk."       | 76                |
+| `claude` (`--append-...-file`) | "Bartholomew Quirk." | "Bartholomew Quirk."       | 121               |
+
+Cache stays warm either way — this is a pure correctness fix layered on top
+of 0.4.15's cost fix, not a second cache regression.
+
+**Why the mocked tests never caught it, on either PR.** Every existing
+`process-manager.test.ts` / `provider.test.ts` assertion checked that a flag
+was _present_ in the spawned argv. None of them, nor the mocked half of
+`resume-argv.test.ts`, ever ran a real CLI process and checked what the model
+actually received. Only a live run — real subprocess, real model, a
+distinguishing question — surfaces it. 0.4.16 adds a mocked guard too (assert
+the staged file's _content_, not just its presence, and that neither
+unsuffixed flag is ever used), but the mocked guard is a regression net, not
+what found the bug.
+
+**Corrected verdict.** No, Claude Code does not use more tokens through pidex
+than on its own — that holds on 0.4.16 as it did on 0.4.15, the token math in
+this doc is unaffected. But the "constant, correct system prompt" row of the
+terminal-parity table above was wrong until 0.4.16: on 0.4.14 and 0.4.15,
+every pidex Claude-provider session ran fully or partially on Claude Code's
+own instructions, not pi's, for its entire lifetime.
 
 ## Repro harness
 

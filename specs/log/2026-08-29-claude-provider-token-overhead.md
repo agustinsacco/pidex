@@ -33,9 +33,21 @@ summing `usage`, or everything overcounts ~2.5×.
 > and kill-and-resume is cache-continuous. The real cause was a single dropped
 > flag, costing one rebuild per session rather than one per turn. The 71%
 > figure came from a sample dominated by short sessions, where turn-2 swaps and
+> 1h TTL expiries were most of the boundaries. Full evidence and the shipped
+> fix: [2026-08-29-claude-cli-lifecycle-verification.md](2026-08-29-claude-cli-lifecycle-verification.md).
 >
-> > 1h TTL expiries were most of the boundaries. Full evidence and the shipped
-> > fix: [2026-08-29-claude-cli-lifecycle-verification.md](2026-08-29-claude-cli-lifecycle-verification.md).
+> **Second correction (same day, after live re-verification with real API
+> limits).** The 0.4.15 fix cited above re-sent `--system-prompt` on resume,
+> which fixed the cache-cost math in this row. But that flag takes a
+> **literal string**, not a path, and the provider has always passed it a
+> temp-file path — since before this audit, on every turn including the
+> first. So the "once per session, not per turn" framing above understates
+> it: pi's instructions never reached the model at all, turn 1 included, on
+> either `PI_CLAUDE_CLI_SYSTEM_PROMPT` mode. Fixed in **0.4.16**
+> ([PR #28](https://github.com/agustinsacco/pi-claude-cli/pull/28)). This
+> table's dollar figures are unaffected — the cache math was already right —
+> but "fixed in 0.4.15" in the row above should read 0.4.16. Full account:
+> [2026-08-29-claude-cli-lifecycle-verification.md](2026-08-29-claude-cli-lifecycle-verification.md#second-bug-found-on-live-re-verification-the-flag-was-always-wrong).
 
 ## Fix 1: `--no-context-files` for Claude-provider spawns
 
