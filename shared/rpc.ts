@@ -1,6 +1,6 @@
 /**
  * pi RPC protocol types, mirrored from the installed
- * @earendil-works/pi-coding-agent (verified against 0.84.1):
+ * @earendil-works/pi-coding-agent (re-verified against 0.84.4):
  *   dist/modes/rpc/rpc-mode.js  (the command switch — the real command list)
  *   dist/modes/rpc/rpc-types.d.ts
  *   docs/rpc.md
@@ -14,6 +14,18 @@
  * that is how `get_available_thinking_levels` went missing. When re-verifying
  * against a new pi, diff this file against pi's command switch, not just
  * against itself.
+ *
+ * The stdout event shape is NOT the internal `AgentSessionEvent`: the wire
+ * passes through pi's `toJsonEvent` (dist/modes/json-event.js), which strips
+ * the cumulative snapshots. Concretely, across 0.84.0 → 0.84.4:
+ *   0.84.0  dropped `message` from `message_update` and
+ *           `assistantMessageEvent.partial` — assemble the partial yourself
+ *   0.84.2  re-added cumulative `usage` on `message_update`
+ *   0.84.3  put tool-call id + name on `toolcall_start` directly (the
+ *           supported replacement for reading them off `partial`)
+ *   0.84.4  added the `clear_queue` command
+ * The delta fields below are optional because a minimum-version install may
+ * predate 0.84.2/0.84.3; every reader must tolerate their absence.
  */
 
 // ---------- content blocks ----------
@@ -192,21 +204,26 @@ export type AgentMessage =
 // ---------- assistant streaming deltas ----------
 
 export type AssistantMessageEvent =
-  | { type: 'start'; partial?: AssistantMessage }
-  | { type: 'text_start'; contentIndex: number; partial?: AssistantMessage }
-  | { type: 'text_delta'; contentIndex: number; delta: string; partial?: AssistantMessage }
-  | { type: 'text_end'; contentIndex: number; content?: string; partial?: AssistantMessage }
-  | { type: 'thinking_start'; contentIndex: number; partial?: AssistantMessage }
-  | { type: 'thinking_delta'; contentIndex: number; delta: string; partial?: AssistantMessage }
-  | { type: 'thinking_end'; contentIndex: number; content?: string; partial?: AssistantMessage }
-  | { type: 'toolcall_start'; contentIndex: number; partial?: AssistantMessage }
-  | { type: 'toolcall_delta'; contentIndex: number; delta: string; partial?: AssistantMessage }
+  | { type: 'start' }
+  | { type: 'text_start'; contentIndex: number }
+  | { type: 'text_delta'; contentIndex: number; delta: string }
+  | { type: 'text_end'; contentIndex: number; content?: string }
+  | { type: 'thinking_start'; contentIndex: number }
+  | { type: 'thinking_delta'; contentIndex: number; delta: string }
+  | { type: 'thinking_end'; contentIndex: number; content?: string }
+  /**
+   * Tool-call id + name ride directly on this event from pi 0.84.3, which is
+   * how identity reaches the UI before the argument payload finishes streaming.
+   * Absent on older pi, where it only arrives at `toolcall_end`.
+   */
   | {
-      type: 'toolcall_end'
+      type: 'toolcall_start'
       contentIndex: number
-      toolCall?: ToolCallContent
-      partial?: AssistantMessage
+      id?: string
+      toolName?: string
     }
+  | { type: 'toolcall_delta'; contentIndex: number; delta: string }
+  | { type: 'toolcall_end'; contentIndex: number; toolCall?: ToolCallContent }
   | { type: 'done'; reason: 'stop' | 'length' | 'toolUse'; message?: AssistantMessage }
   | { type: 'error'; reason: 'aborted' | 'error'; error?: unknown; message?: AssistantMessage }
 
@@ -224,7 +241,11 @@ export type PiEvent =
   | { type: 'turn_start' }
   | { type: 'turn_end'; message: AgentMessage; toolResults: ToolResultMessage[] }
   | { type: 'message_start'; message: AgentMessage }
-  | { type: 'message_update'; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
+  /**
+   * Carries no `message` (pi's `toJsonEvent` removed the cumulative snapshot);
+   * `usage` is cumulative-as-of the delta and is absent on pi < 0.84.2.
+   */
+  | { type: 'message_update'; usage?: Usage; assistantMessageEvent: AssistantMessageEvent }
   | { type: 'message_end'; message: AgentMessage }
   | {
       type: 'tool_execution_start'
@@ -264,6 +285,22 @@ export type PiEvent =
       errorMessage: string
     }
   | { type: 'auto_retry_end'; success: boolean; attempt: number; finalError?: string }
+  /** Output chunk from a direct RPC `bash` command, not a tool execution. */
+  | { type: 'bash_execution_update'; id?: string; delta: string }
+  | {
+      type: 'summarization_retry_scheduled'
+      attempt: number
+      maxAttempts: number
+      delayMs: number
+      errorMessage: string
+    }
+  | { type: 'summarization_retry_attempt_start'; source: 'branchSummary' }
+  | {
+      type: 'summarization_retry_attempt_start'
+      source: 'compaction'
+      reason: CompactionReason
+    }
+  | { type: 'summarization_retry_finished' }
   | { type: 'extension_error'; extensionPath?: string; event?: string; error: string }
 
 export type CompactionReason = 'manual' | 'threshold' | 'overflow'
@@ -318,6 +355,11 @@ export type RpcCommand =
   | { id?: string; type: 'set_session_name'; name: string }
   | { id?: string; type: 'get_messages' }
   | { id?: string; type: 'get_commands' }
+  /** Branch-jump tree. `since` returns only entries appended after that id. */
+  | { id?: string; type: 'get_entries'; since?: string }
+  | { id?: string; type: 'get_tree' }
+  /** Drains and returns the pending steering/follow-up queues (pi 0.84.4+). */
+  | { id?: string; type: 'clear_queue' }
 
 export type RpcCommandType = RpcCommand['type']
 
@@ -428,6 +470,15 @@ export interface RpcResponseDataMap {
   set_session_name: undefined
   get_messages: { messages: AgentMessage[] }
   get_commands: { commands: RpcSlashCommand[] }
+  /**
+   * Entry and tree node shapes live in pi's session-format spec and are
+   * deliberately not mirrored here: no surface renders them yet, and
+   * half-mirroring a recursive on-disk format is how specs drift from code.
+   * Declare a surface needs them before filling these in.
+   */
+  get_entries: { entries: unknown[]; leafId: string | null }
+  get_tree: { tree: unknown[]; leafId: string | null }
+  clear_queue: { steering: string[]; followUp: string[] }
 }
 
 /**

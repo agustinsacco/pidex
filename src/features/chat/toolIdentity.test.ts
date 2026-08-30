@@ -23,31 +23,24 @@ const assistantStart: PiEvent = {
   message: { role: 'assistant', content: [] },
 }
 
-/** `toolcall_start` with no partial: identity unknown at this point. */
+/**
+ * `toolcall_start` that names no tool: identity unknown at this point. That's
+ * older pi (< 0.84.3), or a provider that withholds identity while streaming.
+ */
 const anonymousToolStart = (contentIndex = 0): PiEvent => ({
   type: 'message_update',
-  message: { role: 'assistant', content: [] },
   assistantMessageEvent: { type: 'toolcall_start', contentIndex },
 })
 
-const argsDelta = (delta: string, contentIndex = 0, partialName?: string): PiEvent => ({
+/** `toolcall_start` in the pi >= 0.84.3 wire shape: id + name on the event. */
+const namedToolStart = (id: string, name: string, contentIndex = 0): PiEvent => ({
   type: 'message_update',
-  message: { role: 'assistant', content: [] },
-  assistantMessageEvent: {
-    type: 'toolcall_delta',
-    contentIndex,
-    delta,
-    ...(partialName
-      ? {
-          partial: {
-            role: 'assistant' as const,
-            content: [
-              { type: 'toolCall' as const, id: 'real-1', name: partialName, arguments: {} },
-            ],
-          },
-        }
-      : {}),
-  },
+  assistantMessageEvent: { type: 'toolcall_start', contentIndex, id, toolName: name },
+})
+
+const argsDelta = (delta: string, contentIndex = 0): PiEvent => ({
+  type: 'message_update',
+  assistantMessageEvent: { type: 'toolcall_delta', contentIndex, delta },
 })
 
 describe('streaming tool identity', () => {
@@ -57,6 +50,20 @@ describe('streaming tool identity', () => {
     expect(tools).toHaveLength(1)
     expect(tools[0]!.toolName).toBeNull()
     expect(tools[0]!.toolCallId).toMatch(/^pending-/)
+  })
+
+  it('stays on the placeholder when an event carries an id but no name', () => {
+    // Re-keying onto an id with a blank title would render a nameless card,
+    // which is worse than the honest placeholder.
+    const state = run([
+      assistantStart,
+      {
+        type: 'message_update',
+        assistantMessageEvent: { type: 'toolcall_start', contentIndex: 0, id: 'half-1' },
+      },
+    ])
+    expect(Object.values(state.tools)[0]!.toolCallId).toMatch(/^pending-/)
+    expect(Object.values(state.tools)[0]!.toolName).toBeNull()
   })
 
   it('keeps streaming args onto the placeholder', () => {
@@ -69,12 +76,12 @@ describe('streaming tool identity', () => {
     expect(Object.values(state.tools)[0]!.argsText).toBe('{"path":1}')
   })
 
-  it('adopts the real identity as soon as a partial reveals it mid-stream', () => {
+  it('titles the card when `toolcall_start` names the call (pi >= 0.84.3)', () => {
     const state = run([
       assistantStart,
-      anonymousToolStart(),
+      namedToolStart('real-1', 'read'),
       argsDelta('{"path"'),
-      argsDelta(':1}', 0, 'read'),
+      argsDelta(':1}'),
     ])
     // One entry, keyed by the real id, with the streamed args preserved.
     expect(Object.keys(state.tools)).toEqual(['real-1'])
@@ -175,19 +182,8 @@ describe('streaming tool identity', () => {
   it('does not steal an identified tool when a new id appears', () => {
     const state = run([
       assistantStart,
-      // Identified up front (Anthropic-direct shape).
-      {
-        type: 'message_update',
-        message: { role: 'assistant', content: [] },
-        assistantMessageEvent: {
-          type: 'toolcall_start',
-          contentIndex: 0,
-          partial: {
-            role: 'assistant',
-            content: [{ type: 'toolCall', id: 'known', name: 'read', arguments: {} }],
-          },
-        },
-      },
+      // Identified up front (the pi >= 0.84.3 shape).
+      namedToolStart('known', 'read'),
       // An unrelated execution event must not re-key the identified block.
       { type: 'tool_execution_start', toolCallId: 'other', toolName: 'bash', args: {} },
     ])

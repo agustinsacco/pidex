@@ -1,6 +1,8 @@
 # 02 — pi Integration Reference
 
-Everything here was verified against the locally installed `@earendil-works/pi-coding-agent` (0.78.0 at spec time; latest 0.83.x — pin a minimum of the installed version and re-verify against local docs before implementing):
+Everything here was verified against the locally installed `@earendil-works/pi-coding-agent`. The protocol mirror in `shared/rpc.ts` was re-verified against **0.84.4** (2026-08-28) and `MIN_PI_VERSION` is **0.84.1**; the 0.84.2 `usage` field and the 0.84.3 `toolcall_start` id/name are read as optional so both floors work. The 0.84.0 streaming-shape delta is in `shared/rpc.ts`'s header — read it before trusting any older doc, including the parts of this file written against 0.78/0.79.
+
+When re-verifying against a new pi, diff `shared/rpc.ts` against pi's command switch and `dist/modes/json-event.d.ts` (the stdout shape), not just against `rpc-types.d.ts` (the internal shape):
 
 ```
 $(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the protocol, read fully

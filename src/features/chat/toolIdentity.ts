@@ -3,10 +3,18 @@
  *
  * Providers disagree about *when* a tool call's real id and name become known:
  *
- * - Anthropic direct puts both in the first `partial` on `toolcall_start`.
- * - Bedrock-routed Claude sends neither until `toolcall_end` — i.e. after the
- *   entire argument payload has streamed, which for a large `write` or
+ * - pi 0.84.3+ puts both on the `toolcall_start` event itself, so the card is
+ *   titled before the argument payload finishes streaming.
+ * - Older pi, and providers that withhold identity while streaming (Bedrock-
+ *   routed Claude), send neither until `toolcall_end` — i.e. after the entire
+ *   argument payload has streamed, which for a large `write` or
  *   `artifact_create` is minutes of wall clock.
+ *
+ * There used to be a third case read off `assistantMessageEvent.partial`.
+ * pi 0.84.0 stopped sending that snapshot, so the mid-stream reveal was dead
+ * code quietly leaving every card on its placeholder; `toolcall_start` is now
+ * the only up-front source, and the field is checked for presence rather than
+ * assumed.
  *
  * Until the real id arrives the tool has to be keyed under *something*, so we
  * mint a deterministic placeholder from the item id + content index and leave
@@ -14,13 +22,13 @@
  * as "Running unknown" / "unknown arguments").
  *
  * The important part is that every later event which learns the real identity —
- * a `partial` on a subsequent delta, `toolcall_end`, or a `tool_execution_*`
- * event arriving first — **adopts** that placeholder instead of inserting a
+ * `toolcall_end`, or a `tool_execution_*` event arriving first — **adopts**
+ * that placeholder instead of inserting a
  * second tool entry. Before this, the placeholder stayed on screen forever at
  * `status: 'starting'` while the real entry (holding the actual output)
  * accumulated under a key nothing rendered.
  */
-import type { AssistantMessage } from '@shared/rpc'
+import type { AssistantMessageEvent } from '@shared/rpc'
 import type { AssistantItem, ChatSessionState, ToolState } from './chatItems'
 import { replaceItem } from './messageContent'
 
@@ -34,15 +42,18 @@ export interface RevealedTool {
   name: string
 }
 
-/** The real id/name for a content index, if this partial message carries them. */
-export function revealedToolCall(
-  partial: AssistantMessage | undefined,
-  contentIndex: number,
+/**
+ * The real id/name on a `toolcall_start`, or null if this pi build (or
+ * provider) withholds identity until `toolcall_end`.
+ *
+ * Needs *both* fields before revealing: re-keying onto a real id with no name
+ * would render a title-less card, which is worse than the honest placeholder.
+ */
+export function revealedFromStart(
+  delta: Extract<AssistantMessageEvent, { type: 'toolcall_start' }>,
 ): RevealedTool | null {
-  const block = partial?.content?.[contentIndex]
-  if (!block || typeof block !== 'object' || block.type !== 'toolCall') return null
-  if (!block.id) return null
-  return { id: block.id, name: block.name }
+  if (!delta.id || !delta.toolName) return null
+  return { id: delta.id, name: delta.toolName }
 }
 
 /**
