@@ -54,7 +54,6 @@ export function getPrefs(): AppPrefs {
     seenSessions: s.get('seenSessions') ?? {},
     laneMarkers: s.get('laneMarkers') ?? {},
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
-    claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
     agentDirectives: {
       ...DEFAULT_APP_PREFS.agentDirectives,
       ...s.get('agentDirectives'),
@@ -169,10 +168,6 @@ export function markSessionSeen(sessionPath: string): void {
 
 export function setFontPrefs(fonts: AppPrefs['fonts']): void {
   prefs().set('fonts', fonts)
-}
-
-export function setClaudeSystemPrompt(mode: AppPrefs['claudeSystemPrompt']): void {
-  prefs().set('claudeSystemPrompt', mode)
 }
 
 export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {

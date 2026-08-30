@@ -523,8 +523,6 @@ export interface AppPrefs {
    */
   laneMarkers: Record<string, string>
   fonts: FontPrefs
-  /** Whose system prompt Claude Code sessions run under. */
-  claudeSystemPrompt: ClaudeSystemPromptMode
   /** What pidex appends to every lane's system prompt. */
   agentDirectives: AgentDirectivePrefs
   /** Per-project override of the above, keyed by main-repo path. */
@@ -592,16 +590,6 @@ export const MAX_DRAFTS = 30
 export const MAX_DRAFT_BLOB_BYTES = 50 * 1024 * 1024
 
 /**
- * Which system prompt the pi-claude-cli provider gives its `claude`
- * subprocess. Mirrors the extension's `PI_CLAUDE_CLI_SYSTEM_PROMPT`, which
- * pidex sets when spawning pi.
- *
- * `claude` appends pi's prompt to Claude Code's own — everything the CLI
- * normally knows about its tools stays. `pi` replaces it, which frees roughly
- * 12k tokens of context per call but leaves the model working from pi's
- * instructions plus the raw tool schemas.
- */
-/**
  * Layer 2 of the directive stack: what pidex appends to a lane's system
  * prompt. See `electron/pi/directives.ts` for the full stack and why this is
  * a setting rather than a constant.
@@ -647,8 +635,6 @@ export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
   custom: '',
 }
 
-export type ClaudeSystemPromptMode = 'claude' | 'pi'
-
 /** Starred and recently used models, keyed `provider/id`, plus how to group them. */
 export interface ModelPicks {
   /** User-ordered; these sort to the top of the picker. */
@@ -681,9 +667,6 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   seenSessions: {},
   laneMarkers: {},
   fonts: DEFAULT_FONT_PREFS,
-  // Matches the extension's own default: keep Claude Code's prompt unless the
-  // user opts out of it.
-  claudeSystemPrompt: 'claude',
   agentDirectives: DEFAULT_AGENT_DIRECTIVES,
   agentDirectivesByProject: {},
   worktrees: DEFAULT_WORKTREE_PREFS,

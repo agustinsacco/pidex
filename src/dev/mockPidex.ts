@@ -664,7 +664,6 @@ export function installMockPidex(): void {
               terminalFontSize: 12.5,
               monoFont: 'JetBrains Mono',
             },
-            claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
             // DirectivesSection reads both of these straight into state, so
             // omitting them made the whole section throw in the harness.
             agentDirectives: DEFAULT_APP_PREFS.agentDirectives,
@@ -1389,7 +1388,6 @@ export function installMockPidex(): void {
           })
         case 'pi:patchAgentSettings':
         case 'pi:writeConfigFile':
-        case 'app:setClaudeSystemPrompt':
         case 'app:setFontPrefs':
         case 'app:setRecentWorkspaces':
         case 'app:setCollapsedWorkspaces':
