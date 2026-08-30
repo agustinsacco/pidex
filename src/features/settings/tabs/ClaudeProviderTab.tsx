@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type {
-  ClaudeLoginState,
-  ClaudeStatus,
-  ClaudeSystemPromptMode,
-  PiPackageEntry,
-} from '@shared/models'
+import type { ClaudeLoginState, ClaudeStatus, PiPackageEntry } from '@shared/models'
 import { Button, TextInput } from '@/components/form'
 import { Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
@@ -23,24 +18,16 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const [pkg, setPkg] = useState<PiPackageEntry | null | undefined>(undefined)
   const [latest, setLatest] = useState<string | null>(null)
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
-  const [promptMode, setPromptMode] = useState<ClaudeSystemPromptMode>('claude')
   const [login, setLogin] = useState<ClaudeLoginState | null>(null)
 
-  const setPromptModePref = useCallback((mode: ClaudeSystemPromptMode): void => {
-    setPromptMode(mode)
-    void window.pidex.invoke('app:setClaudeSystemPrompt', mode)
-  }, [])
-
   const refresh = useCallback(async (): Promise<void> => {
-    const [entries, claudeState, prefs] = await Promise.all([
+    const [entries, claudeState] = await Promise.all([
       window.pidex.invoke('packages:list'),
       window.pidex.invoke('packages:claudeStatus'),
-      window.pidex.invoke('app:getPrefs'),
     ])
     const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
     setPkg(entry)
     setStatus(claudeState)
-    setPromptMode(prefs.claudeSystemPrompt)
     if (entry) {
       void window.pidex
         .invoke('packages:checkUpdates')
@@ -141,32 +128,6 @@ export function ClaudeProviderTab(): React.JSX.Element {
           {status.binary.version}. It may still work — run the test below.
         </p>
       )}
-
-      <h3 className="mt-6 text-lg font-semibold">System prompt</h3>
-      <p className="text-text-secondary mt-1 text-base">
-        Whose instructions the <span className="font-mono">claude</span> subprocess runs under.
-        Applies to sessions you start from now on — the CLI keeps its system prompt for the life of
-        a session.
-      </p>
-      <div className="mt-2.5 space-y-2">
-        <PromptModeOption
-          value="claude"
-          current={promptMode}
-          onSelect={setPromptModePref}
-          title="Claude Code's, plus pi's"
-          detail="Layers pi's prompt on top of Claude Code's own. Everything the CLI normally knows about its tools stays in place."
-        />
-        <PromptModeOption
-          value="pi"
-          current={promptMode}
-          onSelect={setPromptModePref}
-          title="pi's only"
-          detail="Replaces Claude Code's prompt entirely, freeing roughly 12k tokens of context per call. The model works from pi's instructions plus the raw tool schemas, so behaviour can differ."
-        />
-      </div>
-      <p className="text-text-tertiary mt-2 text-sm">
-        Needs the extension at v0.4.7 or newer; older versions ignore the setting and always append.
-      </p>
 
       <h3 className="mt-6 text-lg font-semibold">Prove it end to end</h3>
       <p className="text-text-secondary mt-1 text-base">
@@ -394,47 +355,6 @@ function ClaudeAccountRow({
         </div>
       )}
     </div>
-  )
-}
-
-/** One radio-style choice of system prompt. */
-function PromptModeOption({
-  value,
-  current,
-  onSelect,
-  title,
-  detail,
-}: {
-  value: ClaudeSystemPromptMode
-  current: ClaudeSystemPromptMode
-  onSelect: (mode: ClaudeSystemPromptMode) => void
-  title: string
-  detail: string
-}): React.JSX.Element {
-  const selected = current === value
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={() => onSelect(value)}
-      className={clsx(
-        'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
-        selected ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-secondary',
-      )}
-    >
-      <span
-        className={clsx(
-          'mt-1 h-3 w-3 shrink-0 rounded-full border-2',
-          selected ? 'border-accent bg-accent' : 'border-border-strong',
-        )}
-        aria-hidden
-      />
-      <span className="min-w-0">
-        <span className="text-text block text-base font-medium">{title}</span>
-        <span className="text-text-secondary block text-sm leading-snug">{detail}</span>
-      </span>
-    </button>
   )
 }
 

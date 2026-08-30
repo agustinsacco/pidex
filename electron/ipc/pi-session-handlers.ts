@@ -87,15 +87,21 @@ async function spawnSession(
 
   // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
   // to find node under a version manager, not the GUI-inherited one.
+  //
+  // No PI_CLAUDE_CLI_SYSTEM_PROMPT override here: real sessions always run
+  // pi-claude-cli's own default (`claude` mode, appends pi's prompt to Claude
+  // Code's own). This used to be a pidex setting; dropped because the only
+  // upside of the alternative (`pi` mode, replacing Claude Code's prompt
+  // outright) is ~12k tokens of context WINDOW, not cost — both modes are
+  // cached — at the cost of losing Claude Code's own tuned guidance for the
+  // native tools this provider actually runs. Not worth doubling the number
+  // of system-prompt code paths that have to reach the model correctly; see
+  // specs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
+  // that one path already turned out to be. The naming call below keeps its
+  // own internal `pi` override — a no-tools, no-guidance-needed case.
   const spawnEnv: Record<string, string> = stub
     ? { ELECTRON_RUN_AS_NODE: '1' }
-    : {
-        ...(await piProcessEnv()),
-        // Read by pi-claude-cli when it spawns `claude`. Passed per session
-        // rather than set once, so changing the setting applies to the next
-        // session started without restarting pidex.
-        PI_CLAUDE_CLI_SYSTEM_PROMPT: getPrefs().claudeSystemPrompt,
-      }
+    : await piProcessEnv()
 
   const extensions = [
     ...bundledExtensions(),
@@ -330,10 +336,13 @@ export function registerPiSessionHandlers(): void {
         env = {
           ...process.env,
           ...(await piProcessEnv()),
-          // Naming-only, regardless of the user's session prefs: a title run
-          // through the Claude provider should not load Claude Code's own
-          // prompt, skills, MCP servers or settings either. Harmless env for
-          // every other provider. Measured saving: ~8,000 tokens per run.
+          // Naming-only override: a title run through the Claude provider
+          // should not load Claude Code's own prompt, skills, MCP servers or
+          // settings — it never calls a tool, so there is no native-tool
+          // guidance to lose by replacing the prompt outright. Real sessions
+          // don't get this override; see the comment above spawnEnv. Harmless
+          // env for every other provider. Measured saving: ~8,000 tokens per
+          // run.
           PI_CLAUDE_CLI_HERMETIC: '1',
           PI_CLAUDE_CLI_SYSTEM_PROMPT: 'pi',
         }
