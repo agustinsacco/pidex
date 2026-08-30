@@ -119,7 +119,7 @@ export function OrchestratorHeaderButton({
       {unread > 0 && !active && (
         <span
           data-testid="orchestrator-unread"
-          className="bg-accent absolute -right-0.5 -top-0.5 min-w-3 rounded-full px-0.5 text-center text-[9px] font-semibold leading-3 text-white"
+          className="bg-accent absolute -right-0.5 -top-0.5 min-w-3 rounded-full px-0.5 text-center text-2xs font-semibold leading-3 text-accent-text"
         >
           {unread > 9 ? '9+' : unread}
         </span>
