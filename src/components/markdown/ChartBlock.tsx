@@ -30,8 +30,8 @@ export const ChartBlock = memo(function ChartBlock({ code }: { code: string }): 
         if (disposed || !canvasRef.current) return
 
         // Phosphor text-secondary / border (specs/reference/style-guide.md).
-        const textColor = resolvedTheme === 'dark' ? '#aca496' : '#6b675d'
-        const gridColor = resolvedTheme === 'dark' ? '#3a352c' : '#e2dfd6'
+        const textColor = resolvedTheme === 'dark' ? '#aca496' : '#66666e'
+        const gridColor = resolvedTheme === 'dark' ? '#3a352c' : '#e4e4e7'
         Chart.defaults.color = textColor
         Chart.defaults.borderColor = gridColor
         Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif'
