@@ -1492,16 +1492,28 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
       .toBeGreaterThan(600)
 
     // Read back a few hundred px — less than the pending collapse, so a clamp
-    // would be visible.
+    // would be visible. Poll rather than sample once: the group is still live
+    // when the wheel fires, so a loaded runner can leave the wheel event's own
+    // handler queued behind the tail group's render churn well past a fixed
+    // wait — same reasoning as the group-height poll above, applied to the
+    // read-back itself. The 3s hold before the group settles leaves ample
+    // slack for this to resolve.
     const box = (await scroller.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.wheel(0, -360)
-    await page.waitForTimeout(150)
-    const read = await scroller.evaluate((el) => ({
-      top: Math.round(el.scrollTop),
-      fromBottom: Math.round(el.scrollHeight - el.scrollTop - el.clientHeight),
-    }))
-    expect(read.fromBottom).toBeGreaterThan(200)
+    let read = { top: 0, fromBottom: 0 }
+    await expect
+      .poll(
+        async () => {
+          read = await scroller.evaluate((el) => ({
+            top: Math.round(el.scrollTop),
+            fromBottom: Math.round(el.scrollHeight - el.scrollTop - el.clientHeight),
+          }))
+          return read.fromBottom
+        },
+        { timeout: 5_000 },
+      )
+      .toBeGreaterThan(200)
     // The collapse must still be ahead of us, or this test proves nothing.
     await expect(tailGroup).toBeVisible()
     await expect(page.getByText('many turns complete')).toHaveCount(0)
