@@ -12,6 +12,7 @@ import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
+import { isValidAutocompactValue } from '@/lib/claudeAutocompact'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -504,9 +505,6 @@ const AUTOCOMPACT_PRESETS = [
   },
 ] as const
 
-/** Accepted custom values, mirroring the provider: auto, off, or 100k–1M. */
-const AUTOCOMPACT_INPUT = /^(auto|off|\d+(\.\d+)?\s*[km]?)$/i
-
 /**
  * Settings → Claude Code → Context window: the auto-compact window for
  * pi-claude-cli sessions (PI_CLAUDE_CLI_AUTOCOMPACT). Applies to sessions
@@ -537,7 +535,7 @@ function ContextWindowSection(): React.JSX.Element {
       save('')
       return
     }
-    if (!AUTOCOMPACT_INPUT.test(draft)) {
+    if (!isValidAutocompactValue(draft)) {
       setCustomError(true)
       return
     }
