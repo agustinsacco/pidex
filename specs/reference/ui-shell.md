@@ -16,7 +16,7 @@ It is the **only** element allowed in the strip the OS draws window controls in,
 
 - **Workspace switcher** at top: current workspace name + dropdown of recent workspaces; "Open Folder…" via native picker. Adding a workspace records it in app prefs.
 - **New Session** button (prominent, labelled `+ New`).
-- **Session list** for the active workspace: pinned section, then recent, grouped headers supported. Each row: session name (or first-message preview), relative timestamp, running indicator (spinner while streaming; unread/completed badge for background sessions). Context menu: open, session tree, pin, suspend, fork, clone, export HTML, copy debug info, delete (trash). Labels are verbs; qualifiers ride as muted hints, never parentheticals.
+- **Session list** for the active workspace: pinned section, then recent, grouped headers supported. Each row: session name (or first-message preview), relative timestamp, running indicator (spinner while streaming; unread/completed badge for background sessions). Context menu: open, session tree, pin, suspend, fork, clone, export HTML, copy debug info, delete (trash).
 - **Loading states per group**: never attempted → skeleton rows; partially scanned → the rows we have plus `loading N more folders…`; errored → "Couldn't load sessions" with Retry. A group's folders are the main repo plus every lane (`<repo>/.pidex/worktrees/<slug>`) folded into it; an expanded group scans all of them, uncapped, while the 8-workspace cold-boot cap still governs collapsed ones. See [2026-08-28-sidebar-lane-scan.md](../log/2026-08-28-sidebar-lane-scan.md).
 - Settings entry + app identity at the bottom.
 - Collapsible (Cmd/Ctrl+B), width-draggable.
@@ -40,7 +40,7 @@ Requirements:
 
 ## Theming
 
-- Light / Dark / System in settings; theme tokens as CSS variables consumed by Tailwind config, Monaco theme, xterm theme, Shiki theme, Mermaid theme — all switch together, live, no reload.
+- Light / Dark / System in settings. Tokens are CSS variables consumed by Tailwind; surfaces that take a theme object instead each carry a mirrored copy, listed in [style-guide.md](style-guide.md#color). All switch together, live, no reload.
 - Design tokens per [00-overview.md](overview.md) brand direction.
 
 ## Global surfaces
