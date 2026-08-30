@@ -21,13 +21,24 @@ export const RightPane = memo(function RightPane({
   // Read via `sessionId` rather than the active-session hook: this component
   // is already told which session it renders, and the two must not disagree.
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
+  const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
+  const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
   if (!rightPane) return null
 
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app
-    // background rather than a flush column welded to the window edge.
-    <div className="h-full py-2 pl-1 pr-2">
-      <div className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-xl border shadow-sm">
+    // background rather than a flush column welded to the window edge. The
+    // narrow gutter edge faces the chat; fullscreen gets an even inset.
+    <div
+      className={clsx(
+        'h-full',
+        expanded ? 'p-2' : side === 'left' ? 'py-2 pl-2 pr-1' : 'py-2 pl-1 pr-2',
+      )}
+    >
+      <div
+        data-testid="right-pane"
+        className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-xl border shadow-sm"
+      >
         {rightPane === 'files' && (
           <PaneShell title={<PaneSwitcher active="files" />}>
             <FilesPane workspacePath={workspacePath} />

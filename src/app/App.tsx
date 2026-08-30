@@ -1,16 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  Panel,
-  PanelGroup,
-  PanelResizeHandle,
-  type ImperativePanelHandle,
-} from 'react-resizable-panels'
+import { useEffect, useState } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useSessionsStore } from '@/stores/sessions'
-import { useLayoutStore, useRightExpanded, useRightPane } from '@/stores/layout'
+import { useActivePanes, useLayoutStore } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
 import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
@@ -201,43 +196,65 @@ function MainWithPanes({
   // An orchestrator thread renders with its own chrome: it manages sessions
   // rather than being one, and the two must not look identical once open.
   const orchestratorFor = useIsOrchestrator(activeSessionId)
-  const rightPane = useRightPane()
-  const rightExpanded = useRightExpanded()
-  const rightPanelRef = useRef<ImperativePanelHandle>(null)
+  const { pane: rightPane, expanded, side, size } = useActivePanes()
 
-  // Expand (↗) toggles the right panel between its saved size and ~85%.
-  useEffect(() => {
-    const panel = rightPanelRef.current
-    if (!panel || !rightPane) return
-    if (rightExpanded) panel.resize(85)
-    else panel.resize(45)
-  }, [rightExpanded, rightPane])
+  // Fullscreen (↗) is an OVERLAY, not a resize. It used to imperatively
+  // resize the split to 85/15, which crushed the chat to an unusable column
+  // and — because sizes persisted per workspace — leaked the squish into
+  // every other session. Now the pane leaves the split and covers the main
+  // region; the saved size is never mutated, so exiting restores it exactly.
+  const paneInSplit = rightPane !== null && !expanded
+
+  const chatPanel = (
+    <Panel id="chat" order={side === 'left' ? 2 : 1} minSize={15}>
+      {orchestratorFor ? (
+        <OrchestratorChat
+          key={activeSessionId}
+          sessionId={activeSessionId}
+          workspacePath={orchestratorFor}
+        />
+      ) : (
+        <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={workspacePath} />
+      )}
+    </Panel>
+  )
+
+  const panePanel = paneInSplit && (
+    <Panel
+      id="pane"
+      order={side === 'left' ? 1 : 2}
+      defaultSize={size}
+      minSize={24}
+      maxSize={85}
+      onResize={(next) => useLayoutStore.getState().setPaneSize(next, activeSessionId)}
+    >
+      <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
+    </Panel>
+  )
 
   return (
-    <PanelGroup direction="horizontal" autoSaveId={`pidex-main-${workspacePath}`}>
-      <Panel id="chat" order={1} minSize={15}>
-        {orchestratorFor ? (
-          <OrchestratorChat
-            key={activeSessionId}
-            sessionId={activeSessionId}
-            workspacePath={orchestratorFor}
-          />
-        ) : (
-          <ChatView
-            key={activeSessionId}
-            sessionId={activeSessionId}
-            workspacePath={workspacePath}
-          />
-        )}
-      </Panel>
-      {rightPane && (
-        <>
-          <PanelResizeHandle className="pane-handle" />
-          <Panel ref={rightPanelRef} id="right" order={2} defaultSize={45} minSize={24}>
-            <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
-          </Panel>
-        </>
+    <div className="relative h-full">
+      {/*
+       * Keyed by session AND side: `defaultSize` only applies when a panel
+       * mounts, so re-applying each session's remembered size (and reordering
+       * the columns on a side swap) needs a fresh group. Sizes persist in the
+       * layout store per session — the old per-workspace autoSaveId made every
+       * lane in a workspace fight over one saved size.
+       */}
+      <PanelGroup key={`${activeSessionId}:${side}`} direction="horizontal">
+        {side === 'left' && panePanel}
+        {side === 'left' && paneInSplit && <PanelResizeHandle className="pane-handle" />}
+        {chatPanel}
+        {side === 'right' && paneInSplit && <PanelResizeHandle className="pane-handle" />}
+        {side === 'right' && panePanel}
+      </PanelGroup>
+      {rightPane !== null && expanded && (
+        // Opaque backdrop: the pane card keeps its inset gutter, and the chat
+        // must not shimmer through it. Sidebar and top bar stay reachable.
+        <div className="bg-bg absolute inset-0 z-20">
+          <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
+        </div>
       )}
-    </PanelGroup>
+    </div>
   )
 }
