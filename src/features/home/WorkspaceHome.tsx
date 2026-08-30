@@ -7,7 +7,7 @@ import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
-import { AttachButton, FormatButtons, SubmitIconButton } from '@/components/ComposerButtons'
+import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
@@ -18,7 +18,7 @@ import { BranchControl } from '@/features/worktrees/BranchControl'
 import { composePrompt, toImageContents, type PendingAttachment } from '@/features/chat/attachments'
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
-import { ComposerField, useComposerFormatting } from '@/features/chat/composer/ComposerField'
+import { ComposerField } from '@/features/chat/composer/ComposerField'
 import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
@@ -59,7 +59,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     onChange: setImages,
     onReject: setWarning,
   })
-  const format = useComposerFormatting(textareaRef, setText)
   // The project, never the worktree folder this home screen may be pointed at.
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
   const workspaceName = projectName(workspacePath, git)
@@ -251,11 +250,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 items-center gap-1.5">
                 <AttachButton onFiles={attachments.addFiles} />
-                <FormatButtons
-                  onBullet={format.toggleBullet}
-                  onOrdered={format.toggleOrdered}
-                  onCode={format.codeBlock}
-                />
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
