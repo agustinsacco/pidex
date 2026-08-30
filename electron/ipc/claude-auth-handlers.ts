@@ -7,6 +7,7 @@ import {
   startClaudeLogin,
   submitClaudeLoginCode,
 } from '../pi/claude-login'
+import { fetchUsageSnapshot } from '../claude/usage'
 
 function broadcast(state: ClaudeLoginState): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -41,4 +42,6 @@ export function registerClaudeAuthHandlers(): void {
     cancelClaudeLogin()
   })
   handle('claude:logout', () => logoutClaude(claudeBinOverride()))
+  /** Read-only, cached ~60 s in main; the spawn is zero-quota. */
+  handle('claude:usageSnapshot', () => fetchUsageSnapshot({ claudeOverride: claudeBinOverride() }))
 }

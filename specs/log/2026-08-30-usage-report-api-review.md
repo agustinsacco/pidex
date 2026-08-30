@@ -309,3 +309,28 @@ Both are small; neither touches the provider package or a status-key wire
 contract, so nothing here waits on `@saccolabs/pi-claude-cli`. The one
 upstream risk is the CLI's `/usage` text format moving — that is what the
 narrow parser and drift-hide tests are for.
+
+## Shipped (same day, phase 1)
+
+`electron/claude/usage.ts` (parser + cached fetcher, spawned through
+`runPrintMode` so stdin is ignored per the Aug-26 rule), the
+`claude:usageSnapshot` IPC channel, a "Plan usage" section in the context
+meter's popover (above the old `PlanLimits`), and a Usage section in
+Settings → Claude Code including the "what's contributing" block. Tests in
+`electron/claude/usage.test.ts` run against a real captured fixture
+(`__fixtures__/usage-live.json`); the e2e claude-tab test's stub now answers
+`-p /usage`, so the spawn → parse → IPC → bar path is proven end to end.
+
+Two deviations from the design above, both deliberate:
+
+- **`PlanLimits` was kept, not replaced.** The live bars and the
+  binding-constraint line answer different questions (percent vs "capped
+  now, resets in 12 min"), and both render under one popover without
+  competing — see `specs/reference/chat.md`'s popover table, updated in the
+  same diff, for the rule that keeps them separate.
+- **Phase 2 (org dashboard) is not built.** The subscriber of this work
+  doesn't need org-level cost reporting; the Admin API review above stands
+  on its own for whenever that changes.
+
+Verified: typecheck, lint, prettier, full unit suite (1628), and the e2e
+claude-provider-tab test — all green.

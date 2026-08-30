@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu } from '@/components/PopupMenu'
@@ -22,6 +22,8 @@ import {
   windowLabel,
 } from './rateLimit'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
+import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
+import type { ClaudeUsageSnapshotResult, ClaudeUsageWindow } from '@shared/models'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
@@ -158,6 +160,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             )}
             <StatRow label="Messages" value={String(stats.totalMessages)} />
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
+            <PlanUsage />
             <PlanLimits statusText={rateLimitStatus} />
           </div>
         </PopupMenu>
@@ -260,6 +263,82 @@ function McpServers({
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Live plan usage — the same numbers the CLI's own `/usage` panel and Claude
+ * Desktop show, at any percentage. Fetched when the popover opens (the fetch
+ * spawns `claude -p /usage`: zero quota, ~1.5 s, cached ~60 s in main), so it
+ * is always current the moment someone looks — which is the entire point of
+ * this section: `PlanLimits` below only ever sees a window once the CLI's
+ * warning threshold has crossed it.
+ *
+ * Renders nothing when the fetch fails — a popover is a glance, and the
+ * Settings → Claude Code tab is where failures get diagnosed.
+ */
+function PlanUsage(): React.JSX.Element | null {
+  const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void window.pidex.invoke('claude:usageSnapshot').then((result) => {
+      if (!cancelled) setState(result)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!state) {
+    return (
+      <>
+        <SectionLabel>Plan usage · Claude account</SectionLabel>
+        <div className="text-text-tertiary text-sm">Checking…</div>
+      </>
+    )
+  }
+  if (!state.ok || state.snapshot.windows.length === 0) return null
+  const { snapshot } = state
+
+  return (
+    <>
+      <SectionLabel>
+        {`Plan usage · Claude account${snapshot.stale ? ' · last known' : ''}`}
+      </SectionLabel>
+      <div className="space-y-1.5">
+        {snapshot.windows.map((window) => (
+          <UsageWindowRow key={window.label} window={window} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** One window: title, percent, reset countdown, and the bar itself. */
+function UsageWindowRow({ window }: { window: ClaudeUsageWindow }): React.JSX.Element {
+  const percent = Math.round(window.percentUsed)
+  const reset = windowResetLabel(window.resetsAt)
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-text-tertiary">{windowTitle(window)}</span>
+        <span
+          className={clsx('font-mono text-sm tabular-nums', usageTextClass(percent))}
+          title={reset ?? undefined}
+        >
+          {percent}%{percent >= 100 ? ' · over' : reset ? ` · ${reset}` : ''}
+        </span>
+      </div>
+      <div className="bg-bg-secondary mt-1 h-1 overflow-hidden rounded-full">
+        <div
+          className={clsx('h-full rounded-full', usageBarClass(percent))}
+          // Capped at 100 like PlanLimits: a 101% bar would overflow the
+          // track, and the number beside it already says how far over.
+          style={{ width: `${Math.min(100, percent)}%` }}
+        />
+      </div>
     </div>
   )
 }
