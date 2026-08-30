@@ -1,16 +1,20 @@
-# 2026-08-30 — Review: always-on Claude usage stats (Admin usage report API)
+# 2026-08-30 — Review: always-on Claude usage stats (live plan bars)
 
 Claude Desktop shows account usage all the time — bars for how much of the
 5-hour and weekly allowance is spent, per session and per week. pidex shows
-the `claude-rate-limit` state only once the CLI's warning threshold has been
-crossed, which is the moment the number is least useful for planning: you
+the `claude-rate-limit` state only once the CLI's warning threshold has
+been crossed, which is the moment the number is least useful for planning: you
 want to see yourself approaching the wall, not the wall.
 
-This is a review of what each available data source can honestly power, a
-detailed read of the Admin API endpoint
-([retrieve_claude_code](https://platform.claude.com/docs/en/api/admin/usage_report/retrieve_claude_code)),
+This is a review of every data source that could power an always-on view,
 and a concrete design for the two surfaces we want to feed: the context
 meter's popover (next to the input) and the Claude Code tab in Settings.
+The headline, found while digging past the obvious dead ends: **
+`claude -p /usage` prints Claude Desktop's own live numbers — every window,
+with percents, zero quota, no key, for every signed-in account.** That
+becomes phase 1; the Admin API
+([retrieve_claude_code](https://platform.claude.com/docs/en/api/admin/usage_report/retrieve_claude_code)),
+reviewed in detail below, becomes the optional org-level phase 2.
 
 ## What the sources actually give us
 
@@ -36,21 +40,64 @@ fork change can surface them before the CLI decides to.
 
 So from this stream, always-on, we can know: which window binds (5h → 7d →
 7d-overage → credits) and when it resets. We cannot know "42% used" until the
-CLI starts warning.
+CLI starts warning — source 2 is how we get that.
 
-### 2. The Claude Desktop bars themselves — an internal endpoint we cannot reach
+### 2. The Claude Desktop bars — an internal endpoint, but the CLI exposes its output
 
 The CLI's own `/usage` panel (what Claude Desktop's numbers mirror) fetches
 `GET https://api.anthropic.com/api/oauth/usage` with the logged-in user's
-OAuth token, auto-refreshed on 401. That is undocumented, first-party-only,
-and the OAuth token belongs to the `claude` binary in the OS keychain —
-pidex never holds it, by design (the account row in Settings says exactly
-this: the credential is the CLI's, not pidex's).
+OAuth token, auto-refreshed on 401. That endpoint is undocumented and
+first-party-only, and the OAuth token belongs to the `claude` binary in the
+OS keychain — pidex never holds it, by design (the account row in Settings
+says exactly this: the credential is the CLI's, not pidex's).
 
-**Rejected:** reading the token out of the keychain to poll this endpoint
-ourselves. Undocumented wire, credential the user never gave us, and it
-breaks the day Anthropic changes the shape. Not worth it when there is a
-documented alternative below.
+**But the CLI prints that panel in print mode.** Verified against 2.1.231:
+
+```sh
+cd /tmp && echo "" | claude -p "/usage" --output-format json
+```
+
+returns, with `num_turns: 0`, `total_cost_usd: 0`, `duration_api_ms: 0` —
+**zero model calls, zero quota** — and a `result` field holding:
+
+```
+Current session: 27% used · resets Aug 30 at 2:49pm (America/Toronto)
+Current week (all models): 50% used · resets Aug 30 at 3:59pm (America/Toronto)
+Current week (Fable): 37% used · resets Aug 30 at 3:59pm (America/Toronto)
+```
+
+This is **live** server-side utilization (the percent moved 26% → 27%
+between two runs a few minutes apart), it works for **any signed-in
+subscription account** — Pro/Max personal included, no org, no admin key,
+no credential ever handed to pidex — and it costs ~1.5–2 s of process spawn
+per fetch. The `rate_limit_event`-stream gap (percent only after threshold)
+and the keychain problem both dissolve: pidex spawns the CLI, the CLI uses
+its own keychain, we parse its rendered answer.
+
+The CLI binary's strings give the full window vocabulary behind the text:
+
+| Internal kind                         | Rendered label                   |
+| ------------------------------------- | -------------------------------- |
+| `five_hour`                           | "Current session" (the 5h block) |
+| `seven_day`                           | "Current week (all models)"      |
+| `seven_day_<model>` / `weekly_scoped` | "Current week (<Model>)"         |
+| `cinder_cove`                         | "Claude Code and Cowork credit"  |
+| one-time credit                       | "One-time credit · Expires …"    |
+
+Two failure modes are visible in the CLI's own code and must be handled:
+it can serve **last-known** data ("Showing last-known usage (could not
+refresh)") or fail outright ("Could not refresh usage data") — the usage
+endpoint is rate-limited on Anthropic's side, which is also why pidex must
+not poll it tighter than roughly a minute.
+
+The rendered text is a wire contract in exactly the sense the repo already
+maintains: parse narrowly, and hide the section rather than guess when the
+shape drifts (same policy as the `[Claude Code · …]` marker contract).
+
+**Still rejected:** reading the OAuth token out of the keychain to poll
+`/api/oauth/usage` ourselves. Spawning `/usage` gets the same data through
+a documented CLI surface without ever touching the credential — no reason
+to take on an undocumented wire plus a credential the user never gave us.
 
 ### 3. The Admin API — documented, always-on, but different data
 
@@ -104,16 +151,85 @@ cache_creation}` and `estimated_cost` in **minor units** (cents when USD —
 
 ## Design
 
-Three sources, three honest renderings — never let a bar imply a denominator
+Four sources, four honest renderings — never let a bar imply a denominator
 it doesn't have:
 
-| Question                      | Source                            | Rendering                                                    |
-| ----------------------------- | --------------------------------- | ------------------------------------------------------------ |
-| How full is this session?     | pi `get_session_stats` (have)     | context % ring (have)                                        |
-| Am I near the plan wall?      | `claude-rate-limit` status (have) | window + reset, % bar only when `utilization` present (have) |
-| How much did I use this week? | Admin usage report (new)          | 7-day usage bars, tokens + est. cost                         |
+| Question                            | Source                            | Rendering                                    |
+| ----------------------------------- | --------------------------------- | -------------------------------------------- |
+| How full is this session?           | pi `get_session_stats` (have)     | context % ring (have)                        |
+| Am I near the plan wall — live?     | `claude -p /usage` (new, phase 1) | **% bars for 5h + weekly, always on**        |
+| In-turn cap warning                 | `claude-rate-limit` status (have) | window + reset, banner past threshold (have) |
+| How much did I use this week (org)? | Admin usage report (new, phase 2) | 7-day usage bars, tokens + est. cost         |
 
-### Main process — `electron/claude/usage-report.ts`
+### Phase 1 — live plan bars via `claude -p /usage` (no key, every account)
+
+**Main process — `electron/claude/usage.ts` + a pure parser.**
+
+- Spawn `claude -p /usage --output-format json` following the repo's
+  print-mode rules: **`stdio[0] = 'ignore'`** — the Aug-26 log's stdin-EOF
+  lesson (`pi -p` hanging on an open pipe) applies to `claude -p` equally,
+  and the guard belongs in a test beside `electron/pi/print-mode.test.ts`'s.
+  ~1.5–2 s per call, `num_turns: 0`, zero quota.
+- Parse the JSON envelope, then the `result` text. Line grammar:
+  `<label>: <n>% used (· resets <MMM D at h:mm(am|pm)> (<tz>))?`, with
+  labels `Current session`, `Current week (all models)`,
+  `Current week (<Model>)`, `Claude Code and Cowork credit`, `One-time
+credit · Expires …`. The reset text is the CLI's local-timezone rendering
+  on this machine, so parse it as local time and sanity-check the result
+  (future, within the window's span) — a mismatch is drift and hides the
+  section, never a wrong number.
+- Carry the CLI's own honesty flags through: a "Showing last-known usage"
+  line marks the snapshot `stale: true` (rendered as "last known"), and "Could
+  not refresh usage data" is an error, both surfaced instead of papered
+  over.
+- Cache with a 60-second TTL and fetch on demand — the popover opening is
+  the natural trigger; the upstream endpoint rate-limits, so nothing polls
+  tighter than that, and stale-while-revalidate makes the second open
+  instant.
+
+**IPC**: one channel, no args, no secrets —
+
+```ts
+'claude:usageSnapshot': {
+  args: []
+  result:
+    | { ok: true; fetchedAt: number; stale: boolean
+        windows: { label: string; percentUsed: number; resetsAt: number | null }[] }
+    | { ok: false; error: 'not-signed-in' | 'unavailable' }
+}
+```
+
+Handlers in `electron/ipc/claude-handlers.ts`, mock case in
+`src/dev/mockPidex.ts` (a fixture snapshot keeps `dev:web` honest).
+
+**Popover**: a real "Plan usage" section replaces `PlanLimits`' single
+window: a bar per window the CLI reports — 5-hour and weekly always,
+per-model weekly when present — each with percent and reset countdown,
+colored on the same ≥75/≥100 thresholds everything else uses. Below it, the
+binding-constraint line from `claude-rate-limit` stays: it is still the
+only source that can say "capped NOW, resets in 12 min" mid-turn. Fetch on
+popover open, shimmer while the ~1.5 s spawn runs.
+
+**Settings → Claude Code**: a "Usage" section with the same windows larger,
+plus the `What's contributing to your limits usage?` context from the same
+`result` text (last 24h / 7d request and session counts, top
+skills/subagents/MCP servers) — the parse gets it for free. Signed-out
+accounts show the empty state.
+
+**Tests** (`electron/claude/usage.test.ts`, fixtures in `__fixtures__/`):
+captured live outputs for the ordinary case, the last-known case, the
+failure case, per-model weekly lines, the one-time-credit line, and a drift
+case (an unknown label) asserting the section hides rather than renders
+garbage. Plus the stdin guard test.
+
+This is everything Claude Desktop shows for limits — the same live endpoint,
+the CLI's own rendering — through the one surface Anthropic documents.
+
+### Phase 2 — optional org dashboard via the Admin usage report
+
+The Admin API keeps the org story (weekly tokens/cost by model, commits,
+PRs, LOC, per-actor) and no longer carries the live-percent burden, so it
+can land whenever it is wanted. Main-process module —
 
 Pure aggregation module + thin fetcher (network in `electron/`, per repo law):
 
@@ -130,8 +246,7 @@ Pure aggregation module + thin fetcher (network in `electron/`, per repo law):
   lazy-constructed as `electron/store.ts` requires), key never enters the
   renderer, never into the debug log.
 
-**IPC** (`shared/ipc.ts`, handlers in `electron/ipc/claude-handlers.ts`,
-mock case in `src/dev/mockPidex.ts`):
+**IPC additions** (`shared/ipc.ts`, same handler module, mock cases):
 
 ```ts
 'claude:usageReport':   { args: []; result: ClaudeUsageReport }  // cached-or-fetch
@@ -144,77 +259,53 @@ mock case in `src/dev/mockPidex.ts`):
 `totals`, `models[]`. Costs stored in the model as **major units** (divide by
 100 at the parse boundary; minor units never leave the fetcher).
 
-### Surface 1 — the popover (ContextMeter, next to the input)
+**Surfaces when configured**: the popover gains a compact 7-day cost-bar row
+under the plan bars (Σ summary line, link into Settings), and the Settings →
+Claude Code tab gains the key row (not set / saved / rejected, with the
+note that keys are minted by an org admin in the Console — Teams/Enterprise/
+API orgs only) plus the full weekly dashboard with per-model breakdown and
+the core metrics that exist nowhere else (commits, PRs, LOC ±). Caveat line,
+always: "daily UTC buckets, ~1 hour behind". Its failures join the tab's
+"When it fails" list: 401/403 (wrong key, no org, individual account), 429
+(back off), empty rows for the signed-in email (different account, or
+Bedrock/Vertex deployments this API doesn't cover).
 
-A new section under `PlanLimits`, rendered whenever a report is available
-(i.e. the user configured a key):
-
-- Seven thin day-bars (height = estimated cost; the number users actually
-  budget by), today on the right, hover title with the day's detail.
-- One summary row: `Σ 7 days · {tokens} · {cost} · {sessions} sessions`.
-- A "manage in Settings → Claude Code" affordance — the popover stays a
-  glance, the tab is the dashboard.
-- `PlanLimits` itself gains nothing new from this work: it already shows the
-  binding window and reset every turn, and a percent bar exactly when the
-  CLI deigns to send one. What changes is that it is no longer the _only_
-  always-on account signal — the weekly usage bars carry the "how much am I
-  using" question the percent never answered.
-
-Fetch lazily: the popover's first open invokes `claude:usageReport`; the
-15-min TTL means most opens are instant. No timer, no polling — a hidden
-popover fetching hourly data on a schedule would be pure noise in the debug
-log.
-
-### Surface 2 — Settings → Claude Code (the extension's own pane)
-
-Extends `ClaudeProviderTab.tsx` with a "Usage" section:
-
-- **Connection row**: Admin API key state — not set / saved / rejected —
-  with the field to set or clear it, and a one-line pointer that the key is
-  created in the Console by an org admin (Teams/Enterprise/API orgs only;
-  individual Pro/Max accounts cannot use this).
-- **Weekly dashboard**: the same 7-day bars, larger, plus per-model token and
-  cost breakdown, and the core metrics that exist nowhere else (commits, PRs,
-  LOC ±, sessions). This is the pidex equivalent of Claude Desktop's usage
-  screen, minus the plan-percentile bars it gets from the internal endpoint.
-- Caveat line, always: "daily UTC buckets, ~1 hour behind".
-- The "When it fails" list gains the key failures: 401/403 (wrong key, no
-  org, individual account), 429 (back off), and the empty state for a
-  signed-in email with no rows (usage on a different account or Bedrock/Vertex
-  deployments, which this API does not cover).
-
-### Tests
-
-- `electron/claude/usage-report.test.ts` against a captured fixture in
-  `__fixtures__/` (a real response shape, both actor kinds, a remote row, two
-  pages): minor-unit → dollar conversion, email scoping, pagination merge,
-  missing-day handling (no row ≠ zero usage — leave the day out), and the
-  error mappings.
-- `shared/ipc.ts` compile-time drift guards cover the new channels; the mock
-  case keeps `npm run dev:web` honest.
+Tests: `electron/claude/usage-report.test.ts` against a captured fixture in
+`__fixtures__/` (both actor kinds, a remote row, two pages): minor-unit →
+dollar conversion, email scoping, pagination merge, missing-day handling
+(no row ≠ zero usage — leave the day out), and the error mappings.
 
 ## What we are not doing, and why
 
-- **No synthesized plan-percentage from the report.** There is no public
-  denominator for the 5h/7d windows; Spend Limits is Enterprise monthly
-  spend. A bar labelled "42% of weekly" built from tokens/limit would be an
-  invented number, and inventing the one number users plan around is worse
-  than omitting it.
-- **No `/api/oauth/usage` polling** (Claude Desktop's real source): the
-  token is the CLI's, the endpoint is undocumented.
+- **No keychain token, no direct `/api/oauth/usage` polling** (Claude
+  Desktop's literal source): undocumented wire, and the credential is the
+  CLI's. Spawning `claude -p /usage` gets the same live data through a
+  documented surface — strictly better.
+- **No timers.** The snapshot fetches when a surface opens (60 s TTL); the
+  org report when its dashboard is open. Nothing polls in the background:
+  the usage endpoint rate-limits, and a hidden window fetching on a schedule
+  is debug-log noise with nobody watching.
+- **No synthesized plan-percentage from the Admin report.** There is no
+  public denominator for the 5h/7d windows; Spend Limits is Enterprise
+  monthly spend. Phase 1's percents come from the CLI's own rendering, not
+  from us dividing one number by a guess.
 - **No local transcript math** (`~/.claude/projects` JSONL, ccusage-style):
-  viable as a future fallback for Pro/Max users without an org — it can
-  reconstruct weekly token totals — but it estimates cost per model locally
-  and misses remote sessions. Worth its own lane if org-less users want
-  weekly bars; noted here so the option isn't rediscovered.
-- **No fourth bar for a fourth window.** One event still carries one window
-  (Aug 22 log); the Admin report doesn't change that.
+  unnecessary now — phase 1 covers personal accounts live — but it remains
+  the fallback if `/usage` print output ever disappears. Noted so the
+  option isn't rediscovered.
+- **No fourth bar for a fourth window** from `rate_limit_event`: one event
+  still carries one window (Aug 22 log). Phase 1 gets all windows from
+  `/usage`; the event keeps its one honest job, the in-turn cap warning.
 
 ## Sequencing
 
-1. Main-process module + IPC + settings key row and dashboard (the data
-   plumbing and the richer surface, valuable alone).
-2. Popover mini-section (pure consumer of the cached report).
+1. **Phase 1 — live plan bars**: `electron/claude/usage.ts` spawn + parser +
+   `claude:usageSnapshot` IPC, popover plan-usage section, Settings usage
+   section. No key, no admin anything — works for every signed-in account.
+2. **Phase 2 — org dashboard (optional)**: Admin usage report fetcher, key
+   row, 7-day cost dashboard, popover mini-bars when configured.
 
 Both are small; neither touches the provider package or a status-key wire
-contract, so nothing here waits on `@saccolabs/pi-claude-cli`.
+contract, so nothing here waits on `@saccolabs/pi-claude-cli`. The one
+upstream risk is the CLI's `/usage` text format moving — that is what the
+narrow parser and drift-hide tests are for.
