@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { DEFAULT_FONT_PREFS, type FontPrefs, type ThemePreference } from '@shared/models'
+import { useLanePrefsStore } from './lanePrefs'
 
 interface SettingsState {
   theme: ThemePreference
@@ -82,6 +83,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       applyToDom(resolved)
       applyFontsToDom(prefs.fonts)
       set({ theme: prefs.theme, resolvedTheme: resolved, fonts: prefs.fonts })
+      // Lane prefs live in their own leaf store (no DOM dependency); this is
+      // the one prefs round-trip, so it fills them too.
+      useLanePrefsStore.getState().applyLanePrefs(prefs.lanes)
     },
   }
 })

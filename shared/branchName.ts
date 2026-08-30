@@ -14,10 +14,11 @@
  */
 
 /**
- * Cap on the slug, not on the title. Long enough for a 4-5 word title, short
- * enough that `git branch` output and the sidebar stay readable.
+ * Default cap on the slug, not on the title. Long enough for a 4-5 word title,
+ * short enough that `git branch` output and the sidebar stay readable.
+ * Overridable per user via `LanePrefs.branchSlugMaxLength`.
  */
-const MAX_SLUG = 40
+const DEFAULT_MAX_SLUG = 40
 
 /** Give up on numeric suffixes here and salt instead; N is absurd by then. */
 const MAX_SUFFIX = 100
@@ -31,6 +32,8 @@ export interface BranchNameInput {
   takenBranches: string[]
   /** Worktree folder names already under `.pidex/worktrees`. */
   takenFolders: string[]
+  /** Slug cap; defaults to 40. From `LanePrefs.branchSlugMaxLength`. */
+  maxSlug?: number
 }
 
 export interface BranchName {
@@ -48,7 +51,7 @@ export interface BranchName {
  * leading `-`, a trailing `.lock` — is unreachable from this alphabet, so the
  * result needs no second round of validation.
  */
-export function slugifyTitle(title: string): string {
+export function slugifyTitle(title: string, maxSlug = DEFAULT_MAX_SLUG): string {
   const slug = title
     // Decompose accents so "Café" slugs to "cafe" rather than losing the word.
     .normalize('NFKD')
@@ -57,12 +60,13 @@ export function slugifyTitle(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
   if (!slug) return 'session'
-  if (slug.length <= MAX_SLUG) return slug
+  const limit = Math.max(4, Math.floor(maxSlug))
+  if (slug.length <= limit) return slug
   // Cut on a word boundary when one is close to the limit, so a truncated slug
   // reads as words rather than as a severed one ("composer-autogrow-ju").
-  const clipped = slug.slice(0, MAX_SLUG)
+  const clipped = slug.slice(0, limit)
   const lastDash = clipped.lastIndexOf('-')
-  const trimmed = lastDash >= MAX_SLUG / 2 ? clipped.slice(0, lastDash) : clipped
+  const trimmed = lastDash >= limit / 2 ? clipped.slice(0, lastDash) : clipped
   return trimmed.replace(/-+$/, '') || 'session'
 }
 
@@ -94,7 +98,7 @@ export function normalizePrefix(prefix: string): string {
  */
 export function branchNameFor(input: BranchNameInput): BranchName {
   const prefix = normalizePrefix(input.prefix)
-  const base = slugifyTitle(input.title)
+  const base = slugifyTitle(input.title, input.maxSlug ?? DEFAULT_MAX_SLUG)
   // Lowercased on both sides: git refs are case-sensitive but the macOS and
   // Windows filesystems the folder lands on are not, so `Fix-Bug` and `fix-bug`
   // are the same worktree even where they are different branches.

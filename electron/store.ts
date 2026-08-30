@@ -3,6 +3,8 @@ import { blobIdsOf, pruneDrafts, pruneLaneMarkers, pruneSeenSessions } from './p
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
+  normalizeLanePrefs,
+  type LanePrefs,
   type AgentDirectivePrefs,
   type AppPrefs,
   type ComposerDraftRecord,
@@ -53,6 +55,9 @@ export function getPrefs(): AppPrefs {
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
     laneMarkers: s.get('laneMarkers') ?? {},
+    // Normalized on read as well as write: prefs are user-editable JSON, and
+    // these numbers reach a prompt, a git ref and a filesystem path.
+    lanes: normalizeLanePrefs(s.get('lanes')),
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     agentDirectives: {
       ...DEFAULT_APP_PREFS.agentDirectives,
@@ -208,6 +213,14 @@ export function setPinnedSessions(paths: string[]): void {
 
 export function setLaneMarkers(markers: Record<string, string>): void {
   prefs().set('laneMarkers', pruneLaneMarkers(markers))
+}
+
+export function setLanePrefs(lanes: LanePrefs): void {
+  prefs().set('lanes', normalizeLanePrefs(lanes))
+}
+
+export function getLanePrefs(): LanePrefs {
+  return normalizeLanePrefs(prefs().get('lanes'))
 }
 
 export function setModelPicks(picks: AppPrefs['modelPicks']): void {

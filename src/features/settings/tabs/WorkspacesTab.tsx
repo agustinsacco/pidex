@@ -1,9 +1,10 @@
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { Button, Row, SectionTitle, TextField, Toggle } from '@/components/form'
-import { normalizePrefix } from '@shared/branchName'
-import type { WorkspaceInfo } from '@shared/models'
+import { Button, NumberField, Row, SectionTitle, TextField, Toggle } from '@/components/form'
+import { normalizePrefix, slugifyTitle } from '@shared/branchName'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
+import { LANE_PREF_LIMITS, type WorkspaceInfo } from '@shared/models'
 
 /** How new chats get their branch, plus recent workspaces and layout reset. */
 
@@ -11,6 +12,8 @@ export function WorkspacesTab(): React.JSX.Element {
   const recents = useWorkspacesStore((s) => s.recents)
   const preferWorktree = useWorktreesStore((s) => s.preferWorktree)
   const branchPrefix = useWorktreesStore((s) => s.branchPrefix)
+  const lanes = useLanePrefsStore((s) => s.lanes)
+  const setLanePrefs = useLanePrefsStore((s) => s.setLanePrefs)
 
   const remove = async (workspace: WorkspaceInfo): Promise<void> => {
     const next = recents.filter((w) => w.path !== workspace.path)
@@ -28,9 +31,97 @@ export function WorkspacesTab(): React.JSX.Element {
   // Show what the branch will actually look like, since the prefix is
   // normalized (a bare "pidex" becomes "pidex/") before it is ever used.
   const examplePrefix = normalizePrefix(branchPrefix)
+  // Show the cap doing its job on a realistic title rather than describing it.
+  const exampleSlug = `${examplePrefix}${slugifyTitle(
+    'Fix the composer autogrow jump on paste',
+    lanes.branchSlugMaxLength,
+  )}`
 
   return (
     <div>
+      <SectionTitle>Naming and markers</SectionTitle>
+      <div className="border-border bg-surface mb-2 rounded-xl border px-4">
+        <Row
+          title="Name sessions automatically"
+          description="A one-shot model call titles a chat from its first message, and renames its branch to match. Off keeps the first message as the title and leaves the branch alone."
+        >
+          <Toggle on={lanes.autoName} onChange={(on) => setLanePrefs({ autoName: on })} />
+        </Row>
+        <Row
+          title="Title length"
+          description={
+            lanes.nameMinWords === lanes.nameMaxWords
+              ? `The namer is asked for exactly ${lanes.nameMinWords} word${lanes.nameMinWords === 1 ? '' : 's'}.`
+              : `The namer is asked for ${lanes.nameMinWords}-${lanes.nameMaxWords} words.`
+          }
+        >
+          <span className="flex items-center gap-2">
+            <NumberField
+              value={lanes.nameMinWords}
+              min={LANE_PREF_LIMITS.nameWords.min}
+              max={LANE_PREF_LIMITS.nameWords.max}
+              step={1}
+              onChange={(value) => setLanePrefs({ nameMinWords: value })}
+            />
+            <span className="text-text-tertiary text-sm">to</span>
+            <NumberField
+              value={lanes.nameMaxWords}
+              min={LANE_PREF_LIMITS.nameWords.min}
+              max={LANE_PREF_LIMITS.nameWords.max}
+              step={1}
+              onChange={(value) => setLanePrefs({ nameMaxWords: value })}
+              suffix="words"
+            />
+          </span>
+        </Row>
+        <Row
+          title="Title character limit"
+          description="A hard cap applied after the model replies, so a long-winded title cannot stretch the sidebar."
+        >
+          <NumberField
+            value={lanes.nameMaxLength}
+            min={LANE_PREF_LIMITS.nameMaxLength.min}
+            max={LANE_PREF_LIMITS.nameMaxLength.max}
+            step={4}
+            onChange={(value) => setLanePrefs({ nameMaxLength: value })}
+            suffix="chars"
+          />
+        </Row>
+        <Row
+          title="Branch name length"
+          description={`Capped separately from the title: a slug is read in git output and in a path. "${exampleSlug}"`}
+        >
+          <NumberField
+            value={lanes.branchSlugMaxLength}
+            min={LANE_PREF_LIMITS.branchSlugMaxLength.min}
+            max={LANE_PREF_LIMITS.branchSlugMaxLength.max}
+            step={4}
+            onChange={(value) => setLanePrefs({ branchSlugMaxLength: value })}
+            suffix="chars"
+          />
+        </Row>
+        <Row
+          title="Lane markers"
+          description="The emoji left of each lane in the sidebar. Auto derives one from the branch name; Manual shows only the ones you pick; Off removes the column."
+        >
+          <span className="flex items-center gap-1">
+            {(['auto', 'manual', 'off'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setLanePrefs({ markers: mode })}
+                className={
+                  lanes.markers === mode
+                    ? 'border-accent/40 bg-accent-soft text-accent rounded-md border px-2.5 py-1 text-sm font-medium capitalize'
+                    : 'border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-sm capitalize'
+                }
+              >
+                {mode}
+              </button>
+            ))}
+          </span>
+        </Row>
+      </div>
+
       <SectionTitle>New sessions</SectionTitle>
       <div className="border-border bg-surface mb-2 rounded-xl border px-4">
         <Row

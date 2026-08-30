@@ -11,7 +11,7 @@ import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/sessio
 import { usesClaudeCliProvider } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
 import { sessionEventChannel } from '@shared/ipc'
-import { getPrefs, recordWorkspace } from '../store'
+import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
 import { broadcast } from '../orchestrator/broadcast'
 import { configureOrchestrator, orchestrator } from '../orchestrator/instance'
 import { startNotifier } from '../orchestrator/notifier'
@@ -321,6 +321,7 @@ export function registerPiSessionHandlers(): void {
   handle(
     'pi:generateTitle',
     async (_event, workspacePath: string, message: string, existingNames: string[]) => {
+      const lanePrefs = getLanePrefs()
       const stub = piStubPath()
       let binaryPath: string
       let prefixArgs: string[] = []
@@ -360,10 +361,17 @@ export function registerPiSessionHandlers(): void {
       const started = Date.now()
       const { stdout, error } = await runPrintMode(
         binaryPath,
-        [...prefixArgs, ...titleArgs({ claudeCli }), titlePrompt(message, existingNames)],
+        [
+          ...prefixArgs,
+          ...titleArgs({ claudeCli }),
+          titlePrompt(message, existingNames, {
+            min: lanePrefs.nameMinWords,
+            max: lanePrefs.nameMaxWords,
+          }),
+        ],
         { cwd: workspacePath, env },
       )
-      const title = stdout ? sanitizeTitle(stdout) : null
+      const title = stdout ? sanitizeTitle(stdout, lanePrefs.nameMaxLength) : null
       // Logged either way: this failing produced no symptom at all for weeks
       // beyond "sessions are never named", which named no cause. One line per
       // new chat is a price worth paying for that never happening again.
