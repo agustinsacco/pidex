@@ -18,7 +18,8 @@ export function FileMentionMenu({
   return (
     <PopupMenu
       onClose={onClose}
-      className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] overflow-y-auto py-1.5"
+      className="absolute bottom-full left-0 mb-2 max-h-72 w-[26rem] max-w-[calc(100vw-16rem)] overflow-y-auto py-1.5"
+      fitViewport
     >
       {files.map((file, index) => {
         const slash = file.lastIndexOf('/')

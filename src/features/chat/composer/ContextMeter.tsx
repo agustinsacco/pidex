@@ -104,7 +104,8 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute bottom-full right-0 mb-2 w-80 p-3"
+          fitViewport
+          className="absolute bottom-full left-0 mb-2 w-80 max-w-[calc(100vw-16rem)] p-3"
         >
           <div className="text-text text-base font-medium">Session usage</div>
           {burning && (

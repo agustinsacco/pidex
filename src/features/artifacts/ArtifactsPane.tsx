@@ -132,7 +132,8 @@ function ArtifactSwitcher({
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute left-0 top-full mt-1 w-72 py-1"
+          fitViewport
+          className="absolute left-0 top-full mt-1 w-72 max-w-[calc(100vw-16rem)] py-1"
         >
           {list.map((artifact) => (
             <MenuRow

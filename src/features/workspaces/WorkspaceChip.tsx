@@ -69,8 +69,9 @@ export function WorkspaceChip({
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
+          fitViewport
           className={clsx(
-            'absolute left-0 z-40 max-h-80 w-64 overflow-y-auto py-1.5',
+            'absolute left-0 z-40 max-h-80 w-64 max-w-[calc(100vw-16rem)] overflow-y-auto py-1.5',
             // The composer chip sits near the bottom of the window, the top bar
             // chip at the very top, so they open in opposite directions.
             compact ? 'top-full mt-1.5' : 'bottom-full mb-1.5',

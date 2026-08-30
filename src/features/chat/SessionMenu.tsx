@@ -81,7 +81,8 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute right-0 top-full mt-1.5 w-60 py-1"
+          fitViewport
+          className="absolute right-0 top-full mt-1.5 w-60 max-w-[calc(100vw-16rem)] py-1"
         >
           <MenuRow active={false} onClick={() => void command(exportHtml)}>
             <span className="flex-1">Export HTML…</span>

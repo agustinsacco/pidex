@@ -233,7 +233,7 @@ export function ModelMenu({
   }
 
   return (
-    <PopupMenu onClose={onClose} className={className}>
+    <PopupMenu onClose={onClose} className={className} fitViewport>
       <div className="border-border border-b">
         <input
           ref={inputRef}

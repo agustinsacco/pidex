@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Anchored popup list used by the command menu, @-mentions and pickers.
@@ -15,13 +15,26 @@ export function PopupMenu({
   onClose,
   className,
   triggerRef,
+  fitViewport = false,
 }: {
   children: React.ReactNode
   onClose: () => void
   className?: string
   triggerRef?: React.RefObject<HTMLElement | null>
+  fitViewport?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
+
+  useEffect(() => {
+    if (!fitViewport || !ref.current) {
+      setComputedStyle({})
+      return
+    }
+    // Apply a viewport-safe max-width so the popup never overflows past the
+    // viewport right edge regardless of left/right alignment.
+    setComputedStyle({ maxWidth: 'calc(100vw - 2rem)' })
+  }, [fitViewport])
 
   useEffect(() => {
     const handler = (event: MouseEvent): void => {
@@ -49,6 +62,7 @@ export function PopupMenu({
   return (
     <div
       ref={ref}
+      style={computedStyle}
       // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
       // a menu opened from inside a window-drag region must stay clickable,
       // including its non-button rows (labels, separators).
