@@ -5,7 +5,7 @@ import { create } from 'zustand'
  *
  * A chat now starts before it is named — the branch is cut from a slug of the
  * first message so pi can spawn immediately, and the title arrives ~13s later
- * (specs/log/2026-08-22-fast-session-start.md). The title, the top bar and the
+ * (docs/log/2026-08-22-fast-session-start.md). The title, the top bar and the
  * branch chip all show provisional values in the meantime, so they need to
  * know that.
  *

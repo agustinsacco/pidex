@@ -404,7 +404,7 @@ function ExternalToolRow({
  * the model called the tool and the CLI never confirmed a thing — on a
  * provider older than 0.4.14 that is an agent that died with the subprocess,
  * so it must not be dressed up as running. The sub-agent's own transcript is
- * still not forwarded (specs/reference/extensions.md), so the expandable
+ * still not forwarded (docs/extensions.md), so the expandable
  * detail is the launch prompt, never the agent's work.
  */
 function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {

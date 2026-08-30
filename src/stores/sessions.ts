@@ -385,7 +385,7 @@ function attachSessionPushHandler(pidexId: string): void {
         // The visible-hand rule: main sent this on the orchestrator's behalf,
         // so the renderer never added it optimistically. pi persists it either
         // way — without this the transcript of a session being steered stays
-        // silent until it is reopened. See specs/reference/orchestration.md.
+        // silent until it is reopened. See docs/orchestration.md.
         chatStore.addUserMessage(pidexId, push.text)
         break
       case 'extension-ui':

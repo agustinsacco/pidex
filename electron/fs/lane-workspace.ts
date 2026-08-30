@@ -11,7 +11,7 @@ import { addWorktree, listBranches, listWorktrees, startPoint } from './git-work
  * process. The branch is not a nicety — it is the only thing that makes two
  * lanes safe in one repo. The incident is in this repo's own log: two agent
  * sessions in one tree, one ran `git add -A && commit` and discarded the rest,
- * and the untracked files were unrecoverable (specs/TRACKER.md:114).
+ * and the untracked files were unrecoverable (docs/specs/TRACKER.md:114).
  *
  * This exists because that isolation lived **entirely in the renderer**
  * (`src/features/sessions/startChat.ts`), so every session a user started was
