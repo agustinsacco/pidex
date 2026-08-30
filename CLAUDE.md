@@ -6,9 +6,10 @@ session, spoken to over JSONL on stdio. pidex never imports pi's code; the
 protocol is hand-mirrored in `shared/rpc.ts`.
 
 **Two maps before you start.** [README.md](README.md#repo-layout) has the repo
-tree — the single copy, since three copies drifted. [specs/README.md](specs/README.md)
-says which spec folder is a live contract (`reference/`) and which is history
-(`build/`, `log/`); reading a `build/` doc as current is how the
+tree — the single copy, since three copies drifted.
+[docs/README.md](docs/README.md) is the documentation index: `docs/` is how
+pidex behaves **now**, `docs/log/` is dated history, and `docs/specs/` is work
+not yet done. Reading a `docs/specs/build/` doc as current is how the
 terracotta-vs-Phosphor contradiction survived 20 days.
 
 ## Commands
@@ -69,7 +70,7 @@ you want to watch.
    its **mode** (`observe` / `supervise` / `autopilot`) is enforced in
    `bridge.ts` at CALL time — never trusted from the system prompt, which is
    fixed at spawn and goes stale the moment the user switches. Full design in
-   [specs/reference/orchestration.md](specs/reference/orchestration.md).
+   [docs/orchestration.md](docs/orchestration.md).
 6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
@@ -97,7 +98,7 @@ you want to watch.
   `electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
   catch a regression — it prints and exits without reading stdin — so the guard
   is `electron/pi/print-mode.test.ts`. See
-  [specs/log/2026-08-26-session-start-ux.md](specs/log/2026-08-26-session-start-ux.md).
+  [docs/log/2026-08-26-session-start-ux.md](docs/log/2026-08-26-session-start-ux.md).
 - **pi writes a session's file only when a turn ENDS**, not incrementally. A
   name set mid-turn does not reach the disk scan until the reply lands, so
   every surface showing a LIVE session's title prefers the chat store's
@@ -122,7 +123,7 @@ you want to watch.
   marker text blocks (a wire contract — `parseExternalToolMarker` turns them
   into activity steps), and some models emit thinking with a signature and no
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
-  read [specs/reference/extensions.md](specs/reference/extensions.md#how-provider-transcripts-render).
+  read [docs/extensions.md](docs/extensions.md#how-provider-transcripts-render).
 - **Claude sessions run through a SEPARATELY VERSIONED package**, and
   pidex pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
   (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
@@ -146,7 +147,7 @@ you want to watch.
   broken flag, so it didn't fix the missing instructions.) If a session
   doesn't honour its charter at all, or stops after turn 1, check the
   installed version first: `>= 0.4.16` is required for both. See
-  [specs/log/2026-08-29-claude-cli-lifecycle-verification.md](specs/log/2026-08-29-claude-cli-lifecycle-verification.md).
+  [docs/log/2026-08-29-claude-cli-lifecycle-verification.md](docs/log/2026-08-29-claude-cli-lifecycle-verification.md).
 
 - **pidex ships seven extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e`; the bundled six are listed in `bundledExtensions()` in
@@ -161,7 +162,7 @@ you want to watch.
     four conditions in that file are deliberately narrow; widening them blocks
     legitimate reads, because pi's own prompt sends the model to absolute paths
     outside the cwd for its docs. See
-    [specs/log/2026-08-22-worktree-path-leak.md](specs/log/2026-08-22-worktree-path-leak.md).
+    [docs/log/2026-08-22-worktree-path-leak.md](docs/log/2026-08-22-worktree-path-leak.md).
   - **`tool-name-guard.ts` rewrites a malformed tool call** at `message_end`,
     before pi persists it. A model can emit a tool call whose _name_ is not a
     tool name (seen: `mcp({})<tool_call>find`, raw syntax leaked into the name
@@ -169,7 +170,7 @@ you want to watch.
     and then every later turn replays it and the provider rejects the whole
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
-    See [specs/log/2026-08-26-orchestrator-controls.md](specs/log/2026-08-26-orchestrator-controls.md).
+    See [docs/log/2026-08-26-orchestrator-controls.md](docs/log/2026-08-26-orchestrator-controls.md).
 - **Three UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session), its plan-limits section from the Claude provider
@@ -177,7 +178,7 @@ you want to watch.
   `ctx.ui.setStatus` into `stores/extensionUi.ts`. The provider one crosses a
   repo boundary, so nothing here fails to compile when it
   changes; the keys and their rules are in
-  [specs/reference/extensions.md](specs/reference/extensions.md#the-status-channel-is-a-wire-contract).
+  [docs/extensions.md](docs/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
 - **macOS updates itself by replacing its own bundle**, because Squirrel.Mac
@@ -187,14 +188,14 @@ you want to watch.
   the old pid to exit, or the single-instance lock in `main.ts` kills the new
   instance and the user is left with no app. The startup sweep that deletes
   leftovers is `rm -rf` next to `/Applications`; its name match is a full-string
-  regex on purpose. See [specs/reference/updates.md](specs/reference/updates.md).
+  regex on purpose. See [docs/updates.md](docs/updates.md).
 - **Connecting an MCP server never puts a token in pidex.** The adapter owns
   OAuth and the OS credential store; pidex writes `mcp.json` and drives the
   adapter's own `/mcp-auth` command (an extension command, so no model runs).
   And it must **never auto-answer** the adapter's "paste the callback URL"
   prompt: pi's RPC has no dialog cancel, so an empty answer wins the race
   against the loopback callback and kills a flow that already succeeded. See
-  [specs/reference/mcp.md](specs/reference/mcp.md#connectors-settings--connectors).
+  [docs/mcp.md](docs/mcp.md#connectors-settings--connectors).
 
 ## Conventions
 
@@ -225,13 +226,13 @@ you want to watch.
   `src/dev/mockPidex.ts` when `window.pidex` is undefined — new IPC channels
   used by screens the harness renders need a mock case.
 - When you ship a substantial feature or refactor: if it advances a numbered
-  phase, add a dated note to that phase's Log in `specs/TRACKER.md`; otherwise
-  write it up as its own `specs/log/YYYY-MM-DD-slug.md` (the existing files
-  show the convention). Never append a new section to `TRACKER.md` — a shared
-  append point is what used to make unrelated PRs conflict. **If the change
-  makes a `specs/reference/` file wrong, that file is part of the same diff,
-  not a follow-up** — the specs drifting from the code is the recurring failure
-  mode here. Also update any plan doc you implemented or deviated from.
+  phase, add a dated note to that phase's Log in `docs/docs/specs/TRACKER.md`;
+  otherwise write it up as its own `docs/log/YYYY-MM-DD-slug.md` (the existing
+  files show the convention). Never append a new section to `TRACKER.md` — a
+  shared append point is what used to make unrelated PRs conflict. **If the
+  change makes a `docs/` file wrong, that file is part of the same diff, not a
+  follow-up** — docs drifting from the code is the recurring failure mode here.
+  Also update any plan doc you implemented or deviated from.
 
 ## Running the app
 

@@ -66,7 +66,7 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     },
   }
 
-  // Phosphor editor themes (specs/reference/style-guide.md). Hex literals on purpose —
+  // Phosphor editor themes (docs/style-guide.md). Hex literals on purpose —
   // Monaco takes a JS object; keep in sync with --px-* in src/styles/index.css.
   monaco.editor.defineTheme('pidex-light', {
     base: 'vs',

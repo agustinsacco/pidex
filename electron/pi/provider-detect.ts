@@ -5,7 +5,7 @@
  * sessions: the Claude CLI loads CLAUDE.md itself as memory, and pi embedding
  * the same file in its system prompt bills it twice on every request
  * (~4,900 tokens measured on this repo's CLAUDE.md). See
- * specs/log/2026-08-29-claude-provider-token-overhead.md.
+ * docs/log/2026-08-29-claude-provider-token-overhead.md.
  *
  * Deliberately conservative: when the answer depends on pi's fuzzy model
  * matching (a bare pattern with no explicit provider), only a `claude*`

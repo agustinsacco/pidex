@@ -52,7 +52,7 @@ export type SessionPush =
    * A message main sent into this session on someone else's behalf (today:
    * the orchestrator). pi persists it either way, but the renderer only paints
    * messages it added itself — without this the transcript of a session being
-   * steered stays silent until it is reopened. See specs/reference/orchestration.md,
+   * steered stays silent until it is reopened. See docs/orchestration.md,
    * "the visible-hand rule".
    */
   | { kind: 'injected'; text: string; source: 'orchestrator' }
@@ -405,7 +405,7 @@ export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
   branchPrefix: 'pidex/',
 }
 
-// ---------- orchestration (specs/reference/orchestration.md) ----------
+// ---------- orchestration (docs/orchestration.md) ----------
 
 /**
  * What a live session is doing, as observed mechanically in main. No model is
