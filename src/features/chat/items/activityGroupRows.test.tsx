@@ -16,7 +16,7 @@ vi.hoisted(() => {
   })
 })
 
-import { ActivityGroup, ROW_INSET } from './ActivityGroup'
+import { ActivityGroup, GUTTER_MARK, ROW_INSET } from './ActivityGroup'
 import type { ActivityStep } from './transcriptRows'
 import type { ToolState } from '../reducer'
 
@@ -131,6 +131,28 @@ describe('ActivityGroup row shapes', () => {
         expect(carrier!.className).toContain(cls)
       }
     }
+  })
+
+  /**
+   * The padding bug this pins: `cc` used to be an inline pill, so every
+   * Claude-provider row started its label ~25px right of the pi tool row above
+   * it — and one turn interleaves the two, so the card's single column broke.
+   * A gutter mark must be out of flow, and must not be the row's first in-flow
+   * child.
+   */
+  it('floats the cc provenance mark in the gutter, not in front of the label', () => {
+    renderMixed()
+    const row = document.querySelector('[data-testid="external-tool-row"]')!
+    const mark = row.querySelector('[aria-label="Ran by Claude Code"]')
+    expect(mark).not.toBeNull()
+    for (const cls of GUTTER_MARK.split(' ')) {
+      expect((mark as HTMLElement).className).toContain(cls)
+    }
+
+    const inFlow = [...row.children].filter(
+      (el) => !(el as HTMLElement).className.includes('absolute'),
+    )
+    expect(inFlow[0]!.textContent).toBe('Searched the web for')
   })
 
   it('renders a CLI-side tool with pi own verb, not the raw tool name', () => {
