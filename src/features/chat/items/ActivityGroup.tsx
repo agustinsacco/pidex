@@ -53,6 +53,19 @@ import { useChatUiStore } from '../uiState'
  * reasoning to show.
  */
 export const ROW_INSET = 'pl-4 pr-2'
+
+/**
+ * The gutter slot inside that inset — the 14px square between the card's left
+ * border and where a label starts. Marks placed here are `absolute`, so they
+ * never reserve a column: a row with no mark still puts its label at x=16.
+ *
+ * Two marks share it: the ✳ reasoning mark (shown on hover/pin) and the `cc`
+ * provenance mark on CLI-side rows. `top-1.5` centers either one in a
+ * `py-1 text-lg` row.
+ */
+export const GUTTER_MARK =
+  'absolute top-1.5 left-px flex h-3.5 w-3.5 items-center justify-center text-2xs'
+
 export const ActivityGroup = memo(function ActivityGroup({
   steps,
   tools,
@@ -265,7 +278,8 @@ function ActivityRow({
             aria-expanded={pinned}
             data-testid="thought-mark"
             className={clsx(
-              'absolute left-px top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded text-2xs transition-colors',
+              GUTTER_MARK,
+              'rounded transition-colors',
               pinned
                 ? 'bg-accent-soft text-accent'
                 : 'text-text-tertiary hover:bg-accent-soft hover:text-accent',
@@ -315,7 +329,8 @@ function ActivityRow({
  * `tool_result`, so there is nothing to expand into and a disclosure control
  * would promise output that does not exist. And the row is always settled —
  * no running dot, no failure state — because the marker arrives after the
- * fact and carries no status. The `cc` badge keeps the provenance visible:
+ * fact and carries no status. The `cc` mark in the row's gutter keeps the
+ * provenance visible:
  * pi never saw these calls, so they are absent from its own accounting.
  */
 function ExternalToolRow({
@@ -334,14 +349,25 @@ function ExternalToolRow({
 
   return (
     <div
-      className={clsx('flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
+      className={clsx('relative flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
       data-testid="external-tool-row"
       // The full untruncated preview, for the case the cap cut the label.
       title={args ? `Claude Code · ${name} ${args}` : `Claude Code · ${name}`}
     >
+      {/* Provenance belongs in the gutter, not in front of the label. It used
+          to be an inline pill, which pushed every Claude row ~25px right of
+          pi's own rows — and a Claude turn interleaves the two in one card, so
+          the column broke on the first WebSearch. Same slot as the ✳ mark, same
+          quiet styling: this row's label now starts at the x a pi row's does. */}
       <span
-        className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1 py-px font-mono text-2xs uppercase tracking-wide"
         aria-label="Ran by Claude Code"
+        title="Ran by Claude Code"
+        // Same 14px chip the pinned ✳ gets; no `tracking-wide` — the slot is
+        // 14px and the two glyphs already fill 11 of it.
+        className={clsx(
+          GUTTER_MARK,
+          'bg-bg-secondary text-text-tertiary rounded font-mono uppercase',
+        )}
       >
         cc
       </span>

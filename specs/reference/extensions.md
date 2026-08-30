@@ -332,8 +332,17 @@ handling (`items/transcriptRows.ts`, contract table in
   same `cleanCommandForDisplay` path stripping. A Claude-provider turn
   interleaves these rows with pi's, and showing `Claude Code | Bash | <raw
 arg>` next to `Ran npm test` made one turn read as two transcripts.
-  Provenance survives as a `cc` badge plus the full marker in the row's
+  Provenance survives as a small `cc` mark plus the full marker in the row's
   `title`, because pi genuinely never saw these calls.
+
+  **The `cc` mark floats in the row gutter (`GUTTER_MARK`), never inline.** It
+  was an inline pill, which put a Claude row's label ~25px right of the pi tool
+  row above it — and these rows interleave with pi's inside one card, so the
+  shared inset (`ROW_INSET`) stopped meaning anything on the first WebSearch.
+  Marks in the gutter are `absolute` and reserve no column, so every row shape
+  — pi tool, CLI-side tool, sub-agent, reasoning — starts its label at the same
+  x, and the ✳ reasoning mark and `cc` share one slot. Guarded by
+  `items/activityGroupRows.test.tsx`.
 
   Two things are deliberately NOT borrowed, and both are honesty rather than
   polish: no chevron (there is no `tool_result`, so nothing to expand into)
