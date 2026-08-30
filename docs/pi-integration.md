@@ -20,6 +20,40 @@ $(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the pr
 - Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
 - pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
 
+### Session lifecycle
+
+A session is a subprocess only while it is open. Everything else is a file on
+disk that the sidebar scans without spawning anything.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Spawning: new session
+  Spawning --> Bootstrapping: child process up
+  Bootstrapping --> Idle: get_state resolves
+  Idle --> Streaming: prompt, steer or follow_up
+  Streaming --> Idle: turn ends
+  Idle --> Closed: user closes it, or app quits
+  Closed --> Spawning: reopen with --session path
+  Closed --> [*]
+```
+
+The two states that cause bugs:
+
+- **Bootstrapping is where the session learns what it is.** `get_state` is
+  awaited ahead of everything else in `bootstrapSession` because it carries
+  both the on-disk session path and `meta.sessionName`. Neither is known at
+  spawn, so last-session persistence necessarily happens in two places in
+  `src/stores/sessions.ts`.
+- **Streaming → Idle is the only moment pi writes the session file.** Until
+  that edge is crossed, a disk scan cannot see anything from the current turn.
+  This is why a new session keeps a placeholder sidebar row for its whole
+  first turn rather than showing a name that is not persisted yet.
+
+A closed session is not gone: reopening spawns a fresh `pi --mode rpc` with
+`--session <path>`, which replays the file. That replay is why a malformed tool
+call persisted by one turn bricks every later one — see
+[log/2026-08-26-orchestrator-controls.md](log/2026-08-26-orchestrator-controls.md).
+
 ## RPC commands (complete set — every one gets UI, see feature specs)
 
 | Command                                                                    | Notes                                                                                                                                                                                    |

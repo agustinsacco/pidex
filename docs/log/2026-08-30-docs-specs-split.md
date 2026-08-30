@@ -57,10 +57,10 @@ decoder for anyone following an old path.
 and the repo-tree entry. A full rewrite is in flight separately, so touching
 more would have been a collision for no gain.
 
-## What is still owed
+## What came next
 
-`docs/` is well organised but thin on diagrams for a folder now billed as the
-technical manual. Sequence diagrams for the IPC and RPC paths, a process-model
-diagram in `architecture.md`, and a state diagram for session lifecycle are the
-obvious gaps. The move had to land first: authoring inside a tree that was
-about to be renamed would have conflicted with every line of it.
+`docs/` was well organised but thin on diagrams for a folder now billed as the
+technical manual. That gap is closed in
+[2026-08-30-docs-diagrams.md](2026-08-30-docs-diagrams.md). The move had to
+land first: authoring inside a tree that was about to be renamed would have
+conflicted with every line of it.
