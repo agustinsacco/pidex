@@ -158,6 +158,27 @@ const MOCK_MODELS = [
   },
 ]
 
+/**
+ * What a permission gate actually sends: a heredoc that writes a script,
+ * plus the command that runs it. The `rm -rf` inside the heredoc body is the
+ * interesting part — it is written to a file, not run, and the approval sheet
+ * has to say so instead of shouting.
+ */
+const MOCK_DANGEROUS_COMMAND = [
+  "cat > /tmp/reset-fixtures.sh <<'EOF'",
+  '#!/usr/bin/env bash',
+  'set -euo pipefail',
+  '# wipe the fixture tree before regenerating it',
+  'rm -rf /tmp/fixtures',
+  'mkdir -p /tmp/fixtures',
+  'for n in 1 2 3; do',
+  '  printf \'fixture %s\\n\' "$n" > "/tmp/fixtures/$n.txt"',
+  'done',
+  'EOF',
+  'chmod +x /tmp/reset-fixtures.sh',
+  'sudo /tmp/reset-fixtures.sh && echo regenerated',
+].join('\n')
+
 function respond(command: RpcCommand): RpcResponse {
   switch (command.type) {
     case 'get_state':
@@ -712,8 +733,29 @@ export function installMockPidex(): void {
             workspacePath: '/Users/dev/projects/pidex',
             pid: 1234,
           })
-        case 'pi:command':
-          return Promise.resolve(respond(args[1] as RpcCommand))
+        case 'pi:command': {
+          const command = args[1] as RpcCommand
+          // Permission-gate rehearsal. The harness has no pi and therefore no
+          // extension, but the dangerous-command approval sheet is the one
+          // dialog whose whole point is how it renders a big ugly command —
+          // so `danger` in a prompt raises a real one to look at.
+          if (command.type === 'prompt' && /^\s*danger\b/i.test(command.message)) {
+            setTimeout(() => {
+              push('mock-session-id', {
+                kind: 'extension-ui',
+                request: {
+                  type: 'extension_ui_request',
+                  id: 'mock-danger',
+                  method: 'select',
+                  title: `Dangerous command:\n\n  ${MOCK_DANGEROUS_COMMAND}\n\nAllow?`,
+                  options: ['Yes', 'No'],
+                },
+              } as SessionPush)
+            }, 150)
+            return Promise.resolve({ type: 'response', command: 'prompt', success: true })
+          }
+          return Promise.resolve(respond(command))
+        }
         case 'pi:generateTitle':
           return Promise.resolve('Mock Generated Title')
         case 'fs:listFiles':
