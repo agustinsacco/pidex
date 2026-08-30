@@ -204,7 +204,6 @@ describe('perf: streaming deltas do not churn state', () => {
       state,
       event({
         type: 'message_update',
-        message: assistant('partial'),
         assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: 'p' },
       }),
       T0,

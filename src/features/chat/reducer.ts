@@ -33,7 +33,7 @@ import {
   applyRevealedIdentity,
   pendingToolId,
   pruneOrphanedPendingTools,
-  revealedToolCall,
+  revealedFromStart,
   withExecutionIdentity,
 } from './toolIdentity'
 import {
@@ -337,10 +337,10 @@ function applyAssistantDelta(
     }
 
     case 'toolcall_start': {
-      // The partial message may already carry the toolCall id/name; when it
-      // doesn't, key the tool under a placeholder and leave the name unknown
-      // rather than inventing one (see toolIdentity).
-      const revealed = revealedToolCall(delta.partial, delta.contentIndex)
+      // pi 0.84.3+ names the call on this event; when it doesn't, key the tool
+      // under a placeholder and leave the name unknown rather than inventing
+      // one (see toolIdentity).
+      const revealed = revealedFromStart(delta)
       const toolCallId = revealed?.id ?? pendingToolId(item.id, delta.contentIndex)
 
       const blocks = ensureBlock(item.blocks, delta.contentIndex, () => ({
@@ -364,22 +364,18 @@ function applyAssistantDelta(
     }
 
     case 'toolcall_delta': {
-      // Identity often shows up in a later partial than the one on
-      // `toolcall_start`; adopt it as soon as it does, so the card stops
-      // reading "Preparing tool…" while a large payload streams.
-      const revealed = revealedToolCall(delta.partial, delta.contentIndex)
-      const base = revealed
-        ? applyRevealedIdentity(state, index, delta.contentIndex, revealed)
-        : state
-      const current = base.items[index] as AssistantItem
+      // No identity can arrive on a delta: pi names the call on `toolcall_start`
+      // (0.84.3+) or not until `toolcall_end`. Reading a mid-stream `partial`
+      // here was dead code once pi 0.84.0 stopped sending that snapshot.
+      const current = state.items[index] as AssistantItem
       const block = current.blocks.find((b) => b.index === delta.contentIndex)
-      if (!block || block.type !== 'tool') return base
-      const tool = base.tools[block.toolCallId]
-      if (!tool) return base
+      if (!block || block.type !== 'tool') return state
+      const tool = state.tools[block.toolCallId]
+      if (!tool) return state
       return {
-        ...base,
+        ...state,
         tools: {
-          ...base.tools,
+          ...state.tools,
           [block.toolCallId]: { ...tool, argsText: tool.argsText + delta.delta },
         },
       }

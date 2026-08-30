@@ -20,7 +20,6 @@ const assistantStart: PiEvent = {
 function textDelta(delta: string, contentIndex = 0): PiEvent {
   return {
     type: 'message_update',
-    message: { role: 'assistant', content: [] },
     assistantMessageEvent: { type: 'text_delta', contentIndex, delta },
   }
 }
@@ -45,7 +44,6 @@ describe('chat reducer — streaming text', () => {
       textDelta('Hel'),
       {
         type: 'message_update',
-        message: { role: 'assistant', content: [] },
         assistantMessageEvent: { type: 'text_end', contentIndex: 0, content: 'Hello!' },
       },
     ])
@@ -78,7 +76,6 @@ describe('chat reducer — streaming text', () => {
       assistantStart,
       {
         type: 'message_update',
-        message: { role: 'assistant', content: [] },
         assistantMessageEvent: { type: 'thinking_delta', contentIndex: 0, delta: 'hmm' },
       },
       textDelta('answer', 1),
@@ -93,29 +90,24 @@ describe('chat reducer — tool calls', () => {
     assistantStart,
     {
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
+      // The pi >= 0.84.3 wire shape: id + name on the event itself.
       assistantMessageEvent: {
         type: 'toolcall_start',
         contentIndex: 0,
-        partial: {
-          role: 'assistant',
-          content: [{ type: 'toolCall', id: 'call_1', name: 'bash', arguments: {} }],
-        },
+        id: 'call_1',
+        toolName: 'bash',
       },
     },
     {
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: { type: 'toolcall_delta', contentIndex: 0, delta: '{"command":' },
     },
     {
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: { type: 'toolcall_delta', contentIndex: 0, delta: '"ls -la"}' },
     },
     {
       type: 'message_update',
-      message: { role: 'assistant', content: [] },
       assistantMessageEvent: {
         type: 'toolcall_end',
         contentIndex: 0,
@@ -189,12 +181,10 @@ describe('chat reducer — tool calls', () => {
       assistantStart,
       {
         type: 'message_update',
-        message: { role: 'assistant', content: [] },
         assistantMessageEvent: { type: 'toolcall_start', contentIndex: 0 },
       },
       {
         type: 'message_update',
-        message: { role: 'assistant', content: [] },
         assistantMessageEvent: {
           type: 'toolcall_end',
           contentIndex: 0,
