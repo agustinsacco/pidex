@@ -70,11 +70,12 @@ export function OrchestratorModePicker({
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
+          fitViewport
           // `absolute` is load-bearing: PopupMenu positions nothing itself, so
           // without it the menu lays out in normal flow and shoves the banner
           // around instead of floating over the transcript. Opens downward —
           // the banner is at the top of the pane, so there is no room above.
-          className="absolute right-0 top-full mt-1.5 w-72 py-1.5"
+          className="absolute right-0 top-full mt-1.5 w-72 max-w-[calc(100vw-16rem)] py-1.5"
         >
           {ORCHESTRATOR_MODES.map((option) => (
             <MenuRow

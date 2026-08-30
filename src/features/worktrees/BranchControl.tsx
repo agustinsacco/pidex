@@ -165,7 +165,8 @@ export function BranchControl({
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
-          className="absolute left-0 top-full z-40 mt-1.5 max-h-[32rem] w-80 overflow-y-auto py-1.5"
+          fitViewport
+          className="absolute left-0 top-full z-40 mt-1.5 max-h-[32rem] w-80 max-w-[calc(100vw-16rem)] overflow-y-auto py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
             <div className="text-text truncate text-lg font-medium">{info.branch}</div>
