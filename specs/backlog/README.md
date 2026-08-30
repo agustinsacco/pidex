@@ -8,7 +8,7 @@ these are still worth reading for work to do.
 | [perf-findings.md](perf-findings.md)                 | Memory and CPU on the pi → main → renderer path | 17 of 19 findings     |
 | [cleanup-plan.md](cleanup-plan.md)                   | Duplication, dead code, module size             | Phase 6 + 1 loose end |
 | [connectors.md](connectors.md)                       | OAuth MCP connectors: catalog, auth, status     | 1 of 7 findings       |
-| [spec-drift-2026-08-30.md](spec-drift-2026-08-30.md) | Every `reference/` doc vs. the code             | 44 of 44 findings     |
+| [spec-drift-2026-08-30.md](spec-drift-2026-08-30.md) | Every `reference/` doc vs. the code             | 30 of 44 findings     |
 
 ## The rule that keeps these useful
 

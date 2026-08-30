@@ -114,8 +114,10 @@ bundled. `specs/README.md:40` and the `extensions.md` table are both right.
 
 ## reference/orchestration.md
 
-Ten of the drifted rows are tool signatures — the part a model reads to decide
-how to call. These are the highest-value fixes in this audit.
+All 14 fixed in the same PR that raised them. The tool table is now enforced
+by `pi-ext/orchestrator-doc.test.ts`, which reads the doc and fails when a
+tool's arguments stop matching the schema the extension registers — five of
+the ten rows were wrong when the guard was written.
 
 | #   | Doc line | Says                                                                             | Code does                                                                                                                                                                                                           | Sev     | Status |
 | --- | -------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
