@@ -211,7 +211,12 @@ export const MessageList = memo(function MessageList({
   const handleScroll = useCallback((): void => {
     const el = scrollRef.current
     if (!el) return
-    if (!pinnedRef.current) {
+    const heightChanged = el.scrollHeight !== lastHeightRef.current
+    // Only a scroll the layout did not cause may lower the floor. A shrink that
+    // clamps scrollTop scrolls the reader up too, and letting that lower the
+    // floor is a ratchet: each clamp permits a little more shrink, which clamps
+    // again.
+    if (!pinnedRef.current && !heightChanged) {
       tailFloorRef.current = Math.min(tailFloorRef.current, el.scrollTop + el.clientHeight)
     }
     // Our own follow-the-tail scroll produces a scroll event too; reading it as
@@ -220,7 +225,6 @@ export const MessageList = memo(function MessageList({
       lastHeightRef.current = el.scrollHeight
       return
     }
-    const heightChanged = el.scrollHeight !== lastHeightRef.current
     lastHeightRef.current = el.scrollHeight
     setPinnedNow(
       nextPinnedState(pinnedRef.current, {

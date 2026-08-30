@@ -1473,36 +1473,47 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
   const { page } = harness
   try {
     await openWorkspace(page)
-    // 40 tool calls in ONE activity group: expanded while it runs, collapsed
-    // the instant it settles. That collapse is the shrink that used to clamp
-    // scrollTop and drop the reader at the bottom — measured before the fix:
-    // reading back at 324 of 444, settling moved the reader to 0.
-    await page.getByPlaceholder('Describe a task or ask a question').fill('do manyitems slow now')
+    // A tall run of tools at the very end of the transcript, held live and
+    // expanded for a few seconds. When it settles the group collapses and the
+    // transcript loses ~700px BELOW the reader — the shrink that used to clamp
+    // scrollTop and drop them at the new bottom.
+    await page
+      .getByPlaceholder('Describe a task or ask a question')
+      .fill('do manyturns tailgroup now')
     await page.getByRole('button', { name: /Start session/i }).click()
 
     const scroller = page.getByTestId('transcript-scroll')
     await expect(scroller).toBeVisible({ timeout: 30_000 })
+    const tailGroup = page.locator('[data-testid="activity-group"][data-live="true"]').last()
     await expect
-      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
+      .poll(async () => await tailGroup.evaluate((el) => el.getBoundingClientRect().height), {
         timeout: 30_000,
       })
-      .toBeGreaterThan(300)
+      .toBeGreaterThan(600)
 
+    // Read back a few hundred px — less than the pending collapse, so a clamp
+    // would be visible.
     const box = (await scroller.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.wheel(0, -120)
+    await page.mouse.wheel(0, -360)
     await page.waitForTimeout(150)
-    const read = await scroller.evaluate((el) => el.scrollTop)
-    expect(read).toBeGreaterThan(100)
+    const read = await scroller.evaluate((el) => ({
+      top: Math.round(el.scrollTop),
+      fromBottom: Math.round(el.scrollHeight - el.scrollTop - el.clientHeight),
+    }))
+    expect(read.fromBottom).toBeGreaterThan(200)
+    // The collapse must still be ahead of us, or this test proves nothing.
+    await expect(tailGroup).toBeVisible()
+    await expect(page.getByText('many turns complete')).toHaveCount(0)
 
     // Let the run settle and the group collapse.
-    await expect(page.getByText('many items complete')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('many turns complete')).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(1500)
 
-    // Within a row's worth of where they were reading. Before the fix this was
-    // 0 — the whole 324px of read-back thrown away.
-    const after = await scroller.evaluate((el) => el.scrollTop)
-    expect(Math.abs(after - read)).toBeLessThan(40)
+    // Nothing above the reader changed, so the reader must not have moved at
+    // all. Before the fix the clamp took the whole read-back.
+    const after = await scroller.evaluate((el) => Math.round(el.scrollTop))
+    expect(Math.abs(after - read.top)).toBeLessThan(8)
     await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeVisible()
 
     // …and the reserved tail is not a trap: jumping to the bottom releases it
@@ -1514,7 +1525,7 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
       max: Math.round(el.scrollHeight - el.clientHeight),
     }))
     expect(end.top).toBe(end.max)
-    await expect(page.getByText('many items complete')).toBeInViewport()
+    await expect(page.getByText('many turns complete')).toBeInViewport()
   } finally {
     await shutdown(harness)
   }
