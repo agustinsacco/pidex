@@ -20,12 +20,7 @@ import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
 import { Spinner } from '@/components/icons'
-import {
-  AttachButton,
-  FormatButtons,
-  StopIconButton,
-  SubmitIconButton,
-} from '@/components/ComposerButtons'
+import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
@@ -34,7 +29,7 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
 import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
 import { useAttachments } from './composer/useAttachments'
-import { ComposerField, useComposerFormatting } from './composer/ComposerField'
+import { ComposerField } from './composer/ComposerField'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
@@ -109,11 +104,6 @@ export function Composer({
     onChange: setImages,
     onReject: setAttachWarning,
   })
-  const format = useComposerFormatting(textareaRef, (value) => {
-    setText(value)
-    setHistoryIndex(null)
-  })
-
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   const piCommands = useChatStore((s) => s.sessions[sessionId]?.commands) ?? []
@@ -483,11 +473,6 @@ export function Composer({
           <div className="flex items-center justify-between gap-3 px-2.5 pb-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <AttachButton onFiles={attachments.addFiles} />
-              <FormatButtons
-                onBullet={format.toggleBullet}
-                onOrdered={format.toggleOrdered}
-                onCode={format.codeBlock}
-              />
               {isCompacting && (
                 <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-sm">
                   <Spinner /> compacting…

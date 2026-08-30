@@ -308,9 +308,9 @@ test('right-hand pane controls stay clear of the OS window controls', async () =
     const paneButton = await closePane.evaluate((el) => el.getBoundingClientRect().top)
     expect(paneButton).toBeGreaterThanOrEqual(titleBarBottom)
 
-    // The composer's text helper buttons (attach + bullet/numbered/code) must
-    // survive layout work — they sit in the same footer the pane squeezes.
-    await expect(page.getByTestId('format-buttons')).toBeVisible()
+    // The composer's attach button must survive layout work — it sits in the
+    // same footer the pane squeezes.
+    await expect(page.getByLabel('Attach files')).toBeVisible()
 
     // Fullscreen (↗) overlays the main region instead of squishing the chat.
     // It used to resize the split to 85/15, which crushed the transcript to an
