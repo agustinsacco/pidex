@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    pidex mark — "aperture", light-background twin of build/icon.svg.
+    Same geometry, ember accent on paper. Used for light-theme documentation
+    (the README swaps on prefers-color-scheme); NOT a platform icon —
+    generate-icons.mjs only reads icon.svg.
+  -->
+  <defs>
+    <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b35c0f"/>
+      <stop offset="100%" stop-color="#9d500b"/>
+    </linearGradient>
+    <radialGradient id="bloomLight" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#b35c0f" stop-opacity="0.20"/>
+      <stop offset="45%" stop-color="#b35c0f" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#b35c0f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="#f7f7f8"/>
+  <circle cx="512" cy="512" r="246" fill="url(#bloomLight)"/>
+  <circle cx="512" cy="512" r="258"
+          fill="none" stroke="url(#ember)" stroke-width="78" stroke-linecap="round"
+          stroke-dasharray="144.17697 126" opacity="0.95"
+          transform="rotate(-106.009 512 512)"/>
+  <circle cx="512" cy="512" r="104" fill="url(#ember)"/>
+</svg>
