@@ -99,9 +99,17 @@ async function spawnSession(
   // specs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
   // that one path already turned out to be. The naming call below keeps its
   // own internal `pi` override — a no-tools, no-guidance-needed case.
+  // Claude Code auto-compact window (Settings → Claude Code → Context
+  // window). Read per spawn so a change applies to the next session started
+  // without restarting pidex; unset means the provider's own default (200k),
+  // so the env var is only set when the user chose something.
+  const claudeAutocompact = getPrefs().claudeAutocompact
   const spawnEnv: Record<string, string> = stub
     ? { ELECTRON_RUN_AS_NODE: '1' }
-    : await piProcessEnv()
+    : {
+        ...(await piProcessEnv()),
+        ...(claudeAutocompact ? { PI_CLAUDE_CLI_AUTOCOMPACT: claudeAutocompact } : {}),
+      }
 
   const extensions = [
     ...bundledExtensions(),

@@ -776,6 +776,18 @@ export function installMockPidex(): void {
         case 'packages:list':
           return Promise.resolve([
             {
+              spec: 'npm:@saccolabs/pi-claude-cli',
+              scope: 'global',
+              kind: 'npm',
+              filtered: false,
+              name: 'pi-claude-cli',
+              version: '0.5.0',
+              description: 'Claude Code CLI as a pi model provider',
+              installed: true,
+              installPath: '/mock/.pi/agent/npm/node_modules/@saccolabs/pi-claude-cli',
+              resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+            },
+            {
               spec: 'npm:pi-web-access',
               scope: 'global',
               kind: 'npm',
