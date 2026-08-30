@@ -307,6 +307,39 @@ test('right-hand pane controls stay clear of the OS window controls', async () =
       .evaluate((el) => el.getBoundingClientRect().bottom)
     const paneButton = await closePane.evaluate((el) => el.getBoundingClientRect().top)
     expect(paneButton).toBeGreaterThanOrEqual(titleBarBottom)
+
+    // The composer's text helper buttons (attach + bullet/numbered/code) must
+    // survive layout work — they sit in the same footer the pane squeezes.
+    await expect(page.getByTestId('format-buttons')).toBeVisible()
+
+    // Fullscreen (↗) overlays the main region instead of squishing the chat.
+    // It used to resize the split to 85/15, which crushed the transcript to an
+    // unusable 15% column, hardcoded 45% back on restore, and persisted the
+    // squish for every session in the workspace.
+    const chatWidth = (): Promise<number> =>
+      page.getByTestId('transcript-scroll').evaluate((el) => el.getBoundingClientRect().width)
+    const widthBefore = await chatWidth()
+    await page.getByRole('button', { name: 'Fullscreen pane' }).click()
+    const mainWidth = await page.locator('main').evaluate((el) => el.getBoundingClientRect().width)
+    const paneWidth = await page
+      .getByTestId('right-pane')
+      .evaluate((el) => el.getBoundingClientRect().width)
+    expect(paneWidth).toBeGreaterThan(mainWidth * 0.95)
+    // Exiting restores the exact split — the saved size is never mutated by
+    // fullscreen (the old resize path clobbered it to 45).
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click()
+    expect(Math.abs((await chatWidth()) - widthBefore)).toBeLessThan(2)
+
+    // The pane swaps to the left of the chat (and back) on request.
+    await page.getByRole('button', { name: 'Move pane to the left' }).click()
+    const paneLeft = await page
+      .getByTestId('right-pane')
+      .evaluate((el) => el.getBoundingClientRect().left)
+    const chatLeft = await page
+      .getByTestId('transcript-scroll')
+      .evaluate((el) => el.getBoundingClientRect().left)
+    expect(paneLeft).toBeLessThan(chatLeft)
+    await page.getByRole('button', { name: 'Move pane to the right' }).click()
   } finally {
     await shutdown(harness)
   }

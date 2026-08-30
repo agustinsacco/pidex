@@ -23,7 +23,7 @@ It is the **only** element allowed in the strip the OS draws window controls in,
 
 ## Pane system
 
-Main area is a **resizable multi-pane layout** with drag handles, persisted per-workspace in app prefs, panes closable/reopenable from a view menu and shortcuts:
+Main area is a **resizable multi-pane layout** with drag handles, persisted per-session (selection, side, split size, fullscreen — localStorage, pruned on session dispose), panes closable/reopenable from a view menu and shortcuts:
 
 1. **Chat pane** — always present ([04-chat.md](chat.md)).
 2. **Files pane** — explorer tree + open-file tabs with Monaco ([05-files-editor.md](../build/05-files-editor.md)). Opening a file from tree, chat file-chips, or diffs lands here; support split (open to the side).
@@ -33,7 +33,9 @@ Main area is a **resizable multi-pane layout** with drag handles, persisted per-
 Requirements:
 
 - Drag-to-resize at 60fps (no layout thrash), double-click a handle to reset split.
-- Layout persists and restores per workspace; sensible defaults: chat 45% / files 35% / terminal 20% bottom strip; artifacts replaces/joins files region when opened.
+- Layout persists and restores **per session**, so lanes keep independent arrangements across switches and app restarts; default: chat 55% / pane 45%, pane on the right.
+- The float pane can swap sides with the chat (⇄ in the pane header, per session).
+- Fullscreen (↗) overlays the entire main region (sidebar and top bar stay); it never resizes the split underneath, so exiting restores the exact prior layout.
 - Multiple sessions per workspace run **concurrently**; the chat pane shows the active session; switching sessions is instant (state held in stores keyed by sessionId); background sessions keep streaming into their stores.
 
 ## Theming

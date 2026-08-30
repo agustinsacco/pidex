@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { useLayoutStore, useRightExpanded } from '@/stores/layout'
+import { useActivePanes, useLayoutStore } from '@/stores/layout'
 import { CloseIcon } from '@/components/icons'
 
 /**
@@ -22,7 +22,7 @@ export const PaneShell = memo(function PaneShell({
   actions?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
-  const expanded = useRightExpanded()
+  const { expanded, side } = useActivePanes()
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -34,8 +34,28 @@ export const PaneShell = memo(function PaneShell({
       <div className="flex h-11 shrink-0 items-center gap-1.5 px-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">{title}</div>
         {actions}
+        {/* Side swap is meaningless while the pane covers the whole region. */}
+        {!expanded && (
+          <PaneIconButton
+            title={side === 'right' ? 'Move pane to the left' : 'Move pane to the right'}
+            onClick={() => useLayoutStore.getState().togglePaneSide()}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m16 4 4 4-4 4M20 8H7M8 20l-4-4 4-4M4 16h13" />
+            </svg>
+          </PaneIconButton>
+        )}
         <PaneIconButton
-          title={expanded ? 'Restore pane size' : 'Expand pane'}
+          title={expanded ? 'Exit fullscreen' : 'Fullscreen pane'}
           onClick={() => useLayoutStore.getState().toggleRightExpanded()}
         >
           <svg
