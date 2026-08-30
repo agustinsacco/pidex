@@ -830,6 +830,38 @@ export function installMockPidex(): void {
               plan: mockClaudeAuth.loggedIn ? 'max' : undefined,
             },
           } as never)
+        case 'claude:usageSnapshot':
+          // Shaped like a real 2.1.x capture: the 5-hour window under the
+          // warning threshold, weekly past it, plus the contributing block.
+          return Promise.resolve({
+            ok: true,
+            snapshot: {
+              fetchedAt: Date.now(),
+              stale: false,
+              windows: [
+                {
+                  label: 'Current session',
+                  kind: 'five_hour',
+                  percentUsed: 26,
+                  resetsAt: Date.now() + 2.2 * 3600_000,
+                },
+                {
+                  label: 'Current week (all models)',
+                  kind: 'weekly',
+                  percentUsed: 50,
+                  resetsAt: Date.now() + 3.1 * 3600_000,
+                },
+                {
+                  label: 'Current week (Fable)',
+                  kind: 'weekly_model',
+                  percentUsed: 37,
+                  resetsAt: Date.now() + 3.1 * 3600_000,
+                },
+              ],
+              contributing:
+                'Approximate, based on local sessions on this machine.\n\nLast 24h · 747 requests · 69 sessions\n  75% of your usage was at >150k context\n  30% of your usage was while 4+ sessions ran in parallel',
+            },
+          } as never)
         case 'claude:startLogin':
           clearTimeout(mockClaudeLoginTimer)
           emitClaudeLoginState({ phase: 'starting' } as never)

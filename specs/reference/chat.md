@@ -117,14 +117,27 @@ recorded cadence. Rules that matter:
 
 ### What the context meter's popover shows
 
-Three sources, three different confidence levels — and the UI is required to
+Four sources, three different confidence levels — and the UI is required to
 keep them distinguishable, because they are not equally trustworthy.
 
-| Section             | Source                                                   | Shown for                     |
-| ------------------- | -------------------------------------------------------- | ----------------------------- |
-| Tokens / cost       | `get_session_stats`                                      | every session                 |
-| Context composition | `pidex-context-breakdown` status key (bundled extension) | every session                 |
-| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)         | Claude Code provider sessions |
+| Section             | Source                                                                                                  | Shown for                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Tokens / cost       | `get_session_stats`                                                                                     | every session                 |
+| Context composition | `pidex-context-breakdown` status key (bundled extension)                                                | every session                 |
+| Plan usage          | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents, any account signed in to a subscription |
+| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)                                                        | Claude Code provider sessions |
+
+**Plan usage vs Plan limits.** The two plan sections answer different
+questions and must never be merged into one dashboard. **Plan usage** is
+the always-on percent per window (5-hour, weekly, per-model weekly) — the
+same numbers the CLI's own `/usage` panel and Claude Desktop show, fetched
+live (zero quota, no key) when the popover opens and cached ~60 s in main
+(`electron/claude/usage.ts` parses the CLI's rendered text; a drift that
+parses nothing hides the section). **Plan limits** is the binding
+constraint as the provider relays it mid-turn — one window, only once the
+CLI's warning threshold has crossed it, but the only source that can say
+"capped now" between turns. All-day percent: Plan usage; the wall: Plan
+limits.
 
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`

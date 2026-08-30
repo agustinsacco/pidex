@@ -28,6 +28,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  ClaudeUsageSnapshotResult,
   ConnectorAuthPush,
   ClaudeLoginState,
   AgentDirectivePrefs,
@@ -328,6 +329,15 @@ export interface IpcInvokeMap {
   'claude:cancelLogin': { args: []; result: void }
   /** `claude auth logout`. Credentials are the CLI's, so this is its subcommand. */
   'claude:logout': { args: []; result: void }
+  /**
+   * Live subscription usage — the numbers Claude Code's own `/usage` panel
+   * shows (5-hour + weekly windows, with percents), read by spawning
+   * `claude -p /usage` (zero model calls, zero quota) in main and parsing
+   * its rendered text. Works for every signed-in subscription account; no
+   * API key, no org, no credential crosses into pidex. Cached ~60 s in main,
+   * because the endpoint behind it rate-limits.
+   */
+  'claude:usageSnapshot': { args: []; result: ClaudeUsageSnapshotResult }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
