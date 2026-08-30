@@ -148,9 +148,9 @@ you want to watch.
   installed version first: `>= 0.4.16` is required for both. See
   [specs/log/2026-08-29-claude-cli-lifecycle-verification.md](specs/log/2026-08-29-claude-cli-lifecycle-verification.md).
 
-- **pidex ships seven extensions that run inside pi's process** (`pi-ext/`,
-  loaded with `-e`; the bundled six are listed in `bundledExtensions()` in
-  `electron/ipc/pi-session-handlers.ts`, plus `orchestrator.ts` for
+- **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
+  loaded with `-e`; the five bundled ones are listed in `bundledExtensions()`
+  in `electron/ipc/pi-session-handlers.ts`, plus `orchestrator.ts` for
   orchestrator sessions only). They are the only pidex code with a say inside
   a turn, and two of them can change or refuse what the model did:
   - **`worktree-paths.ts` can refuse a tool call.** It blocks a
@@ -199,9 +199,9 @@ you want to watch.
 ## Conventions
 
 - Tests live beside their subject as `*.test.ts` — **everywhere**, `electron/`
-  and `shared/` and `pi-ext/` included. There is no `__tests__/` directory in
-  this repo; there used to be eight of them, holding 40 of the suites, while
-  this line claimed otherwise. Shared inputs go in a sibling `__fixtures__/`.
+  and `shared/` and `pi-ext/` included. One `__tests__/` directory is left
+  (`scripts/__tests__/`); the rest were moved next to their subjects. Shared
+  inputs go in a sibling `__fixtures__/`.
   DOM suites opt in per file with `// @vitest-environment jsdom`. Prefer
   testing pure logic extracted into `src/lib/` / plain modules over component
   tests.
