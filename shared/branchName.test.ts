@@ -120,3 +120,31 @@ describe('branchNameFor', () => {
     })
   })
 })
+
+describe('configurable slug length', () => {
+  it('honours a shorter cap', () => {
+    const slug = slugifyTitle('fix the composer autogrow jump on paste', 16)
+    expect(slug.length).toBeLessThanOrEqual(16)
+  })
+
+  it('still cuts on a word boundary at a custom cap', () => {
+    expect(slugifyTitle('fix the composer autogrow jump', 20)).not.toMatch(/-$/)
+    expect(slugifyTitle('fix the composer autogrow jump', 20)).toBe('fix-the-composer')
+  })
+
+  it('threads the cap through branchNameFor', () => {
+    const { folder, branch } = branchNameFor({
+      title: 'fix the composer autogrow jump on paste',
+      prefix: 'pidex/',
+      takenBranches: [],
+      takenFolders: [],
+      maxSlug: 16,
+    })
+    expect(folder.length).toBeLessThanOrEqual(16)
+    expect(branch).toBe(`pidex/${folder}`)
+  })
+
+  it('refuses an absurdly small cap rather than producing an empty slug', () => {
+    expect(slugifyTitle('composer autogrow', 1).length).toBeGreaterThan(0)
+  })
+})

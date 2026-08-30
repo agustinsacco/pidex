@@ -23,6 +23,7 @@ import {
   setLastSession,
   setModelPicks,
   setLaneMarkers,
+  setLanePrefs,
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
@@ -70,6 +71,10 @@ export function registerAppHandlers(): void {
   })
 
   handle('artifacts:stageHtml', (_event, html: string) => stageArtifactHtml(html))
+
+  handle('app:setLanePrefs', (_event, lanes) => {
+    setLanePrefs(lanes)
+  })
 
   handle('app:setLaneMarkers', (_event, markers) => {
     setLaneMarkers(markers)
