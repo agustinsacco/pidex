@@ -64,7 +64,7 @@ export const ROW_INSET = 'pl-4 pr-2'
  * `py-1 text-lg` row.
  */
 export const GUTTER_MARK =
-  'absolute top-1.5 left-px flex h-3.5 w-3.5 items-center justify-center text-2xs'
+  'absolute top-1.5 left-[-3.5] flex h-3.5 w-3.5 items-center justify-center text-2xs'
 
 export const ActivityGroup = memo(function ActivityGroup({
   steps,
@@ -503,7 +503,7 @@ function ThoughtOnlyRow({ text }: { text: string }): React.JSX.Element {
       >
         {/* Same column the paired mark floats in, so a reasoning-only row and
             a tool row with reasoning put their ✳ in exactly one place. */}
-        <span className="text-2xs absolute left-px flex w-3.5 justify-center">✳</span>
+        <span className="text-2xs absolute left-[-3.5] flex w-3.5 justify-center">✳</span>
         <span>Reasoning</span>
       </button>
       {open && (
