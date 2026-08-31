@@ -10,7 +10,7 @@
  *
  * Auth is the adapter's job (OAuth 2.1 + PKCE + dynamic client registration,
  * tokens in the OS credential store). pidex only writes the config that lets
- * it work. See specs/backlog/connectors.md.
+ * it work. See docs/specs/backlog/connectors.md.
  */
 import type { McpServerConfig } from '@shared/mcp'
 

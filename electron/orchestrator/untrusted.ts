@@ -11,7 +11,7 @@
  * and until now that output arrived in the privileged thread raw and
  * undelimited. This is the injection-laundering shape: agent A ingests
  * untrusted content, agent B reads A's output as trusted, and nothing tracks
- * provenance across the boundary. `specs/reference/orchestration.md` does not name
+ * provenance across the boundary. `docs/orchestration.md` does not name
  * this risk once.
  *
  * Two mechanisms, both deterministic and neither relying on the model:

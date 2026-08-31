@@ -27,7 +27,7 @@
  * flow that already succeeded. A pending request is left pending; only an
  * explicit user Cancel answers it.
  *
- * See specs/reference/mcp.md.
+ * See docs/mcp.md.
  */
 import { create } from 'zustand'
 import type { ConnectorAuthState } from '@shared/models'

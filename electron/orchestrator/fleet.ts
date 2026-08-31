@@ -10,7 +10,7 @@ import { emptySession, fleetReducer, type FleetInput } from './fleetReducer'
  *
  * **It never runs inference and never spawns anything.** That is the whole
  * point of the layer — the home screen's picture of "what is everything
- * doing" costs nothing, so it can be always-on. See specs/reference/orchestration.md.
+ * doing" costs nothing, so it can be always-on. See docs/orchestration.md.
  */
 
 /**

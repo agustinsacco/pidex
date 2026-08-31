@@ -50,10 +50,10 @@ agent made available to review or revert.
   project plus a zero-inference hub that shows what every live session is doing.
   Its mode — `observe`, `supervise`, `autopilot` — is enforced in the bridge at
   call time. See
-  [specs/reference/orchestration.md](specs/reference/orchestration.md).
+  [docs/orchestration.md](docs/orchestration.md).
 - **Your machine, your models.** Sign in to providers, pick models, set themes,
   and mount MCP servers from Settings. MCP OAuth is owned by the adapter, never
-  by pidex: [specs/reference/mcp.md](specs/reference/mcp.md).
+  by pidex: [docs/mcp.md](docs/mcp.md).
 
 ## The screens
 
@@ -181,7 +181,7 @@ Six facts that explain the rest:
    `mcp-status`, `tool-name-guard`, `worktree-paths`) plus `orchestrator`, only
    on orchestrator sessions. Two of them can change or refuse what the model
    did — read
-   [specs/reference/extensions.md](specs/reference/extensions.md) first.
+   [docs/extensions.md](docs/extensions.md) first.
 6. **Failure is reported, not hidden.** Failures surface on the session's chat;
    main-process detail goes to `pidex.log`. When diagnosing a bad session,
    [CLAUDE.md](CLAUDE.md#debugging-a-failing-session) has the three layers of
@@ -238,7 +238,7 @@ re-shoots a subset.
 ### Repo layout
 
 This tree is the single source of truth for "what lives where". `CLAUDE.md` and
-[specs/reference/architecture.md](specs/reference/architecture.md) link here
+[docs/architecture.md](docs/architecture.md) link here
 rather than keeping their own copies — there used to be three, and all three had
 drifted.
 
@@ -284,8 +284,9 @@ pi-ext/              the six pi extensions that run inside pi's process:
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
-specs/               specifications, split by genre — see specs/README.md
-docs/img/           the screenshots above (assets, not documentation)
+docs/                how pidex works now; docs/log dated history;
+                     docs/specs deferred work — see docs/README.md
+docs/img/            the screenshots above (assets, not documentation)
 ```
 
 The main process owns all side effects. The renderer runs with
@@ -294,21 +295,22 @@ only ever renders inside a sandboxed iframe.
 
 ## Documentation map
 
-| Read                                 | When                                                       |
-| ------------------------------------ | ---------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)               | Orientation, conventions, sharp edges, debugging           |
-| [specs/README.md](specs/README.md)   | Which spec folder is a live contract and which is history  |
-| [specs/reference/](specs/reference/) | The current contract (architecture, orchestration, MCP, …) |
-| [specs/TRACKER.md](specs/TRACKER.md) | Phases and their logs                                      |
-| [specs/log/](specs/log/)             | Dated notes on what changed and why                        |
+| Read                                           | When                                                      |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging          |
+| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred   |
+| [docs/](docs/)                                 | How pidex works now (architecture, orchestration, MCP, …) |
+| [docs/log/](docs/log/)                         | Dated notes on what changed and why                       |
+| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                     |
+| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent            |
 
-A `build/` folder is a dated design doc; reading one as current is how stale
-conclusions survive. `reference/` is the live contract.
+`docs/` is current behaviour. `docs/specs/build/` is a dated design doc;
+reading one as current is how stale conclusions survive.
 
 ## Contributing
 
 Issues and PRs are welcome. Run `npm run validate` before opening a PR, and
-write a `specs/log/` note for a substantial feature or refactor.
+write a `docs/log/` note for a substantial feature or refactor.
 
 ## License
 
