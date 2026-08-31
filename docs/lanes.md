@@ -205,6 +205,42 @@ Importing that from `stores/sessions.ts` breaks every non-jsdom suite that
 touches sessions. Hydration still happens in `settings.ts`, so there is one
 prefs round-trip on launch.
 
+## Finding a lane
+
+A magnifier in the workspace header (`Sidebar.tsx`, left of the `⋯` menu)
+opens a search field **under** that header, pushing the group's lanes down. It
+filters that group only: search is per project, because the header it hangs
+off is.
+
+`laneSearch.ts` matches a query against the three identities the row already
+shows — **title, branch, and PR (number and title)** — because those are what a
+reader remembers a lane by. Both sides are lowercased with every run of
+non-alphanumerics collapsed to a space, so `#412` finds `412` and
+`fix-and-rebase-pr-130` answers to `fix rebase`. Terms are **ANDed and
+order-free**; matching is substring, not subsequence, because a three-letter
+subsequence matches nearly every branch-shaped string and reads as a filter
+that did nothing.
+
+Four rules hold the interaction together:
+
+- **Enter commits, typing does not.** On this list the rows are the
+  navigation, and a per-keystroke filter makes them jump under a reader who is
+  still deciding what to type.
+- **Closing always retracts.** The `x` (shown only once a filter is in force)
+  and Escape both clear the filter _and_ close the bar. A closed bar still
+  hiding lanes is an unexplained empty sidebar.
+- **Opening expands the group.** A filter on a collapsed group hides its own
+  result.
+- **Selection follows what is visible.** Select-all and shift-ranges read the
+  filtered list, so a bulk delete can never take a lane the filter is hiding.
+
+Placeholder rows (`PendingSessionRow`) stand aside while a filter is on: they
+carry no name, branch or PR yet, so a filter can only be wrong about them.
+Live names are matched as well as scanned ones — pi writes a session file only
+when a turn ends, so a lane renamed mid-turn is findable under the name on
+screen. That subscription is a joined **string**, not the session map, so
+streaming re-renders nothing.
+
 ## Deleting lanes
 
 Selection is scoped to **one group**, which is one repo. A destructive confirm
@@ -213,7 +249,9 @@ projects and is not selectable at all.
 
 The checkbox **replaces the indicator dot in the same gutter**, so entering
 select mode shifts nothing, and it is revealed on hover rather than occupying a
-permanent column.
+permanent column. "Select all lanes" lives in the workspace `⋯` menu, not as a
+header icon: the header's fixed toolbar is four controls wide in a 208px
+sidebar, and search earned the fifth slot by being the more frequent act.
 
 Deleting is three resources, and only the first two default on:
 

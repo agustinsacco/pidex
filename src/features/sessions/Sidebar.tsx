@@ -25,10 +25,13 @@ import {
   MoreIcon,
   PinIcon,
   PlusIcon,
+  SearchIcon,
   Spinner,
 } from '@/components/icons'
 import { PiSpark } from '@/components/PiSpark'
 import { TreeViewModal } from './TreeViewModal'
+import { LaneSearchBar } from './LaneSearchBar'
+import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -88,6 +91,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    */
   const [selection, setSelection] = useState<{ repoPath: string; paths: string[] } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
+  /**
+   * Lane search, per workspace group: which bars are open, what each is being
+   * typed into, and what each is actually filtering by.
+   *
+   * Draft and applied are separate because Enter commits — see
+   * `LaneSearchBar`. Neither is persisted: a filter that survived a restart
+   * would open the app on a sidebar missing most of its lanes, with the reason
+   * one scroll off screen.
+   */
+  const [searchOpen, setSearchOpen] = useState<Record<string, boolean>>({})
+  const [searchDraft, setSearchDraft] = useState<Record<string, string>>({})
+  const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
   /** Anchor for shift-click ranges. */
   const rangeAnchor = useRef<string | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
@@ -402,9 +417,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * Selecting in a different group starts over rather than merging the two:
    * see the `selection` comment. `paths` stays in group order so the confirm
    * lists lanes the way the sidebar does.
+   *
+   * `visible` is the group's lanes AFTER any search filter, so a shift-range
+   * spans what the reader can see rather than sweeping in filtered-out lanes
+   * that a bulk delete would then take with it.
    */
-  const toggleLaneSelection = (group: GroupedSessions, path: string, shiftKey: boolean): void => {
-    const order = group.metas.map((m) => m.path)
+  const toggleLaneSelection = (
+    group: GroupedSessions,
+    visible: SessionMeta[],
+    path: string,
+    shiftKey: boolean,
+  ): void => {
+    const order = visible.map((m) => m.path)
     setSelection((current) => {
       const base = current?.repoPath === group.workspacePath ? current.paths : []
       const anchorPath = rangeAnchor.current
@@ -431,8 +455,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     rangeAnchor.current = null
   }
 
-  const selectWholeGroup = (group: GroupedSessions): void => {
-    setSelection({ repoPath: group.workspacePath, paths: group.metas.map((m) => m.path) })
+  const selectWholeGroup = (group: GroupedSessions, visible: SessionMeta[]): void => {
+    setSelection({ repoPath: group.workspacePath, paths: visible.map((m) => m.path) })
   }
 
   /**
@@ -509,6 +533,77 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     if (wasCollapsed) {
       const store = useSessionsStore.getState()
       for (const path of group.paths) void store.refreshDisk(path)
+    }
+  }
+
+  const isSearching = (group: GroupedSessions): boolean => Boolean(searchOpen[group.workspacePath])
+
+  /** Retract the filter and close the bar. The two are never separable. */
+  const closeSearch = (workspacePath: string): void => {
+    setSearchOpen((s) => ({ ...s, [workspacePath]: false }))
+    setSearchDraft((s) => ({ ...s, [workspacePath]: '' }))
+    setSearchApplied((s) => ({ ...s, [workspacePath]: '' }))
+  }
+
+  const toggleSearch = (group: GroupedSessions, isCollapsed: boolean): void => {
+    if (isSearching(group)) {
+      closeSearch(group.workspacePath)
+      return
+    }
+    // A filter on a collapsed group hides its own result, so opening search
+    // opens the group with it.
+    if (isCollapsed) toggleGroup(group, true)
+    setSearchOpen((s) => ({ ...s, [group.workspacePath]: true }))
+  }
+
+  /**
+   * PRs, for matching only — the rows fetch their own.
+   *
+   * Safe to subscribe to whole: `byRepo` is replaced on a completed refresh,
+   * which is rate-limited to once a minute per repo, not on every render of
+   * the chips it feeds.
+   */
+  const prByRepo = usePullRequestsStore((s) => s.byRepo)
+  const anySearchApplied = Object.values(searchApplied).some(Boolean)
+  /**
+   * Names of live sessions, which can lead their file on disk by a whole turn
+   * (pi writes a session file only when a turn ENDS). Without them, a lane
+   * renamed mid-turn is not findable under the name the sidebar is showing.
+   *
+   * Subscribed as a joined STRING so streaming re-renders nothing: the chat
+   * store replaces `sessions` on every token, but this value only changes when
+   * a name does. The map is then rebuilt off that key, and the whole thing
+   * costs nothing while no filter is applied.
+   */
+  const liveNameKey = useChatStore((s) =>
+    anySearchApplied
+      ? Object.entries(s.sessions)
+          .map(([id, session]) => `${id}\u0000${session.meta?.sessionName ?? ''}`)
+          .join('\u0001')
+      : '',
+  )
+  const liveNames = useMemo(() => {
+    const names = new Map<string, string>()
+    if (!liveNameKey) return names
+    for (const entry of liveNameKey.split('\u0001')) {
+      const [id, name] = entry.split('\u0000')
+      if (id && name) names.set(id, name)
+    }
+    return names
+  }, [liveNameKey])
+
+  /** The three identities one lane can be found by. */
+  const laneFields = (meta: SessionMeta): LaneSearchFields => {
+    const git = gitByCwd[meta.cwd || workspacePath]
+    const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
+    const livePidexId = liveByDisk.get(meta.path)
+    const liveName = livePidexId ? liveNames.get(livePidexId) : undefined
+    return {
+      title:
+        sessionTitle({ explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText }) ??
+        '',
+      branch: git?.branch,
+      pr: pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch),
     }
   }
 
@@ -650,6 +745,14 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         {collapsed !== null &&
           groups.map((group) => {
             const isCollapsed = isGroupCollapsed(group)
+            const query = searchApplied[group.workspacePath] ?? ''
+            const terms = laneQueryTerms(query)
+            // Filter the metas rather than hide rows: selection, shift-ranges
+            // and the empty state then all read the same list the eye does.
+            const visible = terms.length
+              ? group.metas.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
+              : group.metas
+            const selectingThis = selection?.repoPath === group.workspacePath
             return (
               <div key={group.workspacePath}>
                 <div
@@ -682,6 +785,21 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     )}
                   </button>
                   <button
+                    onClick={() => toggleSearch(group, isCollapsed)}
+                    data-testid="workspace-group-search"
+                    title="Search lanes"
+                    aria-label={`Search lanes in ${group.name}`}
+                    aria-expanded={isSearching(group)}
+                    className={clsx(
+                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90',
+                      query
+                        ? 'bg-accent-soft text-accent'
+                        : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
+                    )}
+                  >
+                    <SearchIcon size={12} />
+                  </button>
+                  <button
                     ref={
                       workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
                     }
@@ -706,6 +824,18 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                       triggerRef={workspaceMenuTriggerRef}
                       className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
                     >
+                      <MenuRow
+                        active={false}
+                        testId="workspace-group-select"
+                        disabled={!selectingThis && visible.length < 2}
+                        onClick={() => {
+                          if (selectingThis) clearSelection()
+                          else selectWholeGroup(group, visible)
+                          setWorkspaceMenuFor(null)
+                        }}
+                      >
+                        {selectingThis ? 'Clear selection' : 'Select all lanes'}
+                      </MenuRow>
                       <MenuRow
                         active={false}
                         disabled={groups.indexOf(group) === 0}
@@ -733,35 +863,34 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   >
                     <PlusIcon size={12} strokeWidth={2.5} />
                   </button>
-                  {group.metas.length > 1 && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (selection?.repoPath === group.workspacePath) clearSelection()
-                        else selectWholeGroup(group)
-                      }}
-                      data-testid="workspace-group-select"
-                      title={
-                        selection?.repoPath === group.workspacePath
-                          ? 'Clear selection'
-                          : 'Select every lane in this project'
-                      }
-                      className={clsx(
-                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-2xs transition-colors active:scale-90',
-                        selection?.repoPath === group.workspacePath
-                          ? 'bg-accent-soft text-accent'
-                          : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
-                      )}
-                    >
-                      ☑
-                    </button>
-                  )}
                   <OrchestratorHeaderButton
                     workspacePath={group.workspacePath}
                     projectName={group.name}
                   />
                 </div>
+                {isSearching(group) && (
+                  <LaneSearchBar
+                    value={searchDraft[group.workspacePath] ?? ''}
+                    applied={Boolean(query)}
+                    matchCount={visible.length}
+                    total={group.metas.length}
+                    onChange={(value) =>
+                      setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
+                    }
+                    onCommit={() =>
+                      setSearchApplied((s) => ({
+                        ...s,
+                        [group.workspacePath]: searchDraft[group.workspacePath] ?? '',
+                      }))
+                    }
+                    onClear={() => closeSearch(group.workspacePath)}
+                  />
+                )}
+                {/* Placeholder rows carry no name, branch or PR yet, so a
+                    filter can only ever be wrong about them. While one is on,
+                    they stand aside. */}
                 {!isCollapsed &&
+                  terms.length === 0 &&
                   (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
                     <PendingSessionRow
                       key={pidexId}
@@ -771,19 +900,26 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     />
                   ))}
                 {!isCollapsed &&
-                  group.metas.map((meta) => (
+                  visible.map((meta) => (
                     <SessionRow
                       key={meta.path}
                       {...rowProps(meta)}
                       isPinned={false}
-                      selected={
-                        selection?.repoPath === group.workspacePath &&
-                        selection.paths.includes(meta.path)
+                      selected={selection?.paths.includes(meta.path) === true && selectingThis}
+                      selecting={selectingThis}
+                      onToggleSelect={(shiftKey) =>
+                        toggleLaneSelection(group, visible, meta.path, shiftKey)
                       }
-                      selecting={selection?.repoPath === group.workspacePath}
-                      onToggleSelect={(shiftKey) => toggleLaneSelection(group, meta.path, shiftKey)}
                     />
                   ))}
+                {!isCollapsed && group.metas.length > 0 && visible.length === 0 && (
+                  <div
+                    data-testid="lane-search-empty"
+                    className="text-text-tertiary px-2 py-2 text-sm"
+                  >
+                    No lanes match &ldquo;{query}&rdquo;
+                  </div>
+                )}
                 {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
                   answer, but it must not hide what we have either. */}
