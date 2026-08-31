@@ -590,6 +590,17 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
+/*
+ * Same trade for the sidebar's lane search: its field is the bordered row
+ * around the input, which already turns accent on `focus-within`. The ring on
+ * the input itself drew a second box inside the first and, at 2px offset,
+ * covered the match count sitting next to it.
+ */
+.lane-search-field:focus,
+.lane-search-field:focus-visible {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
