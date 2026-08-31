@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import type {
   ClaudeLoginState,
   ClaudeStatus,
-  ClaudeSystemPromptMode,
+  ClaudeUsageSnapshotResult,
   PiPackageEntry,
 } from '@shared/models'
 import { Button, TextInput } from '@/components/form'
@@ -11,6 +11,7 @@ import { Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
+import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -23,24 +24,16 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const [pkg, setPkg] = useState<PiPackageEntry | null | undefined>(undefined)
   const [latest, setLatest] = useState<string | null>(null)
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
-  const [promptMode, setPromptMode] = useState<ClaudeSystemPromptMode>('claude')
   const [login, setLogin] = useState<ClaudeLoginState | null>(null)
 
-  const setPromptModePref = useCallback((mode: ClaudeSystemPromptMode): void => {
-    setPromptMode(mode)
-    void window.pidex.invoke('app:setClaudeSystemPrompt', mode)
-  }, [])
-
   const refresh = useCallback(async (): Promise<void> => {
-    const [entries, claudeState, prefs] = await Promise.all([
+    const [entries, claudeState] = await Promise.all([
       window.pidex.invoke('packages:list'),
       window.pidex.invoke('packages:claudeStatus'),
-      window.pidex.invoke('app:getPrefs'),
     ])
     const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
     setPkg(entry)
     setStatus(claudeState)
-    setPromptMode(prefs.claudeSystemPrompt)
     if (entry) {
       void window.pidex
         .invoke('packages:checkUpdates')
@@ -142,31 +135,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
         </p>
       )}
 
-      <h3 className="mt-6 text-lg font-semibold">System prompt</h3>
-      <p className="text-text-secondary mt-1 text-base">
-        Whose instructions the <span className="font-mono">claude</span> subprocess runs under.
-        Applies to sessions you start from now on — the CLI keeps its system prompt for the life of
-        a session.
-      </p>
-      <div className="mt-2.5 space-y-2">
-        <PromptModeOption
-          value="claude"
-          current={promptMode}
-          onSelect={setPromptModePref}
-          title="Claude Code's, plus pi's"
-          detail="Layers pi's prompt on top of Claude Code's own. Everything the CLI normally knows about its tools stays in place."
-        />
-        <PromptModeOption
-          value="pi"
-          current={promptMode}
-          onSelect={setPromptModePref}
-          title="pi's only"
-          detail="Replaces Claude Code's prompt entirely, freeing roughly 12k tokens of context per call. The model works from pi's instructions plus the raw tool schemas, so behaviour can differ."
-        />
-      </div>
-      <p className="text-text-tertiary mt-2 text-sm">
-        Needs the extension at v0.4.7 or newer; older versions ignore the setting and always append.
-      </p>
+      <UsageSection binaryOk={binaryOk} />
 
       <h3 className="mt-6 text-lg font-semibold">Prove it end to end</h3>
       <p className="text-text-secondary mt-1 text-base">
@@ -397,47 +366,6 @@ function ClaudeAccountRow({
   )
 }
 
-/** One radio-style choice of system prompt. */
-function PromptModeOption({
-  value,
-  current,
-  onSelect,
-  title,
-  detail,
-}: {
-  value: ClaudeSystemPromptMode
-  current: ClaudeSystemPromptMode
-  onSelect: (mode: ClaudeSystemPromptMode) => void
-  title: string
-  detail: string
-}): React.JSX.Element {
-  const selected = current === value
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={() => onSelect(value)}
-      className={clsx(
-        'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
-        selected ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-secondary',
-      )}
-    >
-      <span
-        className={clsx(
-          'mt-1 h-3 w-3 shrink-0 rounded-full border-2',
-          selected ? 'border-accent bg-accent' : 'border-border-strong',
-        )}
-        aria-hidden
-      />
-      <span className="min-w-0">
-        <span className="text-text block text-base font-medium">{title}</span>
-        <span className="text-text-secondary block text-sm leading-snug">{detail}</span>
-      </span>
-    </button>
-  )
-}
-
 function StatusRow({
   label,
   ok,
@@ -458,5 +386,90 @@ function StatusRow({
         <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Live subscription usage — the same windows Claude Desktop shows (5-hour,
+ * weekly, per-model weekly), plus the "what's contributing" context the CLI
+ * renders from the same data. This is the diagnostics surface: the popover
+ * hides failures, this tab says what they were.
+ *
+ * The fetch spawns `claude -p /usage`: zero quota, no API key, no credential
+ * pidex touches — the CLI reads its own keychain login, so it needs nothing
+ * from the user beyond being signed in to a subscription.
+ */
+function UsageSection({ binaryOk }: { binaryOk: boolean | undefined }): React.JSX.Element {
+  const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setState(await window.pidex.invoke('claude:usageSnapshot'))
+  }, [])
+
+  useEffect(() => {
+    if (binaryOk) void refresh()
+  }, [binaryOk, refresh])
+
+  return (
+    <>
+      <h3 className="mt-6 text-lg font-semibold">Usage</h3>
+      <div className="border-border mt-2 rounded-lg border px-3.5 py-3">
+        {!binaryOk ? (
+          <p className="text-text-secondary text-base">claude CLI not found — see Health above.</p>
+        ) : state === null ? (
+          <div className="text-text-secondary flex items-center gap-2 text-base">
+            <Spinner /> Checking your plan usage…
+          </div>
+        ) : !state.ok ? (
+          <p className="text-text-secondary text-base">
+            {state.error === 'claude-not-found'
+              ? 'claude CLI not found on your login-shell PATH.'
+              : state.error === 'run-failed'
+                ? 'The usage check ran but did not complete — try again in a moment.'
+                : 'No subscription usage to show — sign in to a Claude Pro/Max account above.'}
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {state.snapshot.stale && (
+              <p className="text-warning text-sm">
+                Last-known usage — the CLI could not refresh it just now.
+              </p>
+            )}
+            {state.snapshot.windows.map((window) => {
+              const percent = Math.round(window.percentUsed)
+              const reset = windowResetLabel(window.resetsAt)
+              return (
+                <div key={window.label}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-base">{windowTitle(window)}</span>
+                    <span
+                      className={clsx('font-mono text-sm tabular-nums', usageTextClass(percent))}
+                    >
+                      {percent}% used{reset ? ` · ${reset}` : ''}
+                    </span>
+                  </div>
+                  <div className="bg-bg-secondary mt-1 h-1.5 overflow-hidden rounded-full">
+                    <div
+                      className={clsx('h-full rounded-full', usageBarClass(percent))}
+                      style={{ width: `${Math.min(100, percent)}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+            {state.snapshot.contributing && (
+              <div className="border-border/60 border-t pt-2">
+                <div className="text-text-tertiary pb-1 font-mono text-2xs uppercase tracking-wider">
+                  What&apos;s contributing
+                </div>
+                <pre className="text-text-tertiary max-h-52 overflow-auto whitespace-pre-wrap font-sans text-sm leading-snug">
+                  {state.snapshot.contributing}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }

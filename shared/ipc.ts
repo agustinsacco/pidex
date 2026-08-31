@@ -28,10 +28,10 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeStatus,
+  ClaudeUsageSnapshotResult,
   ConnectorAuthPush,
   ClaudeLoginState,
   AgentDirectivePrefs,
-  ClaudeSystemPromptMode,
   CreateSessionOptions,
   DirEntry,
   FetchResult,
@@ -65,6 +65,7 @@ import type {
   WorktreeInfo,
   WorktreePrefs,
   ComposerDraftRecord,
+  LanePrefs,
 } from './models'
 
 /** Parsed session tree (subset of entries) for the tree view. */
@@ -122,6 +123,8 @@ export interface IpcInvokeMap {
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }
+  /** How lanes name and brand themselves; clamped in the main process. */
+  'app:setLanePrefs': { args: [LanePrefs]; result: void }
   /** Model picker memory (pinned + recent), keyed `provider/id`. */
   'app:setModelPicks': { args: [ModelPicks]; result: void }
   'app:setLastSession': { args: [sessionPath: string | undefined]; result: void }
@@ -137,11 +140,6 @@ export interface IpcInvokeMap {
       | { kind: 'none' }
   }
   'app:setFontPrefs': { args: [FontPrefs]; result: void }
-  /**
-   * Takes effect on the next session start: the mode is read when pi spawns,
-   * and the CLI keeps its system prompt for the life of a session.
-   */
-  'app:setClaudeSystemPrompt': { args: [ClaudeSystemPromptMode]; result: void }
   'app:setWorktreePrefs': { args: [WorktreePrefs]; result: void }
   /**
    * Layer 2 of the directive stack. `projectPath` undefined sets the global
@@ -334,6 +332,15 @@ export interface IpcInvokeMap {
   'claude:cancelLogin': { args: []; result: void }
   /** `claude auth logout`. Credentials are the CLI's, so this is its subcommand. */
   'claude:logout': { args: []; result: void }
+  /**
+   * Live subscription usage — the numbers Claude Code's own `/usage` panel
+   * shows (5-hour + weekly windows, with percents), read by spawning
+   * `claude -p /usage` (zero model calls, zero quota) in main and parsing
+   * its rendered text. Works for every signed-in subscription account; no
+   * API key, no org, no credential crosses into pidex. Cached ~60 s in main,
+   * because the endpoint behind it rate-limits.
+   */
+  'claude:usageSnapshot': { args: []; result: ClaudeUsageSnapshotResult }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
@@ -389,7 +396,7 @@ export interface IpcInvokeMap {
   }
 
   /**
-   * Orchestration (specs/reference/orchestration.md). `fleet:state` is the mechanical
+   * Orchestration (docs/orchestration.md). `fleet:state` is the mechanical
    * picture of every live session — no model runs to produce it. Updates
    * arrive on the `fleet:changed` push channel.
    */

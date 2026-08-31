@@ -69,3 +69,23 @@ describe('palette', () => {
     for (const marker of AUTO_MARKERS) expect(pickable.has(marker)).toBe(true)
   })
 })
+
+describe('laneMarker modes', () => {
+  it('auto derives a marker for a lane that never chose', () => {
+    expect(laneMarker(undefined, 'pidex/x', '/cwd', 'auto')).toBe(autoMarker('pidex/x'))
+  })
+
+  it('manual respects a choice but derives nothing', () => {
+    expect(laneMarker('🐙', 'pidex/x', '/cwd', 'manual')).toBe('🐙')
+    expect(laneMarker(undefined, 'pidex/x', '/cwd', 'manual')).toBe('')
+  })
+
+  it('off wins over an explicit choice', () => {
+    // Otherwise turning markers off would leave the ones you picked behind.
+    expect(laneMarker('🐙', 'pidex/x', '/cwd', 'off')).toBe('')
+  })
+
+  it('defaults to auto when no mode is given', () => {
+    expect(laneMarker(undefined, 'pidex/x', '/cwd')).toBe(autoMarker('pidex/x'))
+  })
+})

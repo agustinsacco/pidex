@@ -19,11 +19,11 @@ import {
   markSessionSeen,
   recordWorkspace,
   setCollapsedWorkspaces,
-  setClaudeSystemPrompt,
   setFontPrefs,
   setLastSession,
   setModelPicks,
   setLaneMarkers,
+  setLanePrefs,
   setPinnedSessions,
   setRecentWorkspaces,
   setTheme,
@@ -71,6 +71,10 @@ export function registerAppHandlers(): void {
   })
 
   handle('artifacts:stageHtml', (_event, html: string) => stageArtifactHtml(html))
+
+  handle('app:setLanePrefs', (_event, lanes) => {
+    setLanePrefs(lanes)
+  })
 
   handle('app:setLaneMarkers', (_event, markers) => {
     setLaneMarkers(markers)
@@ -163,10 +167,6 @@ export function registerAppHandlers(): void {
     }
 
     return { kind: 'none' as const }
-  })
-
-  handle('app:setClaudeSystemPrompt', (_event, mode) => {
-    setClaudeSystemPrompt(mode)
   })
 
   handle('app:setFontPrefs', (_event, fonts) => {

@@ -64,6 +64,15 @@ export function groupSessionsByProject(
   orchestratorPaths: Iterable<string> = [],
   /** workspacePath → latest scan attempt; absence = never attempted. */
   scanStatus: Record<string, SessionScanStatus> = {},
+  /**
+   * worktree folder → the repo `git worktree list` reported it under.
+   *
+   * The sidebar's discovery pass knows this the instant it learns the path,
+   * so a worktree folds into its project on the very first render. Without
+   * it, any worktree outside `<repo>/.pidex/worktrees/` waited on
+   * `git:infoBatch` and opened its own branch-named group in the meantime.
+   */
+  worktreeRoots: Record<string, string> = {},
 ): GroupedSessions[] {
   const byProject = new Map<
     string,
@@ -83,7 +92,9 @@ export function groupSessionsByProject(
     // One group per project. Resolved through `projectPathFor` rather than
     // git info alone: a worktree whose `git:infoBatch` answer has not landed
     // would otherwise open its own group, headed by the branch slug.
-    const projectKey = projectPathFor(path, git)
+    // `worktreeRoots` is what makes that true for a worktree living anywhere
+    // on disk, not just under `<repo>/.pidex/worktrees/`.
+    const projectKey = projectPathFor(path, git, worktreeRoots[path])
     const metas = (disk[path] ?? []).filter(
       (m) => !isPinned(m) && !isOrchestratorSession(m, orchestratorPaths),
     )

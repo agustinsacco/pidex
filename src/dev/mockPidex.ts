@@ -158,6 +158,27 @@ const MOCK_MODELS = [
   },
 ]
 
+/**
+ * What a permission gate actually sends: a heredoc that writes a script,
+ * plus the command that runs it. The `rm -rf` inside the heredoc body is the
+ * interesting part — it is written to a file, not run, and the approval sheet
+ * has to say so instead of shouting.
+ */
+const MOCK_DANGEROUS_COMMAND = [
+  "cat > /tmp/reset-fixtures.sh <<'EOF'",
+  '#!/usr/bin/env bash',
+  'set -euo pipefail',
+  '# wipe the fixture tree before regenerating it',
+  'rm -rf /tmp/fixtures',
+  'mkdir -p /tmp/fixtures',
+  'for n in 1 2 3; do',
+  '  printf \'fixture %s\\n\' "$n" > "/tmp/fixtures/$n.txt"',
+  'done',
+  'EOF',
+  'chmod +x /tmp/reset-fixtures.sh',
+  'sudo /tmp/reset-fixtures.sh && echo regenerated',
+].join('\n')
+
 function respond(command: RpcCommand): RpcResponse {
   switch (command.type) {
     case 'get_state':
@@ -643,7 +664,6 @@ export function installMockPidex(): void {
               terminalFontSize: 12.5,
               monoFont: 'JetBrains Mono',
             },
-            claudeSystemPrompt: DEFAULT_APP_PREFS.claudeSystemPrompt,
             // DirectivesSection reads both of these straight into state, so
             // omitting them made the whole section throw in the harness.
             agentDirectives: DEFAULT_APP_PREFS.agentDirectives,
@@ -712,8 +732,29 @@ export function installMockPidex(): void {
             workspacePath: '/Users/dev/projects/pidex',
             pid: 1234,
           })
-        case 'pi:command':
-          return Promise.resolve(respond(args[1] as RpcCommand))
+        case 'pi:command': {
+          const command = args[1] as RpcCommand
+          // Permission-gate rehearsal. The harness has no pi and therefore no
+          // extension, but the dangerous-command approval sheet is the one
+          // dialog whose whole point is how it renders a big ugly command —
+          // so `danger` in a prompt raises a real one to look at.
+          if (command.type === 'prompt' && /^\s*danger\b/i.test(command.message)) {
+            setTimeout(() => {
+              push('mock-session-id', {
+                kind: 'extension-ui',
+                request: {
+                  type: 'extension_ui_request',
+                  id: 'mock-danger',
+                  method: 'select',
+                  title: `Dangerous command:\n\n  ${MOCK_DANGEROUS_COMMAND}\n\nAllow?`,
+                  options: ['Yes', 'No'],
+                },
+              } as SessionPush)
+            }, 150)
+            return Promise.resolve({ type: 'response', command: 'prompt', success: true })
+          }
+          return Promise.resolve(respond(command))
+        }
         case 'pi:generateTitle':
           return Promise.resolve('Mock Generated Title')
         case 'fs:listFiles':
@@ -787,6 +828,38 @@ export function installMockPidex(): void {
               method: mockClaudeAuth.loggedIn ? 'claude.ai' : undefined,
               email: mockClaudeAuth.email,
               plan: mockClaudeAuth.loggedIn ? 'max' : undefined,
+            },
+          } as never)
+        case 'claude:usageSnapshot':
+          // Shaped like a real 2.1.x capture: the 5-hour window under the
+          // warning threshold, weekly past it, plus the contributing block.
+          return Promise.resolve({
+            ok: true,
+            snapshot: {
+              fetchedAt: Date.now(),
+              stale: false,
+              windows: [
+                {
+                  label: 'Current session',
+                  kind: 'five_hour',
+                  percentUsed: 26,
+                  resetsAt: Date.now() + 2.2 * 3600_000,
+                },
+                {
+                  label: 'Current week (all models)',
+                  kind: 'weekly',
+                  percentUsed: 50,
+                  resetsAt: Date.now() + 3.1 * 3600_000,
+                },
+                {
+                  label: 'Current week (Fable)',
+                  kind: 'weekly_model',
+                  percentUsed: 37,
+                  resetsAt: Date.now() + 3.1 * 3600_000,
+                },
+              ],
+              contributing:
+                'Approximate, based on local sessions on this machine.\n\nLast 24h · 747 requests · 69 sessions\n  75% of your usage was at >150k context\n  30% of your usage was while 4+ sessions ran in parallel',
             },
           } as never)
         case 'claude:startLogin':
@@ -1067,6 +1140,8 @@ export function installMockPidex(): void {
           return Promise.resolve(
             URL.createObjectURL(new Blob([args[0] as string], { type: 'text/html' })),
           )
+        case 'app:setLanePrefs':
+          return Promise.resolve(undefined)
         case 'app:setLaneMarkers':
           return Promise.resolve(undefined)
         case 'gh:prsForRepo':
@@ -1143,6 +1218,30 @@ export function installMockPidex(): void {
               locked: false,
               prunable: false,
               dirtyCount: 0,
+            },
+            {
+              // Outside `.pidex/worktrees`, so nothing about the path says
+              // "worktree". It must still fold into the pidex group on the
+              // first render, from the root this call was made against.
+              path: '/tmp/pidex-pr-4821',
+              realPath: '/tmp/pidex-pr-4821',
+              branch: 'pr-4821',
+              head: '9876fedcba543210',
+              isMain: false,
+              locked: false,
+              prunable: false,
+              dirtyCount: 1,
+            },
+            {
+              // Folder deleted behind git's back. Never a sidebar group.
+              path: '/Users/dev/projects/pidex-gone',
+              realPath: '/Users/dev/projects/pidex-gone',
+              branch: 'gone',
+              head: '0000000000000000',
+              isMain: false,
+              locked: false,
+              prunable: true,
+              dirtyCount: -1,
             },
           ])
         case 'git:listBranches':
@@ -1347,7 +1446,6 @@ export function installMockPidex(): void {
           })
         case 'pi:patchAgentSettings':
         case 'pi:writeConfigFile':
-        case 'app:setClaudeSystemPrompt':
         case 'app:setFontPrefs':
         case 'app:setRecentWorkspaces':
         case 'app:setCollapsedWorkspaces':

@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="build/icon.svg">
+  <source media="(prefers-color-scheme: light)" srcset="build/icon-light.svg">
+  <img src="build/icon.svg" alt="pidex" width="88" height="88">
+</picture>
+
 # pidex
 
 A desktop coding-agent app for macOS, Linux and Windows, powered entirely by the
@@ -85,7 +91,7 @@ npm run dev
 ### Repo layout
 
 This tree is the single source of truth for "what lives where". `CLAUDE.md` and
-[specs/reference/architecture.md](specs/reference/architecture.md) link here
+[docs/architecture.md](docs/architecture.md) link here
 rather than keeping their own copies — there used to be three, and all three had
 drifted.
 
@@ -127,7 +133,8 @@ pi-ext/              five pi extensions that run inside pi's process:
                      orchestrator (orchestrator sessions only)
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon generation, release + validate helpers
-specs/               specifications, split by genre — see specs/README.md
+docs/                how pidex works now; docs/log dated history;
+                     docs/specs deferred work — see docs/README.md
 ```
 
 The main process owns all side effects. The renderer runs with

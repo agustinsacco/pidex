@@ -15,6 +15,8 @@ import {
   summarizeSubagents,
 } from '@/features/chat/subagentStatus'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { CommandApprovalSheet } from './CommandApprovalSheet'
+import { parseCommandApproval } from './commandApproval'
 
 /**
  * Extension-authored text styled with ANSI SGR codes, rendered as colored
@@ -41,6 +43,12 @@ function AnsiText({ text }: { text: string }): React.JSX.Element {
 export function ExtensionDialogHost(): React.JSX.Element | null {
   const dialog = useExtensionUiStore((s) => s.dialogs[0])
   if (!dialog) return null
+  // A permission gate asking to run a command is a review, not a question:
+  // the command is the content and the generic sheet rendered it as a title.
+  const approval = parseCommandApproval(dialog.request)
+  if (approval) {
+    return <CommandApprovalSheet key={dialog.request.id} dialog={dialog} approval={approval} />
+  }
   return <DialogSheet key={dialog.request.id} dialog={dialog} />
 }
 
@@ -94,7 +102,14 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <ModalPanel
         width={480}
-        title={stripAnsi(request.title)}
+        // An extension title is arbitrary text — pi's TUI wraps it, so gates
+        // put whole paragraphs there. Cap and scroll rather than letting the
+        // panel grow past the top and bottom of the window.
+        title={
+          <span className="block max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+            {stripAnsi(request.title)}
+          </span>
+        }
         subtitle="Requested by a pi extension"
         footer={
           <>
@@ -131,7 +146,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
                 onMouseMove={() => setSelectedIndex(index)}
                 onClick={() => resolve({ value: option })}
                 className={clsx(
-                  'flex w-full items-center px-4 py-2 text-left text-lg transition-colors',
+                  'flex w-full items-center whitespace-pre-wrap break-words px-4 py-2 text-left text-lg transition-colors',
                   index === selectedIndex && 'bg-bg-secondary',
                 )}
               >
@@ -143,7 +158,9 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
         )}
 
         {request.method === 'confirm' && (
-          <div className="px-4 py-3 text-lg">{stripAnsi(request.message)}</div>
+          <div className="max-h-[45vh] overflow-y-auto whitespace-pre-wrap break-words px-4 py-3 text-lg">
+            {stripAnsi(request.message)}
+          </div>
         )}
 
         {request.method === 'input' && (

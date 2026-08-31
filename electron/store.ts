@@ -1,8 +1,17 @@
+import { existsSync } from 'node:fs'
 import Store from 'electron-store'
-import { blobIdsOf, pruneDrafts, pruneLaneMarkers, pruneSeenSessions } from './prefs-utils'
+import {
+  blobIdsOf,
+  pruneDrafts,
+  pruneLaneMarkers,
+  pruneSeenSessions,
+  visibleWorkspaces,
+} from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
+  normalizeLanePrefs,
+  type LanePrefs,
   type AgentDirectivePrefs,
   type AppPrefs,
   type ComposerDraftRecord,
@@ -42,10 +51,13 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
-    // Prune worktree folders on read too: a pre-fix install may have recorded
-    // one per session worktree, which used to flood the sidebar/switcher with
-    // a header per chat instead of one per project.
-    recentWorkspaces: (s.get('recentWorkspaces') ?? []).filter((ws) => !isWorktreeFolder(ws.path)),
+    // Read-only prune: worktree folders (never workspaces) and folders that
+    // no longer exist. Deliberately not written back — see `visibleWorkspaces`.
+    recentWorkspaces: visibleWorkspaces(
+      s.get('recentWorkspaces') ?? [],
+      isWorktreeFolder,
+      existsSync,
+    ),
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
@@ -53,8 +65,10 @@ export function getPrefs(): AppPrefs {
     collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
     seenSessions: s.get('seenSessions') ?? {},
     laneMarkers: s.get('laneMarkers') ?? {},
+    // Normalized on read as well as write: prefs are user-editable JSON, and
+    // these numbers reach a prompt, a git ref and a filesystem path.
+    lanes: normalizeLanePrefs(s.get('lanes')),
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
-    claudeSystemPrompt: s.get('claudeSystemPrompt') ?? DEFAULT_APP_PREFS.claudeSystemPrompt,
     agentDirectives: {
       ...DEFAULT_APP_PREFS.agentDirectives,
       ...s.get('agentDirectives'),
@@ -171,10 +185,6 @@ export function setFontPrefs(fonts: AppPrefs['fonts']): void {
   prefs().set('fonts', fonts)
 }
 
-export function setClaudeSystemPrompt(mode: AppPrefs['claudeSystemPrompt']): void {
-  prefs().set('claudeSystemPrompt', mode)
-}
-
 export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {
   prefs().set('worktrees', worktrees)
 }
@@ -213,6 +223,14 @@ export function setPinnedSessions(paths: string[]): void {
 
 export function setLaneMarkers(markers: Record<string, string>): void {
   prefs().set('laneMarkers', pruneLaneMarkers(markers))
+}
+
+export function setLanePrefs(lanes: LanePrefs): void {
+  prefs().set('lanes', normalizeLanePrefs(lanes))
+}
+
+export function getLanePrefs(): LanePrefs {
+  return normalizeLanePrefs(prefs().get('lanes'))
 }
 
 export function setModelPicks(picks: AppPrefs['modelPicks']): void {

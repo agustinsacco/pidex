@@ -8,6 +8,7 @@ import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
 import { isArtifactWriteTool } from '@/lib/artifactTools'
+import { lanePrefs } from './lanePrefs'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -124,13 +125,52 @@ interface SessionsState {
    * marker". Those are deliberately different.
    */
   setLaneMarker: (path: string, marker: string | null) => void
+  /**
+   * Live progress of a bulk delete, or null when none is running.
+   *
+   * Published rather than returned because the confirm dialog has to render
+   * it: a bulk delete disposes a subprocess and runs git per lane, so a
+   * ten-lane delete is seconds of apparently-frozen UI otherwise.
+   */
+  bulkDelete: BulkDeleteProgress | null
+  /** Stop after the lane currently in flight. */
+  cancelBulkDelete: () => void
+  /** Clear a finished run's summary. */
+  dismissBulkDelete: () => void
   /** Bulk delete. See the implementation for the ordering guarantee. */
   deleteManySessions: (
     workspacePath: string,
-    lanes: Array<{ path: string; worktreePath?: string; mainRepoPath?: string }>,
+    lanes: Array<{ path: string; title: string; worktreePath?: string; mainRepoPath?: string }>,
     options: { removeWorktree: boolean; deleteBranch: boolean; discardChanges: boolean },
-  ) => Promise<Array<{ path: string; ok: boolean; error?: string }>>
+  ) => Promise<LaneDeleteResult[]>
 }
+
+export interface LaneDeleteResult {
+  path: string
+  title: string
+  ok: boolean
+  /** Set on failure, and also on success when the branch could not be removed. */
+  error?: string
+}
+
+export interface BulkDeleteProgress {
+  total: number
+  done: number
+  /** Lane currently being deleted; empty once finished. */
+  current: string
+  results: LaneDeleteResult[]
+  running: boolean
+  cancelled: boolean
+}
+
+/**
+ * Cancellation flag for the in-flight bulk delete.
+ *
+ * Module scope rather than store state: the loop reads it between lanes, and
+ * routing that through a zustand read per iteration would make cancellation
+ * depend on render timing.
+ */
+let bulkDeleteCancelled = false
 
 const unsubscribers = new Map<string, () => void>()
 /** Workspaces already being watched, so repeat calls are no-ops. */
@@ -345,7 +385,7 @@ function attachSessionPushHandler(pidexId: string): void {
         // The visible-hand rule: main sent this on the orchestrator's behalf,
         // so the renderer never added it optimistically. pi persists it either
         // way — without this the transcript of a session being steered stays
-        // silent until it is reopened. See specs/reference/orchestration.md.
+        // silent until it is reopened. See docs/orchestration.md.
         chatStore.addUserMessage(pidexId, push.text)
         break
       case 'extension-ui':
@@ -367,6 +407,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   baselines: {},
   pinned: [],
   laneMarkers: {},
+  bulkDelete: null,
   suspendedPaths: [],
   seenSessions: {},
   gitByCwd: {},
@@ -570,7 +611,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         // put a subprocess spawn (`pi -p`) in the middle of session startup,
         // competing with the get_state round-trip that "reopen my last
         // session" depends on.
-        if (options.autoName !== false && !options.name && !options.sessionPath) {
+        // `lanes.autoName` is the user preference; `options.autoName` is the
+        // caller saying it owns naming itself (startChat does). Either one
+        // being false means no pass here.
+        const autoNameAllowed = lanePrefs().autoName
+        if (
+          autoNameAllowed &&
+          options.autoName !== false &&
+          !options.name &&
+          !options.sessionPath
+        ) {
           void bootstrapped.then(() => autoNameSession(pidexId, workspacePath, firstPrompt))
         }
       }
@@ -724,13 +774,46 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    * 3. **A failure is reported, never swallowed.** A row that silently stays
    *    put reads as the delete having worked and the UI being stale.
    */
+  cancelBulkDelete: () => {
+    bulkDeleteCancelled = true
+    set((s) => (s.bulkDelete ? { bulkDelete: { ...s.bulkDelete, cancelled: true } } : s))
+  },
+
+  dismissBulkDelete: () => set({ bulkDelete: null }),
+
   deleteManySessions: async (workspacePath, lanes, options) => {
-    const results: Array<{ path: string; ok: boolean; error?: string }> = []
+    const results: LaneDeleteResult[] = []
+    bulkDeleteCancelled = false
+    set({
+      bulkDelete: {
+        total: lanes.length,
+        done: 0,
+        current: lanes[0]?.title ?? '',
+        results: [],
+        running: true,
+        cancelled: false,
+      },
+    })
+
+    const publish = (current: string): void =>
+      set((s) =>
+        s.bulkDelete
+          ? {
+              bulkDelete: { ...s.bulkDelete, done: results.length, current, results: [...results] },
+            }
+          : s,
+      )
+
     const { removeWorktree } = await import('./worktrees').then((m) => ({
       removeWorktree: m.useWorktreesStore.getState().removeWorktree,
     }))
 
     for (const lane of lanes) {
+      // Checked between lanes, never mid-lane: stopping halfway through a
+      // worktree removal is how you get a half-deleted lane.
+      if (bulkDeleteCancelled) break
+      publish(lane.title)
+
       const live = Object.values(get().live).find((l) => l.diskPath === lane.path)
       if (live) await get().disposeSession(live.pidexId)
 
@@ -743,33 +826,43 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           if (!outcome.removed) {
             results.push({
               path: lane.path,
+              title: lane.title,
               ok: false,
-              error: `worktree kept — ${outcome.dirtyCount} uncommitted change${
+              error: `worktree kept, ${outcome.dirtyCount} uncommitted change${
                 outcome.dirtyCount === 1 ? '' : 's'
               }`,
             })
+            publish(lane.title)
             continue
           }
-          // A branch that would not safe-delete is reported, but the lane is
-          // still gone: `git branch -d` refusing is not a reason to keep the
-          // transcript. Never escalate to -D here.
           if (outcome.branchError) {
-            results.push({ path: lane.path, ok: true, error: outcome.branchError })
+            // A branch that would not safe-delete is reported, but the lane is
+            // still gone: `git branch -d` refusing is not a reason to keep the
+            // transcript. Never escalate to -D here.
             await window.pidex.invoke('sessions:delete', lane.path)
+            results.push({
+              path: lane.path,
+              title: lane.title,
+              ok: true,
+              error: outcome.branchError,
+            })
+            publish(lane.title)
             continue
           }
         } catch (error) {
-          results.push({ path: lane.path, ok: false, error: String(error) })
+          results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
+          publish(lane.title)
           continue
         }
       }
 
       try {
         await window.pidex.invoke('sessions:delete', lane.path)
-        results.push({ path: lane.path, ok: true })
+        results.push({ path: lane.path, title: lane.title, ok: true })
       } catch (error) {
-        results.push({ path: lane.path, ok: false, error: String(error) })
+        results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
       }
+      publish(lane.title)
     }
 
     // Forget markers for lanes that are actually gone, so the prefs map does
@@ -785,6 +878,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
 
     await get().refreshDisk(workspacePath)
+    set((s) =>
+      s.bulkDelete
+        ? {
+            bulkDelete: {
+              ...s.bulkDelete,
+              done: results.length,
+              current: '',
+              results,
+              running: false,
+            },
+          }
+        : s,
+    )
     return results
   },
 

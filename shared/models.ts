@@ -52,7 +52,7 @@ export type SessionPush =
    * A message main sent into this session on someone else's behalf (today:
    * the orchestrator). pi persists it either way, but the renderer only paints
    * messages it added itself — without this the transcript of a session being
-   * steered stays silent until it is reopened. See specs/reference/orchestration.md,
+   * steered stays silent until it is reopened. See docs/orchestration.md,
    * "the visible-hand rule".
    */
   | { kind: 'injected'; text: string; source: 'orchestrator' }
@@ -296,6 +296,99 @@ export const DEFAULT_FONT_PREFS: FontPrefs = {
  * persisted preference, not two that can disagree: it decides both whether
  * picking a branch isolates it and whether a new chat gets a branch of its own.
  */
+/**
+ * How a lane names itself, brands itself and slugs its branch.
+ *
+ * Split from `WorktreePrefs` on purpose: those two fields decide WHETHER a
+ * chat gets a branch, while these decide what the resulting lane looks like.
+ * A user who turns worktrees off still names sessions.
+ */
+export interface LanePrefs {
+  /**
+   * Emoji markers in the sidebar.
+   * - `auto`   every lane has one; unset lanes derive theirs from the branch
+   * - `manual` only lanes you explicitly chose a marker for
+   * - `off`    no marker column at all
+   */
+  markers: 'auto' | 'manual' | 'off'
+  /** Name a session from its first message. Off means it keeps that message. */
+  autoName: boolean
+  /** Word range the namer is asked for. */
+  nameMinWords: number
+  nameMaxWords: number
+  /** Hard cap on the generated title, applied after the model replies. */
+  nameMaxLength: number
+  /**
+   * Hard cap on the branch/folder slug. Separate from `nameMaxLength`: a title
+   * is read in a sidebar, a slug is read in `git branch` output and in a path.
+   */
+  branchSlugMaxLength: number
+}
+
+/** Bounds the settings UI enforces, and the store clamps to. */
+export const LANE_PREF_LIMITS = {
+  nameWords: { min: 1, max: 12 },
+  nameMaxLength: { min: 16, max: 120 },
+  branchSlugMaxLength: { min: 12, max: 80 },
+} as const
+
+export const DEFAULT_LANE_PREFS: LanePrefs = {
+  markers: 'auto',
+  autoName: true,
+  nameMinWords: 2,
+  nameMaxWords: 5,
+  nameMaxLength: 60,
+  branchSlugMaxLength: 40,
+}
+
+/**
+ * Clamp anything read off disk or sent over IPC.
+ *
+ * Prefs are user-editable JSON, and every one of these numbers ends up in a
+ * prompt, a git ref or a path. A negative or absurd value must not reach any
+ * of those.
+ */
+export function normalizeLanePrefs(input: Partial<LanePrefs> | undefined): LanePrefs {
+  const merged = { ...DEFAULT_LANE_PREFS, ...input }
+  const clamp = (value: number, lo: number, hi: number, fallback: number): number =>
+    Number.isFinite(value) ? Math.min(hi, Math.max(lo, Math.round(value))) : fallback
+  const minWords = clamp(
+    merged.nameMinWords,
+    LANE_PREF_LIMITS.nameWords.min,
+    LANE_PREF_LIMITS.nameWords.max,
+    DEFAULT_LANE_PREFS.nameMinWords,
+  )
+  return {
+    markers: (['auto', 'manual', 'off'] as const).includes(merged.markers)
+      ? merged.markers
+      : DEFAULT_LANE_PREFS.markers,
+    autoName: Boolean(merged.autoName),
+    nameMinWords: minWords,
+    // Never let max fall below min, or the prompt asks for "5-2 words".
+    nameMaxWords: Math.max(
+      minWords,
+      clamp(
+        merged.nameMaxWords,
+        LANE_PREF_LIMITS.nameWords.min,
+        LANE_PREF_LIMITS.nameWords.max,
+        DEFAULT_LANE_PREFS.nameMaxWords,
+      ),
+    ),
+    nameMaxLength: clamp(
+      merged.nameMaxLength,
+      LANE_PREF_LIMITS.nameMaxLength.min,
+      LANE_PREF_LIMITS.nameMaxLength.max,
+      DEFAULT_LANE_PREFS.nameMaxLength,
+    ),
+    branchSlugMaxLength: clamp(
+      merged.branchSlugMaxLength,
+      LANE_PREF_LIMITS.branchSlugMaxLength.min,
+      LANE_PREF_LIMITS.branchSlugMaxLength.max,
+      DEFAULT_LANE_PREFS.branchSlugMaxLength,
+    ),
+  }
+}
+
 export interface WorktreePrefs {
   /** New chats start on their own branch in their own worktree. */
   auto: boolean
@@ -312,7 +405,7 @@ export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
   branchPrefix: 'pidex/',
 }
 
-// ---------- orchestration (specs/reference/orchestration.md) ----------
+// ---------- orchestration (docs/orchestration.md) ----------
 
 /**
  * What a live session is doing, as observed mechanically in main. No model is
@@ -379,9 +472,14 @@ export interface DigestItem {
   /** Session file path this item is about, when it is about one. */
   sessionPath?: string
   text: string
+  /**
+   * Synthesized by the bridge from a per-item `startPrompt` — the model never
+   * sends it. `start` is the only kind: `open`, `resume`, `archive` and
+   * `merge` sat in this union unproduced and unrendered until 2026-08-30.
+   */
   action?: {
     label: string
-    kind: 'open' | 'resume' | 'archive' | 'merge' | 'start'
+    kind: 'start'
     payload?: string
   }
 }
@@ -522,9 +620,9 @@ export interface AppPrefs {
    * value meaning "no marker, on purpose".
    */
   laneMarkers: Record<string, string>
+  /** How lanes name and brand themselves. See LanePrefs. */
+  lanes: LanePrefs
   fonts: FontPrefs
-  /** Whose system prompt Claude Code sessions run under. */
-  claudeSystemPrompt: ClaudeSystemPromptMode
   /** What pidex appends to every lane's system prompt. */
   agentDirectives: AgentDirectivePrefs
   /** Per-project override of the above, keyed by main-repo path. */
@@ -592,16 +690,6 @@ export const MAX_DRAFTS = 30
 export const MAX_DRAFT_BLOB_BYTES = 50 * 1024 * 1024
 
 /**
- * Which system prompt the pi-claude-cli provider gives its `claude`
- * subprocess. Mirrors the extension's `PI_CLAUDE_CLI_SYSTEM_PROMPT`, which
- * pidex sets when spawning pi.
- *
- * `claude` appends pi's prompt to Claude Code's own — everything the CLI
- * normally knows about its tools stays. `pi` replaces it, which frees roughly
- * 12k tokens of context per call but leaves the model working from pi's
- * instructions plus the raw tool schemas.
- */
-/**
  * Layer 2 of the directive stack: what pidex appends to a lane's system
  * prompt. See `electron/pi/directives.ts` for the full stack and why this is
  * a setting rather than a constant.
@@ -647,8 +735,6 @@ export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
   custom: '',
 }
 
-export type ClaudeSystemPromptMode = 'claude' | 'pi'
-
 /** Starred and recently used models, keyed `provider/id`, plus how to group them. */
 export interface ModelPicks {
   /** User-ordered; these sort to the top of the picker. */
@@ -680,10 +766,8 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   collapsedWorkspaces: [],
   seenSessions: {},
   laneMarkers: {},
+  lanes: DEFAULT_LANE_PREFS,
   fonts: DEFAULT_FONT_PREFS,
-  // Matches the extension's own default: keep Claude Code's prompt unless the
-  // user opts out of it.
-  claudeSystemPrompt: 'claude',
   agentDirectives: DEFAULT_AGENT_DIRECTIVES,
   agentDirectivesByProject: {},
   worktrees: DEFAULT_WORKTREE_PREFS,
@@ -787,6 +871,40 @@ export interface ClaudeStatus {
   binary: { found: boolean; path?: string; version?: string }
   auth: ClaudeAuthStatus
 }
+
+/**
+ * One plan-usage window, as the CLI renders it in `claude -p /usage`.
+ *
+ * The CLI prints Claude Desktop's own live numbers (fed by the internal
+ * `/api/oauth/usage` endpoint) as text; these are the parsed windows of that
+ * text. The percent is the server's own accounting — always visible, not
+ * gated on any warning threshold like `rate_limit_event`'s `utilization`.
+ */
+export interface ClaudeUsageWindow {
+  /** The CLI's rendered label, e.g. "Current session" (the 5-hour block). */
+  label: string
+  /** Window family, derived from the label; `other` for kinds pidex doesn't know. */
+  kind: 'five_hour' | 'weekly' | 'weekly_model' | 'other'
+  /** Fraction of the window consumed, 0–100 (the CLI prints whole percents). */
+  percentUsed: number
+  /** When the window resets, Unix ms; null when the reset didn't parse. */
+  resetsAt: number | null
+}
+
+/** Result of one `claude -p /usage` run. */
+export interface ClaudeUsageSnapshot {
+  fetchedAt: number
+  /** True when the CLI served its cache ("Showing last-known usage"). */
+  stale: boolean
+  windows: ClaudeUsageWindow[]
+  /** The "What's contributing to your limits usage?" block, verbatim, when present. */
+  contributing: string | null
+}
+
+/** `claude:usageSnapshot` channel result. */
+export type ClaudeUsageSnapshotResult =
+  | { ok: true; snapshot: ClaudeUsageSnapshot }
+  | { ok: false; error: 'claude-not-found' | 'run-failed' | 'no-usage' }
 
 /**
  * Where an in-app `claude auth login` has got to.

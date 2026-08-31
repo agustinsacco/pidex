@@ -13,7 +13,7 @@ export interface FleetCollision {
  * Purely mechanical — no model. It exists because this repo has already lost
  * work to it once: two concurrent agent sessions on one tree, one committed
  * and discarded the other's uncommitted changes (see P11's log in
- * specs/TRACKER.md).
+ * docs/specs/TRACKER.md).
  *
  * Only sessions that are still alive count. A finished session that touched a
  * file is history, not a conflict, and warning about it would train the user

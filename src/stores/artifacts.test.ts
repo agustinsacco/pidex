@@ -59,7 +59,9 @@ describe('artifacts store — update payloads', () => {
 
 describe('artifacts store — selection', () => {
   it('does not yank the viewer off the artifact the user is reading', () => {
-    useLayoutStore.setState({ bySession: { [SESSION]: { pane: 'artifacts', expanded: false } } })
+    useLayoutStore.setState({
+      bySession: { [SESSION]: { pane: 'artifacts', expanded: false, side: 'right', size: 45 } },
+    })
     create('doc-a')
     create('doc-b')
     useArtifactsStore.getState().select(SESSION, 'doc-a')

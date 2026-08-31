@@ -1,0 +1,106 @@
+# 02 — pi Integration Reference
+
+Everything here was verified against the locally installed `@earendil-works/pi-coding-agent`. The protocol mirror in `shared/rpc.ts` was re-verified against **0.84.4** (2026-08-28) and `MIN_PI_VERSION` is **0.84.1**; the 0.84.2 `usage` field and the 0.84.3 `toolcall_start` id/name are read as optional so both floors work. The 0.84.0 streaming-shape delta is in `shared/rpc.ts`'s header — read it before trusting any older doc, including the parts of this file written against 0.78/0.79.
+
+When re-verifying against a new pi, diff `shared/rpc.ts` against pi's command switch and `dist/modes/json-event.d.ts` (the stdout shape), not just against `rpc-types.d.ts` (the internal shape):
+
+```
+$(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the protocol, read fully
+.../docs/sdk.md, session-format.md, settings.md, usage.md, extensions.md, skills.md
+.../dist/modes/rpc/rpc-types.d.ts                                     ← exact command/response types
+.../dist/core/tools/*.d.ts                                            ← tool input/details schemas
+.../examples/extensions/  and  .../examples/rpc-extension-ui.ts       ← extension + client patterns
+```
+
+## Process model
+
+- Spawn `pi --mode rpc` with `cwd` = the workspace folder. **One subprocess per live session.** Idle/old sessions are read from disk (see §Sessions on disk), not kept as processes.
+- Useful flags: `--session <path|id>`, `--session-id <id>`, `--fork <path|id>`, `--no-session`, `-n <name>`, `--model <pattern>` (supports `provider/id` and `:<thinking>` suffix), `--provider`, `--thinking <level>`, `-e <extension.ts>` (repeatable — loads the bundled pidex artifacts extension), `--append-system-prompt <text|file>`.
+- **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. Commands go to stdin one JSON object per line; responses and events stream from stdout.
+- Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
+- pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
+
+## RPC commands (complete set — every one gets UI, see feature specs)
+
+| Command                                                                    | Notes                                                                                                                                                                                    |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`                                                                   | `message`, optional `images[]` ({type:"image", data: base64, mimeType}), optional `streamingBehavior: "steer"\|"followUp"` — **required** if agent is streaming, else the command errors |
+| `steer` / `follow_up`                                                      | queue messages during streaming (steer = after current turn's tool calls; follow-up = after agent finishes)                                                                              |
+| `abort`                                                                    | stop current run                                                                                                                                                                         |
+| `new_session`                                                              | optional `parentSession` path                                                                                                                                                            |
+| `get_state`                                                                | model, thinkingLevel, isStreaming, isCompacting, steering/followUp modes, sessionFile/Id/Name, autoCompaction, counts                                                                    |
+| `get_messages`                                                             | full AgentMessage[] history (used on resume/attach)                                                                                                                                      |
+| `set_model` (provider, modelId) / `cycle_model` / `get_available_models`   | models = full Model objects (id, name, provider, reasoning, contextWindow, cost…)                                                                                                        |
+| `set_thinking_level` / `cycle_thinking_level`                              | off\|minimal\|low\|medium\|high\|xhigh                                                                                                                                                   |
+| `set_steering_mode` / `set_follow_up_mode`                                 | "all" \| "one-at-a-time"                                                                                                                                                                 |
+| `compact`                                                                  | optional customInstructions; returns summary + tokensBefore                                                                                                                              |
+| `set_auto_compaction` / `set_auto_retry` / `abort_retry`                   | toggles + retry cancel                                                                                                                                                                   |
+| `bash`                                                                     | runs immediately, output enters LLM context **on next prompt**; `excludeFromContext` supported; result may be truncated with `fullOutputPath`                                            |
+| `abort_bash`                                                               |                                                                                                                                                                                          |
+| `get_session_stats`                                                        | tokens {input, output, cacheRead, cacheWrite}, cost, contextUsage {tokens, contextWindow, percent}                                                                                       |
+| `export_html`                                                              | optional outputPath; returns written path                                                                                                                                                |
+| `switch_session` (path) / `fork` (entryId) / `clone` / `get_fork_messages` | session tree operations; fork/clone may be `cancelled` by extensions                                                                                                                     |
+| `get_last_assistant_text`                                                  |                                                                                                                                                                                          |
+| `set_session_name`                                                         |                                                                                                                                                                                          |
+| `get_commands`                                                             | slash commands: `{name, description?, source: "extension"\|"prompt"\|"skill", path?}` — invoke by sending `/name …` as a `prompt`                                                        |
+
+## Events (stdout stream)
+
+`agent_start` / `agent_end` (all messages of the run) · `turn_start` / `turn_end` (assistant message + toolResults) · `message_start` / `message_update` / `message_end` · `tool_execution_start` (toolCallId, toolName, args) / `tool_execution_update` (**partialResult is accumulated — replace, don't append**) / `tool_execution_end` (result, isError) · `queue_update` (steering[], followUp[]) · `compaction_start`/`compaction_end` (reason manual|threshold|overflow; `willRetry` on overflow success) · `auto_retry_start` (attempt, maxAttempts, delayMs, errorMessage) / `auto_retry_end` · `extension_error`.
+
+`message_update.assistantMessageEvent` delta types: `start`, `text_start/delta/end`, `thinking_start/delta/end`, `toolcall_start/delta/end` (end includes full toolCall), `done` (reason stop|length|toolUse), `error` (aborted|error).
+
+## Extension-UI sub-protocol (must be fully implemented)
+
+Extensions (including the user's installed packages `pi-web-access`, `pi-mcp-adapter`) call `ctx.ui.*`; in RPC mode these arrive as `extension_ui_request` on stdout:
+
+- **Dialogs — client MUST reply** via stdin `{type:"extension_ui_response", id, …}`:
+  - `select` (title, options[]) → reply `{value}` or `{cancelled:true}`
+  - `confirm` (title, message) → reply `{confirmed: bool}` or `{cancelled:true}`
+  - `input` (title, placeholder) → reply `{value}` or cancelled
+  - `editor` (title, prefill) → reply `{value}` or cancelled
+  - Requests may carry `timeout` ms — agent auto-resolves on expiry; client needn't track.
+- **Fire-and-forget — render only**: `notify` (message, notifyType info|warning|error → toast), `setStatus` (statusKey/statusText → status strip entries), `setWidget` (widgetKey/widgetLines/widgetPlacement aboveEditor|belowEditor → widget slots around composer), `setTitle`, `set_editor_text` (prefill chat input).
+
+Map to native pidex UI: modal sheets for dialogs, toasts, status strip, composer widget slots.
+
+## Message & tool model (what the chat renderer consumes)
+
+- `AssistantMessage.content`: array of `{type:"text"}` / `{type:"thinking"}` / `{type:"toolCall", id, name, arguments}` blocks; `usage` has token counts + cost; `stopReason`: stop|length|toolUse|error|aborted (+ `errorMessage`).
+- `ToolResultMessage`: toolCallId, toolName, `content` (text/image blocks), `details` (tool-specific), isError.
+- `UserMessage.content`: string or (text|image)[] blocks.
+- `BashExecutionMessage` (role `bashExecution`): from the RPC `bash` command / `!` input — command, output, exitCode, truncated, fullOutputPath, `excludeFromContext` (the `!!` variant).
+- Additional roles in history: `custom` / `customMessage` (extension-injected; `display` flag), `branchSummary`, `compactionSummary` — render summaries as subtle system dividers.
+
+### Built-in tools and their `details` payloads
+
+| Tool    | Input                                                          | details / render notes                                                                         |
+| ------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `read`  | path, offset?, limit?                                          | truncation info; images come back as image content blocks                                      |
+| `bash`  | command, timeout?                                              | truncation + `fullOutputPath`; stream via tool_execution_update                                |
+| `edit`  | path, edits[{oldText,newText}]                                 | **`details.diff` (display diff), `details.patch` (unified patch), `details.firstChangedLine`** |
+| `write` | path, content                                                  | —                                                                                              |
+| `grep`  | pattern, path?, glob?, ignoreCase?, literal?, context?, limit? | matchLimitReached, linesTruncated                                                              |
+| `find`  | pattern, path?, limit?                                         | resultLimitReached                                                                             |
+| `ls`    | path?, limit?                                                  | entryLimitReached                                                                              |
+
+Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state.
+
+## Sessions on disk (drives the sidebar without spawning processes)
+
+- JSONL tree files: `~/.pi/agent/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`. Respect `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
+- Line 1 header: `{type:"session", version:3, id, timestamp, cwd, parentSession?}`. All other entries have `id`/`parentId` (8-char hex) forming a **tree**; the current position is the leaf.
+- Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).
+- Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir.
+- Sessions are deleted by trashing the `.jsonl` file.
+
+## Config on disk
+
+- `~/.pi/agent/settings.json` — defaultProvider/defaultModel/defaultThinkingLevel, hideThinkingBlock, compaction{enabled,reserveTokens,keepRecentTokens}, retry{...}, steeringMode/followUpMode, theme, packages[], skills[]. Project overrides merge from `<ws>/.pi/settings.json`.
+- `~/.pi/agent/models.json` — custom providers/models (the reference user runs a local OpenAI-compatible endpoint; **never assume Anthropic-only**).
+- `~/.pi/agent/auth.json` — API keys/OAuth (never display secrets). Env vars like `ANTHROPIC_API_KEY` also work.
+- `~/.pi/agent/skills/`, `prompts/`, `extensions/`, `AGENTS.md`; project `.pi/` equivalents; `mcp.json` used by pi-mcp-adapter.
+
+## pi philosophy (mirror it)
+
+pi core deliberately excludes MCP, subagents, plan mode, todos, permissions, background bash — these arrive via extensions/packages. pidex therefore: renders unknown tools generically and well, executes `get_commands` results as slash commands, implements the extension-UI protocol faithfully, and never hardcodes an assumption that only built-in tools exist.

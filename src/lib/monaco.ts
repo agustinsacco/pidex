@@ -66,7 +66,7 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     },
   }
 
-  // Phosphor editor themes (specs/reference/style-guide.md). Hex literals on purpose —
+  // Phosphor editor themes (docs/style-guide.md). Hex literals on purpose —
   // Monaco takes a JS object; keep in sync with --px-* in src/styles/index.css.
   monaco.editor.defineTheme('pidex-light', {
     base: 'vs',
@@ -74,14 +74,14 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     rules: [],
     colors: {
       'editor.background': '#ffffff',
-      'editor.foreground': '#2c2a25',
-      'editorLineNumber.foreground': '#9b968a',
-      'editorLineNumber.activeForeground': '#6b675d',
+      'editor.foreground': '#26262a',
+      'editorLineNumber.foreground': '#96969e',
+      'editorLineNumber.activeForeground': '#66666e',
       'editor.selectionBackground': '#f6e9d4',
-      'editor.lineHighlightBackground': '#f7f6f2',
+      'editor.lineHighlightBackground': '#f7f7f8',
       'editorCursor.foreground': '#b35c0f',
       'editorWidget.background': '#ffffff',
-      'editorWidget.border': '#e2dfd6',
+      'editorWidget.border': '#e4e4e7',
       'diffEditor.insertedTextBackground': '#4c8a5426',
       'diffEditor.removedTextBackground': '#bb4a3c21',
       'diffEditor.insertedLineBackground': '#4c8a5414',

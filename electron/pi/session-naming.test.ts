@@ -82,3 +82,26 @@ describe('dedupeTitle', () => {
     expect(dedupeTitle('Sidebar Fix', ['Sidebar Fix', 'Sidebar Fix 2'])).toBe('Sidebar Fix 3')
   })
 })
+
+describe('configurable naming length', () => {
+  it('asks for the configured word range', () => {
+    expect(titlePrompt('do a thing', [], { min: 3, max: 8 })).toContain('3-8 words')
+  })
+
+  it('says "1 word" rather than "1-1 words" when the range collapses', () => {
+    expect(titlePrompt('do a thing', [], { min: 1, max: 1 })).toContain('1 word ')
+    expect(titlePrompt('do a thing', [], { min: 1, max: 1 })).not.toContain('1-1')
+  })
+
+  it('defaults to 2-5 words when no range is passed', () => {
+    expect(titlePrompt('do a thing', [])).toContain('2-5 words')
+  })
+
+  it('caps the title at the configured length', () => {
+    expect(sanitizeTitle('A'.repeat(200), 20)).toHaveLength(20)
+  })
+
+  it('never produces an empty title from a zero cap', () => {
+    expect(sanitizeTitle('Something', 0)).toBe('S')
+  })
+})

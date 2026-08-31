@@ -9,7 +9,7 @@
  * progress can live.
  *
  * It is a WIRE CONTRACT across a repo boundary: nothing here fails to compile
- * when the provider changes it (specs/reference/extensions.md). So every field
+ * when the provider changes it (docs/extensions.md). So every field
  * is read defensively, and a payload that parses to nothing renders nothing.
  *
  * The key must also stay in `STRUCTURED_STATUS_KEYS`. Until it did, the raw

@@ -8,12 +8,13 @@ import { useChatStore } from '@/stores/chat'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
-import { PrBadge } from './PrBadge'
+import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
-import { BulkDeleteModal } from './BulkDeleteModal'
+import { BulkDeleteModal, BulkDeleteProgressModal } from './BulkDeleteModal'
 import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import {
@@ -32,8 +33,7 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
-import { projectName, isWorktreeFolder, basename } from '@/lib/path'
-import { presentText } from '@/stores/prompt'
+import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
   pendingSessionsByGroup,
@@ -92,8 +92,15 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const rangeAnchor = useRef<string | null>(null)
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
-  /** Worktree folders discovered under each known repo workspace. */
-  const [worktreeDirs, setWorktreeDirs] = useState<string[]>([])
+  /**
+   * Worktree folders discovered under each known repo workspace, each paired
+   * with the repo it belongs to.
+   *
+   * The root is kept, not discarded: it is what lets a worktree fold into its
+   * project on the first render instead of waiting on `git:infoBatch`. See
+   * `projectPathFor`.
+   */
+  const [worktreeDirs, setWorktreeDirs] = useState<{ path: string; root: string }[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
   /** Which roots we already listed worktrees for (avoids re-listing on toggle). */
@@ -141,16 +148,23 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const paths = new Set(cleanRecents.map((workspace) => workspace.path))
     paths.add(workspacePath)
     for (const entry of Object.values(live)) paths.add(entry.workspacePath)
-    for (const worktree of worktreeDirs) paths.add(worktree)
+    for (const worktree of worktreeDirs) paths.add(worktree.path)
     return [...paths].filter(Boolean)
   }, [workspacePath, live, cleanRecents, worktreeDirs])
+
+  /** Discovered worktree folder → its repo, for first-render grouping. */
+  const worktreeRoots = useMemo(
+    () => Object.fromEntries(worktreeDirs.map((wt) => [wt.path, wt.root])),
+    [worktreeDirs],
+  )
 
   /** Live sessions running in a worktree folder discovery has not found yet. */
   const unknownLanes = useMemo(
     () =>
       Object.values(live).filter(
         (entry) =>
-          isWorktreeFolder(entry.workspacePath) && !worktreeDirs.includes(entry.workspacePath),
+          isWorktreeFolder(entry.workspacePath) &&
+          !worktreeDirs.some((wt) => wt.path === entry.workspacePath),
       ).length,
     [live, worktreeDirs],
   )
@@ -202,19 +216,24 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     worktreeListedKey.current = key
     let cancelled = false
     void (async () => {
-      const found = new Set<string>()
+      const found = new Map<string, string>()
       for (const root of roots) {
         if (cancelled) return
         try {
           const worktrees = (await window.pidex.invoke('git:listWorktrees', root)) as WorktreeInfo[]
           for (const wt of worktrees) {
-            if (!wt.isMain) found.add(wt.realPath || wt.path)
+            // `prunable` is git's own answer for "this folder is gone". A
+            // deleted worktree is still listed until someone prunes it, and
+            // without this it became a sidebar group for a directory that
+            // does not exist.
+            if (wt.isMain || wt.prunable) continue
+            found.set(wt.realPath || wt.path, root!)
           }
         } catch {
           // Not a repo, or git unavailable — nothing to discover there.
         }
       }
-      if (!cancelled) setWorktreeDirs([...found])
+      if (!cancelled) setWorktreeDirs([...found].map(([path, root]) => ({ path, root })))
     })()
     return () => {
       cancelled = true
@@ -299,6 +318,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         workspacePath,
         orchestratorPaths,
         scanStatus,
+        worktreeRoots,
       ),
     [
       knownWorkspaces,
@@ -309,6 +329,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       liveByDisk,
       workspacePath,
       orchestratorPaths,
+      worktreeRoots,
     ],
   )
 
@@ -427,6 +448,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const chat = useChatStore.getState()
     const sessions = useSessionsStore.getState()
     const prState = usePullRequestsStore.getState()
+    const markerPrefMode = useLanePrefsStore.getState().lanes.markers
     const metaByPath = new Map(
       Object.values(disk)
         .flat()
@@ -448,7 +470,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
               explicitName: liveName ?? meta.name,
               firstUserText: meta.firstUserText,
             }) ?? 'Untitled session',
-          marker: laneMarker(explicit, git?.branch, meta.cwd),
+          marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
           git,
           pr: pullRequestFor(prState, git?.mainRepoPath ?? meta.cwd, git?.branch),
           isLive: Boolean(livePidexId),
@@ -620,177 +642,183 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           </>
         )}
 
-        {groups.map((group) => {
-          const isCollapsed = isGroupCollapsed(group)
-          return (
-            <div key={group.workspacePath}>
-              <div
-                onContextMenu={(event) => groupContextMenu(event, group)}
-                className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
-              >
-                <button
-                  onClick={() => toggleGroup(group, isCollapsed)}
-                  data-testid="workspace-group"
-                  className="text-text-tertiary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
-                  title={group.workspacePath}
+        {/* Prefs decide both which workspaces exist and what order they sit
+            in, so any header painted before they land can be wrong or about
+            to jump. A skeleton is the honest answer for that window. */}
+        {collapsed === null && <WorkspaceGroupSkeletons />}
+
+        {collapsed !== null &&
+          groups.map((group) => {
+            const isCollapsed = isGroupCollapsed(group)
+            return (
+              <div key={group.workspacePath}>
+                <div
+                  onContextMenu={(event) => groupContextMenu(event, group)}
+                  className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
                 >
-                  <span className="min-w-0 truncate">{group.name}</span>
-                  <ChevronIcon
-                    size={8}
-                    strokeWidth={3}
-                    expanded={!isCollapsed}
-                    className={clsx(
-                      'shrink-0 transition-opacity',
-                      // Collapsed groups keep their caret as the "there's more
-                      // here" cue; expanded ones reveal it on hover only.
-                      !isCollapsed && 'opacity-0 group-hover/header:opacity-100',
-                    )}
-                  />
-                  {group.liveCount > 0 && (
-                    <span
-                      className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
-                      title={`${group.liveCount} live`}
-                    />
-                  )}
-                </button>
-                <button
-                  ref={
-                    workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
-                  }
-                  onClick={() =>
-                    setWorkspaceMenuFor((current) =>
-                      current === group.workspacePath ? null : group.workspacePath,
-                    )
-                  }
-                  data-testid="workspace-group-menu"
-                  title="Workspace options"
-                  aria-label={`Workspace options for ${group.name}`}
-                  // Permanent, not hover-revealed: these three controls are the
-                  // workspace's fixed toolbar, and a control you cannot see is
-                  // a control you do not know exists.
-                  className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
-                >
-                  <MoreIcon size={14} />
-                </button>
-                {workspaceMenuFor === group.workspacePath && (
-                  <PopupMenu
-                    onClose={() => setWorkspaceMenuFor(null)}
-                    triggerRef={workspaceMenuTriggerRef}
-                    className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
-                  >
-                    <MenuRow
-                      active={false}
-                      disabled={groups.indexOf(group) === 0}
-                      onClick={() => moveGroup(group, 'up')}
-                    >
-                      Move up
-                    </MenuRow>
-                    <MenuRow
-                      active={false}
-                      disabled={groups.indexOf(group) === groups.length - 1}
-                      onClick={() => moveGroup(group, 'down')}
-                    >
-                      Move down
-                    </MenuRow>
-                  </PopupMenu>
-                )}
-                <button
-                  onClick={() => {
-                    useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-                    useSessionsStore.getState().activate(null)
-                  }}
-                  data-testid="workspace-group-new-session"
-                  title="New session here"
-                  className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
-                >
-                  <PlusIcon size={12} strokeWidth={2.5} />
-                </button>
-                {group.metas.length > 1 && (
                   <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      if (selection?.repoPath === group.workspacePath) clearSelection()
-                      else selectWholeGroup(group)
-                    }}
-                    data-testid="workspace-group-select"
-                    title={
-                      selection?.repoPath === group.workspacePath
-                        ? 'Clear selection'
-                        : 'Select every lane in this project'
-                    }
-                    className={clsx(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-2xs transition-colors active:scale-90',
-                      selection?.repoPath === group.workspacePath
-                        ? 'bg-accent-soft text-accent'
-                        : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
-                    )}
+                    onClick={() => toggleGroup(group, isCollapsed)}
+                    data-testid="workspace-group"
+                    className="text-text-tertiary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
+                    title={group.workspacePath}
                   >
-                    ☑
+                    <span className="min-w-0 truncate">{group.name}</span>
+                    <ChevronIcon
+                      size={8}
+                      strokeWidth={3}
+                      expanded={!isCollapsed}
+                      className={clsx(
+                        'shrink-0 transition-opacity',
+                        // Collapsed groups keep their caret as the "there's more
+                        // here" cue; expanded ones reveal it on hover only.
+                        !isCollapsed && 'opacity-0 group-hover/header:opacity-100',
+                      )}
+                    />
+                    {group.liveCount > 0 && (
+                      <span
+                        className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
+                        title={`${group.liveCount} live`}
+                      />
+                    )}
                   </button>
-                )}
-                <OrchestratorHeaderButton
-                  workspacePath={group.workspacePath}
-                  projectName={group.name}
-                />
-              </div>
-              {!isCollapsed &&
-                (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
-                  <PendingSessionRow
-                    key={pidexId}
-                    pidexId={pidexId}
-                    active={pidexId === activeSessionId}
-                    git={gitByCwd[live[pidexId]?.workspacePath ?? '']}
-                  />
-                ))}
-              {!isCollapsed &&
-                group.metas.map((meta) => (
-                  <SessionRow
-                    key={meta.path}
-                    {...rowProps(meta)}
-                    isPinned={false}
-                    selected={
-                      selection?.repoPath === group.workspacePath &&
-                      selection.paths.includes(meta.path)
+                  <button
+                    ref={
+                      workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
                     }
-                    selecting={selection?.repoPath === group.workspacePath}
-                    onToggleSelect={(shiftKey) => toggleLaneSelection(group, meta.path, shiftKey)}
+                    onClick={() =>
+                      setWorkspaceMenuFor((current) =>
+                        current === group.workspacePath ? null : group.workspacePath,
+                      )
+                    }
+                    data-testid="workspace-group-menu"
+                    title="Workspace options"
+                    aria-label={`Workspace options for ${group.name}`}
+                    // Permanent, not hover-revealed: these three controls are the
+                    // workspace's fixed toolbar, and a control you cannot see is
+                    // a control you do not know exists.
+                    className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
+                  >
+                    <MoreIcon size={14} />
+                  </button>
+                  {workspaceMenuFor === group.workspacePath && (
+                    <PopupMenu
+                      onClose={() => setWorkspaceMenuFor(null)}
+                      triggerRef={workspaceMenuTriggerRef}
+                      className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
+                    >
+                      <MenuRow
+                        active={false}
+                        disabled={groups.indexOf(group) === 0}
+                        onClick={() => moveGroup(group, 'up')}
+                      >
+                        Move up
+                      </MenuRow>
+                      <MenuRow
+                        active={false}
+                        disabled={groups.indexOf(group) === groups.length - 1}
+                        onClick={() => moveGroup(group, 'down')}
+                      >
+                        Move down
+                      </MenuRow>
+                    </PopupMenu>
+                  )}
+                  <button
+                    onClick={() => {
+                      useWorkspacesStore.getState().openWorkspace(group.workspacePath)
+                      useSessionsStore.getState().activate(null)
+                    }}
+                    data-testid="workspace-group-new-session"
+                    title="New session here"
+                    className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
+                  >
+                    <PlusIcon size={12} strokeWidth={2.5} />
+                  </button>
+                  {group.metas.length > 1 && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        if (selection?.repoPath === group.workspacePath) clearSelection()
+                        else selectWholeGroup(group)
+                      }}
+                      data-testid="workspace-group-select"
+                      title={
+                        selection?.repoPath === group.workspacePath
+                          ? 'Clear selection'
+                          : 'Select every lane in this project'
+                      }
+                      className={clsx(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-2xs transition-colors active:scale-90',
+                        selection?.repoPath === group.workspacePath
+                          ? 'bg-accent-soft text-accent'
+                          : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
+                      )}
+                    >
+                      ☑
+                    </button>
+                  )}
+                  <OrchestratorHeaderButton
+                    workspacePath={group.workspacePath}
+                    projectName={group.name}
                   />
-                ))}
-              {/* Rows already scanned stay put while the rest of the group
+                </div>
+                {!isCollapsed &&
+                  (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
+                    <PendingSessionRow
+                      key={pidexId}
+                      pidexId={pidexId}
+                      active={pidexId === activeSessionId}
+                      git={gitByCwd[live[pidexId]?.workspacePath ?? '']}
+                    />
+                  ))}
+                {!isCollapsed &&
+                  group.metas.map((meta) => (
+                    <SessionRow
+                      key={meta.path}
+                      {...rowProps(meta)}
+                      isPinned={false}
+                      selected={
+                        selection?.repoPath === group.workspacePath &&
+                        selection.paths.includes(meta.path)
+                      }
+                      selecting={selection?.repoPath === group.workspacePath}
+                      onToggleSelect={(shiftKey) => toggleLaneSelection(group, meta.path, shiftKey)}
+                    />
+                  ))}
+                {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
                   answer, but it must not hide what we have either. */}
-              {!isCollapsed && group.metas.length > 0 && group.unscannedPaths.length > 0 && (
-                <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
-                  <Spinner />
-                  <span>
-                    loading {group.unscannedPaths.length} more folder
-                    {group.unscannedPaths.length === 1 ? '' : 's'}…
-                  </span>
-                </div>
-              )}
-              {!isCollapsed &&
-                group.metas.length === 0 &&
-                !pendingByWorkspace.has(group.workspacePath) &&
-                (group.attempted && group.errored ? (
-                  <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
-                    <span>Couldn&apos;t load sessions</span>
-                    <button
-                      onClick={() => retryGroup(group)}
-                      className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
-                    >
-                      Retry
-                    </button>
+                {!isCollapsed && group.metas.length > 0 && group.unscannedPaths.length > 0 && (
+                  <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
+                    <Spinner />
+                    <span>
+                      loading {group.unscannedPaths.length} more folder
+                      {group.unscannedPaths.length === 1 ? '' : 's'}…
+                    </span>
                   </div>
-                ) : group.attempted ? (
-                  <div className="text-text-tertiary px-2 py-2 text-sm">
-                    Sessions you start will show up here
-                  </div>
-                ) : (
-                  <SessionRowSkeletons />
-                ))}
-            </div>
-          )
-        })}
+                )}
+                {!isCollapsed &&
+                  group.metas.length === 0 &&
+                  !pendingByWorkspace.has(group.workspacePath) &&
+                  (group.attempted && group.errored ? (
+                    <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
+                      <span>Couldn&apos;t load sessions</span>
+                      <button
+                        onClick={() => retryGroup(group)}
+                        className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : group.attempted ? (
+                    <div className="text-text-tertiary px-2 py-2 text-sm">
+                      Sessions you start will show up here
+                    </div>
+                  ) : (
+                    <SessionRowSkeletons />
+                  ))}
+              </div>
+            )
+          })}
       </div>
 
       <div className="border-border border-t px-3 py-2">
@@ -857,32 +885,21 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           onConfirm={(options) => {
             const lanes = pendingDelete.deletable.map((lane) => ({
               path: lane.path,
+              title: lane.title,
               worktreePath: lane.worktreePath,
               mainRepoPath: lane.mainRepoPath,
             }))
+            // The dialog stays up and switches to its progress view; the store
+            // publishes each lane as it goes. Clearing the selection now would
+            // empty the list the progress view is describing, so it waits
+            // until the run is dismissed.
             setPendingDelete(null)
-            clearSelection()
-            void useSessionsStore
-              .getState()
-              .deleteManySessions(workspacePath, lanes, options)
-              .then((results) => {
-                // A worktree that would not remove is the common failure, and
-                // a row that silently stays put reads as the delete having
-                // worked. Say what happened.
-                const failures = results.filter((r) => !r.ok)
-                const notes = results.filter((r) => r.ok && r.error)
-                if (failures.length === 0 && notes.length === 0) return
-                void presentText({
-                  title: 'Delete finished with warnings',
-                  text: [
-                    ...failures.map((r) => `Kept ${basename(r.path)} — ${r.error}`),
-                    ...notes.map((r) => `Deleted ${basename(r.path)}, but ${r.error}`),
-                  ].join('\n'),
-                })
-              })
+            void useSessionsStore.getState().deleteManySessions(workspacePath, lanes, options)
           }}
         />
       )}
+
+      <BulkDeleteProgressModal onDone={clearSelection} />
 
       {/* Width resize handle: an invisible strip over the right border. */}
       <div
@@ -1022,10 +1039,11 @@ function SessionRow({
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
+  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: pidex names a session only after its
   // first turn ends, so a title-derived marker would change under the user the
   // moment the auto-namer landed.
-  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd)
+  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
   const naming = useNameTransition(livePidexId)
   // A live session's own name beats the scanned one. pi writes its session
   // file only when a turn ENDS (measured), so a name set mid-turn does not
@@ -1090,7 +1108,21 @@ function SessionRow({
         label: isPinned ? 'Unpin' : 'Pin',
         onClick: () => store.togglePin(meta.path),
       },
-      { label: 'Lane marker…', onClick: () => setPickingMarker(true) },
+      ...(markerMode === 'off'
+        ? []
+        : [{ label: 'Lane marker…', onClick: () => setPickingMarker(true) }]),
+      // The chip itself is a mouse-only shortcut (it cannot be a tab stop
+      // inside the row button — see PrBadge). This is the keyboard route, and
+      // the only way to discover the PR number without hovering.
+      ...(pullRequest
+        ? [
+            {
+              label: `Open pull request #${pullRequest.number}`,
+              hint: pullRequest.state.toLowerCase(),
+              onClick: () => void openPullRequest(pullRequest),
+            },
+          ]
+        : []),
       ...(livePidexId
         ? [
             {
@@ -1186,7 +1218,7 @@ function SessionRow({
       <span className={clsx(onToggleSelect && (selecting ? 'hidden' : 'group-hover:hidden'))}>
         <SessionIndicator state={indicatorState} />
       </span>
-      <LaneMarker marker={marker} />
+      {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         {renaming ? (
           <input
@@ -1340,7 +1372,8 @@ function PendingSessionRow({
   // slot that appeared only after the swap would shift the title mid-turn —
   // the exact twitch the shared subtitle above exists to avoid. There is no
   // meta.path yet, so there can be no explicit override: always Auto.
-  const marker = laneMarker(undefined, git?.branch, null)
+  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
+  const marker = laneMarker(undefined, git?.branch, null, markerMode)
 
   return (
     <button
@@ -1356,7 +1389,7 @@ function PendingSessionRow({
       )}
     >
       <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
-      <LaneMarker marker={marker} />
+      {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         <span
           key={title}
@@ -1491,6 +1524,32 @@ function NavRow({
       </span>
       {label}
     </button>
+  )
+}
+
+/**
+ * Placeholder headers for the whole group list, before prefs have landed.
+ *
+ * Distinct from `SessionRowSkeletons`, which stands in for the sessions
+ * *inside* a group whose folders are known. This one covers the earlier
+ * window, when which projects exist and what order they take is still
+ * unknown, and painting a real header means painting one that may vanish.
+ */
+function WorkspaceGroupSkeletons(): React.JSX.Element {
+  return (
+    <div data-testid="workspace-groups-loading" aria-busy="true">
+      {[0, 1].map((i) => (
+        <div key={i}>
+          <div className="px-2 pb-0.5 pt-2.5">
+            <div
+              className="bg-sidebar-hover h-3 animate-pulse rounded"
+              style={{ width: `${45 - i * 10}%` }}
+            />
+          </div>
+          <SessionRowSkeletons />
+        </div>
+      ))}
+    </div>
   )
 }
 

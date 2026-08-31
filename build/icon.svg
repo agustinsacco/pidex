@@ -1,33 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!--
-    pidex mark — "prompt bubble".
-    A chat bubble carrying a terminal prompt (>_): the two things the app
-    fuses. Phosphor amber on warm graphite (see specs/reference/style-guide.md).
+    pidex mark — "aperture".
+    A ring of six discrete segments around a phosphor core: one orchestrator,
+    many agents holding position. Phosphor amber on warm graphite
+    (see specs/reference/style-guide.md §Logo).
+
+    Two things are load-bearing:
+    1. The dash pattern divides the circumference exactly six times
+       (2*pi*258 = 1621.0618 = 6 * (144.17697 + 126)), so the ring has no
+       seam. Changing r or the segment count means recomputing both numbers.
+    2. The bloom is a radial gradient, not stacked translucent circles.
+       Stacked circles rasterize as two hard-edged discs — a bullseye, not a
+       glow.
+
     Regenerate platform assets with: node scripts/generate-icons.mjs
+    Light-background twin: build/icon-light.svg (keep the two in step).
   -->
   <defs>
-    <linearGradient id="bubble" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="phosphor" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f2ab4e"/>
       <stop offset="100%" stop-color="#e2922e"/>
     </linearGradient>
+    <radialGradient id="bloom" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f2ab4e" stop-opacity="0.30"/>
+      <stop offset="45%" stop-color="#eca03d" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#eca03d" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
-  <path d="M 296 232
-           L 728 232
-           C 794 232 848 286 848 352
-           L 848 544
-           C 848 610 794 664 728 664
-           L 468 664
-           L 312 796
-           C 300 806 282 797 285 782
-           L 308 664
-           L 296 664
-           C 230 664 176 610 176 544
-           L 176 352
-           C 176 286 230 232 296 232 Z"
-        fill="url(#bubble)"/>
-  <g fill="none" stroke="#1f1c18" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 372 364 L 462 440 L 372 516"/>
-    <path d="M 532 540 L 660 540"/>
-  </g>
+  <circle cx="512" cy="512" r="246" fill="url(#bloom)"/>
+  <circle cx="512" cy="512" r="258"
+          fill="none" stroke="url(#phosphor)" stroke-width="78" stroke-linecap="round"
+          stroke-dasharray="144.17697 126" opacity="0.92"
+          transform="rotate(-106.009 512 512)"/>
+  <circle cx="512" cy="512" r="104" fill="url(#phosphor)"/>
 </svg>
