@@ -8,7 +8,7 @@ import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { composeDirectives } from '../pi/directives'
 import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
-import { usesClaudeCliProvider } from '../pi/provider-detect'
+import { claudeProviderSpawnEnv, usesClaudeCliProvider } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
@@ -148,12 +148,18 @@ async function spawnSession(
   // Known trade-off: pi's prompt is fixed at spawn, so a session switched to
   // a non-Claude provider mid-conversation runs without pi's CLAUDE.md copy.
   // See docs/log/2026-08-29-claude-provider-token-overhead.md.
-  const noContextFiles = stub
+  const claudeProvider = stub
     ? false
     : usesClaudeCliProvider(
         options,
         (await readAgentSettings(options.workspacePath)).defaultProvider,
       )
+  const noContextFiles = claudeProvider
+
+  // Same verdict, second consequence: confine the Claude CLI to pi's own tool
+  // registry so MCP reaches the model only through the adapter's gateway.
+  // Rationale and the pi-claude-cli version floor live in provider-detect.ts.
+  if (claudeProvider) Object.assign(spawnEnv, claudeProviderSpawnEnv())
 
   const session = registry.create(options.workspacePath, {
     binaryPath,

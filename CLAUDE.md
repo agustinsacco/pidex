@@ -146,7 +146,10 @@ you want to watch.
   bug — the flag wasn't re-sent across `--resume` — but re-sent the same
   broken flag, so it didn't fix the missing instructions.) If a session
   doesn't honour its charter at all, or stops after turn 1, check the
-  installed version first: `>= 0.4.16` is required for both. See
+  installed version first: `>= 0.4.16` is required for both. **`>= 0.5.1`**
+  is required for MCP isolation: pidex sets `PI_CLAUDE_CLI_STRICT_MCP=1` on
+  every Claude session so the CLI cannot load the user's own MCP servers
+  alongside pi's, and older versions ignore it. See
   [docs/log/2026-08-29-claude-cli-lifecycle-verification.md](docs/log/2026-08-29-claude-cli-lifecycle-verification.md).
 
 - **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
