@@ -1485,19 +1485,33 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
     const scroller = page.getByTestId('transcript-scroll')
     await expect(scroller).toBeVisible({ timeout: 30_000 })
     const tailGroup = page.locator('[data-testid="activity-group"][data-live="true"]').last()
+    // Wait for the burst to actually finish streaming, not just cross a
+    // height threshold: >600px can be true a dozen tool calls before the
+    // group's final height, and on a loaded runner that leaves most of the
+    // stub's hold still to be consumed by rendering the REST of the burst —
+    // squeezing the window this test depends on almost to nothing. Poll for
+    // two consecutive stable reads instead, so the wheel only fires once
+    // growth has genuinely stopped and the fixed hold hasn't started ticking
+    // it away yet.
+    let previousHeight = -1
     await expect
-      .poll(async () => await tailGroup.evaluate((el) => el.getBoundingClientRect().height), {
-        timeout: 30_000,
-      })
-      .toBeGreaterThan(600)
+      .poll(
+        async () => {
+          const current = await tailGroup.evaluate((el) => el.getBoundingClientRect().height)
+          const stable = current > 600 && current === previousHeight
+          previousHeight = current
+          return stable
+        },
+        { timeout: 30_000, intervals: [120] },
+      )
+      .toBe(true)
 
     // Read back a few hundred px — less than the pending collapse, so a clamp
     // would be visible. Poll rather than sample once: the group is still live
     // when the wheel fires, so a loaded runner can leave the wheel event's own
     // handler queued behind the tail group's render churn well past a fixed
     // wait — same reasoning as the group-height poll above, applied to the
-    // read-back itself. The 3s hold before the group settles leaves ample
-    // slack for this to resolve.
+    // read-back itself.
     const box = (await scroller.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.wheel(0, -360)

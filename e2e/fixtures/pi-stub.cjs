@@ -902,7 +902,12 @@ function runManyTurnsTurn(tailGroup = false) {
         }),
       )
     }
-    steps.push(() => new Promise((resolve) => setTimeout(resolve, 3000)))
+    // Fixed real-time hold, deliberately generous: this timer runs in the
+    // stub's own process, decoupled from how long the Electron renderer
+    // takes to catch up on the burst above. A short hold left almost no
+    // margin on a loaded CI runner — the group could finish collapsing
+    // before the test's read-back ever landed.
+    steps.push(() => new Promise((resolve) => setTimeout(resolve, 10_000)))
   }
   steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
   steps.push(() =>
