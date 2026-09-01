@@ -13,16 +13,18 @@ regardless of which of its nine modes ran.
 
 Status column is re-verified against the code, never inferred from this file.
 
-| #   | Finding                                             | Status as of 2026-09-01 |
-| --- | --------------------------------------------------- | ----------------------- |
-| F1  | Multi-line scripts collapse to their setup line     | open                    |
-| F2  | `cd <ws>` strip only matches `&&`, not newline      | open                    |
-| F3  | Every MCP gateway call renders as `Used mcp`        | open                    |
-| F4  | A failed tool hides its arguments two clicks deep   | open                    |
-| F5  | Raw `mcp__server__tool` names leak into the label   | open                    |
-| F6  | `ToolSearch` rows show the machine query            | open                    |
-| F7  | Structured MCP chip degrades silently to prose      | open                    |
-| F8  | `mcp({})` fails on every Claude session (not pidex) | open — `pi-claude-cli`  |
+| #   | Finding                                               | Status as of 2026-09-01 |
+| --- | ----------------------------------------------------- | ----------------------- |
+| F1  | Multi-line scripts collapse to their setup line       | open                    |
+| F2  | `cd <ws>` strip only matches `&&`, not newline        | open                    |
+| F3  | Every MCP gateway call renders as `Used mcp`          | open                    |
+| F4  | A failed tool hides its arguments two clicks deep     | open                    |
+| F5  | Raw `mcp__server__tool` names leak into the label     | open                    |
+| F6  | `ToolSearch` rows show the machine query              | open                    |
+| F7  | Structured MCP chip degrades silently to prose        | open                    |
+| F8  | `mcp({})` fails on every Claude session (not pidex)   | open — `pi-claude-cli`  |
+| F9  | A regex backslash defeats marker unescaping wholesale | open                    |
+| F10 | The UI advertises that the provider is Claude Code    | open                    |
 
 ## F1 — Multi-line scripts collapse to their setup line
 
@@ -134,6 +136,50 @@ schema.
 `mcp({})` and `artifact_list()`. Needs a publish and a reinstall to go live;
 see the version-floor note in [CLAUDE.md](../../../CLAUDE.md).
 
+## F9 — A regex backslash defeats marker unescaping wholesale
+
+`unescapeJsonFragment` (`src/features/chat/items/transcriptRows.ts`) recovers a
+marker field by re-parsing it as a JSON string: `JSON.parse('"' + value + '"')`.
+
+A shell command containing a regex backslash — `\s`, `\|`, `\d`, `\.` — is not a
+valid JSON escape, so the parse throws. The catch returns the string **raw**,
+which means _every_ escape in that command stays literal, including the ones
+that were fine. A `\n` then renders as two visible characters in the middle of
+the label:
+
+```
+Ran cd review-this-session-and-tell-me-how-we\ngrep -n "^\s*--color-…
+```
+
+Reproduced in isolation: the same command with the regex removed unescapes
+correctly, so the failure is the invalid escape and nothing else. `grep` and
+`sed` commands are precisely where this lands, which is most of them.
+
+The fix is to unescape per recognised escape sequence rather than by
+round-tripping the whole value through `JSON.parse` — one bad escape should cost
+that escape, not the entire string.
+
+## F10 — The UI advertises that the provider is Claude Code
+
+Every CLI-side tool row carries a `cc` chip in its gutter, and the group header
+reads `claude code 4 tools` rather than `ran 4 commands`. Which process executed
+a tool is an implementation detail of the provider; the transcript should read
+the same on a pi-native session and a Claude session.
+
+**Removing the mark has a prerequisite, and it is the real work.** These rows
+are not expandable: the provider forwards the invocation and never the result,
+so there is nothing behind the chevron. Today the `cc` chip is what explains
+that asymmetry. Remove it first and the rows become indistinguishable from pi's
+own while still going nowhere when clicked — a worse state, not a better one.
+
+`pi-claude-cli`'s `docs/ARCHITECTURE.md` already names the fix and calls it "the
+natural starting point if a front-end ever wants richer Claude-Code-side UX":
+the `user` envelopes between cycles carry `tool_result` blocks for tools the CLI
+ran itself, and `provider.ts` ignores them. Pairing each result to its
+`tool_use_id` and forwarding it is what earns one vocabulary.
+
+Order matters: forward the results, then drop the mark. Not the reverse.
+
 ## MCP functional verification, 2026-09-01
 
 Every gateway path exercised live against the four configured servers.
@@ -157,6 +203,11 @@ empty query matches nothing instead of everything.
 
 ## Sequencing
 
-F1+F2, then F3+F5+F6, then F4+F7 — three independent lanes, all against
-`toolSummaries.ts` and covered by `toolSummaries.test.ts`. F8 is a separate
-repo and a separate publish.
+F1+F2+F9, then F3+F5+F6, then F4+F7 — three independent lanes, mostly against
+`toolSummaries.ts` / `transcriptRows.ts` and covered by their existing sibling
+test files.
+
+F8 and F10 are cross-repo and ordered. F8 is a one-line fix plus a publish. F10
+needs `tool_result` forwarding to land in `pi-claude-cli` **before** the `cc`
+mark comes out of pidex, or the rows lose the one thing that currently explains
+why they do not open.
