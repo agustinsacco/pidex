@@ -167,7 +167,7 @@ export function HomeModelPicker({
           onClose={() => setOpen(null)}
           loading={busy}
           emptyText={catalogueEmptyText(status, providers)}
-          className="absolute bottom-full right-0 mb-2 w-[30rem] max-w-[90vw]"
+          className="w-[30rem] max-w-[92vw]"
         />
       )}
 
