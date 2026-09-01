@@ -82,6 +82,8 @@ export interface SessionMeta {
   cwd: string
   createdAt: string
   parentSession?: string
+  /** Id of the first entry after the header; see `dropSupersededSessions`. */
+  firstEntryId?: string
   name?: string
   firstUserText?: string
   userMessages: number

@@ -2,6 +2,7 @@ import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
+import { dropSupersededSessions } from './superseded'
 
 export interface GroupedSessions {
   /**
@@ -95,7 +96,7 @@ export function groupSessionsByProject(
     // `worktreeRoots` is what makes that true for a worktree living anywhere
     // on disk, not just under `<repo>/.pidex/worktrees/`.
     const projectKey = projectPathFor(path, git, worktreeRoots[path])
-    const metas = (disk[path] ?? []).filter(
+    const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter(
       (m) => !isPinned(m) && !isOrchestratorSession(m, orchestratorPaths),
     )
     const liveCount = metas.filter(isLive).length

@@ -179,6 +179,43 @@ describe('foldFrom', () => {
   })
 })
 
+/**
+ * `firstEntryId` is what tells a rewind's branch apart from a plain successor
+ * session: only a branch copies its parent's entries, so only a branch repeats
+ * that id. It must survive the incremental path, which never sees line 1 again.
+ */
+describe('firstEntryId', () => {
+  let dir: string
+  let path: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'pidex-first-entry-'))
+    path = join(dir, 'session.jsonl')
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('is the first entry after the header, and is not overwritten by a resumed fold', async () => {
+    await writeFile(path, line(HEADER) + turn(0, null), 'utf8')
+    const state = emptyFold()
+    const offset = await foldFrom(path, 0, state)
+    expect(metaFromFold(state, path, 0)?.firstEntryId).toBe('u0000')
+
+    await appendFile(path, turn(1, 'a0000'), 'utf8')
+    await foldFrom(path, offset, state)
+    expect(metaFromFold(state, path, 0)?.firstEntryId).toBe('u0000')
+  })
+
+  it('stays undefined for a header-only file', async () => {
+    await writeFile(path, line(HEADER), 'utf8')
+    const state = emptyFold()
+    await foldFrom(path, 0, state)
+    expect(metaFromFold(state, path, 0)?.firstEntryId).toBeUndefined()
+  })
+})
+
 describe('readSignature', () => {
   let dir: string
   let path: string

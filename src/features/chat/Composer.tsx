@@ -26,7 +26,12 @@ import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
-import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
+import {
+  composePrompt,
+  fromImageContents,
+  toImageContents,
+  type PendingAttachment,
+} from './attachments'
 import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
 import { useAttachments } from './composer/useAttachments'
 import { ComposerField } from './composer/ComposerField'
@@ -117,17 +122,19 @@ export function Composer({
     }
   }, [mention, workspacePath])
 
-  // Prefill from fork (edit-and-refork) or extension set_editor_text.
+  // Prefill from a rewind (edit-and-resend) or extension set_editor_text.
+  // Attachments are REPLACED, not appended: the prefill restores one specific
+  // message, so anything already staged belongs to a draft the rewind just
+  // discarded.
   const prefill = useChatUiStore((s) => s.prefill[sessionId])
   useEffect(() => {
-    if (prefill !== undefined) {
-      const text = useChatUiStore.getState().consumePrefill(sessionId)
-      if (text !== undefined) {
-        setText(text)
-        textareaRef.current?.focus()
-      }
-    }
-  }, [prefill, sessionId])
+    if (prefill === undefined) return
+    const restored = useChatUiStore.getState().consumePrefill(sessionId)
+    if (restored === undefined) return
+    setText(restored.text)
+    if (restored.images?.length) setImages(fromImageContents(restored.images))
+    textareaRef.current?.focus()
+  }, [prefill, sessionId, setText, setImages])
 
   const nativeCommands = useMemo<NativeCommand[]>(
     () => [

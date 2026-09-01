@@ -102,3 +102,19 @@ export function buildAttachmentBlock(attachments: PendingAttachment[]): string {
 export function composePrompt(text: string, attachments: PendingAttachment[]): string {
   return `${text}${buildAttachmentBlock(attachments)}`
 }
+
+/**
+ * Rebuild composer attachments from a message's persisted images.
+ *
+ * The inverse of `toImageContents`, used when a rewind hands a sent message
+ * back for editing. pi's protocol keeps no filename for an inline image, so
+ * the chip gets a positional one — it is display-only and never reaches pi.
+ */
+export function fromImageContents(images: ImageContent[]): PendingImage[] {
+  return images.map((image, index) => ({
+    kind: 'image',
+    data: image.data,
+    mimeType: image.mimeType,
+    name: `image-${index + 1}`,
+  }))
+}

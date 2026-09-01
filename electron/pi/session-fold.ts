@@ -28,6 +28,13 @@ interface HeaderFields {
 export interface FoldState {
   header: HeaderFields | null
   name?: string
+  /**
+   * Id of the first non-header entry. Together with `parentSession` it tells a
+   * BRANCH (pi's `fork`, which copies the parent's entries and so repeats its
+   * first id) apart from a plain successor session (`/new`, which also records
+   * a `parentSession` but shares no entries). See `dropSupersededSessions`.
+   */
+  firstEntryId?: string
   firstUserText?: string
   userMessages: number
   assistantMessages: number
@@ -94,6 +101,7 @@ export function foldLine(state: FoldState, line: string): void {
     return
   }
   state.entryCount++
+  if (!state.firstEntryId && typeof entry.id === 'string') state.firstEntryId = entry.id
   if (typeof entry.timestamp === 'string') state.lastTimestamp = entry.timestamp
   const parentId = entry.parentId as string | null
   if (parentId) {
@@ -157,6 +165,7 @@ export function metaFromFold(state: FoldState, path: string, mtimeMs: number): S
     cwd: header.cwd ?? '',
     createdAt: header.timestamp ?? '',
     parentSession: header.parentSession,
+    firstEntryId: state.firstEntryId,
     name: state.name,
     firstUserText: state.firstUserText?.slice(0, 200),
     userMessages: state.userMessages,
