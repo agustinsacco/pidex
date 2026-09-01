@@ -1,4 +1,4 @@
-import { appendFile, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, open, readFile, writeFile, type FileHandle } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
@@ -12,10 +12,24 @@ function newEntryId(): string {
   return randomBytes(4).toString('hex')
 }
 
-async function currentLeafId(path: string): Promise<string | null> {
-  const raw = await readFile(path, 'utf8')
-  const lines = raw.split('\n').filter((l) => l.trim().length > 0)
-  for (let i = lines.length - 1; i >= 0; i--) {
+/**
+ * How much of the file's end to read when looking for the last entry id.
+ *
+ * The answer is almost always on the final line, but a single entry can be
+ * large (a tool result carrying a whole file), so the window has to hold a few
+ * of them rather than just one. 64 KB covers that with room to spare and
+ * replaces a read of the entire transcript — 3.5 MB for the largest session
+ * here — on every bookmark and branch jump.
+ */
+const TAIL_WINDOW_BYTES = 64 * 1024
+
+/** Last entry id in `text`, scanning backwards. Ignores the session header. */
+function leafIdIn(text: string, skipFirstLine: boolean): string | null {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0)
+  // A window read almost certainly starts mid-line; that fragment is not
+  // parseable JSON, but dropping it explicitly beats relying on the catch.
+  const end = skipFirstLine ? 1 : 0
+  for (let i = lines.length - 1; i >= end; i--) {
     try {
       const entry = JSON.parse(lines[i]!) as { id?: string; type?: string }
       if (entry.type !== 'session' && entry.id) return entry.id
@@ -24,6 +38,37 @@ async function currentLeafId(path: string): Promise<string | null> {
     }
   }
   return null
+}
+
+/**
+ * The id of the last non-header entry — the parent for anything appended next.
+ *
+ * Reads only the tail of the file, falling back to a full read when the window
+ * turns up nothing (a session whose entries are bigger than the window, or one
+ * short enough that the window was the whole file anyway).
+ */
+async function currentLeafId(path: string): Promise<string | null> {
+  let handle: FileHandle | undefined
+  try {
+    handle = await open(path, 'r')
+    const { size } = await handle.stat()
+    if (size > TAIL_WINDOW_BYTES) {
+      const buffer = Buffer.allocUnsafe(TAIL_WINDOW_BYTES)
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        TAIL_WINDOW_BYTES,
+        size - TAIL_WINDOW_BYTES,
+      )
+      const found = leafIdIn(buffer.subarray(0, bytesRead).toString('utf8'), true)
+      if (found) return found
+    }
+  } catch {
+    // Fall through to the whole-file read, which reports the real error.
+  } finally {
+    await handle?.close()
+  }
+  return leafIdIn(await readFile(path, 'utf8'), false)
 }
 
 /** Append a label entry (bookmark) targeting `targetId`. */

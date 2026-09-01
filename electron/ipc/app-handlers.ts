@@ -31,6 +31,7 @@ import {
   setWorktreePrefs,
   setNotificationsMuted,
   setClaudeAutocompact,
+  setSessionReaperPrefs,
   setDraft,
   clearDraft,
   setDrafts,
@@ -195,6 +196,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setClaudeAutocompact', (_event, value: string) => {
     setClaudeAutocompact(value)
+  })
+
+  handle('app:setSessionReaperPrefs', (_event, prefs) => {
+    setSessionReaperPrefs(prefs)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {

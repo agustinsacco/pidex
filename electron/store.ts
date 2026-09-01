@@ -11,6 +11,8 @@ import {
   DEFAULT_APP_PREFS,
   DEFAULT_MODEL_PICKS,
   normalizeLanePrefs,
+  normalizeSessionReaperPrefs,
+  type SessionReaperPrefs,
   type LanePrefs,
   type AgentDirectivePrefs,
   type AppPrefs,
@@ -88,6 +90,8 @@ export function getPrefs(): AppPrefs {
     orchestratorDigests: s.get('orchestratorDigests') ?? {},
     notificationsMuted: s.get('notificationsMuted') ?? false,
     claudeAutocompact: s.get('claudeAutocompact') ?? '',
+    // Normalized on read as well as write: these numbers gate process kills.
+    sessionReaper: normalizeSessionReaperPrefs(s.get('sessionReaper')),
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -178,6 +182,11 @@ export function setNotificationsMuted(muted: boolean): void {
 /** See AppPrefs.claudeAutocompact — stored trimmed; '' means provider default. */
 export function setClaudeAutocompact(value: string): void {
   prefs().set('claudeAutocompact', value.trim())
+}
+
+/** Idle-session reaper policy. Normalized before storing. */
+export function setSessionReaperPrefs(value: SessionReaperPrefs): void {
+  prefs().set('sessionReaper', normalizeSessionReaperPrefs(value))
 }
 
 /** Record that the user has viewed a session's current state. */

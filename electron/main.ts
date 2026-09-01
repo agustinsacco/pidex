@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
-import { registry } from './registry'
+import { registry, sessionReaper } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeConnectorAuth } from './pi/connector-auth'
 import { cancelAllLogins } from './pi/login-flow'
@@ -175,6 +175,8 @@ app.on('before-quit', (event) => {
   // A connector flow owns its own throwaway pi child — not in the registry, so
   // disposeAll below would not touch it, and it holds the OAuth callback port.
   disposeConnectorAuth()
+  // Stop the reaper before disposeAll so a sweep cannot interleave with it.
+  sessionReaper.stop()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

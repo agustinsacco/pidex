@@ -282,3 +282,85 @@ describe('session writer', () => {
     })
   })
 })
+
+/**
+ * `currentLeafId` reads a bounded tail rather than the whole transcript (the
+ * largest real session here is 3.5 MB, and every bookmark used to read all of
+ * it). These pin the two things that bound can get wrong: the window must
+ * still find the true leaf, and it must fall back when the leaf is not in it.
+ */
+describe('currentLeafId tail window', () => {
+  let dir: string
+  let sessionPath: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'pidex-writer-tail-'))
+    sessionPath = join(dir, '2026-08-01T10-00-00-000Z_sess-uuid-1.jsonl')
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  /** A transcript well past the 64 KB window, with a known last entry. */
+  async function writeBigSession(entrySize: number, count: number): Promise<string> {
+    let content = line(HEADER)
+    let previous: string | null = null
+    let last = ''
+    for (let i = 0; i < count; i++) {
+      const id = `bbbb${String(i).padStart(4, '0')}`
+      content += line({
+        type: 'message',
+        id,
+        parentId: previous,
+        timestamp: '2026-08-01T10:00:01.000Z',
+        message: { role: 'assistant', content: 'x'.repeat(entrySize), timestamp: 1 },
+      })
+      previous = id
+      last = id
+    }
+    await writeFile(sessionPath, content, 'utf8')
+    return last
+  }
+
+  it('finds the leaf of a file far larger than the window', async () => {
+    const last = await writeBigSession(2_000, 200) // ~400 KB, 6x the window
+    await appendLabel(sessionPath, last, 'checkpoint')
+
+    const lines = await parsedLines(sessionPath)
+    const label = lines.at(-1) as { type: string; parentId: string }
+    expect(label.type).toBe('label')
+    expect(label.parentId).toBe(last)
+  })
+
+  it('falls back to a full read when one entry is bigger than the window', async () => {
+    // A tool result carrying a whole file does this. The window then contains
+    // no complete line, and a bounded read alone would report no parent.
+    const last = await writeBigSession(200_000, 1)
+    await appendLabel(sessionPath, last, 'checkpoint')
+
+    const lines = await parsedLines(sessionPath)
+    const label = lines.at(-1) as { type: string; parentId: string }
+    expect(label.parentId).toBe(last)
+  })
+
+  it('leaves a header-only session with no parent, as before', async () => {
+    await writeFile(sessionPath, line(HEADER), 'utf8')
+    await appendLabel(sessionPath, 'aaaa0001', 'checkpoint')
+
+    const lines = await parsedLines(sessionPath)
+    const label = lines.at(-1) as { type: string; parentId: string | null }
+    expect(label.parentId).toBeNull()
+  })
+
+  it('branch jumps read the same leaf through the window', async () => {
+    const last = await writeBigSession(2_000, 200)
+    await appendBranchJump(sessionPath, 'bbbb0005')
+
+    const lines = await parsedLines(sessionPath)
+    const jump = lines.at(-1) as { type: string; parentId: string; fromId: string }
+    expect(jump.type).toBe('branch_summary')
+    expect(jump.parentId).toBe('bbbb0005')
+    expect(jump.fromId).toBe(last)
+  })
+})

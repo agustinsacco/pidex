@@ -24,27 +24,41 @@ const meta: SessionMeta = {
 }
 
 describe('shouldRefreshStatsOn', () => {
-  it('refreshes on message_end and tool_execution_end (live climb during a run)', () => {
-    // Regression: stats previously only refreshed on agent_end/compaction_end,
-    // so the context meter and token count looked frozen for the whole
-    // duration of a turn and only jumped once it fully finished.
-    expect(shouldRefreshStatsOn('message_end')).toBe(true)
-    expect(shouldRefreshStatsOn('tool_execution_end')).toBe(true)
+  describe('without usage on deltas (pi < 0.84.2)', () => {
+    it('refreshes on message_end and tool_execution_end (live climb during a run)', () => {
+      // Regression: stats previously only refreshed on agent_end/compaction_end,
+      // so the context meter and token count looked frozen for the whole
+      // duration of a turn and only jumped once it fully finished. Polling is
+      // the ONLY thing that moves the meter mid-turn on these builds.
+      expect(shouldRefreshStatsOn('message_end', false)).toBe(true)
+      expect(shouldRefreshStatsOn('tool_execution_end', false)).toBe(true)
+      expect(shouldRefreshStatsOn('agent_end', false)).toBe(true)
+      expect(shouldRefreshStatsOn('compaction_end', false)).toBe(true)
+    })
+
+    it('does not refresh on high-frequency streaming deltas', () => {
+      expect(shouldRefreshStatsOn('message_update', false)).toBe(false)
+      expect(shouldRefreshStatsOn('tool_execution_update', false)).toBe(false)
+      expect(shouldRefreshStatsOn('agent_start', false)).toBe(false)
+      expect(shouldRefreshStatsOn('message_start', false)).toBe(false)
+      expect(shouldRefreshStatsOn('tool_execution_start', false)).toBe(false)
+    })
   })
 
-  it('still refreshes on the original triggers', () => {
-    expect(shouldRefreshStatsOn('agent_end')).toBe(true)
-    expect(shouldRefreshStatsOn('compaction_end')).toBe(true)
-  })
+  describe('with usage on deltas (pi >= 0.84.2)', () => {
+    it('polls only at boundaries pi computes things the stream cannot carry', () => {
+      // The meter climbs from message_update.usage; the poll re-syncs the
+      // authoritative context estimate and message counts. MEASURED without
+      // this: ~26 get_session_stats round trips per user turn.
+      expect(shouldRefreshStatsOn('agent_end', true)).toBe(true)
+      expect(shouldRefreshStatsOn('compaction_end', true)).toBe(true)
+    })
 
-  it('does not refresh on high-frequency streaming deltas', () => {
-    // These fire many times per second while text streams — refreshing on
-    // every one would be excessive even though the RPC itself is cheap.
-    expect(shouldRefreshStatsOn('message_update')).toBe(false)
-    expect(shouldRefreshStatsOn('tool_execution_update')).toBe(false)
-    expect(shouldRefreshStatsOn('agent_start')).toBe(false)
-    expect(shouldRefreshStatsOn('message_start')).toBe(false)
-    expect(shouldRefreshStatsOn('tool_execution_start')).toBe(false)
+    it('drops the per-sub-step polls the stream now covers', () => {
+      expect(shouldRefreshStatsOn('message_end', true)).toBe(false)
+      expect(shouldRefreshStatsOn('tool_execution_end', true)).toBe(false)
+      expect(shouldRefreshStatsOn('message_update', true)).toBe(false)
+    })
   })
 })
 
@@ -90,6 +104,49 @@ describe('adoptSession', () => {
     useSessionsStore.setState((s) => ({ unread: { ...s.unread, 'orc-1': 5 } }))
     await useSessionsStore.getState().adoptSession('orc-1', '/repo')
     expect(useSessionsStore.getState().unread['orc-1']).toBe(5)
+  })
+
+  it('records a caller-supplied diskPath, so resume matching works pre-bootstrap', async () => {
+    // Reload re-adoption knows the path from the fleet hub; waiting for
+    // get_state would let resumeTarget spawn a SECOND process on the file.
+    await useSessionsStore.getState().adoptSession('orphan-1', '/repo', '/sessions/s1.jsonl')
+    expect(useSessionsStore.getState().live['orphan-1']?.diskPath).toBe('/sessions/s1.jsonl')
+  })
+})
+
+describe('reaped push', () => {
+  const invoke = vi.fn()
+  let pushListener: ((push: unknown) => void) | null = null
+
+  beforeEach(() => {
+    invoke.mockReset().mockResolvedValue(undefined)
+    pushListener = null
+    vi.stubGlobal('window', {
+      pidex: {
+        invoke,
+        piCommand: vi.fn().mockResolvedValue({ success: false }),
+        onSessionPush: (_id: string, listener: (push: unknown) => void) => {
+          pushListener = listener
+          return () => {}
+        },
+      },
+    })
+    useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null, suspendedPaths: [] })
+  })
+
+  it('cleans local state and marks the row suspended, without a second dispose', async () => {
+    await useSessionsStore.getState().adoptSession('r-1', '/repo', '/sessions/r1.jsonl')
+    expect(pushListener).not.toBeNull()
+    invoke.mockClear()
+
+    pushListener!({ kind: 'reaped', diskPath: '/sessions/r1.jsonl', workspacePath: '/repo' })
+    // cleanup is async (lazy store imports); wait for it to settle.
+    await vi.waitFor(() => {
+      expect(useSessionsStore.getState().live['r-1']).toBeUndefined()
+    })
+    expect(useSessionsStore.getState().suspendedPaths).toContain('/sessions/r1.jsonl')
+    // Main already killed the process; the renderer must not ask again.
+    expect(invoke).not.toHaveBeenCalledWith('pi:disposeSession', 'r-1')
   })
 })
 

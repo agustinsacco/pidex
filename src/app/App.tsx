@@ -76,11 +76,37 @@ export function App(): React.JSX.Element {
 
     void (async () => {
       try {
+        // Re-adopt live pi subprocesses main still owns before deciding what
+        // to open. A renderer reload (HMR, crash, re-navigation) used to
+        // orphan every one of them — ~200 MB each, stranded until quit — and
+        // resuming a session an orphan still owned would have spawned a
+        // SECOND process against the same session file. Orchestrators are
+        // main's own threads and re-attach through their button instead.
+        const orphans = await window.pidex
+          .invoke('pi:listLiveSessions')
+          .then((live) => live.filter((s) => !s.isOrchestrator))
+          .catch(() => [])
+        for (const orphan of orphans) {
+          if (cancelled) return
+          await useSessionsStore
+            .getState()
+            .adoptSession(orphan.sessionId, orphan.workspacePath, orphan.diskPath)
+        }
+
         const target = await window.pidex.invoke('app:resumeTarget')
         if (cancelled || target.kind === 'none') return
 
         useWorkspacesStore.getState().openWorkspace(target.workspacePath)
         if (target.kind === 'session' && !cancelled) {
+          // An adopted orphan that IS the resume target: activate it rather
+          // than spawning a duplicate process on the same file.
+          const adopted = Object.values(useSessionsStore.getState().live).find(
+            (l) => l.diskPath === target.sessionPath,
+          )
+          if (adopted) {
+            useSessionsStore.getState().activate(adopted.pidexId)
+            return
+          }
           // Resume by path directly. The session-dir scan is only used to
           // enrich the sidebar; requiring a match there would fail whenever
           // the file lives outside pi's default session directory.

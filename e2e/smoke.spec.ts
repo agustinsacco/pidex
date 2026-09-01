@@ -2081,3 +2081,65 @@ test('opening the orchestrator gives it controls, and never a session row', asyn
     await shutdown(harness)
   }
 })
+
+test('a renderer reload re-adopts the live session instead of orphaning it', async () => {
+  // The leak this guards: the pi subprocess registry lives in main, the
+  // renderer's live map is plain store state. A reload (HMR, crash,
+  // re-navigation) used to hand the renderer an empty map while every
+  // ~200 MB child kept running until quit — and resuming the same session
+  // file then spawned a SECOND process against it.
+  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-reload-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+
+  try {
+    const harness = await launch({ workspace, userDataDir })
+    try {
+      await openWorkspace(harness.page)
+      await harness.page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+      await harness.page.getByRole('button', { name: /Start session/i }).click()
+      await expect(harness.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 20_000,
+      })
+      // The fleet hub needs the session's diskPath (get_state) before a
+      // reload can match it; the disk-backed sidebar row is that signal.
+      await expect(
+        harness.page.locator('[data-testid="session-row"]:not([data-pending])').first(),
+      ).toBeVisible({ timeout: 20_000 })
+
+      // Through the real IPC surface — the same channel the reload uses.
+      const pidBefore = await harness.page.evaluate(() =>
+        (
+          window as unknown as {
+            pidex: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
+          }
+        ).pidex
+          .invoke('pi:listLiveSessions')
+          .then((live) => live.map((s) => s.pid)),
+      )
+      expect(pidBefore).toHaveLength(1)
+
+      await harness.page.reload()
+
+      // The reloaded renderer must show the SAME live session again…
+      await expect(harness.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
+        timeout: 30_000,
+      })
+      // …and main must still own exactly one pi process — the original.
+      const pidAfter = await harness.page.evaluate(() =>
+        (
+          window as unknown as {
+            pidex: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
+          }
+        ).pidex
+          .invoke('pi:listLiveSessions')
+          .then((live) => live.map((s) => s.pid)),
+      )
+      expect(pidAfter).toEqual(pidBefore)
+    } finally {
+      await harness.app.close()
+    }
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})

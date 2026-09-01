@@ -56,13 +56,33 @@ export function sessionDirNameForCwd(cwd: string): string {
  * `process.cwd()` in a spawned child is already resolved. Mangling an
  * unresolved path yields a directory name that simply does not exist.
  */
+/**
+ * Memoized, because `realCwd` is on the path of every session scan and every
+ * session-dir watch — a blocking syscall on the main thread, repeated for the
+ * same handful of workspaces for the life of the process.
+ *
+ * Only SUCCESSFUL resolutions are cached. A path that does not exist yet
+ * resolves to itself, and caching that would permanently mis-resolve a
+ * workspace created a moment later (a fresh worktree is exactly that case).
+ */
+const realCwdCache = new Map<string, string>()
+
 function realCwd(cwd: string): string {
+  const cached = realCwdCache.get(cwd)
+  if (cached !== undefined) return cached
   try {
-    return realpathSync.native(cwd)
+    const real = realpathSync.native(cwd)
+    realCwdCache.set(cwd, real)
+    return real
   } catch {
     // Path may not exist yet (or any more); fall back to the given path.
     return cwd
   }
+}
+
+/** Test seam: forget memoized real paths. */
+export function clearRealCwdCache(): void {
+  realCwdCache.clear()
 }
 
 /** Session directory for a workspace. */

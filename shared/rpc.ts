@@ -115,6 +115,12 @@ export interface Usage {
   output: number
   cacheRead: number
   cacheWrite: number
+  /**
+   * pi's own total (its `calculateContextTokens` prefers this over the sum),
+   * present on the wire since usage returned to `message_update` in 0.84.2.
+   * Optional here because older persisted messages predate it.
+   */
+  totalTokens?: number
   cost?: {
     input: number
     output: number

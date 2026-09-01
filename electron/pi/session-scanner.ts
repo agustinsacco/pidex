@@ -1,33 +1,87 @@
-import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createInterface } from 'node:readline'
 import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
 import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { sessionDirForCwd } from './pi-paths'
-import { extractText } from './session-content'
+import {
+  cloneFold,
+  emptyFold,
+  foldFrom,
+  metaFromFold,
+  readSignature,
+  type FoldState,
+} from './session-fold'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
 
 /**
  * On-disk session discovery — drives the sidebar and home stats without
- * spawning pi processes. The directory layout itself lives in `pi-paths.ts`.
- *
- * NOTE: plain readline is fine HERE (unlike the RPC stream) because we parse
- * whole persisted files line-by-line and pi writes each entry as one LF-
- * terminated line; a U+2028 inside a JSON string would only split a line with
- * readline if it appeared raw — pi JSON-escapes nothing extra, so to stay
- * safe we still parse defensively and skip unparseable lines.
+ * spawning pi processes. The directory layout itself lives in `pi-paths.ts`,
+ * and the parse itself in `session-fold.ts`.
  */
 
 interface CacheEntry {
   mtimeMs: number
   size: number
-  meta: SessionMeta
+  /**
+   * `null` for a file with no `type: "session"` header, and cached as such
+   * ON PURPOSE. A null result used to be left out of the cache, so every one
+   * of those files was fully re-parsed on EVERY scan rather than only when it
+   * changed. MEASURED: 5 of 112 real session files here have no header, and
+   * one of them is 3.2 MB — re-read in full on every sidebar refresh of that
+   * workspace, forever. "This file has nothing to show" is an answer worth
+   * remembering.
+   */
+  meta: SessionMeta | null
+}
+
+/**
+ * State needed to continue a parse instead of restarting it: where the last
+ * one stopped, proof the file was appended to rather than rewritten, and the
+ * running totals.
+ */
+interface ResumeEntry {
+  consumedBytes: number
+  signature: string
+  state: FoldState
+}
+
+/**
+ * Metadata for every session ever scanned. Bounded because this process runs
+ * for days: it used to be a plain Map that also kept entries for deleted
+ * files forever.
+ */
+const METAS_CACHED = 512
+
+/**
+ * Resumable parses. Deliberately far smaller than METAS_CACHED — a resume
+ * entry holds a `seenParents` set that grows with the transcript (~400 KB for
+ * a 3.6 MB session), and only files being appended to can use one. A handful
+ * covers every session actually live at once; a cold session that never
+ * changes never needs one.
+ */
+const RESUMES_CACHED = 16
+
+/** Insertion-ordered Map used as an LRU: re-set on hit, evict from the front. */
+function touch<V>(cache: Map<string, V>, key: string, value: V, cap: number): void {
+  cache.delete(key)
+  cache.set(key, value)
+  while (cache.size > cap) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
 }
 
 const metaCache = new Map<string, CacheEntry>()
+const resumeCache = new Map<string, ResumeEntry>()
+
+/** Test seam: drop every cached parse. */
+export function clearSessionCaches(): void {
+  metaCache.clear()
+  resumeCache.clear()
+}
 
 export async function listSessions(workspacePath: string): Promise<SessionMeta[]> {
   return listSessionsInDir(sessionDirForCwd(workspacePath))
@@ -41,6 +95,7 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
     return []
   }
 
+  const present = new Set(files.map((file) => join(dir, file)))
   const metas = await Promise.all(
     files.map(async (file) => {
       const path = join(dir, file)
@@ -48,10 +103,11 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
         const info = await stat(path)
         const cached = metaCache.get(path)
         if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+          touch(metaCache, path, cached, METAS_CACHED)
           return cached.meta
         }
-        const meta = await parseSessionFile(path, info.mtimeMs)
-        if (meta) metaCache.set(path, { mtimeMs: info.mtimeMs, size: info.size, meta })
+        const meta = await scanSessionFile(path, info.mtimeMs, info.size)
+        touch(metaCache, path, { mtimeMs: info.mtimeMs, size: info.size, meta }, METAS_CACHED)
         return meta
       } catch {
         return null
@@ -59,137 +115,79 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
     }),
   )
 
+  // A session deleted from this directory must not keep its entry alive. Only
+  // paths under `dir` are considered, so other workspaces are untouched.
+  for (const path of [...metaCache.keys()]) {
+    if (path.startsWith(dir) && !present.has(path)) {
+      metaCache.delete(path)
+      resumeCache.delete(path)
+    }
+  }
+
   return metas.filter((m): m is SessionMeta => m !== null).sort(compareSessionsByCreation)
 }
 
-/** Single-pass parse: header, latest name, first user message, counts, tokens. */
-export async function parseSessionFile(path: string, mtimeMs: number): Promise<SessionMeta | null> {
-  const stream = createReadStream(path, { encoding: 'utf8' })
-  const rl = createInterface({ input: stream, crlfDelay: Infinity })
-
-  interface HeaderFields {
-    id?: string
-    cwd?: string
-    timestamp?: string
-    parentSession?: string
-  }
-  let header: HeaderFields | null = null
-  let name: string | undefined
-  let firstUserText: string | undefined
-  let userMessages = 0
-  let assistantMessages = 0
-  let toolCalls = 0
-  let totalTokens = 0
-  let inputTokens = 0
-  let outputTokens = 0
-  let cacheReadTokens = 0
-  let cacheWriteTokens = 0
-  let cost = 0
-  let entryCount = 0
-  let lastTimestamp: string | undefined
-  let branchCount = 0
-  const seenParents = new Set<string>()
-
-  try {
-    for await (const line of rl) {
-      if (!line.trim()) continue
-      let entry: Record<string, unknown>
+/**
+ * Parse a session file, continuing a previous parse when the file has only
+ * grown since.
+ *
+ * The append is PROVEN, not assumed: the bytes ending where the last parse
+ * stopped are re-read and compared. A rewrite, a truncation, or anything else
+ * that moves that boundary falls back to a full parse, so the worst case is
+ * the old cost and never a wrong answer.
+ */
+async function scanSessionFile(
+  path: string,
+  mtimeMs: number,
+  size: number,
+): Promise<SessionMeta | null> {
+  const resume = resumeCache.get(path)
+  // `size > consumedBytes` is load-bearing, not an optimization. Reaching here
+  // means the file changed, so a file that did NOT grow was rewritten in
+  // place — and a same-length rewrite can leave the last 64 bytes untouched,
+  // which the signature alone would read as "nothing happened" and answer
+  // with stale totals. Requiring new bytes sends that case to a full parse.
+  if (resume && size > resume.consumedBytes) {
+    const signature = await readSignature(path, resume.consumedBytes)
+    if (signature === resume.signature) {
+      // Fold into a copy: a throw partway through would otherwise leave the
+      // cached totals double-counted for every later turn.
+      const state = cloneFold(resume.state)
       try {
-        entry = JSON.parse(line) as Record<string, unknown>
+        const consumedBytes = await foldFrom(path, resume.consumedBytes, state)
+        return await remember(path, mtimeMs, state, consumedBytes)
       } catch {
-        continue
-      }
-
-      const type = entry.type as string
-      if (type === 'session') {
-        header = entry as unknown as {
-          id?: string
-          cwd?: string
-          timestamp?: string
-          parentSession?: string
-        }
-        continue
-      }
-      entryCount++
-      if (typeof entry.timestamp === 'string') lastTimestamp = entry.timestamp
-      const parentId = entry.parentId as string | null
-      if (parentId) {
-        if (seenParents.has(parentId)) branchCount++
-        seenParents.add(parentId)
-      }
-
-      if (type === 'session_info') {
-        name = (entry.name as string | undefined) || undefined
-      } else if (type === 'message') {
-        const message = entry.message as
-          | {
-              role?: string
-              content?: unknown
-              usage?: {
-                totalTokens?: number
-                input?: number
-                output?: number
-                cacheRead?: number
-                cacheWrite?: number
-                cost?: { total?: number }
-              }
-            }
-          | undefined
-        if (!message) continue
-        if (message.role === 'user') {
-          userMessages++
-          if (!firstUserText) firstUserText = extractText(message.content)
-        } else if (message.role === 'assistant') {
-          assistantMessages++
-          const content = message.content
-          if (Array.isArray(content)) {
-            toolCalls += content.filter((b) => (b as { type?: string }).type === 'toolCall').length
-          }
-          const usage = message.usage
-          if (usage) {
-            totalTokens +=
-              usage.totalTokens ??
-              (usage.input ?? 0) +
-                (usage.output ?? 0) +
-                (usage.cacheRead ?? 0) +
-                (usage.cacheWrite ?? 0)
-            inputTokens += usage.input ?? 0
-            outputTokens += usage.output ?? 0
-            cacheReadTokens += usage.cacheRead ?? 0
-            cacheWriteTokens += usage.cacheWrite ?? 0
-            cost += usage.cost?.total ?? 0
-          }
-        }
+        // Fall through to the full parse below.
       }
     }
-  } finally {
-    rl.close()
-    stream.close()
   }
+  resumeCache.delete(path)
 
-  if (!header?.id) return null
-  return {
-    path,
-    sessionId: header.id,
-    cwd: header.cwd ?? '',
-    createdAt: header.timestamp ?? '',
-    parentSession: header.parentSession,
-    name,
-    firstUserText: firstUserText?.slice(0, 200),
-    userMessages,
-    assistantMessages,
-    toolCalls,
-    totalTokens,
-    inputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-    cost,
-    entryCount,
-    branchCount,
-    mtimeMs,
-    lastActivityAt: lastTimestamp ?? header.timestamp ?? '',
+  const state = emptyFold()
+  const consumedBytes = await foldFrom(path, 0, state)
+  return remember(path, mtimeMs, state, consumedBytes)
+}
+
+async function remember(
+  path: string,
+  mtimeMs: number,
+  state: FoldState,
+  consumedBytes: number,
+): Promise<SessionMeta | null> {
+  const meta = metaFromFold(state, path, mtimeMs)
+  if (!meta) return null
+  const signature = await readSignature(path, consumedBytes)
+  if (signature !== null) {
+    touch(resumeCache, path, { consumedBytes, signature, state }, RESUMES_CACHED)
   }
+  return meta
+}
+
+/** Single-pass parse of a whole file. Kept for callers outside the scan loop. */
+export async function parseSessionFile(path: string, mtimeMs: number): Promise<SessionMeta | null> {
+  const state = emptyFold()
+  await foldFrom(path, 0, state)
+  return metaFromFold(state, path, mtimeMs)
 }
 
 /**
