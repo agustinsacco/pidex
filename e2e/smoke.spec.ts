@@ -741,9 +741,12 @@ test('a session whose file lands late still becomes a real, right-clickable row'
     await expect(row).not.toHaveAttribute('data-pending', 'true', { timeout: 30_000 })
 
     await row.click({ button: 'right' })
-    // Any SessionRow-only action proves the promotion: `PendingSessionRow` has
-    // no context menu at all. (Rename is not in this menu — it is an inline
-    // edit on the row, covered by the next test.)
+    // Any SessionRow-only action proves the promotion. `PendingSessionRow`
+    // has a context menu too, but only the three actions that route through
+    // the live process (Open / Rename / Export) — Fork is keyed on the
+    // session file, so it can only come from a promoted row. (Rename is not
+    // in this menu — it is an inline edit on the row, covered by the next
+    // test.)
     await expect(
       page.getByTestId('context-menu').getByRole('button', { name: /^Fork/ }),
     ).toBeVisible({ timeout: 10_000 })
