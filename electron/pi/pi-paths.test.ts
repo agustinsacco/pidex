@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   claudeProjectDirName,
   claudeProjectsRoot,
   claudeSessionFileForCwd,
+  clearRealCwdCache,
+  piSessionsRoot,
+  sessionDirForCwd,
   sessionDirNameForCwd,
 } from './pi-paths'
 
@@ -88,5 +93,59 @@ describe('claudeSessionFileForCwd', () => {
   it('honours the CLI\u2019s own CLAUDE_CONFIG_DIR override', () => {
     process.env.CLAUDE_CONFIG_DIR = '/elsewhere'
     expect(claudeProjectsRoot()).toBe(join('/elsewhere', 'projects'))
+  })
+})
+
+/**
+ * `realCwd` is a blocking syscall on the path of every session scan and every
+ * session-dir watch, for a set of workspaces that does not change while the
+ * app runs. These tests pin the memoization AND the one case that must never
+ * be memoized.
+ *
+ * A symlink is what makes the behaviour observable on both CI platforms:
+ * resolving changes the answer, so "did it resolve?" is readable from the
+ * returned directory name alone, with no spying on node:fs.
+ */
+describe('realCwd memoization', () => {
+  let root: string
+  let target: string
+  let link: string
+
+  beforeEach(() => {
+    clearRealCwdCache()
+    root = realpathSync.native(mkdtempSync(join(tmpdir(), 'pidex-realcwd-')))
+    target = join(root, 'target')
+    link = join(root, 'link')
+    mkdirSync(target)
+  })
+
+  afterEach(() => {
+    clearRealCwdCache()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('resolves once and answers from cache afterwards', () => {
+    symlinkSync(target, link)
+    const resolved = sessionDirForCwd(link)
+    expect(resolved).toBe(join(piSessionsRoot(), sessionDirNameForCwd(target)))
+
+    // With the link gone, only a cached answer can still be the resolved one.
+    unlinkSync(link)
+    expect(sessionDirForCwd(link)).toBe(resolved)
+
+    // And clearing the cache must fall back to the unresolved path.
+    clearRealCwdCache()
+    expect(sessionDirForCwd(link)).toBe(join(piSessionsRoot(), sessionDirNameForCwd(link)))
+  })
+
+  it('does NOT cache a path that does not exist yet', () => {
+    // A brand-new worktree is exactly this: something asks for its session
+    // directory before the folder is there. Caching that miss would pin the
+    // unresolved path for the life of the process.
+    const unresolved = sessionDirForCwd(link)
+    expect(unresolved).toBe(join(piSessionsRoot(), sessionDirNameForCwd(link)))
+
+    symlinkSync(target, link)
+    expect(sessionDirForCwd(link)).toBe(join(piSessionsRoot(), sessionDirNameForCwd(target)))
   })
 })
