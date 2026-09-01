@@ -12,7 +12,6 @@ import { ClaudeProviderTab } from './tabs/ClaudeProviderTab'
 import { WebAccessTab } from './tabs/WebAccessTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
-import { McpTab } from './tabs/McpTab'
 import { ConnectorsTab } from './tabs/ConnectorsTab'
 import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
@@ -24,7 +23,6 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'orchestration', label: 'Orchestration' },
   { id: 'extensions', label: 'Extensions' },
   { id: 'connectors', label: 'Connectors' },
-  { id: 'mcp', label: 'MCP' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
@@ -125,7 +123,6 @@ export function SettingsModal(): React.JSX.Element | null {
           {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
           {effectiveTab === 'web-access' && <WebAccessTab />}
           {effectiveTab === 'connectors' && <ConnectorsTab />}
-          {effectiveTab === 'mcp' && <McpTab />}
           {effectiveTab === 'workspaces' && <WorkspacesTab />}
           {effectiveTab === 'advanced' && <AdvancedTab />}
           {effectiveTab === 'keybindings' && <KeybindingsTab />}

@@ -73,9 +73,9 @@ tools / 79.7KB, Notion 37 tools / 126.7KB.
 `directTools` on a server entry opts out, promoting that server's tools to flat
 top-level names. The MCP tab exposes the field; nothing currently sets it.
 
-## Not done
+## Follow-up, done separately
 
-Settings still has separate **Connectors** and **MCP** tabs showing the same
-servers, and the MCP tab still renders adapter status as raw footer text rather
-than per-server state. Merging them is the obvious follow-up, and only honest
-now that the second chain is gone.
+Settings had separate **Connectors** and **MCP** tabs showing the same servers,
+and only the connector view carried per-server state. They are now one tab —
+see [2026-08-31-connectors-mcp-merge.md](2026-08-31-connectors-mcp-merge.md).
+That merge was only honest once this change cut the second chain off.

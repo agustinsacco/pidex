@@ -5,9 +5,29 @@ package (declared in pi settings.json `packages`). MCP tools reach the chat
 as ordinary `tool_execution_*` events, so the transcript needs nothing
 special — pidex's job is **config management and status surfacing**.
 
-## Connectors (Settings → Connectors)
+## Settings → Connectors
 
-The surface a user actually connects a service from. Six curated OAuth
+**One tab, one list.** Connectors and MCP used to be two tabs, and they were
+two views of the same thing: a connector IS an MCP server, and connecting one
+writes the `pi-global` scope of the very chain the other tab resolved. The same
+rows rendered twice with different affordances, and only the catalog view
+carried the adapter's structured per-server state — so the tab that listed
+_every_ server was the one that could not say whether any of them worked.
+
+The list is now the resolved chain, enriched with catalog metadata wherever a
+server's URL matches a known connector. Sections, in order:
+
+1. **Connected** — one row per resolved server: scope badge, status chip,
+   transport, Sign in / Reconnect (URL servers only), enable toggle, Edit,
+   Remove. Plus cached-tool disclosure, shadow notes, and a warning when
+   `directTools` is set, since that opts the server out of the `mcp` gateway
+   and costs its full schema on every request. Rendered FIRST on purpose.
+2. **Add a connector** — the curated catalog, minus anything already
+   configured. This is an add affordance, not a separate world.
+3. **Advanced** (collapsed) — adapter install state and the chain file list
+   with the raw JSON editor. Repair tools, not daily controls.
+
+Six curated OAuth
 connectors — Linear, Notion, Braintrust, Datadog, Fellow, Slack — each with the
 endpoint checked against the vendor's docs, because a wrong URL fails as
 "broken auth" (`src/features/connectors/catalog.ts`; endpoints and their
@@ -136,7 +156,7 @@ Later files win per server name; pidex records shadowed scopes.
 ## Status honesty
 
 There is no structured per-server liveness source **other than the status
-extension above**, and that requires a live session. Without one the MCP tab
+extension above**, and that requires a live session. Without one the tab
 shows:
 
 1. **Installed** — read from `packages:list` (per-scope; pi loads both, so
@@ -161,12 +181,16 @@ mcp:submitAuthCallback / mcp:cancelAuth` and the `mcp:authState` broadcast
   shared because main and renderer both read them),
   `src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`),
   `src/stores/connectors.ts`, `electron/pi/connector-auth.ts`,
-  `src/features/settings/tabs/ConnectorsTab.tsx`, `pi-ext/mcp-status.ts`.
-- UI: Settings → MCP (`src/features/settings/tabs/McpTab.tsx`): adapter
-  card, resolved server rows (scope badge, enable toggle, cached tool
-  disclosure, directTools, shadow notes), add/edit form, chain file list
-  with raw editor. Mock cases in `src/dev/mockPidex.ts`.
-- E2E: `e2e/smoke.spec.ts` "MCP settings" — seeds `agentDir/mcp.json`,
+  `src/features/connectors/FlowCard.tsx` (the OAuth round-trip card),
+  `src/features/connectors/ServerEditor.tsx` (the add/edit form),
+  `pi-ext/mcp-status.ts`.
+- UI: one tab, `src/features/settings/tabs/ConnectorsTab.tsx` — resolved
+  server rows (scope badge, status chip, enable toggle, cached tool
+  disclosure, directTools warning, shadow notes, OAuth flow card), the
+  catalog add rows, the add/edit form, and an Advanced disclosure holding the
+  adapter card and the chain file list with its raw editor. Mock cases in
+  `src/dev/mockPidex.ts`.
+- E2E: `e2e/smoke.spec.ts` "Connectors: resolved rows" — seeds `agentDir/mcp.json`,
   asserts the resolved row, toggles disable (file gains `"disabled": true`),
   adds a project server (`.pi/mcp.json` written). "Connectors" — adds Datadog
   on the EU site and asserts the written endpoint, since a per-site host that
