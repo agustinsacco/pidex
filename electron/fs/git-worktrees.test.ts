@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import {
   addWorktree,
   commitAll,
+  isBranchMerged,
   listBranches,
   listWorktrees,
   mergeBranch,
@@ -154,6 +155,41 @@ describe('git-worktrees (real git)', () => {
     expect(result).toMatchObject({ removed: true, branchDeleted: false })
     if (result.removed) expect(result.branchError).toBeTruthy()
     expect(await git(repo, ['branch', '--list', 'task-1'])).toContain('task-1')
+  })
+
+  it('deletes a squash-merged branch, which plain -d refuses', async () => {
+    // The exact shape of a merged pidex lane: the PR squashes the branch's
+    // commits into one new commit on main, so the branch is not an ancestor
+    // and `git branch -d` refuses it even though nothing would be lost.
+    const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
+    await writeFile(join(created.path, 'c.txt'), 'work\n')
+    await commitAll(created.path, 'first')
+    await writeFile(join(created.path, 'd.txt'), 'more\n')
+    await commitAll(created.path, 'second')
+
+    await git(repo, ['merge', '--squash', 'task-1'])
+    await git(repo, ['commit', '-m', 'squashed task-1 (#1)'])
+    await expect(git(repo, ['branch', '-d', 'task-1'])).rejects.toThrow()
+    expect(await isBranchMerged(repo, 'task-1')).toBe(true)
+
+    const result = await removeWorktree(repo, created.path, { deleteBranch: true })
+    expect(result).toMatchObject({ removed: true, branchDeleted: true })
+    if (result.removed) expect(result.branchError).toBeUndefined()
+    expect(await git(repo, ['branch', '--list', 'task-1'])).toBe('')
+  })
+
+  it('reports an unmerged branch in git\'s own words, not "Command failed"', async () => {
+    const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
+    await writeFile(join(created.path, 'c.txt'), 'work\n')
+    await commitAll(created.path, 'work on task-1')
+
+    expect(await isBranchMerged(repo, 'task-1')).toBe(false)
+    const result = await removeWorktree(repo, created.path, { deleteBranch: true })
+    expect(result).toMatchObject({ removed: true, branchDeleted: false })
+    if (result.removed) {
+      expect(result.branchError).toMatch(/not fully merged/)
+      expect(result.branchError).not.toMatch(/Command failed|hint:/)
+    }
   })
 
   it('prunes after a manual folder delete', async () => {
