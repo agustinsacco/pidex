@@ -55,6 +55,46 @@ dynamic registration, so its row takes a client id/secret and writes an
 `oauth.redirectUri` that must match what was registered in the Slack app —
 which also pins the callback port (`MCP_OAUTH_CALLBACK_PORT` overrides it).
 
+## The Claude provider reaches MCP through pi, not around it
+
+A `pi-claude-cli` session has **two** possible sources of MCP servers, and only
+one of them is pidex's.
+
+1. **pi's chain** (the table below), loaded by the adapter, which registers
+   `mcp` / `mcpScript` into pi's tool registry. pi-claude-cli then snapshots
+   every non-built-in pi tool into a schema-only MCP server it hands the CLI as
+   `--mcp-config`, so the gateway arrives as `mcp__custom-tools__mcp`. The
+   schema server answers `initialize` and `tools/list` only: a call is bounced
+   back to pi, which executes the real tool and resumes the CLI next turn.
+2. **The Claude CLI's own chain** — `~/.claude/.mcp.json`, `~/.claude.json`,
+   and the user's claude.ai account connectors. pidex neither writes nor reads
+   these.
+
+Servers from (2) are a problem, not a bonus. They never become pi
+`tool_execution_*` events (only `mcp__custom-tools__*` does), so
+`worktree-paths.ts` cannot guard them; the footer chip and the context meter
+both read the adapter, which knows nothing about them; and the same project
+behaves differently on two machines. So every Claude-provider spawn gets
+`PI_CLAUDE_CLI_STRICT_MCP=1` (`claudeProviderSpawnEnv` in
+`electron/pi/provider-detect.ts`), which passes the CLI `--strict-mcp-config`
+and drops chain (2) entirely.
+
+Not `PI_CLAUDE_CLI_HERMETIC`: it reaches the same flag but also passes an empty
+`--setting-sources`, which drops the CLI's CLAUDE.md auto-memory. pidex already
+passes `--no-context-files` so pi omits its own copy, and the pair would leave
+the model with project instructions from neither side.
+
+**Requires pi-claude-cli >= 0.5.1.** Older versions ignore the variable and
+keep the pre-existing merge. That release also refreshes the schema snapshot
+per turn; before it, the tool surface froze at turn 1, so a connector added
+mid-session never reached the model until the session restarted.
+
+The gateway is also what keeps a session small: `mcp` + `mcpScript` cost ~3.9KB
+of schema no matter how many servers are configured, growing only by the server
+names listed in the `mcp` description. `directTools` on a server entry opts out
+of that — it promotes that server's tools to flat top-level names, which is
+worth ~80KB of schema for a server like Linear.
+
 ## Per-server status
 
 `pi-ext/mcp-status.ts` forwards the adapter's `pi-mcp-adapter/status/v1`
