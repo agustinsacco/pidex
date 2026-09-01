@@ -94,10 +94,50 @@ export function stateLabel(state: McpServerState): string {
     case 'failed':
       return 'Failed'
     case 'cached':
-      return 'Idle (cached tools)'
+      return 'Idle'
     case 'disabled':
       return 'Disabled'
     case 'not-connected':
       return 'Not connected'
+  }
+}
+
+/** What the button on a connector row should actually offer. */
+export type ConnectorAction = 'sign-in' | 'reconnect' | 'connect'
+
+/**
+ * Pick the action for a row.
+ *
+ * The bug this replaces: the label was `state === 'connected' ? 'Reconnect' :
+ * 'Sign in'`, so every non-connected state offered a sign-in. But only
+ * `needs-auth` means the credential was rejected. `cached` and
+ * `not-connected` say nothing about credentials at all — the adapter connects
+ * lazily, so a perfectly authenticated server sits in `cached` until
+ * something calls one of its tools. People read "Sign in" as "your token is
+ * gone" and re-authorized servers whose tokens were in the keychain the whole
+ * time.
+ *
+ * Without a live session only the headless sign-in path can run, so an
+ * unknown state offers that rather than a connect that cannot work.
+ */
+export function connectorAction(
+  state: McpServerState | null,
+  hasSession: boolean,
+): ConnectorAction {
+  if (state === 'needs-auth') return 'sign-in'
+  if (!hasSession) return 'sign-in'
+  if (state === 'connected') return 'reconnect'
+  return 'connect'
+}
+
+/** Button text for an action. */
+export function connectorActionLabel(action: ConnectorAction): string {
+  switch (action) {
+    case 'sign-in':
+      return 'Sign in'
+    case 'reconnect':
+      return 'Reconnect'
+    case 'connect':
+      return 'Connect'
   }
 }

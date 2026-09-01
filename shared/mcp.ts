@@ -34,6 +34,13 @@ export interface McpServerConfig {
   env?: Record<string, string>
   /** Tools promoted to first-class pi tools instead of the lazy proxy. */
   directTools?: string[]
+  /**
+   * Adapter connection lifecycle. Defaults to `lazy` — connect on first tool
+   * call, drop afterwards — which leaves an authenticated server reporting
+   * `cached` between uses. `lazy-keep-alive` holds the connection open once
+   * established, so it stays `connected`.
+   */
+  lifecycle?: 'keep-alive' | 'lazy' | 'lazy-keep-alive' | 'eager'
   disabled?: boolean
   [key: string]: unknown
 }

@@ -21,6 +21,8 @@ import {
 } from '@/features/connectors/catalog'
 import {
   MCP_STATUS_STATUS_KEY,
+  connectorAction,
+  connectorActionLabel,
   parseMcpStatus,
   stateLabel,
   type McpServerState,
@@ -206,6 +208,17 @@ export function ConnectorsTab(): React.JSX.Element {
                   ),
                 )
               }
+              onKeepAlive={(keep) =>
+                void act(() =>
+                  window.pidex.invoke(
+                    'mcp:upsertServer',
+                    server.scope === 'pi-project' ? 'pi-project' : 'pi-global',
+                    workspacePath ?? undefined,
+                    server.name,
+                    { ...server.config, lifecycle: keep ? 'lazy-keep-alive' : 'lazy' },
+                  ),
+                )
+              }
               onRemove={() =>
                 void act(() =>
                   window.pidex.invoke(
@@ -371,6 +384,7 @@ function ConfiguredRow({
   flow,
   sessionId,
   onToggle,
+  onKeepAlive,
   onRemove,
   onEdit,
 }: {
@@ -382,6 +396,7 @@ function ConfiguredRow({
   flow?: ConnectFlow
   sessionId: string | null
   onToggle: (disabled: boolean) => void
+  onKeepAlive: (keep: boolean) => void
   onRemove: () => void
   onEdit: () => void
 }): React.JSX.Element {
@@ -392,6 +407,11 @@ function ConfiguredRow({
     : [server.config.command, ...(server.config.args ?? [])].join(' ')
   // Only a remote server has an OAuth flow to run; a stdio command has none.
   const signInable = Boolean(server.config.url)
+  const action = connectorAction(state, Boolean(sessionId))
+  const keepAlive =
+    server.config.lifecycle === 'lazy-keep-alive' ||
+    server.config.lifecycle === 'keep-alive' ||
+    server.config.lifecycle === 'eager'
   const directTools = server.config.directTools ?? []
 
   return (
@@ -438,18 +458,25 @@ function ConfiguredRow({
         {signInable && (
           <Button
             size="sm"
+            variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
+            title={
+              action === 'connect'
+                ? 'Open a connection now. Already signed in — this does not re-authorize.'
+                : undefined
+            }
             onClick={() => {
               const store = useConnectorsStore.getState()
-              // Reconnect needs the process that holds the connection;
-              // signing in does not, and runs headless when nothing is live.
-              if (state === 'connected' && sessionId) {
-                void store.reconnect(sessionId, server.name)
-              } else {
+              // `connect` and `reconnect` both ride the adapter's own
+              // /mcp reconnect, which needs the process holding the
+              // connection. Signing in does not, and runs headless.
+              if (action === 'sign-in') {
                 void store.connect(server.name, sessionId ?? undefined)
+              } else if (sessionId) {
+                void store.reconnect(sessionId, server.name)
               }
             }}
           >
-            {state === 'connected' ? 'Reconnect' : 'Sign in'}
+            {connectorActionLabel(action)}
           </Button>
         )}
         <label className="flex shrink-0 items-center gap-1 text-sm">
@@ -492,6 +519,23 @@ function ConfiguredRow({
           <span title="Lower-precedence files also define this server">
             shadows {server.shadows.map((s) => SCOPE_LABELS[s]).join(', ')}
           </span>
+        )}
+        {signInable && (
+          <label
+            className="flex items-center gap-1"
+            title={
+              keepAlive
+                ? 'Connection stays open between calls, so the row reads Connected'
+                : 'Adapter default: connect per call, then drop. The row will read Idle between uses.'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={keepAlive}
+              onChange={(e) => onKeepAlive(e.target.checked)}
+            />
+            keep connected
+          </label>
         )}
       </div>
 

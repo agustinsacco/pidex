@@ -172,7 +172,15 @@ export function buildConnectorConfig(
   entry: ConnectorEntry,
   choice: ConnectorChoice = {},
 ): McpServerConfig {
-  const config: McpServerConfig = { url: connectorUrl(entry, choice), auth: 'oauth' }
+  // `lazy-keep-alive`, not the adapter's `lazy` default: lazy drops the
+  // connection after every call, so a signed-in connector sits in `cached`
+  // and the row reads as though the token were gone. Keeping it alive costs
+  // one idle socket per server and is what people mean by "connected".
+  const config: McpServerConfig = {
+    url: connectorUrl(entry, choice),
+    auth: 'oauth',
+    lifecycle: 'lazy-keep-alive',
+  }
   if (entry.authKind === 'confidential') {
     const clientId = choice.clientId?.trim()
     const clientSecret = choice.clientSecret?.trim()
