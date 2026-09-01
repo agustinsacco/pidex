@@ -1398,10 +1398,14 @@ function SessionRow({
             title={naming.pending ? 'Naming this chat…' : undefined}
             className={clsx(
               'text-text block truncate text-base leading-4',
-              // No shimmer here, only the arrival. The top bar's title is the
-              // one surface that shimmers while a name is being decided —
-              // three of them running at once (this row, the top bar and the
-              // branch chip) is what made starting a chat read as busy.
+              // Shimmers while pending, same as the top bar (.name-pending in
+              // index.css) — a session you just created is watched here in
+              // the sidebar at least as often as in the top bar, and a name
+              // sitting still read as settled rather than still in flight.
+              // The branch chip in BranchControl stays arrival-only: that combo
+              // (this row, the top bar, the chip, all three at once) is what
+              // previously made starting a chat read as busy.
+              naming.pending && 'name-pending',
               naming.settled && 'name-enter',
             )}
           >
@@ -1549,7 +1553,10 @@ function PendingSessionRow({
           title={naming.pending ? 'Naming this chat…' : undefined}
           className={clsx(
             'text-text block truncate text-base leading-4',
-            // See SessionRow: arrival only, no shimmer.
+            // See SessionRow: shimmers while pending too, must match exactly —
+            // this row is swapped for a real SessionRow mid-shimmer the moment
+            // the session file lands, and any difference reads as a twitch.
+            naming.pending && 'name-pending',
             naming.settled && 'name-enter',
           )}
         >

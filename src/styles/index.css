@@ -726,11 +726,15 @@ select:focus:not(:focus-visible) {
  * point: the provisional title is real, readable, useful text — it just is not
  * final. A skeleton would hide information the user already has.
  *
- * **Exactly one surface may use this: the top bar's session title.** It was
- * on four (both sidebar row types, the top bar and the branch chip), so
- * starting a chat set three or four continuous animations running at once in
- * the two places the user was already watching change. The others carry the
- * pending state in a tooltip and animate only the arrival (`.name-enter`).
+ * **Three of four surfaces use this: the top bar's session title and both
+ * sidebar row types.** It used to be on all four, which set four continuous
+ * animations running at once and read as busy — cut back to just the top
+ * bar for a while, but a session's title is watched in the sidebar list at
+ * least as often as in the top bar, so a temporary name sitting motionless
+ * there read as settled rather than still in flight. The branch chip
+ * (`BranchControl`) is the one holdout: it stays arrival-only (`.name-enter`)
+ * so a single naming event still tops out at two shimmering surfaces instead
+ * of going back to four.
  */
 .name-pending {
   background: linear-gradient(
