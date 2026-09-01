@@ -10,6 +10,7 @@ these are still worth reading for work to do.
 | [connectors.md](connectors.md)                             | OAuth MCP connectors: catalog, auth, status     | 1 of 7 findings       |
 | [spec-drift-2026-08-30.md](spec-drift-2026-08-30.md)       | Every `reference/` doc vs. the code             | 30 of 44 findings     |
 | [mid-turn-loss-2026-08-30.md](mid-turn-loss-2026-08-30.md) | An app exit discards the whole in-flight turn   | 5 of 5 findings       |
+| [tool-call-ui.md](tool-call-ui.md)                         | Tool-call and MCP row rendering, both providers | 8 of 8 findings       |
 
 ## The rule that keeps these useful
 
