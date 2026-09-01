@@ -1,5 +1,5 @@
 import type { SessionMeta } from '@shared/models'
-import { useSessionsStore } from '@/stores/sessions'
+import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { piCall } from '@/lib/rpc'
 import { exportSessionHtml, applySessionRename } from './sessionActions'
@@ -35,6 +35,11 @@ export async function cloneSession(
       useChatStore.getState().setError(livePidexId, 'Clone was cancelled by an extension.')
       return
     }
+    // pi's `clone` is a same-file-branching `fork` under the hood, so it
+    // swaps this live session onto the new file too — relearn it (see
+    // bootstrapSession's doc comment), or `live.diskPath` keeps pointing at
+    // the pre-clone file and the sidebar tracks the wrong row as live.
+    await bootstrapSession(livePidexId)
     void useSessionsStore.getState().refreshDisk(workspacePath)
   } else {
     await useSessionsStore.getState().createSession(workspacePath, { forkFrom: meta.path })

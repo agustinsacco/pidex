@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
+import { bootstrapSession } from '@/stores/sessions'
 import { piCall, rehydrateTranscript } from '@/lib/rpc'
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
@@ -35,9 +36,10 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
         useChatStore.getState().setError(sessionId, 'Fork was cancelled by an extension.')
         return
       }
-      // Rebuild the transcript from the new branch point and prefill the
-      // original prompt for edit-and-refork.
-      await rehydrateTranscript(sessionId)
+      // Rebuild the transcript from the new branch point, relearn its file
+      // (pi always forks onto a new one — see bootstrapSession's doc comment),
+      // and prefill the original prompt for edit-and-refork.
+      await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
       if (result.text) {
         useChatUiStore.getState().setPrefill(sessionId, result.text)
       }

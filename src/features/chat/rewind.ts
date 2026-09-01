@@ -1,14 +1,21 @@
 import { useChatStore } from '@/stores/chat'
+import { bootstrapSession } from '@/stores/sessions'
 import { piCall, rehydrateTranscript } from '@/lib/rpc'
 import { useChatUiStore } from './uiState'
 
 /**
  * Rewind semantics come straight from pi's own `fork` RPC command: it
- * truncates the *live* session back to just before `entryId` and hands back
- * the original text, which the composer offers up for edit-and-resend. This
- * is the one mechanism behind both the per-message "Rewind" button and the
- * (multi-message) fork picker — it mutates the current session in place,
- * it does not create a new session file.
+ * branches the *live* session onto a new file rooted just before `entryId`
+ * and hands back the original text, which the composer offers up for
+ * edit-and-resend. This is the one mechanism behind both the per-message
+ * "Rewind" button and the (multi-message) fork picker.
+ *
+ * pi always creates a new session file here, even though the live RPC
+ * connection carries on uninterrupted on the same subprocess — so
+ * `bootstrapSession` has to run again to relearn the new `sessionFile`.
+ * Skipping that step leaves `live[sessionId].diskPath` pointed at the
+ * abandoned pre-fork file, which reads in the sidebar as the chat having
+ * been duplicated (see `bootstrapSession`'s doc comment).
  */
 export async function rewindToEntry(sessionId: string, entryId: string): Promise<void> {
   const fork = await piCall(sessionId, { type: 'fork', entryId })
@@ -17,8 +24,8 @@ export async function rewindToEntry(sessionId: string, entryId: string): Promise
     useChatStore.getState().setError(sessionId, 'Rewind was cancelled by an extension.')
     return
   }
-  // Rebuild the transcript from the new (earlier) branch point.
-  await rehydrateTranscript(sessionId)
+  // Rebuild the transcript from the new branch point and relearn its file.
+  await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
   if (fork.text) {
     useChatUiStore.getState().setPrefill(sessionId, fork.text)
   }
