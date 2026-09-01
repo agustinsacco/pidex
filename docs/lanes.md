@@ -258,10 +258,15 @@ Deleting is three resources, and only the first two default on:
 1. the session transcript, to the OS Trash (`shell.trashItem`, recoverable) —
    pi's `.jsonl` **and** its paired Claude Code transcript
 2. the worktree directory, gone
-3. the branch, `git branch -d` only
+3. the branch, only when its work is already on the trunk
 
-**Never escalate to `git branch -D`.** An unmerged branch is kept and reported;
-that is not a reason to keep the transcript, so the lane still goes.
+**A branch is deleted only when it is proven merged.** `git branch -d` alone is
+not that proof: it tests ancestry, and pidex lands PRs as squash merges, which
+leaves no ancestry link — so `-d` refused every merged lane and every delete
+reported an error. `isBranchMerged` adds the squash test (`git cherry` against a
+commit built from the branch's tree), and `-D` runs only when it returns true.
+Anything it cannot prove is kept and reported; that is not a reason to keep the
+transcript, so the lane still goes.
 
 **Remote branch deletion is not offered.** No channel exists for it and a bulk
 flow is the worst place to introduce the least reversible operation.

@@ -4,8 +4,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
-import { errorText } from '@shared/errors'
-import { abortMergeAndCollectConflicts, dirtyCount, git } from './git-exec'
+import { abortMergeAndCollectConflicts, dirtyCount, git, gitErrorText } from './git-exec'
 
 const execFileAsync = promisify(execFile)
 
@@ -401,6 +400,61 @@ export async function renameBranch(
   }
 }
 
+/**
+ * Is this branch's work already on the trunk, squash merges included?
+ *
+ * `git branch -d` only asks "is it an ancestor", and a squash merge rewrites
+ * the branch into one new commit that has no ancestry link back to it. pidex
+ * lanes land as squash-merged PRs, so `-d` refused EVERY merged lane and the
+ * delete flow reported an error on each one — the branch was safe to drop the
+ * whole time.
+ *
+ * The squash test is the standard one: synthesise a commit holding the
+ * branch's tree on top of the merge base, then ask `git cherry` whether an
+ * equivalent patch is already upstream. The synthesised commit is dangling and
+ * unreferenced, so gc collects it.
+ *
+ * Both `origin/<trunk>` and local `<trunk>` are checked: the squash commit is
+ * on the remote the moment the PR merges, and reaches local trunk only after
+ * a pull. Anything unexpected answers "not merged" — the caller escalates to
+ * `-D` on a true, so an error must never read as proof.
+ */
+export async function isBranchMerged(repoPath: string, branch: string): Promise<boolean> {
+  const { defaultBranch } = await startPoint(repoPath)
+  if (branch === defaultBranch) return false
+
+  const bases: string[] = []
+  for (const ref of [`refs/remotes/origin/${defaultBranch}`, `refs/heads/${defaultBranch}`]) {
+    if (await refExists(repoPath, ref)) bases.push(ref)
+  }
+
+  for (const base of bases) {
+    try {
+      await git(repoPath, ['merge-base', '--is-ancestor', branch, base])
+      return true
+    } catch {
+      // Not an ancestor. It can still have been squashed onto the trunk.
+    }
+    try {
+      const mergeBase = await git(repoPath, ['merge-base', base, branch], { trim: true })
+      const tree = await git(repoPath, ['rev-parse', `${branch}^{tree}`], { trim: true })
+      if (!mergeBase || !tree) continue
+      const probe = await git(
+        repoPath,
+        ['commit-tree', tree, '-p', mergeBase, '-m', 'pidex squash-merge probe'],
+        { trim: true },
+      )
+      // `git cherry` prefixes '-' when an equivalent patch is already upstream.
+      if ((await git(repoPath, ['cherry', base, probe], { trim: true })).startsWith('-')) {
+        return true
+      }
+    } catch {
+      // Cannot prove it — fall through to the next base, then to false.
+    }
+  }
+  return false
+}
+
 export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
@@ -428,12 +482,25 @@ export async function removeWorktree(
   let branchDeleted = false
   let branchError: string | undefined
   if (options.deleteBranch && target.branch) {
+    const branch = target.branch
     try {
-      // Only ever `-d`: an unmerged branch stays and is reported, never lost.
-      await git(repoPath, ['branch', '-d', target.branch])
+      await git(repoPath, ['branch', '-d', branch])
       branchDeleted = true
     } catch (error) {
-      branchError = errorText(error)
+      // `-d` refuses a squash-merged branch, which is how every pidex lane
+      // lands. Escalate to `-D` ONLY when the squash test proves the work is
+      // already on the trunk; a genuinely unmerged branch is still kept and
+      // reported, never forced.
+      if (await isBranchMerged(repoPath, branch)) {
+        try {
+          await git(repoPath, ['branch', '-D', branch])
+          branchDeleted = true
+        } catch (forceError) {
+          branchError = gitErrorText(forceError)
+        }
+      } else {
+        branchError = gitErrorText(error)
+      }
     }
   }
   return { removed: true, branchDeleted, branchError }

@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { dirtyCount, git } from './git-exec'
+import { dirtyCount, git, gitErrorText } from './git-exec'
 
 /**
  * `dirtyCount` unified four implementations that disagreed on trailing
@@ -61,5 +61,21 @@ describe('git', () => {
   it('swallows a failing command only under allowFail', async () => {
     await expect(git(repo, ['rev-parse', 'no-such-ref'])).rejects.toThrow()
     expect(await git(repo, ['rev-parse', 'no-such-ref'], { allowFail: true })).toBe('')
+  })
+})
+
+describe('gitErrorText', () => {
+  it("keeps git's reason and drops the command echo and hints", () => {
+    const error = Object.assign(new Error('Command failed: git branch -d task-1\nerror: x'), {
+      stderr:
+        "error: the branch 'task-1' is not fully merged\n" +
+        "hint: If you are sure you want to delete it, run 'git branch -D task-1'\n",
+    })
+    expect(gitErrorText(error)).toBe("the branch 'task-1' is not fully merged")
+  })
+
+  it('falls back to the first line when there is no stderr', () => {
+    expect(gitErrorText(new Error('spawn git ENOENT\nsecond line'))).toBe('spawn git ENOENT')
+    expect(gitErrorText('plain string')).toBe('plain string')
   })
 })

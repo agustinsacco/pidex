@@ -62,8 +62,8 @@ sidebar group.
   starts ticked.
 - **Nothing uncommitted is lost silently.** Dirty worktrees refuse removal
   until the user checks an explicit "discard N changes" box; branch deletion
-  is only ever `git branch -d` (unmerged branches survive with the error
-  shown); a dirty tree refuses checkout, pull, and update-from-main alike.
+  needs the branch's work to be on the trunk already — ancestry or squash merge
+  (`isBranchMerged`); anything unproven survives with the reason shown; a dirty tree refuses checkout, pull, and update-from-main alike.
 - **Merges are guided, not magic**: commit (user-typed message) → preflight
   (main tree clean; no auto-stash/checkout) → `git merge --no-ff`; conflicts
   abort immediately so the repo is never left mid-merge.

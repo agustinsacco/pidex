@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
+import { errorText } from '@shared/errors'
+
 const execFileAsync = promisify(execFile)
 
 /**
@@ -81,4 +83,28 @@ export async function abortMergeAndCollectConflicts(cwd: string): Promise<string
     .filter(Boolean)
   await git(cwd, ['merge', '--abort'], { allowFail: true })
   return conflicts
+}
+
+/**
+ * A git failure as one line fit for a UI slot.
+ *
+ * `execFile` rejects with `Command failed: git branch -d x\n<stderr>`, and a
+ * truncated one-line slot then shows the user the command back rather than the
+ * reason. git's own `error:`/`fatal:` line is the part worth reading, and its
+ * `hint:` lines are advice for a terminal user, not for this UI.
+ */
+export function gitErrorText(error: unknown): string {
+  const stderr = (error as { stderr?: unknown } | null)?.stderr
+  const lines =
+    typeof stderr === 'string'
+      ? stderr
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+      : []
+  const reason =
+    lines.find((line) => line.startsWith('error:') || line.startsWith('fatal:')) ??
+    lines.find((line) => !line.startsWith('hint:'))
+  if (reason) return reason.replace(/^(error|fatal):\s*/, '')
+  return (errorText(error).split('\n')[0] ?? '').trim()
 }
