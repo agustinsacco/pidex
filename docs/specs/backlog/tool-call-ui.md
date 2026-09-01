@@ -130,7 +130,9 @@ branch of the block-end handler). A tool call with no arguments emits zero
 throws, the catch hands pi the raw empty string, and pi rejects it against the
 schema.
 
-**Fix.** `JSON.parse(block.partialJson || "{}")`.
+**Fix.** `JSON.parse(block.partialJson || "{}")`. Implemented in
+[pi-claude-cli #31](https://github.com/agustinsacco/pi-claude-cli/pull/31)
+(0.5.2, unmerged/unpublished as of 2026-09-01).
 
 **Blast radius.** Every zero-argument handoff tool on every Claude session —
 `mcp({})` and `artifact_list()`. Needs a publish and a reinstall to go live;
@@ -179,6 +181,15 @@ ran itself, and `provider.ts` ignores them. Pairing each result to its
 `tool_use_id` and forwarding it is what earns one vocabulary.
 
 Order matters: forward the results, then drop the mark. Not the reverse.
+
+The provider side is implemented in
+[pi-claude-cli #32](https://github.com/agustinsacco/pi-claude-cli/pull/32)
+(0.6.0, unmerged/unpublished as of 2026-09-01): behind
+`PI_CLAUDE_CLI_TOOL_RESULTS=1`, call markers gain `#<toolUseId>` and each
+result arrives as `[Claude Code · result #<toolUseId> {status, preview,
+length, truncated?}]`. pidex's consumer lane sets the env var for Claude
+sessions, parses both shapes, pairs by id, renders the rows expandable — and
+only then removes the `cc` mark.
 
 ## MCP functional verification, 2026-09-01
 
