@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { GhChecks, GhPullRequest } from '@shared/models'
+import { piProcessEnv } from '../pi/shell-env'
 
 const execFileAsync = promisify(execFile)
 
@@ -19,14 +20,30 @@ const execFileAsync = promisify(execFile)
  * belong behind an explicit, confirmed action.
  */
 
+/**
+ * Environment for every `gh` run, including the probe.
+ *
+ * A GUI launch inherits launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), and
+ * `gh` is a Homebrew binary — so the packaged app probed `gh --version`, got
+ * ENOENT, cached "unavailable" for the process lifetime, and never showed a PR
+ * chip on any lane. `piProcessEnv` upgrades PATH to the login shell's, the
+ * same way every other subprocess in the app resolves its binary.
+ */
+function ghEnv(): Promise<Record<string, string>> {
+  // Never let gh open a browser or prompt from inside the app.
+  return piProcessEnv({ GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' })
+}
+
 /** `gh` is slow to fail when absent; cache the probe for the process lifetime. */
 let availability: Promise<boolean> | null = null
 
 export function ghAvailable(): Promise<boolean> {
-  availability ??= execFileAsync('gh', ['--version'], { timeout: 5_000 }).then(
-    () => true,
-    () => false,
-  )
+  availability ??= ghEnv()
+    .then((env) => execFileAsync('gh', ['--version'], { timeout: 5_000, env }))
+    .then(
+      () => true,
+      () => false,
+    )
   return availability
 }
 
@@ -37,8 +54,7 @@ async function gh(cwd: string, args: string[]): Promise<string | null> {
       cwd,
       timeout: 15_000,
       maxBuffer: 8 * 1024 * 1024,
-      // Never let gh open a browser or prompt from inside the app.
-      env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' },
+      env: await ghEnv(),
     })
     return stdout
   } catch {
