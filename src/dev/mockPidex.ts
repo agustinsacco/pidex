@@ -831,6 +831,13 @@ export function installMockPidex(): void {
           })
         case 'packages:detect':
           return Promise.resolve({ claude: true })
+        case 'packages:claudeCliLatest':
+          // Ahead of the mocked claudeStatus version, so the update row shows.
+          return Promise.resolve('2.1.258')
+        case 'packages:updateClaudeCli':
+          return Promise.resolve(
+            runMockJob(['$ claude update', 'Updated to 2.1.258 (from 2.1.219)']),
+          )
         case 'packages:claudeStatus':
           return Promise.resolve({
             binary: { found: true, path: '/usr/local/bin/claude', version: '2.1.219' },

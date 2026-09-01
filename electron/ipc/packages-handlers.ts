@@ -1,11 +1,13 @@
 import { app } from 'electron'
 import { handle } from './handle'
 import {
+  checkClaudeCliUpdate,
   checkPackageUpdates,
   claudeStatus,
   detectBinaries,
   listPackages,
   runClaudeProviderTest,
+  runClaudeUpdate,
   runPackageAction,
   runPiInstall,
 } from '../pi/packages'
@@ -43,6 +45,10 @@ export function registerPackagesHandlers(): void {
   handle('packages:detect', () => detectBinaries(claudeBinOverride()))
 
   handle('packages:claudeStatus', () => claudeStatus(claudeBinOverride()))
+
+  handle('packages:claudeCliLatest', () => checkClaudeCliUpdate())
+
+  handle('packages:updateClaudeCli', (event) => runClaudeUpdate(event.sender, claudeBinOverride()))
 
   handle('packages:testClaudeProvider', (event) =>
     runClaudeProviderTest(event.sender, piStubPath()),

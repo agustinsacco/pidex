@@ -397,25 +397,61 @@ export async function checkPackageUpdates(
 ): Promise<Record<string, string | null>> {
   const npmEntries = entries.filter((entry) => entry.kind === 'npm')
   const results = await Promise.all(
-    npmEntries.map(async (entry) => {
-      const name = npmNameFromSpec(entry.spec)
-      try {
-        const response = await fetch(
-          `https://registry.npmjs.org/${name.replace('/', '%2f')}/latest`,
-          {
-            headers: { accept: 'application/vnd.npm.install-v1+json' },
-            signal: AbortSignal.timeout(8_000),
-          },
-        )
-        if (!response.ok) return [entry.spec, null] as const
-        const body = (await response.json()) as { version?: unknown }
-        return [entry.spec, typeof body.version === 'string' ? body.version : null] as const
-      } catch {
-        return [entry.spec, null] as const
-      }
-    }),
+    npmEntries.map(
+      async (entry) => [entry.spec, await latestNpmVersion(npmNameFromSpec(entry.spec))] as const,
+    ),
   )
   return Object.fromEntries(results)
+}
+
+/** `latest` dist-tag from the npm registry, or null on any failure. */
+async function latestNpmVersion(name: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2f')}/latest`, {
+      headers: { accept: 'application/vnd.npm.install-v1+json' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) return null
+    const body = (await response.json()) as { version?: unknown }
+    return typeof body.version === 'string' ? body.version : null
+  } catch {
+    return null
+  }
+}
+
+/** npm package name of the Claude Code CLI, whatever way it was installed. */
+export const CLAUDE_CLI_PACKAGE = '@anthropic-ai/claude-code'
+
+/**
+ * Latest published Claude Code CLI version.
+ *
+ * The CLI is not a pi package, so `checkPackageUpdates` never sees it and it
+ * can sit months behind while every other row in the provider tab reads
+ * green. Both install kinds share one release train — the native installer
+ * (`~/.local/share/claude/versions/<v>`) and the npm package publish the same
+ * numbers — so the registry answers for either.
+ */
+export async function checkClaudeCliUpdate(): Promise<string | null> {
+  return latestNpmVersion(CLAUDE_CLI_PACKAGE)
+}
+
+/**
+ * `claude update` as a streamed job.
+ *
+ * Deliberately the CLI's own subcommand rather than `npm install -g`: on this
+ * machine, and on any 2.x install done by the official script, `claude` is a
+ * native build under `~/.local/share/claude/versions/` with a symlink in
+ * `~/.local/bin` — npm does not own it and `npm install -g` would leave the
+ * symlink pointing at the old build. `claude update` handles both layouts and
+ * prints what it did, which is why the output is streamed verbatim.
+ */
+export async function runClaudeUpdate(
+  sender: JobSender,
+  claudeOverride?: string,
+): Promise<{ jobId: string }> {
+  const path = claudeOverride ?? (await resolveBinary('claude'))
+  if (!path) return failedJob(sender, 'claude was not found on your login-shell PATH')
+  return startJob(sender, path, ['update'], { env: await piProcessEnv() })
 }
 
 // ---------- Claude Code provider support (per-extension tab) ----------
