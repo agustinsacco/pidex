@@ -7,6 +7,14 @@ import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
+import {
+  clearLiveStats,
+  hasUsageDeltas,
+  liveBilledTokens,
+  recordMessageEnd,
+  recordPolledStats,
+  recordUsageDelta,
+} from '@/lib/liveStats'
 import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { lanePrefs } from './lanePrefs'
 
@@ -19,7 +27,19 @@ import { lanePrefs } from './lanePrefs'
  * climbing live instead of jumping once per turn. Exported as a pure
  * predicate so the trigger set is unit-testable without mocking IPC.
  */
-export function shouldRefreshStatsOn(eventType: PiEvent['type']): boolean {
+export function shouldRefreshStatsOn(
+  eventType: PiEvent['type'],
+  usageArrivesOnDeltas: boolean,
+): boolean {
+  // With usage riding every delta (pi >= 0.84.2, detected per session rather
+  // than version-checked), the meter climbs from the stream and the poll only
+  // needs to re-sync at boundaries where pi computes things the stream cannot
+  // carry — the authoritative post-turn context estimate, message counts, and
+  // the post-compaction reset. Without it, the old per-sub-step polling is
+  // the only thing that moves the meter mid-turn, so it stays.
+  if (usageArrivesOnDeltas) {
+    return eventType === 'agent_end' || eventType === 'compaction_end'
+  }
   return (
     eventType === 'agent_end' ||
     eventType === 'compaction_end' ||
@@ -107,7 +127,7 @@ interface SessionsState {
    * returns null for a session it has never heard of, dropping the whole app
    * to the workspace picker. Idempotent.
    */
-  adoptSession: (sessionId: string, workspacePath: string) => Promise<void>
+  adoptSession: (sessionId: string, workspacePath: string, diskPath?: string) => Promise<void>
   activate: (sessionId: string | null) => void
   disposeSession: (sessionId: string) => Promise<void>
   /**
@@ -238,6 +258,7 @@ async function bootstrapSession(pidexId: string): Promise<void> {
     chat.setCommands(pidexId, commands.value.data.commands)
   }
   if (stats.status === 'fulfilled' && stats.value.success && stats.value.data) {
+    recordPolledStats(pidexId, stats.value.data)
     chat.setStats(pidexId, stats.value.data)
   }
   // Older pi builds lack this command; leaving it null makes the picker derive
@@ -314,6 +335,9 @@ async function refreshStats(pidexId: string): Promise<void> {
   try {
     const response = await window.pidex.piCommand(pidexId, { type: 'get_session_stats' })
     if (response.success && response.data) {
+      // Re-seed the live overlay's baseline BEFORE displaying, so a delta
+      // arriving between here and the next poll stacks on current truth.
+      recordPolledStats(pidexId, response.data)
       useChatStore.getState().setStats(pidexId, response.data)
       const { input, output, cacheRead, cacheWrite } = response.data.tokens
       recordBurnSample(pidexId, {
@@ -326,6 +350,58 @@ async function refreshStats(pidexId: string): Promise<void> {
   } catch {
     // session gone
   }
+}
+
+/** Record a suspended session so its sidebar row can say so until reopened. */
+function markSuspended(diskPath: string): void {
+  useSessionsStore.setState((s) => ({
+    suspendedPaths: s.suspendedPaths.includes(diskPath)
+      ? s.suspendedPaths
+      : [...s.suspendedPaths, diskPath],
+  }))
+}
+
+/**
+ * Drop everything the renderer holds for a session whose process is gone.
+ *
+ * Shared by `disposeSession` (renderer asked main to kill it) and the
+ * `reaped` push (main killed it on its own) — the only difference between the
+ * two is who called `pi:disposeSession`, so the reap path must NOT invoke it
+ * again.
+ *
+ * Session-scoped side state: kill its PTYs, drop its artifacts, and clear
+ * its extension UI. Lazy imports keep this store free of load-order
+ * cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
+ * raced test teardown, and would equally race app shutdown).
+ */
+async function cleanupLocalSessionState(sessionId: string): Promise<void> {
+  unsubscribers.get(sessionId)?.()
+  unsubscribers.delete(sessionId)
+  useChatStore.getState().remove(sessionId)
+  const [{ useTerminalStore }, { useArtifactsStore }, { useExtensionUiStore }, { useLayoutStore }] =
+    await Promise.all([
+      import('./terminal'),
+      import('./artifacts'),
+      import('./extensionUi'),
+      import('./layout'),
+    ])
+  await useTerminalStore.getState().removeSession(sessionId)
+  useArtifactsStore.getState().remove(sessionId)
+  // The right pane is per session too, so its slice needs dropping here or
+  // it outlives the session that owned it.
+  useLayoutStore.getState().removeSession(sessionId)
+  // `clearSession` existed but was never wired up, so statuses and widgets
+  // (which hold extension-supplied line arrays) accumulated until quit.
+  useExtensionUiStore.getState().clearSession(sessionId)
+  clearBurnSamples(sessionId)
+  clearLiveStats(sessionId)
+  useSessionsStore.setState((s) => ({
+    live: drop(s.live, sessionId),
+    unread: drop(s.unread, sessionId),
+    // Was missing: every disposed session left a permanent baselines entry.
+    baselines: drop(s.baselines, sessionId),
+    activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
+  }))
 }
 
 function attachSessionPushHandler(pidexId: string): void {
@@ -365,7 +441,28 @@ function attachSessionPushHandler(pidexId: string): void {
         // the multi-workspace sidebar e2e). It is also redundant: opening a
         // session marks it seen via `activate` / `bootstrapSession`, and the
         // unseen pill only ever describes sessions you are NOT looking at.
-        if (shouldRefreshStatsOn(push.event.type)) {
+        // Live stats from the stream itself (pi >= 0.84.2): every delta
+        // carries the streaming message's cumulative usage, so the context
+        // meter and burn rate move without an RPC round trip per sub-step.
+        if (push.event.type === 'message_update' && push.event.usage) {
+          const patched = recordUsageDelta(pidexId, push.event.usage)
+          if (patched) chatStore.setStats(pidexId, patched)
+          const billed = liveBilledTokens(pidexId)
+          if (billed !== null) {
+            recordBurnSample(pidexId, {
+              at: Date.now(),
+              billed,
+              output: patched?.tokens.output ?? 0,
+              cacheWrite: patched?.tokens.cacheWrite ?? 0,
+            })
+          }
+        } else if (push.event.type === 'message_end') {
+          const message = push.event.message
+          const usage = message.role === 'assistant' ? message.usage : undefined
+          const patched = recordMessageEnd(pidexId, usage)
+          if (patched) chatStore.setStats(pidexId, patched)
+        }
+        if (shouldRefreshStatsOn(push.event.type, hasUsageDeltas(pidexId))) {
           void refreshStats(pidexId)
         }
         break
@@ -392,6 +489,14 @@ function attachSessionPushHandler(pidexId: string): void {
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(pidexId, push.request),
         )
+        break
+      case 'reaped':
+        // Main reclaimed this idle session's subprocess. The process is gone,
+        // so this is local cleanup only — calling pi:disposeSession again
+        // would be a no-op at best. The sidebar row survives via the disk
+        // scan; marking the path suspended is what labels it.
+        if (push.diskPath) markSuspended(push.diskPath)
+        void cleanupLocalSessionState(pidexId)
         break
     }
   })
@@ -630,12 +735,15 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  adoptSession: async (sessionId, workspacePath) => {
+  adoptSession: async (sessionId, workspacePath, diskPath) => {
     if (get().live[sessionId]) return
     useChatStore.getState().ensure(sessionId, { resuming: true })
     attachSessionPushHandler(sessionId)
     set((s) => ({
-      live: { ...s.live, [sessionId]: { pidexId: sessionId, workspacePath } },
+      // diskPath when the caller already knows it (reload re-adoption learns
+      // it from the fleet hub) — bootstrapSession's get_state confirms it, but
+      // resume matching needs it before that round trip lands.
+      live: { ...s.live, [sessionId]: { pidexId: sessionId, workspacePath, diskPath } },
       unread: { ...s.unread, [sessionId]: 0 },
     }))
     try {
@@ -698,41 +806,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   disposeSession: async (sessionId) => {
-    unsubscribers.get(sessionId)?.()
-    unsubscribers.delete(sessionId)
     await window.pidex.invoke('pi:disposeSession', sessionId)
-    useChatStore.getState().remove(sessionId)
-    // Session-scoped side state: kill its PTYs, drop its artifacts, and clear
-    // its extension UI. Lazy imports keep this store free of load-order
-    // cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
-    // raced test teardown, and would equally race app shutdown).
-    const [
-      { useTerminalStore },
-      { useArtifactsStore },
-      { useExtensionUiStore },
-      { useLayoutStore },
-    ] = await Promise.all([
-      import('./terminal'),
-      import('./artifacts'),
-      import('./extensionUi'),
-      import('./layout'),
-    ])
-    await useTerminalStore.getState().removeSession(sessionId)
-    useArtifactsStore.getState().remove(sessionId)
-    // The right pane is per session too, so its slice needs dropping here or
-    // it outlives the session that owned it.
-    useLayoutStore.getState().removeSession(sessionId)
-    // `clearSession` existed but was never wired up, so statuses and widgets
-    // (which hold extension-supplied line arrays) accumulated until quit.
-    useExtensionUiStore.getState().clearSession(sessionId)
-    clearBurnSamples(sessionId)
-    set((s) => ({
-      live: drop(s.live, sessionId),
-      unread: drop(s.unread, sessionId),
-      // Was missing: every disposed session left a permanent baselines entry.
-      baselines: drop(s.baselines, sessionId),
-      activeSessionId: s.activeSessionId === sessionId ? null : s.activeSessionId,
-    }))
+    await cleanupLocalSessionState(sessionId)
   },
 
   suspendSession: async (sessionId) => {
@@ -741,13 +816,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     await get().disposeSession(sessionId)
     // Remember the path (not the pidexId, which dies with the process) so the
     // sidebar can mark the row "suspended" until it is reopened.
-    if (diskPath) {
-      set((s) => ({
-        suspendedPaths: s.suspendedPaths.includes(diskPath)
-          ? s.suspendedPaths
-          : [...s.suspendedPaths, diskPath],
-      }))
-    }
+    if (diskPath) markSuspended(diskPath)
   },
 
   deleteDiskSession: async (workspacePath, meta) => {
@@ -914,3 +983,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     })
   },
 }))
+
+/**
+ * Tell main which session is on screen, for the idle-session reaper — the
+ * active session is never reaped, and main has no other way to know it.
+ * A store subscription rather than a call in `activate`, because
+ * `createSession` also sets `activeSessionId` directly.
+ */
+let lastReportedActive: string | null | undefined
+useSessionsStore.subscribe((state) => {
+  const active = state.activeSessionId
+  if (active === lastReportedActive) return
+  lastReportedActive = active
+  void window.pidex.invoke('pi:setActiveSession', active).catch(() => {
+    // Main missing the report only costs reap immunity; never break the UI.
+  })
+})

@@ -21,6 +21,8 @@ import type {
   McpWriteScope,
 } from './mcp'
 import type {
+  AdoptableSession,
+  SessionReaperPrefs,
   AddWorktreeBranch,
   AppPrefs,
   AboutInfo,
@@ -104,6 +106,18 @@ export interface IpcInvokeMap {
     result: void
   }
   'pi:disposeSession': { args: [sessionId: string]; result: void }
+  /**
+   * Live pi subprocesses main currently owns. A freshly loaded renderer calls
+   * this to re-adopt sessions it orphaned (reload, crash) instead of leaving
+   * ~200 MB processes stranded until quit — and to avoid spawning a SECOND
+   * process for a session file an orphan still owns.
+   */
+  'pi:listLiveSessions': { args: []; result: AdoptableSession[] }
+  /**
+   * Which session the user is looking at, for the idle-session reaper — the
+   * active session is never reaped, and main has no other way to know it.
+   */
+  'pi:setActiveSession': { args: [sessionId: string | null]; result: void }
   /** One-shot `pi -p` completion that names a session after its first message. */
   'pi:generateTitle': {
     args: [workspacePath: string, message: string, existingNames: string[]]
@@ -152,6 +166,7 @@ export interface IpcInvokeMap {
   /** Suppress orchestrator desktop notifications (global, not per project). */
   'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
   'app:setClaudeAutocompact': { args: [value: string]; result: void }
+  'app:setSessionReaperPrefs': { args: [prefs: SessionReaperPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   /** Absolute path of the main-process debug log, or null if it could not be opened. */
   'app:debugLogPath': { args: []; result: string | null }

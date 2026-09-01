@@ -107,6 +107,18 @@ class PtyManager {
   }
 
   /**
+   * True when any live shell belongs to this chat session. The idle-session
+   * reaper must not reclaim a session whose terminal may be running a build —
+   * artifacts and layout rebuild on resume, a killed shell command does not.
+   */
+  hasLiveForSession(sessionId: string): boolean {
+    for (const session of this.sessions.values()) {
+      if (session.sessionId === sessionId) return true
+    }
+    return false
+  }
+
+  /**
    * Scrollback for a reattaching view. Unknown ptyId yields '' so a stale
    * renderer reattaching to a dead shell is a no-op, not a throw.
    *

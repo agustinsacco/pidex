@@ -80,3 +80,14 @@ describe('watchWorkspaceSessions', () => {
     expect(sent[0]).toEqual({ channel: 'sessions:changed', payload: { workspacePath: workspace } })
   })
 })
+
+describe('watch budget', () => {
+  it('keeps the per-directory cap high enough for real workspaces, bounded for dumps', async () => {
+    const { MAX_WATCHED_SESSION_FILES } = await import('./session-watcher')
+    // One fd per watched FILE (see workspace-watcher.ts). The busiest real
+    // session dir here holds 10 files; thousands means something else is
+    // writing into pi's session tree and must not take the app down.
+    expect(MAX_WATCHED_SESSION_FILES).toBeGreaterThanOrEqual(500)
+    expect(MAX_WATCHED_SESSION_FILES).toBeLessThanOrEqual(10_000)
+  })
+})

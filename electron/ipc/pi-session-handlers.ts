@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { basename, join as joinPath } from 'node:path'
-import { fleetHub, registry } from '../registry'
+import { fleetHub, registry, sessionReaper } from '../registry'
 import { handle } from './handle'
+import { trimForRenderer } from './event-trim'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
@@ -186,7 +187,10 @@ async function spawnSession(
     }
   }
 
-  session.client.on('event', (ev) => push({ kind: 'event', event: ev }))
+  // Trimmed, not forwarded whole: two of pi's events restate the entire run
+  // after it has already streamed, and the renderer reads neither. The fleet
+  // hub listens on the client directly, so it still sees them intact.
+  session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
   session.client.on('extension-ui', (request) => {
     // The orchestrator's tools reach main by riding this channel. Intercepted
     // requests are answered in main and must NOT reach the renderer, or every
@@ -230,6 +234,7 @@ export function registerPiSessionHandlers(): void {
     return info.mainRepoPath ?? cwd
   })
   fleetHub.start()
+  sessionReaper.start()
   // Tell the user when something blocks while they are elsewhere — the whole
   // premise of orchestration is that work continues when they are not looking.
   startNotifier(fleetHub)
@@ -328,6 +333,21 @@ export function registerPiSessionHandlers(): void {
 
   handle('pi:disposeSession', async (_event, sessionId: string) => {
     await registry.dispose(sessionId)
+  })
+
+  handle('pi:listLiveSessions', () =>
+    registry.list().map((info) => {
+      const fleet = fleetHub.get(info.sessionId)
+      return {
+        ...info,
+        diskPath: fleet?.diskPath,
+        isOrchestrator: fleetHub.isOrchestrator(info.sessionId),
+      }
+    }),
+  )
+
+  handle('pi:setActiveSession', (_event, sessionId: string | null) => {
+    sessionReaper.setActiveSession(sessionId)
   })
 
   // Best-effort: naming is a nicety, so every failure path returns null and

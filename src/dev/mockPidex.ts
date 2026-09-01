@@ -1123,6 +1123,14 @@ export function installMockPidex(): void {
         case 'app:resumeTarget':
           // Browser harness always starts at the picker.
           return Promise.resolve({ kind: 'none' })
+        case 'pi:listLiveSessions':
+          // The harness owns no real subprocesses, so there is nothing to
+          // re-adopt after a reload.
+          return Promise.resolve([])
+        case 'pi:setActiveSession':
+          return Promise.resolve(undefined)
+        case 'app:setSessionReaperPrefs':
+          return Promise.resolve(undefined)
         case 'sessions:list': {
           const workspacePath = args[0] as string
           return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))

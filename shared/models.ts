@@ -42,6 +42,17 @@ export interface LiveSessionInfo {
   pid?: number
 }
 
+/**
+ * One live session as reported to a freshly loaded renderer, so a reload can
+ * re-adopt the pi subprocesses it orphaned instead of stranding ~200 MB each.
+ * `diskPath` comes from the fleet hub (which asks `get_state` itself) and can
+ * be briefly absent for a session that just spawned.
+ */
+export interface AdoptableSession extends LiveSessionInfo {
+  diskPath?: string
+  isOrchestrator: boolean
+}
+
 /** Pushed on the per-session event channel. */
 export type SessionPush =
   | { kind: 'event'; event: PiEvent }
@@ -56,6 +67,13 @@ export type SessionPush =
    * "the visible-hand rule".
    */
   | { kind: 'injected'; text: string; source: 'orchestrator' }
+  /**
+   * Main reclaimed this session's idle pi subprocess (the session reaper).
+   * The transcript is on disk and reopening resumes it; the renderer's job is
+   * local cleanup plus marking the sidebar row suspended — the process is
+   * already gone, so it must NOT call `pi:disposeSession` again.
+   */
+  | { kind: 'reaped'; diskPath?: string; workspacePath: string }
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
@@ -597,6 +615,55 @@ export function modeAllowsStartingWork(mode: OrchestratorMode): boolean {
  */
 export const ORCHESTRATOR_NAME_PREFIX = '✳ Orchestrator'
 
+/**
+ * The idle-session reaper's policy. Both conditions must hold before a
+ * session's pi subprocess is reclaimed: the live count is over
+ * `maxLiveSessions` AND the candidate has been idle longer than
+ * `idleGraceMinutes`. Either alone is wrong — the cap alone can take a
+ * session the user touched seconds ago, the grace alone leaves ten rotating
+ * lanes holding ~2 GB.
+ */
+export interface SessionReaperPrefs {
+  enabled: boolean
+  maxLiveSessions: number
+  idleGraceMinutes: number
+}
+
+export const DEFAULT_SESSION_REAPER_PREFS: SessionReaperPrefs = {
+  enabled: true,
+  maxLiveSessions: 4,
+  idleGraceMinutes: 15,
+}
+
+export const SESSION_REAPER_LIMITS = {
+  maxLiveSessions: { min: 1, max: 32 },
+  idleGraceMinutes: { min: 1, max: 24 * 60 },
+} as const
+
+/** Clamp anything read off disk or sent over IPC; these gate process kills. */
+export function normalizeSessionReaperPrefs(
+  input: Partial<SessionReaperPrefs> | undefined,
+): SessionReaperPrefs {
+  const merged = { ...DEFAULT_SESSION_REAPER_PREFS, ...input }
+  const clamp = (value: number, lo: number, hi: number, fallback: number): number =>
+    Number.isFinite(value) ? Math.min(hi, Math.max(lo, Math.round(value))) : fallback
+  return {
+    enabled: Boolean(merged.enabled),
+    maxLiveSessions: clamp(
+      merged.maxLiveSessions,
+      SESSION_REAPER_LIMITS.maxLiveSessions.min,
+      SESSION_REAPER_LIMITS.maxLiveSessions.max,
+      DEFAULT_SESSION_REAPER_PREFS.maxLiveSessions,
+    ),
+    idleGraceMinutes: clamp(
+      merged.idleGraceMinutes,
+      SESSION_REAPER_LIMITS.idleGraceMinutes.min,
+      SESSION_REAPER_LIMITS.idleGraceMinutes.max,
+      DEFAULT_SESSION_REAPER_PREFS.idleGraceMinutes,
+    ),
+  }
+}
+
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
@@ -658,6 +725,8 @@ export interface AppPrefs {
    * default rather than passing a bad value to the CLI.
    */
   claudeAutocompact: string
+  /** Idle-session reaper policy. See SessionReaperPrefs. */
+  sessionReaper: SessionReaperPrefs
   /**
    * Unsent composer drafts, keyed by `session:<pidexId>` or
    * `home:<workspacePath>`.
@@ -795,6 +864,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   orchestratorDigests: {},
   notificationsMuted: false,
   claudeAutocompact: '',
+  sessionReaper: DEFAULT_SESSION_REAPER_PREFS,
   drafts: {},
 }
 

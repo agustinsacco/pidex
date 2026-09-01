@@ -24,6 +24,13 @@ counterpart). Those are listed first among the high-severity items.
 >   exists. Push channels still fan out over `BrowserWindow.getAllWindows()`,
 >   but there is no second window to pay for it.
 >
+> **2026-09-01** — F7, F8, F10, F16 and F17 fixed by the session resource
+> work: [backlog/session-resource-management.md](session-resource-management.md)
+> (its S1/S5/S4/S2/S6), logs
+> [2026-09-01-session-scan-and-ipc-trims.md](../../log/2026-09-01-session-scan-and-ipc-trims.md)
+> and
+> [2026-09-01-session-reaper-and-live-stats.md](../../log/2026-09-01-session-reaper-and-live-stats.md).
+>
 > Status values: `open` (reproduces today) · `fixed` (with the commit or file
 > that fixed it) · `moot` (the code it described is gone). Keep this column
 > current — a finding list with no status is what made this file 956 lines of
@@ -47,17 +54,17 @@ counterpart). Those are listed first among the high-severity items.
 | F4  | open      | `summarizeTool` re-`JSON.parse`s the entire accumulated args on every delta (O(n²))                   | high | MEASURED 665 ms for one 488 KB `write`                                                              | `src/features/chat/tools/toolSummaries.ts:80`                                                                                                                    |
 | F5  | fixed     | `shared/rpc.ts` `message_update` mirrors a **pre-0.84.0** pi; all `partial` handling is dead code     | high | VERIFIED against pi 0.84.4 + its CHANGELOG + `docs/rpc.md`; see `specs/log/2026-08-28-pi-compat.md` | `shared/rpc.ts` header, `src/features/chat/toolIdentity.ts` (`revealedFromStart`), `reducer.ts` `toolcall_start`                                                 |
 | F6  | open      | `releaseWorkspace` — the documented fix for editor/Monaco retention — is **never called**             | high | VERIFIED: only callers are its own test                                                             | `src/stores/files.ts:197`                                                                                                                                        |
-| F7  | open      | Live pi subprocesses are unbounded and only disposed by explicit user action                          | high | MEASURED 172 MB RSS for one _idle_ pi tree                                                          | `src/stores/sessions.ts:433-491`                                                                                                                                 |
-| F8  | open      | 28–49 `get_session_stats` RPC round trips per user turn; `usage` now arrives free on every delta      | med  | MEASURED against two real session files                                                             | `src/stores/sessions.ts:15-22,219-221`                                                                                                                           |
+| F7  | **fixed** | Live pi subprocesses are unbounded and only disposed by explicit user action                          | high | MEASURED 172 MB RSS for one _idle_ pi tree                                                          | `src/stores/sessions.ts:433-491`                                                                                                                                 |
+| F8  | **fixed** | 28–49 `get_session_stats` RPC round trips per user turn; `usage` now arrives free on every delta      | med  | MEASURED against two real session files                                                             | `src/stores/sessions.ts:15-22,219-221`                                                                                                                           |
 | F9  | open      | `JsonlDecoder` is O(n²) when one record spans many stdout chunks                                      | med  | MEASURED 959 ms for a 15.3 MB record; fix 17.6 ms                                                   | `electron/pi/jsonl.ts:19-31`                                                                                                                                     |
-| F10 | open      | `agent_end.messages` / `turn_end.toolResults` are serialized across IPC and then discarded            | med  | MEASURED 0.19–1.92 MB and 1–2 ms per run                                                            | `electron/ipc/pi-session-handlers.ts:95`, `src/features/chat/reducer.ts:82-112`                                                                                  |
+| F10 | **fixed** | `agent_end.messages` / `turn_end.toolResults` are serialized across IPC and then discarded            | med  | MEASURED 0.19–1.92 MB and 1–2 ms per run                                                            | `electron/ipc/pi-session-handlers.ts:95`, `src/features/chat/reducer.ts:82-112`                                                                                  |
 | F11 | open      | `message_end` fold is O(items + tools); pi emits one message per tool call ⇒ O(n²) per session        | med  | MEASURED 616 µs @4000 items / 2000 tools                                                            | `src/features/chat/reducer.ts:505,526`                                                                                                                           |
 | F12 | open      | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta         | med  | MEASURED 208–972 µs per recompute                                                                   | `src/features/files/FilesChangedPane.tsx:27-30`                                                                                                                  |
 | F13 | open      | Artifact `versions[]` grows unbounded, full content per version, duplicated with the tool payload     | med  | REASONED                                                                                            | `src/stores/artifacts.ts:109,122`                                                                                                                                |
 | F14 | **fixed** | `git:info` is uncached: 4 `git` spawns per debounced `fs:changed`                                     | med  | MEASURED 18 ms median on this repo                                                                  | `electron/ipc/git-handlers.ts:24`, `src/features/worktrees/BranchControl.tsx:38`                                                                                 |
 | F15 | moot      | Every push channel broadcasts to **all** BrowserWindows, including the monitor float                  | med  | REASONED                                                                                            | `electron/pty/pty-manager.ts:189-193`, `electron/fs/workspace-watcher.ts:111-115`, `electron/pi/session-watcher.ts:26-30`, `electron/resources/monitor.ts:34-36` |
-| F16 | open      | A renderer reload orphans every live pi; `pi:listLiveSessions` exists to fix this and is never called | med  | VERIFIED: zero renderer callers                                                                     | `electron/ipc/pi-session-handlers.ts:126`                                                                                                                        |
-| F17 | open      | `metaCache` in the session scanner is unbounded and never evicts deleted files                        | low  | REASONED                                                                                            | `electron/pi/session-scanner.ts:28`                                                                                                                              |
+| F16 | **fixed** | A renderer reload orphans every live pi; `pi:listLiveSessions` exists to fix this and is never called | med  | VERIFIED: zero renderer callers                                                                     | `electron/ipc/pi-session-handlers.ts:126`                                                                                                                        |
+| F17 | **fixed** | `metaCache` in the session scanner is unbounded and never evicts deleted files                        | low  | REASONED                                                                                            | `electron/pi/session-scanner.ts:28`                                                                                                                              |
 | F18 | open      | `ArtifactsPane` runs `clearUnseen` (a `set`) on every render — no dep array                           | low  | REASONED                                                                                            | `src/features/artifacts/ArtifactsPane.tsx:33-35`                                                                                                                 |
 | F19 | open      | The captured e2e/reducer fixture uses the pre-0.84.0 wire shape, so no test can catch F5              | low  | MEASURED: 94.2 % of the fixture's bytes are fields pi no longer sends                               | `src/features/chat/__fixtures__/real-session-events.jsonl`                                                                                                       |
 
@@ -916,10 +923,21 @@ real session here (643 KB). Combined with `awaitWriteFinish` (250 ms) plus a
 300 ms notify debounce, the streaming steady state costs a few ms/s of main
 process. Fine.
 
-**Workspace watching is bounded.** `IGNORED_DIRS` + `MAX_WATCH_DEPTH = 3`
-(`workspace-watcher.ts`) with measured justification in the comments, 250 ms
-batching, and an `error` handler so EMFILE cannot take the main process down.
-Session-dir watchers are tied to sidebar group expansion and closed on quit.
+**Workspace watching is bounded — on four axes, not two.** `IGNORED_DIRS` +
+`MAX_WATCH_DEPTH = 3` bound the DIRECTORY walk; `MAX_DIR_ENTRIES = 2 000` and
+`MAX_WATCHED_PATHS = 12 000` bound the fd count (`workspace-watcher.ts`), with
+measured justification in the comments, plus 250 ms batching. Session-dir
+watchers are tied to sidebar group expansion and closed on quit.
+
+The two fd bounds were added 2026-08-31, after the first two proved not to be
+bounds at all: chokidar opens one fd per watched PATH, files included, and the
+depth cap is blind to a flat directory because every file in it sits at the
+same legal depth. See
+[docs/log/2026-08-31-workspace-watcher-fd-budget.md](../../log/2026-08-31-workspace-watcher-fd-budget.md).
+The `error` handler does NOT make EMFILE survivable, and this doc previously
+claimed it did: by the time chokidar reports EMFILE the fds are already gone,
+and the failure lands on whatever opens a file next — in practice
+`electron-store` reading `config.json`, i.e. session start.
 
 **`gitInfoBatch` is cached.** 5 s TTL, in-flight dedupe, concurrency capped at
 4, skips the extra `rev-list`. (Its uncached sibling is F14.)
