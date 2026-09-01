@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { McpConfigsResult, McpResolvedServer } from '@shared/mcp'
+import type { McpCacheEntry, McpConfigsResult, McpResolvedServer, McpScope } from '@shared/mcp'
 import { errorText } from '@shared/errors'
+import { stripAnsi } from '@shared/ansi'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useConnectorsStore, type ConnectFlow } from '@/stores/connectors'
+import { FlowCard } from '@/features/connectors/FlowCard'
+import { ServerEditor } from '@/features/connectors/ServerEditor'
+import { ChevronIcon } from '@/components/icons'
 import { Button, TextInput } from '@/components/form'
 import {
   CONNECTORS,
@@ -21,88 +25,147 @@ import {
   stateLabel,
   type McpServerState,
 } from '@/features/connectors/mcpStatus'
-import { useSettingsUiStore } from '../settingsUiStore'
+import { usePackageJob } from '../usePackageJob'
+import { JobOutput } from '../JobOutput'
+import { ConfigFileEditor, mcpConfigFile } from '../ConfigFileEditor'
+
+const SCOPE_LABELS: Record<McpScope, string> = {
+  xdg: '~/.config/mcp',
+  agents: '~/.agents',
+  'agents-dir': '~/.agents/mcp',
+  'pi-global': 'pi global',
+  project: 'project .mcp.json',
+  'pi-project': 'project .pi',
+}
+
+const ADAPTER_PACKAGE = 'npm:pi-mcp-adapter'
 
 /**
- * Settings → Connectors: connect real services over OAuth.
+ * Settings → Connectors: every MCP server a session can reach, in one list.
  *
- * pidex writes the mcp.json entry and drives the adapter's own `/mcp-auth`
- * command; the adapter owns the protocol and the tokens. Nothing here ever
- * sees a credential. The MCP tab remains the place for the resolution chain,
- * raw JSON repair and non-catalog servers.
+ * This was two tabs. They were two views of one list — a connector IS an MCP
+ * server, and connecting one writes the `pi-global` scope of the very chain
+ * the other tab resolved, so the same rows appeared twice with different
+ * affordances. Worse, only the catalog view had the adapter's structured
+ * per-server state, so the view that listed EVERY server was the one that
+ * could not say whether any of them worked.
+ *
+ * The list is now the resolved chain (the truth), enriched with catalog
+ * metadata where a server's URL matches a known connector. The catalog is an
+ * add affordance, not a separate world. Scope resolution, raw JSON repair and
+ * the adapter's install state live under Advanced, because they are repair
+ * tools rather than daily controls.
+ *
+ * pidex still never holds a token: it writes mcp.json and drives the adapter's
+ * own `/mcp-auth`. See docs/mcp.md.
  */
 export function ConnectorsTab(): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const [configs, setConfigs] = useState<McpConfigsResult | null>(null)
+  const [cache, setCache] = useState<McpCacheEntry[]>([])
+  const [packages, setPackages] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<McpResolvedServer | null>(null)
+  const [rawEdit, setRawEdit] = useState<McpScope | null>(null)
+  const [advanced, setAdvanced] = useState(false)
+
   const flows = useConnectorsStore((s) => s.flows)
   const statusText = useExtensionUiStore((s) =>
     activeSessionId ? s.statuses[activeSessionId]?.[MCP_STATUS_STATUS_KEY] : undefined,
   )
   const status = useMemo(() => parseMcpStatus(statusText), [statusText])
 
-  const reload = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<void> => {
     try {
-      setConfigs(await window.pidex.invoke('mcp:readConfigs', workspacePath ?? undefined))
+      const [nextConfigs, nextCache, packageEntries] = await Promise.all([
+        window.pidex.invoke('mcp:readConfigs', workspacePath ?? undefined),
+        window.pidex.invoke('mcp:readCache'),
+        // Per-scope package entries — pi loads BOTH scopes' packages, so the
+        // merged settings view (where a project array shadows global) would
+        // misreport the adapter as missing.
+        window.pidex.invoke('packages:list', workspacePath ?? undefined),
+      ])
+      setConfigs(nextConfigs)
+      setCache(nextCache)
+      setPackages(packageEntries.map((entry) => entry.spec))
     } catch (err) {
       setError(errorText(err))
     }
   }, [workspacePath])
 
   useEffect(() => {
-    void reload()
-  }, [reload])
+    void refresh()
+  }, [refresh])
 
-  const configured = useMemo(() => {
-    const byConnector = new Map<string, McpResolvedServer>()
+  const installJob = usePackageJob(() => void refresh())
+  const adapterInstalled = packages?.some((p) => p.includes('pi-mcp-adapter')) ?? false
+
+  const act = async (fn: () => Promise<unknown>): Promise<void> => {
+    setError(null)
+    try {
+      await fn()
+      await refresh()
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+
+  /** Catalog entries that are not already in the resolved chain. */
+  const unconfigured = useMemo(() => {
+    const taken = new Set<string>()
     for (const server of configs?.servers ?? []) {
       const entry = connectorForUrl(server.config.url)
-      if (entry && !byConnector.has(entry.id)) byConnector.set(entry.id, server)
+      if (entry) taken.add(entry.id)
     }
-    return byConnector
+    return CONNECTORS.filter((entry) => !taken.has(entry.id))
   }, [configs])
-
-  const add = async (entry: ConnectorEntry, choice: ConnectorChoice): Promise<void> => {
-    setError(null)
-    try {
-      const config = buildConnectorConfig(entry, choice)
-      await window.pidex.invoke(
-        'mcp:upsertServer',
-        'pi-global',
-        undefined,
-        entry.serverName,
-        config,
-      )
-      await reload()
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }
-
-  const remove = async (server: McpResolvedServer): Promise<void> => {
-    setError(null)
-    try {
-      await window.pidex.invoke(
-        'mcp:removeServer',
-        server.scope,
-        workspacePath ?? undefined,
-        server.name,
-      )
-      await reload()
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }
 
   return (
     <div className="max-w-xl">
       <h2 className="text-xl font-semibold">Connectors</h2>
       <p className="text-text-secondary mt-1 text-base">
-        Services reachable over the Model Context Protocol. Signing in runs the MCP adapter&apos;s
-        own OAuth flow — it stores the tokens in your operating system&apos;s credential store, and
-        pidex never holds a copy.
+        Services reachable over the Model Context Protocol, provided to sessions by the{' '}
+        <span className="font-mono">pi-mcp-adapter</span> package. Signing in runs the
+        adapter&apos;s own OAuth flow — it stores the tokens in your operating system&apos;s
+        credential store, and pidex never holds a copy.
       </p>
+
+      {packages !== null && !adapterInstalled && (
+        <div className="border-warning/30 bg-warning/10 mt-3 rounded-lg border px-3.5 py-2.5">
+          <div className="flex items-center justify-between gap-3 text-base">
+            <span className="text-text-secondary">
+              The adapter package is not installed — nothing below will load.
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setError(null)
+                void installJob.start(() =>
+                  window.pidex.invoke(
+                    'packages:run',
+                    'install',
+                    ADAPTER_PACKAGE,
+                    'global',
+                    undefined,
+                  ),
+                )
+              }}
+              disabled={installJob.running}
+              className="shrink-0"
+            >
+              {installJob.running ? 'Installing…' : 'Install'}
+            </Button>
+          </div>
+          <JobOutput
+            running={installJob.running}
+            output={installJob.output}
+            exitCode={installJob.exitCode}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="border-danger/30 bg-danger-soft text-danger mt-3 rounded-lg border px-3 py-2 text-sm">
@@ -110,36 +173,177 @@ export function ConnectorsTab(): React.JSX.Element {
         </div>
       )}
 
-      <div className="mt-4 space-y-1.5">
-        {CONNECTORS.map((entry) => (
-          <ConnectorRow
-            key={entry.id}
-            entry={entry}
-            server={configured.get(entry.id)}
-            state={
-              status?.servers.find((s) => s.name === configured.get(entry.id)?.name)?.state ?? null
-            }
-            toolCount={
-              status?.servers.find((s) => s.name === configured.get(entry.id)?.name)?.toolCount ?? 0
-            }
-            flow={flows[configured.get(entry.id)?.name ?? entry.serverName]}
-            sessionId={activeSessionId}
-            onAdd={(choice) => void add(entry, choice)}
-            onRemove={(server) => void remove(server)}
-          />
-        ))}
+      {/* Configured servers — the resolved chain, which is the truth. Kept
+          FIRST so its controls are what a reader reaches for by default. */}
+      <div className="mt-5 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Connected</h3>
+        <Button size="sm" onClick={() => setAdding(true)}>
+          Add custom server…
+        </Button>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        {configs?.servers.map((server) => {
+          const entry = connectorForUrl(server.config.url)
+          const live = status?.servers.find((s) => s.name === server.name)
+          return (
+            <ConfiguredRow
+              key={server.name}
+              server={server}
+              entry={entry}
+              state={live?.state ?? null}
+              toolCount={live?.toolCount ?? 0}
+              cache={cache.find((c) => c.name === server.name)}
+              flow={flows[server.name]}
+              sessionId={activeSessionId}
+              onToggle={(disabled) =>
+                void act(() =>
+                  window.pidex.invoke(
+                    'mcp:setDisabled',
+                    server.scope,
+                    workspacePath ?? undefined,
+                    server.name,
+                    disabled,
+                  ),
+                )
+              }
+              onRemove={() =>
+                void act(() =>
+                  window.pidex.invoke(
+                    'mcp:removeServer',
+                    server.scope,
+                    workspacePath ?? undefined,
+                    server.name,
+                  ),
+                )
+              }
+              onEdit={() => setEditing(server)}
+            />
+          )
+        })}
+        {configs && configs.servers.length === 0 && (
+          <div className="text-text-tertiary py-3 text-base">No MCP servers configured yet.</div>
+        )}
       </div>
 
-      <div className="text-text-tertiary mt-5 text-sm">
-        Custom servers, the mcp.json resolution chain and raw JSON repair live in{' '}
-        <button
-          onClick={() => useSettingsUiStore.getState().setTab('mcp')}
-          className="underline underline-offset-2"
-        >
-          Settings → MCP
-        </button>
-        .
-      </div>
+      {/* The curated catalog, reduced to what it actually is: an add button
+          with a vetted URL behind it. */}
+      {unconfigured.length > 0 && (
+        <>
+          <h3 className="mt-6 text-lg font-semibold">Add a connector</h3>
+          <div className="mt-2 space-y-1.5">
+            {unconfigured.map((entry) => (
+              <CatalogRow
+                key={entry.id}
+                entry={entry}
+                onAdd={(choice) =>
+                  void act(() =>
+                    window.pidex.invoke(
+                      'mcp:upsertServer',
+                      'pi-global',
+                      undefined,
+                      entry.serverName,
+                      buildConnectorConfig(entry, choice),
+                    ),
+                  )
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Repair tools, not daily controls. */}
+      <button
+        onClick={() => setAdvanced((a) => !a)}
+        className="text-text-tertiary hover:text-text mt-6 flex items-center gap-1.5 text-base"
+      >
+        <ChevronIcon size={8} expanded={advanced} />
+        Advanced
+      </button>
+      {advanced && (
+        <div className="mt-2">
+          {adapterInstalled && (
+            <div className="border-border bg-bg-secondary/50 rounded-lg border px-3.5 py-2.5">
+              <div className="flex items-center gap-2 text-base">
+                <span className="bg-success h-1.5 w-1.5 rounded-full" />
+                <span className="text-text">pi-mcp-adapter is in pi&apos;s packages</span>
+                <AdapterSessionStatus />
+              </div>
+            </div>
+          )}
+
+          <h4 className="mt-4 text-base font-semibold">Config files</h4>
+          <p className="text-text-tertiary mt-0.5 text-sm">
+            Resolution order, lowest → highest — later files override earlier ones per server name.
+          </p>
+          <div className="border-border mt-2 divide-y rounded-lg border">
+            {configs?.files.map((file) => (
+              <div key={file.scope} className="flex items-center gap-2 px-3 py-1.5 text-base">
+                <span className="text-text-secondary w-32 shrink-0">
+                  {SCOPE_LABELS[file.scope]}
+                </span>
+                <span
+                  className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
+                  title={file.path}
+                >
+                  {file.path}
+                </span>
+                {file.malformed ? (
+                  <span className="text-danger shrink-0 text-sm" title={file.error}>
+                    malformed
+                  </span>
+                ) : file.exists ? (
+                  <span className="text-text-tertiary shrink-0 text-sm">
+                    {file.serverNames.length} server{file.serverNames.length === 1 ? '' : 's'}
+                  </span>
+                ) : (
+                  <span className="text-text-tertiary/60 shrink-0 text-sm">absent</span>
+                )}
+                <button
+                  onClick={() => setRawEdit(file.scope)}
+                  className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
+                >
+                  Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(adding || editing) && (
+        <ServerEditor
+          initial={editing}
+          workspacePath={workspacePath ?? undefined}
+          onClose={() => {
+            setAdding(false)
+            setEditing(null)
+          }}
+          onSave={(scope, name, config) =>
+            void act(async () => {
+              await window.pidex.invoke(
+                'mcp:upsertServer',
+                scope,
+                workspacePath ?? undefined,
+                name,
+                config,
+              )
+              setAdding(false)
+              setEditing(null)
+            })
+          }
+        />
+      )}
+
+      {rawEdit && (
+        <ConfigFileEditor
+          source={mcpConfigFile(rawEdit, workspacePath ?? undefined)}
+          onClose={() => {
+            setRawEdit(null)
+            void refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -153,32 +357,175 @@ const STATE_DOT: Record<McpServerState, string> = {
   'not-connected': 'bg-border-strong',
 }
 
-function ConnectorRow({
-  entry,
+/**
+ * One resolved server. Carries the config controls the MCP tab had AND the
+ * auth controls the Connectors tab had, because they always described the
+ * same row.
+ */
+function ConfiguredRow({
   server,
+  entry,
   state,
   toolCount,
+  cache,
   flow,
   sessionId,
-  onAdd,
+  onToggle,
   onRemove,
+  onEdit,
 }: {
-  entry: ConnectorEntry
-  server?: McpResolvedServer
+  server: McpResolvedServer
+  entry: ConnectorEntry | undefined
   state: McpServerState | null
   toolCount: number
+  cache?: McpCacheEntry
   flow?: ConnectFlow
   sessionId: string | null
+  onToggle: (disabled: boolean) => void
+  onRemove: () => void
+  onEdit: () => void
+}): React.JSX.Element {
+  const [showTools, setShowTools] = useState(false)
+  const disabled = server.config.disabled === true
+  const transport = server.config.url
+    ? server.config.url
+    : [server.config.command, ...(server.config.args ?? [])].join(' ')
+  // Only a remote server has an OAuth flow to run; a stdio command has none.
+  const signInable = Boolean(server.config.url)
+  const directTools = server.config.directTools ?? []
+
+  return (
+    <div
+      className="border-border rounded-lg border px-3 py-2"
+      data-testid={`connector-${entry?.id ?? server.name}`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={clsx('text-lg font-medium', disabled && 'text-text-tertiary line-through')}
+        >
+          {server.name}
+        </span>
+        <span
+          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs"
+          title={`Defined in ${SCOPE_LABELS[server.scope]}`}
+        >
+          {SCOPE_LABELS[server.scope]}
+        </span>
+        {!state && !sessionId && (
+          <span
+            className="text-text-tertiary shrink-0 text-sm"
+            title="Per-server state comes from the MCP adapter, which runs inside a session"
+          >
+            state unknown
+          </span>
+        )}
+        {state && (
+          <span
+            className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
+            title={`${server.name}: ${stateLabel(state)}`}
+          >
+            <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
+            {stateLabel(state)}
+            {state === 'connected' && toolCount > 0 && ` · ${toolCount} tools`}
+          </span>
+        )}
+        <span
+          className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
+          title={transport}
+        >
+          {transport}
+        </span>
+        {signInable && (
+          <Button
+            size="sm"
+            onClick={() => {
+              const store = useConnectorsStore.getState()
+              // Reconnect needs the process that holds the connection;
+              // signing in does not, and runs headless when nothing is live.
+              if (state === 'connected' && sessionId) {
+                void store.reconnect(sessionId, server.name)
+              } else {
+                void store.connect(server.name, sessionId ?? undefined)
+              }
+            }}
+          >
+            {state === 'connected' ? 'Reconnect' : 'Sign in'}
+          </Button>
+        )}
+        <label className="flex shrink-0 items-center gap-1 text-sm">
+          <input
+            type="checkbox"
+            checked={!disabled}
+            onChange={(e) => onToggle(!e.target.checked)}
+          />
+          enabled
+        </label>
+        <button
+          onClick={onEdit}
+          className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => {
+            if (signInable) {
+              void useConnectorsStore.getState().disconnect(server.name, sessionId ?? undefined)
+            }
+            onRemove()
+          }}
+          className="text-text-tertiary hover:text-danger shrink-0 text-sm underline-offset-2 hover:underline"
+        >
+          Remove
+        </button>
+      </div>
+
+      {entry && <div className="text-text-tertiary mt-0.5 text-sm">{entry.summary}</div>}
+
+      <div className="text-text-tertiary mt-1 flex flex-wrap items-center gap-2 text-sm">
+        {cache && cache.tools.length > 0 && (
+          <button onClick={() => setShowTools((s) => !s)} className="flex items-center gap-1">
+            <ChevronIcon size={8} expanded={showTools} />
+            {cache.tools.length} cached tool{cache.tools.length === 1 ? '' : 's'}
+          </button>
+        )}
+        {server.shadows.length > 0 && (
+          <span title="Lower-precedence files also define this server">
+            shadows {server.shadows.map((s) => SCOPE_LABELS[s]).join(', ')}
+          </span>
+        )}
+      </div>
+
+      {directTools.length > 0 && (
+        <div className="text-warning mt-1 text-sm">
+          direct: <span className="font-mono">{directTools.slice(0, 4).join(', ')}</span>
+          {directTools.length > 4 && ` +${directTools.length - 4}`} — these register as top-level
+          tools instead of going through the <span className="font-mono">mcp</span> gateway, so they
+          cost their full schema in every request.
+        </div>
+      )}
+
+      {showTools && cache && (
+        <div className="text-text-secondary mt-1 font-mono text-sm">{cache.tools.join(' · ')}</div>
+      )}
+
+      {flow && <FlowCard serverName={server.name} flow={flow} />}
+    </div>
+  )
+}
+
+/** A catalog entry that is not configured yet: vetted URL behind one button. */
+function CatalogRow({
+  entry,
+  onAdd,
+}: {
+  entry: ConnectorEntry
   onAdd: (choice: ConnectorChoice) => void
-  onRemove: (server: McpResolvedServer) => void
 }): React.JSX.Element {
   const [variant, setVariant] = useState(entry.variants?.options[0]?.id ?? '')
   const [readOnly, setReadOnly] = useState(false)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
-  const choice: ConnectorChoice = { variant, readOnly, clientId, clientSecret }
-  const serverName = server?.name ?? entry.serverName
-  const url = server?.config.url ?? connectorUrl(entry, { variant, readOnly })
+  const url = connectorUrl(entry, { variant, readOnly })
 
   return (
     <div
@@ -187,198 +534,88 @@ function ConnectorRow({
     >
       <div className="flex items-center gap-2">
         <span className="text-lg font-medium">{entry.name}</span>
-        {server && !state && !sessionId && (
-          <span
-            className="text-text-tertiary shrink-0 text-sm"
-            title="Per-server state comes from the MCP adapter, which runs inside a session"
-          >
-            state unknown
-          </span>
-        )}
-        {server && state && (
-          <span
-            className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
-            title={`${serverName}: ${stateLabel(state)}`}
-          >
-            <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
-            {stateLabel(state)}
-            {state === 'connected' && toolCount > 0 && ` · ${toolCount} tools`}
-          </span>
-        )}
         <span className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm" title={url}>
           {url}
         </span>
-        {server ? (
-          <>
-            <Button
-              size="sm"
-              onClick={() => {
-                const store = useConnectorsStore.getState()
-                // Reconnect needs the process that holds the connection;
-                // signing in does not, and runs headless when nothing is live.
-                if (state === 'connected' && sessionId) {
-                  void store.reconnect(sessionId, serverName)
-                } else {
-                  void store.connect(serverName, sessionId ?? undefined)
-                }
-              }}
-            >
-              {state === 'connected' ? 'Reconnect' : 'Sign in'}
-            </Button>
-            <button
-              onClick={() => {
-                void useConnectorsStore.getState().disconnect(serverName, sessionId ?? undefined)
-                onRemove(server)
-              }}
-              className="text-text-tertiary hover:text-danger shrink-0 text-sm underline-offset-2 hover:underline"
-            >
-              Remove
-            </button>
-          </>
-        ) : (
-          <Button variant="primary" size="sm" onClick={() => onAdd(choice)}>
-            Add
-          </Button>
-        )}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => onAdd({ variant, readOnly, clientId, clientSecret })}
+        >
+          Add
+        </Button>
       </div>
 
       <div className="text-text-tertiary mt-0.5 text-sm">{entry.summary}</div>
       {entry.caveat && <div className="text-text-tertiary mt-1 text-sm">{entry.caveat}</div>}
 
-      {!server && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm">
-          {entry.variants && (
-            <label className="flex items-center gap-1.5">
-              {entry.variants.label}
-              <select
-                value={variant}
-                onChange={(e) => setVariant(e.target.value)}
-                className="border-border bg-bg-secondary rounded px-1.5 py-0.5"
-              >
-                {entry.variants.options.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {entry.readOnlyUrl && (
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={readOnly}
-                onChange={(e) => setReadOnly(e.target.checked)}
-              />
-              read-only
-            </label>
-          )}
-          {entry.authKind === 'confidential' && (
-            <>
-              <TextInput
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="client ID"
-                className="w-40 font-mono"
-              />
-              <TextInput
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="client secret"
-                className="w-40 font-mono"
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      {flow && <FlowCard serverName={serverName} flow={flow} />}
-    </div>
-  )
-}
-
-/** What the authorization round-trip looks like while it is happening. */
-function FlowCard({
-  serverName,
-  flow,
-}: {
-  serverName: string
-  flow: ConnectFlow
-}): React.JSX.Element {
-  const [pasted, setPasted] = useState('')
-  const store = useConnectorsStore.getState()
-
-  if (flow.phase === 'starting') {
-    return <Note>Starting authorization…</Note>
-  }
-  if (flow.phase === 'connected') {
-    return (
-      <Note tone="success">
-        Authorized. <Dismiss onClick={() => store.dismiss(serverName)} />
-      </Note>
-    )
-  }
-  if (flow.phase === 'failed') {
-    return (
-      <Note tone="danger">
-        {flow.message} <Dismiss onClick={() => store.dismiss(serverName)} />
-      </Note>
-    )
-  }
-
-  return (
-    <div className="border-border bg-bg-secondary/40 mt-2 rounded-lg border px-3 py-2 text-sm">
-      <div className="text-text">Approve access in your browser to finish signing in.</div>
-      <div className="text-text-tertiary mt-1 break-all font-mono text-xs">
-        {flow.authorizationUrl}
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <TextInput
-          value={pasted}
-          onChange={(e) => setPasted(e.target.value)}
-          placeholder="…or paste the localhost callback URL"
-          className="min-w-0 flex-1 font-mono"
-        />
-        <Button
-          size="sm"
-          disabled={!pasted.trim()}
-          onClick={() => store.submitCallbackUrl(serverName, pasted)}
-        >
-          Finish
-        </Button>
-        <Button size="sm" onClick={() => store.cancel(serverName)}>
-          Cancel
-        </Button>
+      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm">
+        {entry.variants && (
+          <label className="flex items-center gap-1.5">
+            {entry.variants.label}
+            <select
+              value={variant}
+              onChange={(e) => setVariant(e.target.value)}
+              className="border-border bg-bg-secondary rounded px-1.5 py-0.5"
+            >
+              {entry.variants.options.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {entry.readOnlyUrl && (
+          <label className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={readOnly}
+              onChange={(e) => setReadOnly(e.target.checked)}
+            />
+            read-only
+          </label>
+        )}
+        {entry.authKind === 'confidential' && (
+          <>
+            <TextInput
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="client ID"
+              className="w-40 font-mono"
+            />
+            <TextInput
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+              placeholder="client secret"
+              className="w-40 font-mono"
+            />
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-function Note({
-  tone = 'neutral',
-  children,
-}: {
-  tone?: 'neutral' | 'success' | 'danger'
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div
-      className={clsx(
-        'mt-2 rounded-lg border px-3 py-1.5 text-sm',
-        tone === 'success' && 'border-success/30 bg-success/10 text-success',
-        tone === 'danger' && 'border-danger/30 bg-danger-soft text-danger',
-        tone === 'neutral' && 'border-border bg-bg-secondary/40 text-text-secondary',
-      )}
-    >
-      {children}
-    </div>
+/** Live-ish status: the adapter's setStatus line for the active session. */
+function AdapterSessionStatus(): React.JSX.Element | null {
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const statuses = useExtensionUiStore((s) =>
+    activeSessionId ? s.statuses[activeSessionId] : undefined,
   )
-}
+  const mcpStatus = useMemo(() => {
+    for (const [key, text] of Object.entries(statuses ?? {})) {
+      if (key.toLowerCase().includes('mcp') || stripAnsi(text).toLowerCase().includes('mcp')) {
+        return stripAnsi(text)
+      }
+    }
+    return null
+  }, [statuses])
 
-function Dismiss({ onClick }: { onClick: () => void }): React.JSX.Element {
+  if (!mcpStatus) return null
   return (
-    <button onClick={onClick} className="underline underline-offset-2">
-      dismiss
-    </button>
+    <span className="text-text-tertiary text-sm" title="Reported by pi-mcp-adapter">
+      · {mcpStatus}
+    </span>
   )
 }

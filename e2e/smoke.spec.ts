@@ -836,7 +836,7 @@ test('new chat without isolation runs in the open workspace', async () => {
   }
 })
 
-test('MCP settings: chain rows, disable toggle, add project server', async () => {
+test('Connectors: resolved rows, disable toggle, add custom server', async () => {
   // Seed a global server in an agent dir of this test's own. Shared would leak:
   // this `mcp.json` is never cleaned up, and every later test would inherit a
   // global MCP server it did not ask for.
@@ -856,12 +856,15 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
   try {
     await openWorkspace(page)
     await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'MCP', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'MCP servers' })).toBeVisible({
+    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible({
       timeout: 10_000,
     })
 
-    // The seeded global server resolves into the list.
+    // The seeded global server resolves into the list. It is in the
+    // "Connected" section, which renders BEFORE the catalog — so the
+    // first checkbox on the page is its own enabled toggle, not a
+    // read-only box belonging to some unconfigured catalog entry.
     await expect(page.getByText('linear', { exact: true })).toBeVisible()
     await expect(page.getByText('https://mcp.linear.app/sse').first()).toBeVisible()
 
@@ -877,7 +880,7 @@ test('MCP settings: chain rows, disable toggle, add project server', async () =>
       .toBe(true)
 
     // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
-    await page.getByRole('button', { name: 'Add server…' }).click()
+    await page.getByRole('button', { name: 'Add custom server…' }).click()
     await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
     await page.getByRole('radio', { name: 'Local command' }).check()
     await page.getByPlaceholder('npx some-mcp-server --flag').fill('npx local-tools-mcp')

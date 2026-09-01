@@ -9,7 +9,6 @@ export type SettingsTab =
   | 'claude-provider'
   | 'web-access'
   | 'connectors'
-  | 'mcp'
   | 'workspaces'
   | 'advanced'
   | 'keybindings'
