@@ -7,9 +7,12 @@ import { TranscriptSkeleton } from './TranscriptSkeleton'
 import { useSessionsStore } from '@/stores/sessions'
 import {
   isFollowIntent,
+  isFollowKey,
   isScrollBackIntent,
   isScrollBackKey,
   nextPinnedState,
+  REPIN_PX,
+  tailFloor,
 } from './items/autoscroll'
 import { spacingFor } from './items/spacing'
 import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
@@ -45,6 +48,18 @@ export const MessageList = memo(function MessageList({
   const lastHeightRef = useRef(0)
   /** Set while our own scroll is in flight, so its scroll event isn't read as intent. */
   const selfScrollRef = useRef(false)
+  /**
+   * Lowest viewport bottom seen since the reader stopped following, in content
+   * coordinates. Read during render rather than held in state so a shrink and
+   * its floor land in the SAME commit — the browser clamps `scrollTop` at
+   * layout, so a `useLayoutEffect` reading it back is already looking at the
+   * damage.
+   *
+   * It only ever moves DOWN (toward the top of the transcript). Re-sampling it
+   * on the way back down would make the reserved strip chase the reader, so
+   * the true bottom would recede forever and no scroll could ever re-pin.
+   */
+  const tailFloorRef = useRef(0)
 
   /**
    * Activity is grouped ACROSS assistant messages (pi emits one message per
@@ -116,34 +131,78 @@ export const MessageList = memo(function MessageList({
       // scroll events can ever fire to re-pin it, so the next long answer
       // streams below the fold unfollowed.
       const unpin = (): void => {
-        if (el.scrollHeight > el.clientHeight) setPinnedNow(false)
+        if (el.scrollHeight <= el.clientHeight) return
+        // Sampled at the instant intent is expressed: this is the highest the
+        // floor will sit for this read-back, and every later scroll can only
+        // lower it.
+        if (pinnedRef.current) tailFloorRef.current = el.scrollTop + el.clientHeight
+        setPinnedNow(false)
       }
+      // A flick toward the tail lands well after its last wheel event, so the
+      // wheel alone cannot see that it arrived. The direction is remembered
+      // here and settled at `scrollend`. It is a gesture gate, not geometry:
+      // a shrinking transcript clamping `scrollTop` fires `scrollend` too, and
+      // that one must never resume the follow.
+      let towardTail = false
       const onWheel = (event: WheelEvent): void => {
-        if (isScrollBackIntent(event.deltaY)) unpin()
-        // Wheel-down at the bottom re-pins directly: the geometry path can
-        // hold the landing sample as layout during a stream (see autoscroll).
-        else if (isFollowIntent(event.deltaY, el.scrollHeight - el.scrollTop - el.clientHeight)) {
+        if (isScrollBackIntent(event.deltaY)) {
+          towardTail = false
+          unpin()
+          return
+        }
+        towardTail = event.deltaY > 0
+        // Wheel-down already at the bottom re-pins directly: the geometry path
+        // can hold the landing sample as layout during a stream (see autoscroll).
+        if (isFollowIntent(event.deltaY, el.scrollHeight - el.scrollTop - el.clientHeight)) {
+          setPinnedNow(true)
+        }
+      }
+      const onScrollEnd = (): void => {
+        const wasTowardTail = towardTail
+        towardTail = false
+        if (wasTowardTail && el.scrollHeight - el.scrollTop - el.clientHeight <= REPIN_PX) {
           setPinnedNow(true)
         }
       }
       const onKeyDown = (event: KeyboardEvent): void => {
-        if (isScrollBackKey(event.key)) unpin()
+        if (isScrollBackKey(event.key)) {
+          towardTail = false
+          unpin()
+        } else if (isFollowKey(event.key, el.scrollHeight - el.scrollTop - el.clientHeight)) {
+          setPinnedNow(true)
+        }
       }
       // Scrollbar-thumb drags emit only scroll events, which the follow
       // effect's self-scroll mask can eat during a fast stream. A press in
       // the scrollbar gutter (right of the content box) IS read-back intent.
+      let gutterDrag = false
       const onPointerDown = (event: PointerEvent): void => {
-        if (event.offsetX >= el.clientWidth) unpin()
+        if (event.offsetX < el.clientWidth) return
+        gutterDrag = true
+        unpin()
+      }
+      // …and dragging that same thumb back to the tail is how a reader asks to
+      // follow again with no wheel and no key. Geometry cannot infer it now.
+      const onPointerUp = (): void => {
+        const wasGutterDrag = gutterDrag
+        gutterDrag = false
+        if (wasGutterDrag && el.scrollHeight - el.scrollTop - el.clientHeight <= REPIN_PX) {
+          setPinnedNow(true)
+        }
       }
       el.addEventListener('wheel', onWheel, { passive: true })
       el.addEventListener('touchmove', unpin, { passive: true })
       el.addEventListener('keydown', onKeyDown)
       el.addEventListener('pointerdown', onPointerDown)
+      el.addEventListener('pointerup', onPointerUp)
+      el.addEventListener('scrollend', onScrollEnd)
       detachRef.current = () => {
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('touchmove', unpin)
         el.removeEventListener('keydown', onKeyDown)
         el.removeEventListener('pointerdown', onPointerDown)
+        el.removeEventListener('pointerup', onPointerUp)
+        el.removeEventListener('scrollend', onScrollEnd)
       }
     },
     [setPinnedNow],
@@ -152,13 +211,20 @@ export const MessageList = memo(function MessageList({
   const handleScroll = useCallback((): void => {
     const el = scrollRef.current
     if (!el) return
+    const heightChanged = el.scrollHeight !== lastHeightRef.current
+    // Only a scroll the layout did not cause may lower the floor. A shrink that
+    // clamps scrollTop scrolls the reader up too, and letting that lower the
+    // floor is a ratchet: each clamp permits a little more shrink, which clamps
+    // again.
+    if (!pinnedRef.current && !heightChanged) {
+      tailFloorRef.current = Math.min(tailFloorRef.current, el.scrollTop + el.clientHeight)
+    }
     // Our own follow-the-tail scroll produces a scroll event too; reading it as
     // user intent is what re-pinned the view immediately after an unpin.
     if (selfScrollRef.current) {
       lastHeightRef.current = el.scrollHeight
       return
     }
-    const heightChanged = el.scrollHeight !== lastHeightRef.current
     lastHeightRef.current = el.scrollHeight
     setPinnedNow(
       nextPinnedState(pinnedRef.current, {
@@ -239,7 +305,16 @@ export const MessageList = memo(function MessageList({
       >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"
-          style={{ height: virtualizer.getTotalSize() + 32 }}
+          /* `pinnedRef`, not the `pinned` state, for the reason given where it
+             is declared: the floor has to be in place for the very commit that
+             shrinks the transcript, and the ref is written a frame earlier. */
+          style={{
+            height: tailFloor(
+              pinnedRef.current,
+              tailFloorRef.current,
+              virtualizer.getTotalSize() + 32,
+            ),
+          }}
         >
           {virtualItems.map((virtualItem) => {
             const row = rows[virtualItem.index]

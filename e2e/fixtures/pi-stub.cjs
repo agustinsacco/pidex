@@ -382,6 +382,7 @@ function handle(cmd) {
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
+      else if (message.includes('manyturns')) runManyTurnsTurn(message.includes('tailgroup'))
       else runTurn()
       break
     }
@@ -797,6 +798,132 @@ function runLongStreamTurn() {
   steps.push(() => out({ type: 'agent_settled' }))
 
   play(steps)
+}
+
+/**
+ * A finished transcript with MANY rows: prose turn, tool group, prose turn, …
+ *
+ * `longstream` is one giant text row, so it never exercises the case the user
+ * actually hits — reading back through dozens of rows the virtualizer has
+ * never measured. Each prose block here is tall enough that its real height
+ * dwarfs the unmeasured-row estimate, which is what made scrolling up fight
+ * back.
+ */
+function runManyTurnsTurn(tailGroup = false) {
+  const steps = [() => out({ type: 'agent_start' }), () => out({ type: 'turn_start' })]
+  for (let i = 0; i < 12; i++) {
+    const body = Array.from(
+      { length: 6 },
+      (_, line) =>
+        `Paragraph ${line + 1} of reply ${i + 1}: a block of prose tall enough to matter.`,
+    ).join('\n\n')
+    steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+    steps.push(() =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: body }],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    )
+    const id = `turns_${i}`
+    steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+    steps.push(() =>
+      out({
+        type: 'tool_execution_start',
+        toolCallId: id,
+        toolName: 'bash',
+        args: { command: `echo turn ${i}` },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: id,
+        toolName: 'bash',
+        isError: false,
+        result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+      }),
+    )
+    steps.push(() =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id, name: 'bash', arguments: { command: `echo turn ${i}` } },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    )
+  }
+  if (tailGroup) {
+    // One tall run of tools at the very end, then a deliberate pause with it
+    // still live and expanded. That pause is the only window in which a test
+    // can scroll up while a big collapse is still pending — the collapse that
+    // shortens the transcript BELOW the reader and used to clamp them to the
+    // new bottom.
+    for (let i = 0; i < 20; i++) {
+      const id = `tail_${i}`
+      steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+      steps.push(() =>
+        out({
+          type: 'tool_execution_start',
+          toolCallId: id,
+          toolName: 'bash',
+          args: { command: `echo tail ${i}` },
+        }),
+      )
+      steps.push(() =>
+        out({
+          type: 'tool_execution_end',
+          toolCallId: id,
+          toolName: 'bash',
+          isError: false,
+          result: { content: [{ type: 'text', text: 'ok' }], details: {} },
+        }),
+      )
+      steps.push(() =>
+        out({
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'toolCall', id, name: 'bash', arguments: { command: `echo tail ${i}` } },
+            ],
+            stopReason: 'toolUse',
+            timestamp: Date.now(),
+          },
+        }),
+      )
+    }
+    // Fixed real-time hold, deliberately generous: this timer runs in the
+    // stub's own process, decoupled from how long the Electron renderer
+    // takes to catch up on the burst above. A short hold left almost no
+    // margin on a loaded CI runner — the group could finish collapsing
+    // before the test's read-back ever landed.
+    steps.push(() => new Promise((resolve) => setTimeout(resolve, 10_000)))
+  }
+  steps.push(() => out({ type: 'message_start', message: { role: 'assistant', content: [] } }))
+  steps.push(() =>
+    out({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'many turns complete' }],
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
+    }),
+  )
+  steps.push(() => out({ type: 'agent_end', messages: [] }))
+  steps.push(() => out({ type: 'agent_settled' }))
+  play(steps, 3)
 }
 
 /**
