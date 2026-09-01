@@ -5,6 +5,7 @@ import { compareSessionsByCreation } from '@shared/session-order'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
+import { useSessionBooting } from '@/features/chat/BootingIndicator'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
@@ -1167,6 +1168,9 @@ function SessionRow({
   const isStreaming = useChatStore((s) =>
     livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
   )
+  // Prompt sent, pi not started yet: the row pulses like a streaming one, or
+  // a lane that is genuinely booting reads as idle in the list.
+  const booting = useSessionBooting(livePidexId)
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
   // A worktree lane's PRs live under the MAIN repo, which is also the key the
   // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
@@ -1314,13 +1318,8 @@ function SessionRow({
   }
 
   const subtitle = sessionSubtitle(meta, git, { showCost: !showChip })
-  const indicatorState = isStreaming
-    ? 'streaming'
-    : unseen
-      ? 'unseen'
-      : livePidexId
-        ? 'live'
-        : 'disk'
+  const indicatorState =
+    isStreaming || booting ? 'streaming' : unseen ? 'unseen' : livePidexId ? 'live' : 'disk'
 
   const rowClassName = clsx(
     'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
@@ -1515,6 +1514,7 @@ function PendingSessionRow({
   git?: GitInfo
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) => s.sessions[pidexId]?.isStreaming ?? false)
+  const booting = useSessionBooting(pidexId)
   const firstUserText = useChatStore(
     (s) => s.sessions[pidexId]?.items.find((item) => item.kind === 'user')?.text,
   )
@@ -1545,7 +1545,7 @@ function PendingSessionRow({
         active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
       )}
     >
-      <SessionIndicator state={isStreaming ? 'streaming' : 'live'} />
+      <SessionIndicator state={isStreaming || booting ? 'streaming' : 'live'} />
       {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         <span

@@ -93,6 +93,8 @@ interface ChatStore {
   ensure: (sessionId: string, options?: { resuming?: boolean }) => void
   applyEvent: (sessionId: string, event: PiEvent) => void
   addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
+  /** Drop the "waiting for pi to start" state without an agent event (abort). */
+  clearPromptSent: (sessionId: string) => void
   addBashItem: (sessionId: string, item: Omit<BashItem, 'id' | 'kind'>) => string
   updateBashItem: (sessionId: string, id: string, patch: Partial<BashItem>) => void
   hydrate: (sessionId: string, messages: AgentMessage[]) => void
@@ -155,8 +157,18 @@ export const useChatStore = create<ChatStore>((set) => ({
           ...session.items,
           { id: newItemId(), kind: 'user', text, images, optimistic: true },
         ],
+        // A prompt is on its way to pi. Cleared by the first agent event, so
+        // the booting indicator covers exactly the silent window.
+        promptSentAt: Date.now(),
       })),
     })),
+
+  clearPromptSent: (sessionId) =>
+    set((s) =>
+      s.sessions[sessionId]?.promptSentAt == null
+        ? s
+        : { sessions: patchSession(s.sessions, sessionId, { promptSentAt: null }) },
+    ),
 
   addBashItem: (sessionId, item) => {
     const id = newItemId()
@@ -206,7 +218,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({
       sessions: patchSession(s.sessions, sessionId, {
         error,
-        ...(error ? { resuming: false } : {}),
+        ...(error ? { resuming: false, promptSentAt: null } : {}),
       }),
     })),
   setMeta: (sessionId, meta) =>

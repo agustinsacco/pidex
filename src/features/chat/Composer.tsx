@@ -19,6 +19,7 @@ import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
+import { BootingIndicator, useSessionBooting } from './BootingIndicator'
 import { Spinner } from '@/components/icons'
 import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
@@ -105,6 +106,7 @@ export function Composer({
     onReject: setAttachWarning,
   })
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
+  const booting = useSessionBooting(sessionId)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   const piCommands = useChatStore((s) => s.sessions[sessionId]?.commands) ?? []
 
@@ -277,6 +279,9 @@ export function Composer({
     const queues = chat.sessions[sessionId]?.queues
     const queuedText = [...(queues?.steering ?? []), ...(queues?.followUp ?? [])].join('\n')
     try {
+      // An abort before pi ever started the run gets no agent event back, so
+      // clear the booting state here or the strip waits forever.
+      chat.clearPromptSent(sessionId)
       await piCallOk(sessionId, { type: 'abort' })
       // Escape semantics: restore queued messages into the composer.
       if (queuedText) {
@@ -402,11 +407,14 @@ export function Composer({
 
   const placeholder = isStreaming
     ? `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
-    : 'Describe a task…  ( / commands · @ files · ! shell )'
+    : booting
+      ? 'Starting pi…  ( / commands · @ files · ! shell )'
+      : 'Describe a task…  ( / commands · @ files · ! shell )'
 
   return (
     <div className="shrink-0 px-6 pb-4 pt-1">
       <WorkingIndicator sessionId={sessionId} />
+      <BootingIndicator sessionId={sessionId} />
       <AgentLaunchStrip sessionId={sessionId} />
       <RetryStrip sessionId={sessionId} />
       <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
@@ -491,7 +499,10 @@ export function Composer({
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               <div className="flex items-center gap-1.5">
-                {isStreaming && <Spinner />}
+                {/* Also while booting: the send button flipping back to its
+                    idle self while pi is still starting is what made the
+                    composer look like it had swallowed the prompt. */}
+                {(isStreaming || booting) && <Spinner />}
                 {isStreaming ? (
                   <StopIconButton onClick={() => void abort()} />
                 ) : (
