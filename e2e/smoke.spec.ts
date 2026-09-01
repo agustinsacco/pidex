@@ -934,7 +934,14 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
           return null
         }
       })
-      .toEqual({ url: 'https://mcp.datadoghq.eu/v1/mcp', auth: 'oauth' })
+      .toEqual({
+        url: 'https://mcp.datadoghq.eu/v1/mcp',
+        auth: 'oauth',
+        // Not the adapter's `lazy` default: lazy drops the connection after
+        // each call, so a signed-in connector reports `cached` and the row
+        // used to offer "Sign in" as though the token were gone.
+        lifecycle: 'lazy-keep-alive',
+      })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })

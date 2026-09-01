@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMcpStatus, stateLabel } from './mcpStatus'
+import { parseMcpStatus, stateLabel, connectorAction, connectorActionLabel } from './mcpStatus'
 
 /** Shaped like the adapter's own `createMcpStatusSnapshot` output. */
 const snapshot = JSON.stringify({
@@ -52,6 +52,52 @@ describe('parseMcpStatus', () => {
 
   it('labels every state it can report', () => {
     expect(stateLabel('needs-auth')).toBe('Needs sign-in')
-    expect(stateLabel('cached')).toBe('Idle (cached tools)')
+    expect(stateLabel('cached')).toBe('Idle')
+  })
+})
+
+describe('connectorAction', () => {
+  it('offers sign-in only when the credential was actually rejected', () => {
+    expect(connectorAction('needs-auth', true)).toBe('sign-in')
+  })
+
+  it('offers connect, NOT sign-in, for a lazily-disconnected server', () => {
+    // The regression this guards. `cached` means tool metadata is on disk and
+    // nothing has opened a connection this session — it says nothing about
+    // credentials. Offering "Sign in" here made people re-authorize servers
+    // whose tokens were sitting valid in the OS keychain.
+    expect(connectorAction('cached', true)).toBe('connect')
+    expect(connectorAction('not-connected', true)).toBe('connect')
+    expect(connectorAction('failed', true)).toBe('connect')
+  })
+
+  it('offers reconnect for a live connection', () => {
+    expect(connectorAction('connected', true)).toBe('reconnect')
+  })
+
+  it('falls back to sign-in with no session, the only path that can run', () => {
+    // Connect rides /mcp reconnect, which needs the process holding the
+    // connection. Sign-in has a headless route, so it is the honest offer.
+    expect(connectorAction(null, false)).toBe('sign-in')
+    expect(connectorAction('cached', false)).toBe('sign-in')
+  })
+
+  it('needs-auth wins even without a session', () => {
+    expect(connectorAction('needs-auth', false)).toBe('sign-in')
+  })
+})
+
+describe('connectorActionLabel', () => {
+  it('names each action', () => {
+    expect(connectorActionLabel('sign-in')).toBe('Sign in')
+    expect(connectorActionLabel('reconnect')).toBe('Reconnect')
+    expect(connectorActionLabel('connect')).toBe('Connect')
+  })
+})
+
+describe('stateLabel', () => {
+  it('does not describe an idle server in words that imply breakage', () => {
+    expect(stateLabel('cached')).toBe('Idle')
+    expect(stateLabel('needs-auth')).toBe('Needs sign-in')
   })
 })

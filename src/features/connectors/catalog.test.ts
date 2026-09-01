@@ -63,6 +63,7 @@ describe('connector catalog', () => {
     expect(buildConnectorConfig(notion)).toEqual({
       url: 'https://mcp.notion.com/mcp',
       auth: 'oauth',
+      lifecycle: 'lazy-keep-alive',
     })
   })
 
@@ -71,6 +72,7 @@ describe('connector catalog', () => {
     expect(buildConnectorConfig(slack, { clientId: 'abc', clientSecret: 'shh' })).toEqual({
       url: 'https://mcp.slack.com/mcp',
       auth: 'oauth',
+      lifecycle: 'lazy-keep-alive',
       oauth: { clientId: 'abc', clientSecret: 'shh', redirectUri: OAUTH_REDIRECT_URI },
     })
   })
@@ -89,5 +91,17 @@ describe('connector catalog', () => {
     expect(connectorForUrl('https://mcp.notion.com/mcp/')?.id).toBe('notion')
     expect(connectorForUrl('https://mcp.example.com/mcp')).toBeUndefined()
     expect(connectorForUrl(undefined)).toBeUndefined()
+  })
+
+  it('makes new connectors keep their connection, not the adapter lazy default', () => {
+    // `lazy` drops the socket after every call, so a signed-in connector
+    // reports `cached` and the row used to offer "Sign in" for it.
+    for (const entry of CONNECTORS) {
+      const config =
+        entry.authKind === 'confidential'
+          ? buildConnectorConfig(entry, { clientId: 'a', clientSecret: 'b' })
+          : buildConnectorConfig(entry)
+      expect(config.lifecycle).toBe('lazy-keep-alive')
+    }
   })
 })
