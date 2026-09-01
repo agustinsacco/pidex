@@ -177,13 +177,27 @@ const unsubscribers = new Map<string, () => void>()
 const watchedWorkspaces = new Set<string>()
 
 /**
+ * (Re)learn this session's live state from pi — `sessionFile`, model
+ * catalogue, commands, stats, thinking levels.
+ *
+ * Called once after a session is created or adopted, and again by
+ * `rewindToEntry`/`ForkPickerModal` after a successful `fork` RPC: pi's own
+ * `fork` command always branches onto a brand-new session file, even for a
+ * single-message "rewind" — verified against the installed pi core's
+ * `agent-session-runtime.js`, `SessionManager.createBranchedSession()` — it
+ * never truncates the live file in place. Without a second call here,
+ * `live[pidexId].diskPath` keeps pointing at the abandoned pre-fork file, so
+ * the sidebar highlights that stale file as "live" while the real, actively
+ * written branch shows up as an unclaimed extra row — read by a user as the
+ * chat having been duplicated.
+ *
  * The one sanctioned exemption from the `piCall` rule (CLAUDE.md fact 3): this
  * batch wants the raw envelopes, both because `Promise.allSettled` reasons over
  * them and because a per-command failure is expected here — older pi builds
  * simply lack some of these commands, and surfacing five chat errors while a
  * session is still opening would be worse than the graceful degradation below.
  */
-async function bootstrapSession(pidexId: string): Promise<void> {
+export async function bootstrapSession(pidexId: string): Promise<void> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
