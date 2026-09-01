@@ -151,6 +151,16 @@ export function PlusIcon({
   )
 }
 
+/** Magnifier, for the sidebar's per-workspace lane search. */
+export function SearchIcon({ size = 13, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} strokeLinecap="round" className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.6-3.6" />
+    </svg>
+  )
+}
+
 /** Artifact: a framed pane on a stand — the sidebar nav, top bar and code block all use it. */
 export function ArtifactsIcon({ size = 14, className }: IconProps): React.JSX.Element {
   return (

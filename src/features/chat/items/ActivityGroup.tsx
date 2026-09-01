@@ -48,23 +48,42 @@ import { useChatUiStore } from '../uiState'
  * moment two of them disagree the card stops reading as a single column, and
  * Claude-provider sessions mix all four shapes in one run.
  *
- * 16px also happens to be the width the reasoning mark needs, so the mark
- * floats in this inset instead of reserving a column in rows that have no
- * reasoning to show.
+ * The gutter it opens (20px) is also the column the marks live in, so these
+ * three constants are one measurement expressed three times — `pl-5`, `w-5`,
+ * `ml-5`. Change one and change all of them — the "gutter is one
+ * measurement" block in `activityGroupRows.test.tsx` fails if you don't.
  */
-export const ROW_INSET = 'pl-4 pr-2'
+export const ROW_INSET = 'pl-5 pr-2'
 
 /**
- * The gutter slot inside that inset — the 14px square between the card's left
- * border and where a label starts. Marks placed here are `absolute`, so they
- * never reserve a column: a row with no mark still puts its label at x=16.
+ * The mark slot: the gutter itself, not a hand-placed square inside it.
  *
- * Two marks share it: the ✳ reasoning mark (shown on hover/pin) and the `cc`
- * provenance mark on CLI-side rows. `top-1.5` centers either one in a
- * `py-1 text-lg` row.
+ * `left-0 w-5` makes the box exactly the padding `ROW_INSET` opened, and
+ * `justify-center` centers whatever it holds in that box — so the ✳ and the
+ * `cc` chip land on one axis by construction, with no per-mark offset to keep
+ * in agreement. An earlier version positioned each mark by hand: first a 1px
+ * offset, then an arbitrary `left` of bare `-3.5` — a number with no unit, so
+ * it compiled to a declaration the browser drops, and both marks fell onto the
+ * label they were meant to sit beside.
+ *
+ * `inset-y-0` centers vertically against the row's real height rather than a
+ * fixed `top`, so a row that grows does not strand its mark at the top. The
+ * box stays `absolute`: it must never reserve a column, because most rows have
+ * no mark and every label starts at the same x regardless.
  */
-export const GUTTER_MARK =
-  'absolute top-1.5 left-px flex h-3.5 w-3.5 items-center justify-center text-2xs'
+export const GUTTER_MARK = 'absolute inset-y-0 left-0 flex w-5 items-center justify-center'
+
+/**
+ * The visible chip inside that box. It is deliberately narrower than the
+ * gutter: a fill as wide as the slot would sit flush against the card's left
+ * border and touch the label, which is exactly how the `cc` row read before —
+ * the ✳ got away with a 1px surround only because it has no background.
+ *
+ * `min-w-3.5` keeps the ✳ a 14px square; `px-0.5` lets the two `cc` glyphs
+ * set their own width without ever filling the slot.
+ */
+export const GUTTER_MARK_FILL =
+  'text-2xs flex h-3.5 min-w-3.5 items-center justify-center rounded px-0.5'
 
 export const ActivityGroup = memo(function ActivityGroup({
   steps,
@@ -277,15 +296,19 @@ function ActivityRow({
             aria-label="Show reasoning before this step"
             aria-expanded={pinned}
             data-testid="thought-mark"
-            className={clsx(
-              GUTTER_MARK,
-              'rounded transition-colors',
-              pinned
-                ? 'bg-accent-soft text-accent'
-                : 'text-text-tertiary hover:bg-accent-soft hover:text-accent',
-            )}
+            className={clsx(GUTTER_MARK, 'group/mark')}
           >
-            ✳
+            <span
+              className={clsx(
+                GUTTER_MARK_FILL,
+                'transition-colors',
+                pinned
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-text-tertiary group-hover/mark:bg-accent-soft group-hover/mark:text-accent',
+              )}
+            >
+              ✳
+            </span>
           </button>
         )}
         <ToolCard
@@ -306,7 +329,7 @@ function ActivityRow({
       {showThought && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-4 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-5 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={thought} />
         </div>
@@ -359,17 +382,17 @@ function ExternalToolRow({
           pi's own rows — and a Claude turn interleaves the two in one card, so
           the column broke on the first WebSearch. Same slot as the ✳ mark, same
           quiet styling: this row's label now starts at the x a pi row's does. */}
-      <span
-        aria-label="Ran by Claude Code"
-        title="Ran by Claude Code"
-        // Same 14px chip the pinned ✳ gets; no `tracking-wide` — the slot is
-        // 14px and the two glyphs already fill 11 of it.
-        className={clsx(
-          GUTTER_MARK,
-          'bg-bg-secondary text-text-tertiary rounded font-mono uppercase',
-        )}
-      >
-        cc
+      <span aria-label="Ran by Claude Code" title="Ran by Claude Code" className={GUTTER_MARK}>
+        {/* Same chip the pinned ✳ gets; no `tracking-wide` — the two glyphs
+            already fill the slot the fill allows them. */}
+        <span
+          className={clsx(
+            GUTTER_MARK_FILL,
+            'bg-bg-secondary text-text-tertiary font-mono uppercase',
+          )}
+        >
+          cc
+        </span>
       </span>
       <span className="text-text-secondary shrink-0">{summary.label}</span>
       {summary.object && (
@@ -404,7 +427,7 @@ function ExternalToolRow({
  * the model called the tool and the CLI never confirmed a thing — on a
  * provider older than 0.4.14 that is an agent that died with the subprocess,
  * so it must not be dressed up as running. The sub-agent's own transcript is
- * still not forwarded (specs/reference/extensions.md), so the expandable
+ * still not forwarded (docs/extensions.md), so the expandable
  * detail is the launch prompt, never the agent's work.
  */
 function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
@@ -481,7 +504,7 @@ function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
       {open && agent.prompt && (
         <div
           data-testid="subagent-prompt"
-          className="border-accent/30 text-text-secondary mb-1.5 ml-4 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
+          className="border-accent/30 text-text-secondary mb-1.5 ml-5 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
         >
           {agent.prompt}
         </div>
@@ -499,17 +522,22 @@ function ThoughtOnlyRow({ text }: { text: string }): React.JSX.Element {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         data-testid="thought-mark"
-        className="text-text-tertiary hover:text-text-secondary relative flex w-full items-center py-1 pl-4 pr-2 text-left text-base italic transition-colors"
+        className={clsx(
+          'text-text-tertiary hover:text-text-secondary relative flex w-full items-center py-1 text-left text-base italic transition-colors',
+          ROW_INSET,
+        )}
       >
-        {/* Same column the paired mark floats in, so a reasoning-only row and
-            a tool row with reasoning put their ✳ in exactly one place. */}
-        <span className="text-2xs absolute left-px flex w-3.5 justify-center">✳</span>
+        {/* Same slot the paired mark uses, so a reasoning-only row and a tool
+            row with reasoning put their ✳ in exactly one place. */}
+        <span className={GUTTER_MARK} aria-hidden>
+          <span className={GUTTER_MARK_FILL}>✳</span>
+        </span>
         <span>Reasoning</span>
       </button>
       {open && (
         <div
           data-testid="thought-body"
-          className="border-border text-text-secondary mb-1.5 ml-4 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
+          className="border-border text-text-secondary mb-1.5 ml-5 mr-2 border-l-2 pl-2.5 text-base italic opacity-90 [&_.md-content]:text-base"
         >
           <Markdown text={text} />
         </div>

@@ -16,7 +16,9 @@ vi.hoisted(() => {
   })
 })
 
-import { ActivityGroup, GUTTER_MARK, ROW_INSET } from './ActivityGroup'
+import { readFileSync } from 'node:fs'
+
+import { ActivityGroup, GUTTER_MARK, GUTTER_MARK_FILL, ROW_INSET } from './ActivityGroup'
 import type { ActivityStep } from './transcriptRows'
 import type { ToolState } from '../reducer'
 
@@ -121,9 +123,10 @@ describe('ActivityGroup row shapes', () => {
     for (const row of rows) {
       // The row container itself, or the button inside it that carries the
       // padding (sub-agent and reasoning rows are buttons).
-      const carrier = row.className.includes('pl-4')
+      const pad = ROW_INSET.split(' ')[0]!
+      const carrier = row.className.includes(pad)
         ? row
-        : (row.querySelector('[class*="pl-4"]') as HTMLElement | null)
+        : (row.querySelector(`[class*="${pad}"]`) as HTMLElement | null)
       expect(carrier, `a row shape lost the shared inset: ${row.outerHTML.slice(0, 120)}`).not.toBe(
         null,
       )
@@ -338,5 +341,55 @@ describe('ActivityGroup row shapes', () => {
     // card adds no left offset of its own.
     expect(summary.className).toContain('-ml-1.5')
     expect(card!.className).not.toMatch(/\bml-\d/)
+  })
+})
+
+/**
+ * The three constants above are one measurement written three times — the
+ * padding a row opens, the box a mark centres in, and the rail an expanded
+ * thought hangs off. Nothing in the type system ties them together, and they
+ * have now drifted apart twice.
+ *
+ * The second drift is the one worth pinning: a mark was offset by hand with an
+ * arbitrary `left` of bare `-3.5` — a number with no unit, so it is not a CSS
+ * length. Tailwind emitted the declaration verbatim, the browser dropped it,
+ * and every mark fell back to its static position: directly on top of the
+ * label it is supposed to sit beside. It type-checked, it linted, and every
+ * test in this file passed.
+ */
+describe('the gutter is one measurement', () => {
+  const step = (cls: string, prefix: string): string => {
+    const found = new RegExp(`\\b${prefix}-(\\d+)\\b`).exec(cls)
+    if (!found) throw new Error(`no ${prefix}-<n> in "${cls}"`)
+    return found[1]!
+  }
+
+  it('opens exactly the width its marks centre in', () => {
+    expect(step(GUTTER_MARK, 'w')).toBe(step(ROW_INSET, 'pl'))
+  })
+
+  it('centres the mark rather than offsetting it by hand', () => {
+    expect(GUTTER_MARK).toContain('left-0')
+    expect(GUTTER_MARK).toContain('justify-center')
+    // An arbitrary offset is how both drifts happened. There is nothing left
+    // to hand-tune: the box is the gutter, so centring is the whole rule.
+    expect(GUTTER_MARK).not.toMatch(/\[[^\]]*\]/)
+  })
+
+  it('keeps every mark fill narrower than the slot, so nothing touches the label', () => {
+    // 14px floor for the ✳ square, and horizontal padding rather than a fixed
+    // width so `cc` sets its own — both stay inside a 20px slot.
+    expect(GUTTER_MARK_FILL).toContain('min-w-3.5')
+    expect(GUTTER_MARK_FILL).toContain('px-0.5')
+    expect(GUTTER_MARK_FILL).not.toMatch(/(^| )w-\d/)
+  })
+
+  it('hangs the expanded rails off that same length', () => {
+    // The rails under a pinned thought and a sub-agent prompt have to line up
+    // under the label, not under the card edge.
+    const source = readFileSync('src/features/chat/items/ActivityGroup.tsx', 'utf8')
+    const rails = [...source.matchAll(/mb-1\.5 ml-(\d+) mr-2/g)].map((m) => m[1])
+    expect(rails).toHaveLength(3)
+    for (const rail of rails) expect(rail).toBe(step(ROW_INSET, 'pl'))
   })
 })

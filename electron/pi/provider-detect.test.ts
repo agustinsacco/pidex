@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { usesClaudeCliProvider } from './provider-detect'
+import { claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'
 
 describe('usesClaudeCliProvider', () => {
   it('trusts an explicit provider over everything else', () => {
@@ -33,5 +33,18 @@ describe('usesClaudeCliProvider', () => {
     // when the default is pi-claude-cli — do not strip context files there.
     expect(usesClaudeCliProvider({ model: 'gemini-2.5-pro' }, 'pi-claude-cli')).toBe(false)
     expect(usesClaudeCliProvider({ model: 'claude-opus-5' }, 'google')).toBe(false)
+  })
+})
+
+describe('claudeProviderSpawnEnv', () => {
+  it('asks pi-claude-cli for --strict-mcp-config', () => {
+    expect(claudeProviderSpawnEnv().PI_CLAUDE_CLI_STRICT_MCP).toBe('1')
+  })
+
+  it("never sets hermetic mode, which would strip the CLI's CLAUDE.md", () => {
+    // pidex passes --no-context-files, so pi does not send CLAUDE.md either.
+    // Hermetic reaches the same MCP flag but also empties --setting-sources,
+    // leaving the model with project instructions from neither side.
+    expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_HERMETIC')
   })
 })

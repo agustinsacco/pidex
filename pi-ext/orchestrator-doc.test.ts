@@ -1,5 +1,5 @@
 /**
- * Drift guard: the tool table in `specs/reference/orchestration.md` must match
+ * Drift guard: the tool table in `docs/orchestration.md` must match
  * the tools this extension actually registers.
  *
  * That table is not decoration — it is what a reader (and an agent writing
@@ -38,7 +38,7 @@ function argsFromSchema(parameters: unknown): string[] {
 
 /** The rows of the `| Tool | Args | Does |` table under the `### Tools` heading. */
 function docToolRows(): Map<string, string[]> {
-  const doc = readFileSync(join(__dirname, '..', 'specs', 'reference', 'orchestration.md'), 'utf8')
+  const doc = readFileSync(join(__dirname, '..', 'docs', 'orchestration.md'), 'utf8')
   const start = doc.indexOf('\n### Tools\n')
   expect(start, 'orchestration.md must keep a `### Tools` section').toBeGreaterThan(-1)
   const section = doc.slice(start + 1).split('\n### ')[0] ?? ''

@@ -354,7 +354,7 @@ tool(
 /**
  * Register every tool above. The registration loop is deliberately dumb: the
  * contract lives in `ORCHESTRATOR_TOOLS`, which `orchestrator.test.ts` reads
- * to check the tool table in `specs/reference/orchestration.md` still matches.
+ * to check the tool table in `docs/orchestration.md` still matches.
  */
 export default function orchestratorExtension(pi: PiExtensionApi): void {
   for (const spec of ORCHESTRATOR_TOOLS) {
