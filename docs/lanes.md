@@ -101,6 +101,14 @@ Every `gh` failure is a normal state, not an error: not installed, not
 authenticated, no GitHub remote. All of them land as an empty map and render as
 no chip. Nothing here raises a toast.
 
+**Every `gh` run — the availability probe included — goes through
+`piProcessEnv`**, so PATH is the login shell's. A GUI launch inherits
+launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), which has no Homebrew in it,
+so a bare `execFile('gh', …)` fails with ENOENT in the installed app while
+working in `npm run dev`. The probe caches its answer for the process
+lifetime, so that one miss meant no chip on any lane, ever, until the app
+restarted. Guard: `electron/fs/gh-cli.env.test.ts`.
+
 **"No PR yet" is inferred, and inference needs a stricter gate than a real
 chip does.** `gh` never reports absence — a branch with no PR just doesn't
 appear in the map, which is indistinguishable from gh being unavailable
