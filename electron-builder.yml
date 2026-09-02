@@ -40,6 +40,21 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # macOS asks once per protected folder the first time pidex (or the pi agent
+  # it spawns) reads one. Without these strings the prompt is a bare demand;
+  # with them it says why. It does not skip the prompt — only the stable
+  # designated requirement in scripts/adhoc-sign-mac.mjs keeps the answer from
+  # being forgotten on the next auto-update.
+  extendInfo:
+    NSDesktopFolderUsageDescription: >-
+      pidex reads files in this folder when you open a workspace there or ask
+      the agent to work on one.
+    NSDocumentsFolderUsageDescription: >-
+      pidex reads files in this folder when you open a workspace there or ask
+      the agent to work on one.
+    NSDownloadsFolderUsageDescription: >-
+      pidex reads files in this folder when you open a workspace there or ask
+      the agent to work on one.
   target:
     - target: dmg
       arch: [arm64, x64]
