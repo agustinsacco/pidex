@@ -59,6 +59,10 @@ intent genuinely is its `echo` gets a worse label. The expanded detail keeps
 the full command and `+N more` stops the row claiming to be the whole script,
 so the failure mode is a vaguer label, never a wrong one.
 
+Implemented (with F2 and F9) in
+[#155](https://github.com/agustinsacco/pidex/pull/155), unmerged as of
+2026-09-01.
+
 ## F2 — The `cd <ws>` strip only matches `&&`
 
 The prefix regex requires `&&`. Models write `cd <ws>` followed by a newline,
@@ -143,11 +147,13 @@ see the version-floor note in [CLAUDE.md](../../../CLAUDE.md).
 `unescapeJsonFragment` (`src/features/chat/items/transcriptRows.ts`) recovers a
 marker field by re-parsing it as a JSON string: `JSON.parse('"' + value + '"')`.
 
-A shell command containing a regex backslash — `\s`, `\|`, `\d`, `\.` — is not a
-valid JSON escape, so the parse throws. The catch returns the string **raw**,
-which means _every_ escape in that command stays literal, including the ones
-that were fine. A `\n` then renders as two visible characters in the middle of
-the label:
+The round-trip throws on the first invalid escape sequence, and the catch then
+returns the string **raw** — so _every_ escape stays literal, including the
+ones that were fine. Invalid sequences are routine here: a well-formed fragment
+escapes a regex backslash as `\\s` (valid), but the provider's 120-char preview
+cap lands mid-escape and leaves shapes like a trailing `\…` (the cap's own
+ellipsis riding an orphaned backslash). A `\n` then renders as two visible
+characters in the middle of the label:
 
 ```
 Ran cd review-this-session-and-tell-me-how-we\ngrep -n "^\s*--color-…
@@ -159,7 +165,8 @@ correctly, so the failure is the invalid escape and nothing else. `grep` and
 
 The fix is to unescape per recognised escape sequence rather than by
 round-tripping the whole value through `JSON.parse` — one bad escape should cost
-that escape, not the entire string.
+that escape, not the entire string. Implemented in
+[#155](https://github.com/agustinsacco/pidex/pull/155).
 
 ## F10 — The UI advertises that the provider is Claude Code
 
