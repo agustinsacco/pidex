@@ -47,7 +47,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
-import { copySessionDebugInfo } from './sessionActions'
+import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 import { OrchestratorHeaderButton } from '@/features/orchestrator/OrchestratorHeaderButton'
@@ -1373,20 +1373,11 @@ function SessionRow({
       {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         {renaming ? (
-          <input
-            autoFocus
-            // Pre-selected: a double-click rename usually replaces the whole
-            // generated title rather than editing a word of it.
-            onFocus={(e) => e.target.select()}
+          <RenameInput
             value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={applyRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-              if (e.key === 'Escape') cancelRename()
-            }}
-            aria-label="Session name"
-            className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
+            onChange={setRenameValue}
+            onCommit={applyRename}
+            onCancel={cancelRename}
           />
         ) : (
           <span
@@ -1489,12 +1480,52 @@ function SessionRow({
 }
 
 /**
+ * The inline rename field, shared by both row types.
+ *
+ * Shared rather than duplicated for the same reason the subtitle is: a live
+ * session swaps from `PendingSessionRow` to `SessionRow` mid-turn, and the
+ * editor must not change shape under the caret when it does.
+ */
+function RenameInput({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string
+  onChange: (next: string) => void
+  onCommit: () => void
+  onCancel: () => void
+}): React.JSX.Element {
+  return (
+    <input
+      autoFocus
+      // Pre-selected: a double-click rename usually replaces the whole
+      // generated title rather than editing a word of it.
+      onFocus={(e) => e.target.select()}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onCommit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        if (e.key === 'Escape') onCancel()
+      }}
+      aria-label="Session name"
+      className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
+    />
+  )
+}
+
+/**
  * Row for a live session that has no session file yet.
  *
- * Deliberately not a `SessionRow`: every action there is keyed on
- * `meta.path` (rename, fork, clone, export, delete, open-from-disk), and this
- * session has no path to act on. It only needs to say "this exists and it is
- * yours", and clicking it activates the already-live session.
+ * Deliberately not a `SessionRow`: most actions there are keyed on
+ * `meta.path` (fork, delete, pin, lane marker, open-from-disk), and this
+ * session has no path to act on. What it CAN do is everything routed through
+ * the live pi process instead — rename and export — so those are here. They
+ * used to be missing entirely, which made a session unrenameable for the
+ * whole of its first turn: exactly the minutes when its name is still a
+ * placeholder and the user most wants to fix it.
  *
  * **Not short-lived.** pi writes a session's file only when a turn ENDS
  * (measured), so this row stands in for the entire first turn — minutes, for
@@ -1532,40 +1563,100 @@ function PendingSessionRow({
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   const marker = laneMarker(undefined, git?.branch, null, markerMode)
 
-  return (
-    <button
-      onClick={() => useSessionsStore.getState().activate(pidexId)}
-      data-testid="session-row"
-      data-pending="true"
-      className={clsx(
-        'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
-        // Same treatment as SessionRow — see the comment there. It must match
-        // exactly: this row is replaced by a real SessionRow the moment the
-        // session file lands, and any difference reads as the row twitching.
-        active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
-      )}
-    >
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+
+  const beginRename = (): void => {
+    setRenameValue(title)
+    setRenaming(true)
+  }
+
+  const applyRename = (): void => {
+    const name = committedRename(renameValue, title)
+    setRenaming(false)
+    if (!name) return
+    // No `refreshDisk` follow-up, unlike the disk-backed row: there is no file
+    // to rescan yet. `applySessionRename` patches the chat store, and this
+    // row's title reads that store, so the new name shows immediately and
+    // survives the swap to `SessionRow` (which prefers the live name too).
+    void applySessionRename(pidexId, name)
+  }
+
+  const contextMenu = (event: React.MouseEvent): void => {
+    showContextMenu(event, [
+      { label: 'Open', onClick: () => useSessionsStore.getState().activate(pidexId) },
+      { label: 'Rename…', onClick: beginRename },
+      { label: 'Export HTML…', onClick: () => void exportSessionHtml(pidexId, title) },
+    ])
+  }
+
+  const className = clsx(
+    'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+    // Same treatment as SessionRow — see the comment there. It must match
+    // exactly: this row is replaced by a real SessionRow the moment the
+    // session file lands, and any difference reads as the row twitching.
+    active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
+  )
+
+  const body = (
+    <>
       <SessionIndicator state={isStreaming || booting ? 'streaming' : 'live'} />
       {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
-        <span
-          key={title}
-          title={naming.pending ? 'Naming this chat…' : undefined}
-          className={clsx(
-            'text-text block truncate text-base leading-4',
-            // See SessionRow: shimmers while pending too, must match exactly —
-            // this row is swapped for a real SessionRow mid-shimmer the moment
-            // the session file lands, and any difference reads as a twitch.
-            naming.pending && 'name-pending',
-            naming.settled && 'name-enter',
-          )}
-        >
-          {title}
-        </span>
+        {renaming ? (
+          <RenameInput
+            value={renameValue}
+            onChange={setRenameValue}
+            onCommit={applyRename}
+            onCancel={() => {
+              setRenaming(false)
+              setRenameValue('')
+            }}
+          />
+        ) : (
+          <span
+            key={title}
+            title={naming.pending ? 'Naming this chat…' : undefined}
+            className={clsx(
+              'text-text block truncate text-base leading-4',
+              // See SessionRow: shimmers while pending too, must match exactly —
+              // this row is swapped for a real SessionRow mid-shimmer the moment
+              // the session file lands, and any difference reads as a twitch.
+              naming.pending && 'name-pending',
+              naming.settled && 'name-enter',
+            )}
+          >
+            {title}
+          </span>
+        )}
         <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
           <SubtitleSegments segments={subtitle} />
         </span>
       </span>
+    </>
+  )
+
+  // A <div> while editing, for the same reason SessionRow swaps its tag: a
+  // text field inside a <button> is invalid HTML and Enter belongs to the
+  // button, not the field.
+  if (renaming) {
+    return (
+      <div data-testid="session-row" data-pending="true" className={className}>
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => useSessionsStore.getState().activate(pidexId)}
+      onContextMenu={contextMenu}
+      onDoubleClick={beginRename}
+      data-testid="session-row"
+      data-pending="true"
+      className={className}
+    >
+      {body}
     </button>
   )
 }

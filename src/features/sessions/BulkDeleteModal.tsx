@@ -11,11 +11,11 @@ import { describeWarnings, type PreflightSummary } from './deletePreflight'
  * The single-lane equivalent is `RemoveWorktreeModal`, and the two must agree
  * about what "dirty" blocks — two confirms with different refusal rules is the
  * likely bug in this feature. Both refuse a dirty worktree unless the user
- * opts into discarding, and both offer only `git branch -d`.
+ * opts into discarding, and both delete a branch only when its work is already on the trunk.
  *
  * "Delete a lane" is three resources, and only the first two default on:
  * the session transcript (to the OS Trash, recoverable), the worktree
- * directory (gone), and the branch (safe-delete only). Remote branches are
+ * directory (gone), and the branch (only when it is proven merged). Remote branches are
  * deliberately not offered — pidex has no channel for it, and a bulk flow is
  * the worst place to introduce the least reversible operation.
  */
@@ -112,8 +112,8 @@ export function BulkDeleteModal({
             label="Also delete the branch"
             disabled={!removeWorktree || summary.worktreeCount === 0}
           >
-            <code>git branch -d</code> — safe delete. An unmerged branch is kept and reported, never
-            forced.
+            Deleted when its work is already on the trunk, squash-merged PRs included. An unmerged
+            branch is kept and reported, never forced.
           </Option>
         </div>
 
@@ -246,10 +246,11 @@ export function BulkDeleteProgressModal({
   const progress = useSessionsStore((s) => s.bulkDelete)
   if (!progress) return null
 
-  const { total, done, current, results, running, cancelled } = progress
+  const { total, done, current, lanes, results, running, cancelled } = progress
   const failed = results.filter((r) => !r.ok)
   const warned = results.filter((r) => r.ok && r.error)
   const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+  const byPath = new Map(results.map((result) => [result.path, result]))
 
   const close = (): void => {
     useSessionsStore.getState().dismissBulkDelete()
@@ -279,7 +280,7 @@ export function BulkDeleteProgressModal({
           </p>
         </div>
 
-        <div className="px-5 pt-4">
+        <div className="px-5 pb-1 pt-4">
           <div className="bg-chip h-1.5 w-full overflow-hidden rounded-full">
             <div
               className={clsx(
@@ -291,36 +292,53 @@ export function BulkDeleteProgressModal({
           </div>
         </div>
 
-        {results.length > 0 && (
+        {lanes.length > 0 && (
           <div className="max-h-56 overflow-y-auto px-5 py-3">
             <div className="border-border divide-border divide-y overflow-hidden rounded-md border">
-              {results.map((result) => (
-                <div key={result.path} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  <span
-                    aria-hidden
-                    className={clsx('shrink-0', result.ok ? 'text-success' : 'text-danger')}
+              {lanes.map((lane) => {
+                const result = byPath.get(lane.path)
+                const active = running && !result && lane.title === current
+                return (
+                  <div
+                    key={lane.path}
+                    className={clsx(
+                      'flex items-center gap-2 px-3 py-2 text-sm',
+                      !result && !active && 'opacity-45',
+                    )}
                   >
-                    {result.ok ? '✓' : '✕'}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{result.title}</span>
-                  {result.error && (
                     <span
-                      title={result.error}
+                      aria-hidden
                       className={clsx(
-                        'max-w-[14rem] shrink-0 truncate text-2xs',
-                        result.ok ? 'text-warning' : 'text-danger',
+                        'w-3 shrink-0 text-center',
+                        result
+                          ? result.ok
+                            ? 'text-success'
+                            : 'text-danger'
+                          : 'text-text-tertiary',
                       )}
                     >
-                      {result.error}
+                      {result ? (result.ok ? '✓' : '✕') : active ? '…' : '·'}
                     </span>
-                  )}
-                </div>
-              ))}
+                    <span className="min-w-0 flex-1 truncate">{lane.title}</span>
+                    {result?.error && (
+                      <span
+                        title={result.error}
+                        className={clsx(
+                          'max-w-[14rem] shrink-0 truncate text-2xs',
+                          result.ok ? 'text-warning' : 'text-danger',
+                        )}
+                      >
+                        {result.error}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
             {warned.length > 0 && (
               <p className="text-text-tertiary mt-2 text-xs">
-                Deleted, but the branch was kept. `git branch -d` refuses an unmerged branch and
-                pidex never forces it.
+                Deleted, but the branch was kept: its work is not on the trunk yet, and pidex never
+                force-deletes a branch that would lose commits.
               </p>
             )}
           </div>

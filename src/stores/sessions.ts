@@ -178,6 +178,15 @@ export interface BulkDeleteProgress {
   done: number
   /** Lane currently being deleted; empty once finished. */
   current: string
+  /**
+   * Every selected lane, in run order, published up front.
+   *
+   * The progress modal used to render only finished rows, so it grew by a row
+   * every time a lane completed — the panel crept downward for the whole run
+   * and the progress bar never sat still. Knowing the full list on the first
+   * frame lets it reserve its final height and fill rows in place.
+   */
+  lanes: Array<{ path: string; title: string }>
   results: LaneDeleteResult[]
   running: boolean
   cancelled: boolean
@@ -872,6 +881,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         total: lanes.length,
         done: 0,
         current: lanes[0]?.title ?? '',
+        lanes: lanes.map((lane) => ({ path: lane.path, title: lane.title })),
         results: [],
         running: true,
         cancelled: false,

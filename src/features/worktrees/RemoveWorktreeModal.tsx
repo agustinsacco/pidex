@@ -10,8 +10,8 @@ import { workspaceName } from '@/lib/path'
 /**
  * Remove a linked worktree with the safety ladder: live-session guard →
  * clean removal → explicit "discard N changes" checkbox before force.
- * Branch deletion is offered but only ever `git branch -d` (unmerged
- * branches survive and the error is shown).
+ * Branch deletion is offered but only for a branch whose work is
+ * already on the trunk (unmerged branches survive and the reason is shown).
  */
 export function RemoveWorktreeModal({
   repoPath,
@@ -124,7 +124,7 @@ export function RemoveWorktreeModal({
                 checked={deleteBranch}
                 onChange={(e) => setDeleteBranch(e.target.checked)}
               />
-              Also delete branch <span className="font-mono">{worktree.branch}</span> (only if fully
+              Also delete branch <span className="font-mono">{worktree.branch}</span> (only if
               merged)
             </label>
           )}
