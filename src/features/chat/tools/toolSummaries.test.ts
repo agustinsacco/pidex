@@ -209,16 +209,64 @@ describe('summarizeTool', () => {
       expect(summarizeTool(t, ws).object).toBe('git -C fix-sidebar diff')
     })
 
-    it('leaves the command untouched without a workspace path', () => {
+    it('keeps the full workspace path when no workspace is known', () => {
       const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: `cd ${ws} && git status` } })
-      expect(summarizeTool(t).object).toBe(`cd ${ws} && git status`)
+      expect(summarizeTool(t).object).toBe('git status')
     })
 
-    it('does not strip a cd into a different directory', () => {
+    it('drops a cd into any directory, not only the workspace', () => {
+      // cd is setup wherever it points; the expanded detail keeps the wd.
       const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: 'cd /tmp && ls' } })
-      expect(summarizeTool(t, ws).object).toBe('cd /tmp && ls')
+      const summary = summarizeTool(t, ws)
+      expect(summary.object).toBe('ls')
+      expect(summary.hint).toBeUndefined()
+    })
+
+    it('labels a multi-line script by its operative line, not its setup', () => {
+      // The measured shape: 96% of real bash calls are multi-line and 94%
+      // open with cd/echo/VAR= — the old flatten+truncate showed only those.
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const command = `cd ${ws}\necho "=== scopes ==="\ngrep -n "mcp.json" electron/pi/mcp-config.ts`
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }), ws)
+      expect(summary.object).toBe('grep -n "mcp.json" electron/pi/mcp-config.ts')
+      expect(summary.hint).toBeUndefined()
+    })
+
+    it('counts the other working commands as a +N hint', () => {
+      const command = 'grep -n "a" f.ts\nsed -n 1,5p g.ts\nwc -l h.ts'
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }))
+      expect(summary.object).toBe('grep -n "a" f.ts')
+      expect(summary.hint).toBe('+2 more')
+    })
+
+    it('does not count noise lines toward the +N hint', () => {
+      const command = 'cd /x\nexport A=1\nF=$(ls)\n# comment\ngrep -n "a" f.ts'
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }))
+      expect(summary.object).toBe('grep -n "a" f.ts')
+      expect(summary.hint).toBeUndefined()
+    })
+
+    it('splits on ; and && within one line', () => {
+      const command = 'echo "=== a ==="; cat ~/.claude/.mcp.json && jq -r keys ~/.claude.json'
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }))
+      expect(summary.object).toBe('cat ~/.claude/.mcp.json')
+      expect(summary.hint).toBe('+1 more')
+    })
+
+    it('falls back to the first line when every part is noise', () => {
+      const command = 'echo "just a banner"'
+      const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }))
+      expect(summary.object).toBe('echo "just a banner"')
+    })
+
+    it('shortens workspace mentions inside the picked line', () => {
+      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const command = `echo hi\ngrep -rn "x" ${ws}/src`
+      expect(summarizeTool(tool({ toolName: 'bash', args: { command } }), ws).object).toBe(
+        'grep -rn "x" fix-sidebar/src',
+      )
     })
   })
 

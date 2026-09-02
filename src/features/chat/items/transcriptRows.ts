@@ -279,27 +279,63 @@ const HEADLINE_KEYS = [
   'prompt',
 ]
 
+/** The JSON single-character escapes (`\uXXXX` handled separately). */
+const JSON_FRAGMENT_ESCAPES: Record<string, string> = {
+  '"': '"',
+  '\\': '\\',
+  '/': '/',
+  b: '\b',
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
+}
+
 /**
- * Unescape a JSON string body that may have been cut mid-escape.
+ * Unescape a marker field one escape at a time — never by round-tripping the
+ * whole value through `JSON.parse('"…"')`.
  *
- * `JSON.parse('"…"')` is the only correct unescaper, but it throws on a
- * fragment ending in a lone `\\` or a half-written `\\uXXXX`. Those tails are
- * dropped first; whatever cannot be parsed even then is returned raw, since a
- * slightly over-escaped label beats an empty row.
+ * The round-trip version threw on the FIRST invalid sequence and returned the
+ * entire string raw, so every other escape stayed literal too. And invalid
+ * sequences are routine here, because the provider caps the args preview at
+ * 120 characters: a cap landing just after a backslash leaves `\…` (the
+ * provider's own ellipsis riding an orphaned escape), which poisoned commands
+ * whose only sin was being long — every `\n` in them rendered as two visible
+ * characters. One bad escape must cost itself, not the string.
  */
 function unescapeJsonFragment(value: string): string {
-  // A half-written `\uXXXX` first, then a dangling escape: an ODD number of
-  // trailing backslashes means the last one was going to escape whatever the
-  // cap removed. An even number is a complete `\\` and must survive.
-  const withoutPartialUnicode = value.replace(/\\u[0-9a-fA-F]{0,3}$/, '')
-  const trailingSlashes = /\\*$/.exec(withoutPartialUnicode)?.[0].length ?? 0
-  const safe =
-    trailingSlashes % 2 === 1 ? withoutPartialUnicode.slice(0, -1) : withoutPartialUnicode
-  try {
-    return JSON.parse(`"${safe}"`) as string
-  } catch {
-    return safe
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i]!
+    if (char !== '\\') {
+      out += char
+      continue
+    }
+    const next = value[i + 1]
+    // A lone trailing backslash: the cap cut mid-escape. Drop it.
+    if (next === undefined) break
+    const simple = JSON_FRAGMENT_ESCAPES[next]
+    if (simple !== undefined) {
+      out += simple
+      i++
+      continue
+    }
+    if (next === 'u') {
+      const hex = value.slice(i + 2, i + 6)
+      if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+        out += String.fromCharCode(parseInt(hex, 16))
+        i += 5
+        continue
+      }
+      // A half-written \uXX at the very end is the cap again: drop it.
+      // Mid-string, an invalid \u stays literal like any other bad escape.
+      if (i + 6 > value.length && /^[0-9a-fA-F]*$/.test(hex)) break
+    }
+    // Not a JSON escape. Keep both characters literally.
+    out += char + next
+    i++
   }
+  return out
 }
 
 /**
