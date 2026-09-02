@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useChatStore } from '@/stores/chat'
-import { bootstrapSession } from '@/stores/sessions'
-import { piCall, rehydrateTranscript } from '@/lib/rpc'
+import { piCall } from '@/lib/rpc'
+import { imagesForUserMessageOrdinal, rewindToEntry } from './rewind'
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
 
@@ -27,22 +26,17 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
   if (!open) return null
   const close = (): void => useChatUiStore.getState().closeForkPicker()
 
-  const fork = async (candidate: ForkCandidate): Promise<void> => {
+  // One mechanism with the per-message rewind button, including the image
+  // restore: `get_fork_messages` and the rendered transcript derive from the
+  // same on-disk entries, so a candidate's index IS its user-message ordinal.
+  const fork = async (candidate: ForkCandidate, ordinal: number): Promise<void> => {
     setBusy(true)
     try {
-      const result = await piCall(sessionId, { type: 'fork', entryId: candidate.entryId })
-      if (!result) return
-      if (result.cancelled) {
-        useChatStore.getState().setError(sessionId, 'Fork was cancelled by an extension.')
-        return
-      }
-      // Rebuild the transcript from the new branch point, relearn its file
-      // (pi always forks onto a new one — see bootstrapSession's doc comment),
-      // and prefill the original prompt for edit-and-refork.
-      await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
-      if (result.text) {
-        useChatUiStore.getState().setPrefill(sessionId, result.text)
-      }
+      await rewindToEntry(
+        sessionId,
+        candidate.entryId,
+        imagesForUserMessageOrdinal(sessionId, ordinal),
+      )
       close()
     } finally {
       setBusy(false)
@@ -79,7 +73,7 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
             <button
               key={candidate.entryId}
               disabled={busy}
-              onClick={() => void fork(candidate)}
+              onClick={() => void fork(candidate, index)}
               className="hover:bg-bg-secondary flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-50"
             >
               <span className="bg-bg-secondary text-text-tertiary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">

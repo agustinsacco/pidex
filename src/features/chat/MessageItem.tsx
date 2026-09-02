@@ -147,7 +147,7 @@ function UserMessage({
         useChatStore.getState().setError(sessionId, 'Could not locate this message to rewind.')
         return
       }
-      await rewindToEntry(sessionId, entryId)
+      await rewindToEntry(sessionId, entryId, item.images)
     } finally {
       setBusy(false)
     }
@@ -175,7 +175,7 @@ function UserMessage({
        * so hover can never nudge the transcript.
        */}
       <div className="flex h-4 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {item.text && !item.optimistic && (
+        {(item.text || item.images?.length) && !item.optimistic && (
           <button
             onClick={() => void rewind()}
             disabled={busy}
