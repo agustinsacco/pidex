@@ -33,10 +33,13 @@ signing requirement) and only for macOS builds where `MAC_CERT_P12` was set.
 `MacUpdater` delegates to Electron's `autoUpdater`, i.e. Squirrel.Mac, which
 validates the downloaded bundle against the **running** app's designated
 requirement. pidex ships ad-hoc signed — there is no Developer ID; see
-[2026-08-24-mac-adhoc-signing.md](log/2026-08-24-mac-adhoc-signing.md) — and
-an ad-hoc requirement is a per-build `cdhash`. That validation can never pass.
-Setting `pidexSigned=true` for macOS would trade "opens a browser" for "errors
-silently".
+[2026-08-24-mac-adhoc-signing.md](log/2026-08-24-mac-adhoc-signing.md). The
+signer now pins that requirement to the bundle identifier rather than a
+per-build `cdhash` (see [TCC grants](#tcc-grants-survive-an-update) below), so
+the requirement check itself is no longer the blocker it was — but the bundle
+is still ad-hoc and unnotarized, and nothing here has been tested against
+Squirrel.Mac. Setting `pidexSigned=true` for macOS would trade "opens a
+browser" for "errors silently".
 
 So [electron/updates/mac-installer.ts](../electron/updates/mac-installer.ts)
 does by hand what `scripts/install.sh` does by shell:
@@ -99,13 +102,35 @@ Nothing persistent lives inside the bundle, so a swap resets no state:
 The only bundle-internal thing read at runtime is `process.resourcesPath/pi-ext`,
 the shipped extension sources, which the new version _should_ replace.
 
-Two consequences that are inherent, not bugs:
+One consequence that is inherent, not a bug:
 
-- **macOS may re-prompt for TCC permissions.** Ad-hoc signing gives a new
-  `cdhash` per build. `install.sh` already replaces the bundle the same way, so
-  this is not new behaviour.
 - **An in-flight turn is lost on restart.** pi writes a session file only when
   a turn ends.
+
+### TCC grants survive an update
+
+macOS privacy (TCC) records the app's **designated requirement** next to every
+"Allow" the user clicks, and re-checks it on the next launch. Left alone,
+`codesign --sign -` derives that requirement from the code hash, which changes
+with every build — so every auto-update silently invalidated every grant, and
+the Downloads / Documents / Desktop prompts came back. A release ships on every
+green merge to main, so the app asked again roughly daily.
+
+[scripts/adhoc-sign-mac.mjs](../scripts/adhoc-sign-mac.mjs) therefore signs
+with an explicit `-r=designated => identifier "works.pidex.app"`, which is
+stable across builds, and asserts the result matches by identifier before the
+build is allowed to pass. It must be the inline `-r=<text>` form: given `-r`
+and the text as separate arguments, `codesign` reads the text as a path to a
+requirements file.
+
+This does not weaken the bundle in any real sense — an ad-hoc signature has no
+anchor to bind to, and anyone able to replace the app in `/Applications` can
+re-sign it under any identifier. A real Developer ID gets a stable
+team-anchored requirement from electron-builder and skips this hook entirely.
+
+The prompts still appear **once**, on the first access to each folder;
+`mac.extendInfo` in [electron-builder.yml](../electron-builder.yml) supplies
+the `NS*FolderUsageDescription` strings so the dialog says why.
 
 ## The state machine
 
