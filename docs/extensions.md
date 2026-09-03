@@ -459,3 +459,39 @@ package — the abstraction holds, and `shared/rpc.ts` needed no changes.
 Its internals, and the compatibility fixes we shipped, are documented in
 that repo's `docs/ARCHITECTURE.md`. Landing log:
 [log/2026-08-21-claude-cli-provider-fixes.md](log/2026-08-21-claude-cli-provider-fixes.md).
+
+### Two versions go stale, and only one of them is pi's
+
+Settings → Extensions → **Claude Code** now checks both, because they drift
+apart and each looks fine from the other's row:
+
+- **`@saccolabs/pi-claude-cli`** — a pi package, so `packages:checkUpdates`
+  already covered it. Updates through `pi update`.
+- **The `claude` CLI itself** — not a pi package, so nothing covered it. The
+  tab reads `claude --version`, asks the npm registry for
+  `@anthropic-ai/claude-code`'s `latest`, and offers **Update** when the
+  installed one is older (`packages:claudeCliLatest` /
+  `packages:updateClaudeCli` in `electron/pi/packages.ts`).
+
+The update runs `claude update`, **not** `npm install -g`. A 2.x install done
+by the official script is a native build under
+`~/.local/share/claude/versions/<version>` with a symlink in `~/.local/bin`;
+npm does not own it, and `npm install -g` would leave that symlink pointing at
+the old build. `claude update` handles both layouts. Both install kinds publish
+the same version numbers, so one registry lookup answers for either.
+
+### Updating the CLI does not add new models
+
+The model list under the `pi-claude-cli` provider does **not** come from the
+CLI. `index.ts` in that package builds it from
+`getBuiltinModels("anthropic")` — pi's own bundled catalogue, a static JSON
+file inside `@earendil-works/pi-ai`. A model Anthropic shipped yesterday
+appears in the picker when **pi** updates, not when Claude Code does.
+
+There is no user-side override for this. In pi's `provider-composer.js`,
+`applyExtension()` runs after `applyModelsJson()`, and an extension that
+registers a `models` array — which this one does — **replaces** the list
+outright. A `models.json` entry for `pi-claude-cli` is discarded, and
+`modelOverrides` ignores unknown ids, so it cannot add one either. The fix
+belongs in the provider package. Confirmed 2026-09-01: pi-ai 0.84.4, the
+latest published, still had no `claude-fable-5-1`.

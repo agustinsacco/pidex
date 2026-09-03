@@ -329,6 +329,13 @@ export interface IpcInvokeMap {
   }
   /** Claude Code CLI health for the provider tab (binary + local auth state). */
   'packages:claudeStatus': { args: []; result: ClaudeStatus }
+  /**
+   * Latest published Claude Code CLI version, or null when unknown. The CLI
+   * is not a pi package, so `packages:checkUpdates` never covers it.
+   */
+  'packages:claudeCliLatest': { args: []; result: string | null }
+  /** `claude update` as a streamed job (handles native and npm installs). */
+  'packages:updateClaudeCli': { args: []; result: { jobId: string } }
 
   /**
    * Sign the Claude Code CLI in from inside pidex — the account that bills a

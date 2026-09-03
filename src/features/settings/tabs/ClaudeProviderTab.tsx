@@ -25,6 +25,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const [pkg, setPkg] = useState<PiPackageEntry | null | undefined>(undefined)
   const [latest, setLatest] = useState<string | null>(null)
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
+  const [cliLatest, setCliLatest] = useState<string | null>(null)
   const [login, setLogin] = useState<ClaudeLoginState | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -35,12 +36,17 @@ export function ClaudeProviderTab(): React.JSX.Element {
     const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
     setPkg(entry)
     setStatus(claudeState)
+    // Both version checks hit the network, so neither blocks the health rows.
     if (entry) {
       void window.pidex
         .invoke('packages:checkUpdates')
         .then((map) => setLatest(map[entry.spec] ?? null))
         .catch(() => setLatest(null))
     }
+    void window.pidex
+      .invoke('packages:claudeCliLatest')
+      .then(setCliLatest)
+      .catch(() => setCliLatest(null))
   }, [])
 
   useEffect(() => {
@@ -60,10 +66,14 @@ export function ClaudeProviderTab(): React.JSX.Element {
   )
 
   const updateJob = usePackageJob(() => void refresh())
+  const cliUpdateJob = usePackageJob(() => void refresh())
   const testJob = usePackageJob()
   const updatable =
     latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
   const binaryOk = status?.binary.found === true
+  const cliVersion = status?.binary.version
+  const cliUpdatable =
+    cliLatest !== null && cliVersion !== undefined && isNewerVersion(cliLatest, cliVersion)
 
   return (
     <div className="max-w-2xl">
@@ -90,25 +100,16 @@ export function ClaudeProviderTab(): React.JSX.Element {
           }
         />
         {updatable && (
-          <div className="border-border flex items-center justify-between gap-3 border-t px-3.5 py-2.5">
-            <div className="text-base">
-              <span className="text-accent font-medium">v{latest} is available.</span>{' '}
-              <span className="text-text-secondary">
-                pi never moves an installed package on its own — update, then restart sessions.
-              </span>
-            </div>
-            <button
-              onClick={() =>
-                void updateJob.start(() =>
-                  window.pidex.invoke('packages:run', 'update', pkg!.spec, 'global', undefined),
-                )
-              }
-              disabled={updateJob.running}
-              className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
-            >
-              {updateJob.running ? 'Updating…' : 'Update'}
-            </button>
-          </div>
+          <UpdateRow
+            latest={latest!}
+            note="pi never moves an installed package on its own — update, then restart sessions."
+            running={updateJob.running}
+            onUpdate={() =>
+              void updateJob.start(() =>
+                window.pidex.invoke('packages:run', 'update', pkg!.spec, 'global', undefined),
+              )
+            }
+          />
         )}
         <StatusRow
           label="claude CLI"
@@ -117,10 +118,20 @@ export function ClaudeProviderTab(): React.JSX.Element {
             status === null
               ? 'checking…'
               : binaryOk
-                ? `${status.binary.version ? `v${status.binary.version}` : 'version unknown'} at ${status.binary.path}`
-                : 'not found on your login-shell PATH — npm install -g @anthropic-ai/claude-code'
+                ? `${cliVersion ? `v${cliVersion}` : 'version unknown'} at ${status.binary.path}`
+                : 'not found on your login-shell PATH — see “When it fails” below'
           }
         />
+        {cliUpdatable && (
+          <UpdateRow
+            latest={cliLatest!}
+            note="The CLI never updates itself mid-session — update, then restart sessions."
+            running={cliUpdateJob.running}
+            onUpdate={() =>
+              void cliUpdateJob.start(() => window.pidex.invoke('packages:updateClaudeCli'))
+            }
+          />
+        )}
         <ClaudeAccountRow
           status={status}
           login={login}
@@ -159,6 +170,11 @@ export function ClaudeProviderTab(): React.JSX.Element {
         output={updateJob.output}
         exitCode={updateJob.exitCode}
       />
+      <JobOutput
+        running={cliUpdateJob.running}
+        output={cliUpdateJob.output}
+        exitCode={cliUpdateJob.exitCode}
+      />
       <JobOutput running={testJob.running} output={testJob.output} exitCode={testJob.exitCode} />
       {testJob.exitCode === 0 && testJob.output.includes('pidex-provider-ok') && (
         <p className="text-success mt-2 text-base">
@@ -170,8 +186,17 @@ export function ClaudeProviderTab(): React.JSX.Element {
       <ul className="text-text-secondary mt-1 list-disc space-y-1 pl-5 text-base">
         <li>
           <span className="font-mono">claude</span> missing: GUI launches only see your login-shell
-          PATH — install with{' '}
-          <span className="font-mono">npm install -g @anthropic-ai/claude-code</span>.
+          PATH. Install it with{' '}
+          <span className="font-mono">curl -fsSL https://claude.ai/install.sh | bash</span> (native,
+          lands in <span className="font-mono">~/.local/bin</span>) or{' '}
+          <span className="font-mono">npm install -g @anthropic-ai/claude-code</span>, then make
+          sure that directory is on the PATH your shell profile exports.
+        </li>
+        <li>
+          A new model is missing from the picker: updating the CLI will not add it. The{' '}
+          <span className="font-mono">pi-claude-cli</span> model list comes from pi&apos;s own
+          bundled Anthropic catalogue, so it moves when <span className="font-mono">pi</span>{' '}
+          updates — not when Claude Code does.
         </li>
         <li>
           Logged out or expired: use <strong>Sign in</strong> above. It drives{' '}
@@ -388,6 +413,41 @@ function StatusRow({
         <div className="text-base font-medium">{label}</div>
         <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * "vX is available" + an Update button, tucked under the row it belongs to.
+ *
+ * Shared by the extension package and the `claude` CLI because both go stale
+ * the same way: nothing moves them on its own, and the tab reads green while
+ * they sit months behind.
+ */
+function UpdateRow({
+  latest,
+  note,
+  running,
+  onUpdate,
+}: {
+  latest: string
+  note: string
+  running: boolean
+  onUpdate: () => void
+}): React.JSX.Element {
+  return (
+    <div className="border-border flex items-center justify-between gap-3 border-t px-3.5 py-2.5">
+      <div className="text-base">
+        <span className="text-accent font-medium">v{latest} is available.</span>{' '}
+        <span className="text-text-secondary">{note}</span>
+      </div>
+      <button
+        onClick={onUpdate}
+        disabled={running}
+        className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
+      >
+        {running ? 'Updating…' : 'Update'}
+      </button>
     </div>
   )
 }
