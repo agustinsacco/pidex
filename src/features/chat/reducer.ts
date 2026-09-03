@@ -77,7 +77,14 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
     case 'agent_start':
       // agentStartedAt survives message_start/message_end rounds inside the
       // run: one continuous timer for the working indicator, not per-turn.
-      return { ...state, isStreaming: true, error: null, agentStartedAt: Date.now() }
+      return {
+        ...state,
+        isStreaming: true,
+        error: null,
+        agentStartedAt: Date.now(),
+        // pi has spoken: the working indicator takes over from the booting one.
+        promptSentAt: null,
+      }
 
     case 'agent_end': {
       // A low-level run ended. pi may continue immediately with retry, a
@@ -95,7 +102,14 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
         state.queues.steering.length > 0 ||
         state.queues.followUp.length > 0
       if (willContinue) return { ...state, retry: null, items }
-      return { ...state, isStreaming: false, retry: null, items, agentStartedAt: null }
+      return {
+        ...state,
+        isStreaming: false,
+        retry: null,
+        items,
+        agentStartedAt: null,
+        promptSentAt: null,
+      }
     }
 
     case 'agent_settled':
@@ -104,6 +118,7 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
         isStreaming: false,
         retry: null,
         agentStartedAt: null,
+        promptSentAt: null,
         queues: { steering: [], followUp: [] },
       }
 

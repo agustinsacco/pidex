@@ -113,6 +113,16 @@ export interface ChatSessionState {
   isCompacting: boolean
   /** Wall-clock ms when the current agent run started; null while idle. */
   agentStartedAt: number | null
+  /**
+   * Wall-clock ms when a prompt was handed to pi, cleared the moment pi says
+   * anything back (`agent_start`, or the run ending without ever starting).
+   *
+   * Set AND unset without an agent event of its own, because the whole point
+   * is the window where pi has emitted nothing: provider spawn, session
+   * resume, first byte from the model. That window is what the booting
+   * indicator covers.
+   */
+  promptSentAt: number | null
   queues: { steering: string[]; followUp: string[] }
   retry: RetryState | null
   /** Transport-level error (pi crashed / spawn failed). */
@@ -125,6 +135,7 @@ export const emptyChatSession = (): ChatSessionState => ({
   isStreaming: false,
   isCompacting: false,
   agentStartedAt: null,
+  promptSentAt: null,
   queues: { steering: [], followUp: [] },
   retry: null,
   error: null,
