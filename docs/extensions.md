@@ -329,7 +329,9 @@ handling (`items/transcriptRows.ts`, contract table in
   `summarizeExternalTool` maps the marker's tool name onto the same verbs
   `summarizeTool` gives pi's own tools — `Bash` → `Ran`, `Grep` →
   `Searched for`, `Read` → `Read` — with the same monospace treatment and the
-  same `cleanCommandForDisplay` path stripping. A Claude-provider turn
+  same `commandHeadline` operative-line labelling (the row shows the line
+  that does the work, not the `cd`/`echo` setup, with a `+N more` hint when
+  a script ran more). A Claude-provider turn
   interleaves these rows with pi's, and showing `Claude Code | Bash | <raw
 arg>` next to `Ran npm test` made one turn read as two transcripts.
   Provenance survives as a small `cc` mark plus the full marker in the row's

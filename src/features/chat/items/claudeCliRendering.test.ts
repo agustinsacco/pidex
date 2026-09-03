@@ -214,6 +214,29 @@ describe('externalToolInfo', () => {
       // An EVEN number of trailing backslashes is a complete escape: keep it.
       expect(externalToolInfo('Bash', '{"command":"cd a\\\\').fields['command']).toBe('cd a\\')
     })
+
+    /**
+     * The wholesale-unescape regression (F9 in the tool-call audit). The cap
+     * appends its ellipsis right after a backslash, so the fragment ends in
+     * the invalid escape `\…`. The old JSON.parse round-trip threw on it and
+     * returned the WHOLE string raw — every `\n` in a long command rendered
+     * as two visible characters, exactly as screenshotted in a live session.
+     * One bad escape costs itself now, never the rest of the string.
+     */
+    it('keeps unescaping the rest of the string past an invalid escape', () => {
+      const info = externalToolInfo('Bash', '{"command":"cd /ws/review-this-session\\ngrep -n \\…')
+      // The \n BEFORE the bad escape is a real newline, not two characters.
+      expect(info.fields['command']).toContain('\n')
+      expect(info.fields['command']).not.toContain('\\n')
+      // The orphaned escape itself stays visibly literal.
+      expect(info.fields['command']).toContain('\\…')
+    })
+
+    it('leaves an invalid mid-string escape literal without eating neighbours', () => {
+      // \q is not a JSON escape; the \" after it must still unescape.
+      const info = externalToolInfo('Bash', '{"command":"a \\q b \\"quoted\\" end"}')
+      expect(info.fields['command']).toBe('a \\q b "quoted" end')
+    })
   })
 })
 
