@@ -6,8 +6,9 @@
 
 # pidex
 
-**A desktop coding-agent app for macOS, Linux and Windows, powered entirely by
-the [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).**
+**The [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent),
+extended into a desktop IDE for macOS, Linux and Windows — the most advanced
+multi-provider agentic IDE you can run on your own machine.**
 
 [![CI](https://github.com/agustinsacco/pidex/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/pidex/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/agustinsacco/pidex?label=release&color=ffbe5c)](https://github.com/agustinsacco/pidex/releases/latest)
@@ -19,13 +20,36 @@ chat that renders what models actually produce (diffs, diagrams, charts,
 sandboxed HTML), the file explorer and terminal next to it, and every change the
 agent made available to review or revert.
 
-|                                             |                                        |
-| ------------------------------------------- | -------------------------------------- |
-| **Chat, diffs, files, terminal, artifacts** | One window, side by side               |
-| **Sessions are real pi processes**          | Nothing invented, everything reachable |
-| **Runs on your metal**                      | Your models, your keys, your files     |
+One window, every provider pi speaks: Anthropic, OpenAI (API key or ChatGPT
+subscription), Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral,
+Groq, Cerebras, xAI, OpenRouter, the Cloudflare and Vercel gateways — plus your
+Claude Pro/Max subscription through
+[pi-claude-cli](https://github.com/agustinsacco/pi-claude-cli), no API key
+needed. Switch models mid-session and the conversation carries over.
+
+|                                             |                                         |
+| ------------------------------------------- | --------------------------------------- |
+| **Chat, diffs, files, terminal, artifacts** | One window, side by side                |
+| **Multi-provider by design**                | Any pi provider, switchable mid-session |
+| **Sessions are real pi processes**          | Nothing invented, everything reachable  |
+| **Runs on your metal**                      | Your models, your keys, your files      |
 
 ![A session with the activity run open on an edit's diff](docs/img/chat.png)
+
+## Quick start
+
+```bash
+# 1. pi is the engine — pidex needs it on your PATH (Node ≥ 22.19)
+npm install -g @earendil-works/pi-coding-agent
+
+# 2. Install pidex (macOS / Linux; Windows builds are on tagged releases)
+curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
+```
+
+Launch pidex, open a project folder, and sign in to a provider: open the
+built-in terminal, run `pi`, and use `/login` — or configure API keys / a local
+endpoint in `~/.pi/agent/`. Then describe a task in the composer and press
+Enter. Details and alternative installs are under [Install](#install).
 
 ## What pidex does
 
@@ -57,6 +81,12 @@ agent made available to review or revert.
 
 ## The screens
 
+Every session pairs the transcript with one switchable pane — Files, Changes,
+Terminal or Artifacts. Each pane docks right or left of the chat (your pick,
+persisted per session) and can go fullscreen. All shots below are real captures
+of the app, reproducible with `npm run shots` — see
+[the screenshots in this README](#the-screenshots-in-this-readme).
+
 ### Home — mission control
 
 The home screen greets you with what is running, a brief, project stats, and a
@@ -75,11 +105,27 @@ lines, and queues follow-ups while a turn is running.
 
 ![A finished turn: the activity run expanded on the edit's diff, Changes panel open beside it](docs/img/changes.png)
 
-### Files and terminal, switched in beside the chat
+### Files — explorer and editor, on whichever side you like
 
-A file explorer with a Monaco editor for the file you pick, and real terminal
-tabs running against the workspace. Both are switches in the session's top bar,
-keyed per workspace, so the transcript never loses its place.
+A file explorer with a Monaco editor for the file you pick, switched in beside
+the chat from the session's top bar. On the right by default:
+
+![The files pane on the right: explorer and Monaco editor beside the transcript](docs/img/files.png)
+
+One click moves the pane to the left of the transcript — the orientation is
+per-session and persists:
+
+![The same files pane docked on the left of the chat](docs/img/files-left.png)
+
+And any pane can take over the whole session region when the transcript is not
+the thing you're reading:
+
+![The files pane fullscreened over the session](docs/img/files-full.png)
+
+### Terminal — real shells in the workspace
+
+Real terminal tabs running against the workspace, keyed per workspace like the
+files pane, so the transcript never loses its place.
 
 ![A terminal tab open against the workspace, beside the transcript](docs/img/terminal.png)
 
@@ -99,8 +145,7 @@ theme included, because diff review at 2am is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
 
-The light theme, on the same session — because diff review at 2am is a real
-workflow.
+The light theme, on the same session:
 
 ![The session in the light theme](docs/img/light.png)
 

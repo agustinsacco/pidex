@@ -203,23 +203,45 @@ async function main() {
     await settle(page, 3500)
     await shot('changes')
 
-    // ---- 4. Terminal switched in beside the chat. Panes are switches, not
-    // columns: opening Files then Terminal shows only the last one, so this
-    // shot is honestly the terminal, and the README says so.
+    // ---- 4. Files pane on its default side (right): explorer + Monaco on the
+    // file the session touched.
     await page.getByTitle(/Files pane/).click()
     await settle(page, 3500)
+    // Scoped to the pane: the transcript's edit card also reads "hello.ts".
+    await page.getByTestId('right-pane').getByRole('button', { name: 'hello.ts' }).click()
+    await settle(page, 3000)
+    await shot('files')
+
+    // ---- 5. The same pane docked LEFT of the chat — every pane carries a
+    // side-swap control, and the orientation persists per session.
+    await page.getByTitle('Move pane to the left').click()
+    await settle(page, 3500)
+    await shot('files-left')
+    await page.getByTitle('Move pane to the right').click()
+    await settle(page, 2500)
+
+    // ---- 6. The pane fullscreened over the whole session region.
+    await page.getByTitle('Fullscreen pane').click()
+    await settle(page, 3000)
+    await shot('files-full')
+    await page.getByTitle('Exit fullscreen').click()
+    await settle(page, 2500)
+
+    // ---- 7. Terminal switched in beside the chat. Panes are switches, not
+    // columns: opening Files then Terminal shows only the last one, so this
+    // shot is honestly the terminal, and the README says so.
     await page.getByTitle(/Terminal pane/).click()
     await settle(page, 3500)
     await shot('terminal')
 
-    // ---- 5. Home with a live session: mission control. Every card is a
+    // ---- 8. Home with a live session: mission control. Every card is a
     // projection of main's view of pi's event stream, answerable in place.
     await page.getByRole('button', { name: /^New$/ }).click()
     await page.getByTestId('fleet-session-card').first().waitFor({ timeout: 20_000 })
     await settle(page, 2200)
     await shot('home')
 
-    // ---- 6. Artifacts: a second session whose deliverable is a long document,
+    // ---- 9. Artifacts: a second session whose deliverable is a long document,
     // in the pane that opens by itself on a project's first artifact. Scrolled
     // so the viewer shows body text rather than the gallery header.
     await page.getByRole('button', { name: /^New$/ }).click()
@@ -243,7 +265,7 @@ async function main() {
     await settle(page, 2500)
     await shot('artifacts')
 
-    // ---- 7. Settings → Appearance. It is the tab that carries the theme
+    // ---- 10. Settings → Appearance. It is the tab that carries the theme
     // switch, and picking Light here sets up the last shot.
     await page.keyboard.press('ControlOrMeta+Comma')
     await page.getByRole('button', { name: 'Appearance', exact: true }).click()
@@ -252,7 +274,7 @@ async function main() {
     await page.getByRole('button', { name: 'Light', exact: true }).click()
     await page.keyboard.press('Escape')
 
-    // ---- 8. The same conversation in the paper theme, so both are on record.
+    // ---- 11. The same conversation in the paper theme, so both are on record.
     await page.getByTestId('session-row').first().click()
     await page.getByPlaceholder(/Describe a task…/).waitFor({ timeout: 20_000 })
     await settle(page, 3500)
