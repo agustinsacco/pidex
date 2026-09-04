@@ -4,7 +4,8 @@
  * Settings → Claude Code tab so the two surfaces can't disagree about what
  * a window is called or what its bar means.
  */
-import type { ClaudeUsageWindow } from '@shared/models'
+import type { ClaudeUsageError, ClaudeUsageWindow } from '@shared/models'
+import type { Model } from '@shared/rpc'
 import { resetLabel } from '@/features/chat/composer/rateLimit'
 
 /** A bar's colour class by the thresholds every other meter in pidex uses. */
@@ -45,4 +46,38 @@ export function windowTitle(window: ClaudeUsageWindow): string {
 export function windowResetLabel(resetsAt: number | null): string | null {
   if (resetsAt === null) return null
   return resetLabel(Math.floor(resetsAt / 1000))
+}
+
+/**
+ * Why there are no windows to show, in one sentence.
+ *
+ * The popover used to render nothing at all on a failed fetch, which made a
+ * broken usage check indistinguishable from a session that had simply never
+ * asked. Shared with Settings → Claude Code so the two surfaces give the same
+ * reason for the same failure.
+ */
+export function usageUnavailableReason(error: ClaudeUsageError): string {
+  switch (error) {
+    case 'claude-not-found':
+      return 'claude CLI not found on your login-shell PATH.'
+    case 'run-failed':
+      return 'The usage check ran but did not complete — try again in a moment.'
+    default:
+      return 'No subscription usage to show — sign in to a Claude Pro/Max account.'
+  }
+}
+
+/**
+ * Is this session served by the Claude Code CLI?
+ *
+ * Plan usage is an account-level fact about that CLI, so the section belongs
+ * to exactly these sessions: showing it on a Bedrock or pi-native session
+ * would report a limit that governs nothing there. pi labels the provider
+ * `pi-claude-cli`; `api` is checked too because pi's own catalogue has used
+ * either field for it.
+ */
+export function isClaudeCliModel(
+  model: Pick<Model, 'api' | 'provider'> | null | undefined,
+): boolean {
+  return model?.provider === 'pi-claude-cli' || model?.api === 'pi-claude-cli'
 }

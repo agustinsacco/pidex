@@ -11,7 +11,13 @@ import { Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
-import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
+import {
+  usageBarClass,
+  usageTextClass,
+  usageUnavailableReason,
+  windowResetLabel,
+  windowTitle,
+} from '@/lib/claudeUsage'
 import { isValidAutocompactValue } from '@/lib/claudeAutocompact'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
@@ -484,13 +490,7 @@ function UsageSection({ binaryOk }: { binaryOk: boolean | undefined }): React.JS
             <Spinner /> Checking your plan usage…
           </div>
         ) : !state.ok ? (
-          <p className="text-text-secondary text-base">
-            {state.error === 'claude-not-found'
-              ? 'claude CLI not found on your login-shell PATH.'
-              : state.error === 'run-failed'
-                ? 'The usage check ran but did not complete — try again in a moment.'
-                : 'No subscription usage to show — sign in to a Claude Pro/Max account above.'}
-          </p>
+          <p className="text-text-secondary text-base">{usageUnavailableReason(state.error)}</p>
         ) : (
           <div className="space-y-2.5">
             {state.snapshot.stale && (
