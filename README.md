@@ -16,9 +16,9 @@ multi-provider agentic IDE you can run on your own machine.**
 ![License: MIT](https://img.shields.io/badge/license-MIT-8ec9a0)
 
 Open a project folder, describe a task, and work alongside the agent — with a
-chat that renders what models actually produce (diffs, diagrams, charts,
-sandboxed HTML), the file explorer and terminal next to it, and every change the
-agent made available to review or revert.
+chat that renders what models produce (diffs, diagrams, charts, sandboxed HTML),
+the file explorer and terminal next to it, and every change the agent made ready
+to review or revert.
 
 One window, every provider pi speaks: Anthropic, OpenAI (API key or ChatGPT
 subscription), Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral,
