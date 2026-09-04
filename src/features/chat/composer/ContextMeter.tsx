@@ -22,7 +22,14 @@ import {
   windowLabel,
 } from './rateLimit'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
-import { usageBarClass, usageTextClass, windowResetLabel, windowTitle } from '@/lib/claudeUsage'
+import {
+  isClaudeCliModel,
+  usageBarClass,
+  usageTextClass,
+  usageUnavailableReason,
+  windowResetLabel,
+  windowTitle,
+} from '@/lib/claudeUsage'
 import type { ClaudeUsageSnapshotResult, ClaudeUsageWindow } from '@shared/models'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
@@ -40,11 +47,17 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const rateLimitStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
 
   const usage = stats?.contextUsage
-  if (!stats || !usage || usage.percent == null) return null
+  // The meter is the ONLY way into this popover, and the popover is where a
+  // Claude session's plan usage lives — so it must not vanish when the
+  // percentage is briefly unknown. pi reports null context tokens from the
+  // moment a session compacts until fresh usage arrives, and returning null
+  // there took the ring, the popover and the usage fetch with it. Render
+  // whenever the session has stats and show the ring unfilled instead.
+  if (!stats) return null
 
-  const percent = Math.min(100, Math.round(usage.percent))
-  const warn = percent >= 75
-  const critical = percent >= 90
+  const percent = usage?.percent == null ? null : Math.min(100, Math.round(usage.percent))
+  const warn = percent !== null && percent >= 75
+  const critical = percent !== null && percent >= 90
   // A loop that re-sends context it already delivered is invisible in the
   // percentage — it can bill millions without the meter moving.
   const burn = assessBurn(burnSamples(sessionId), Date.now())
@@ -55,7 +68,11 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        title={`Context: ${percent}% of ${formatTokens(usage.contextWindow)}`}
+        title={
+          percent === null
+            ? 'Context: measuring — session usage'
+            : `Context: ${percent}% of ${formatTokens(usage?.contextWindow ?? 0)}`
+        }
         className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
       >
         <svg width="15" height="15" viewBox="0 0 16 16" className="-rotate-90">
@@ -76,7 +93,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               critical ? 'var(--px-danger)' : warn ? 'var(--px-warning)' : 'var(--px-success)'
             }
             strokeWidth="2"
-            strokeDasharray={`${(percent / 100) * 40.8} 40.8`}
+            strokeDasharray={`${((percent ?? 0) / 100) * 40.8} 40.8`}
             strokeLinecap="round"
           />
         </svg>
@@ -86,7 +103,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             critical ? 'text-danger' : warn ? 'text-warning' : 'text-text-tertiary',
           )}
         >
-          {percent}%
+          {percent === null ? '—' : `${percent}%`}
         </span>
         {burning && (
           <span
@@ -127,12 +144,18 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             <SectionLabel>Context</SectionLabel>
             <StatRow
               label="Window"
-              value={`${formatTokens(usage.tokens ?? 0)} / ${formatTokens(usage.contextWindow)} (${percent}%)`}
+              value={
+                percent === null
+                  ? usage?.contextWindow
+                    ? `measuring — ${formatTokens(usage.contextWindow)} window`
+                    : 'measuring'
+                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(usage?.contextWindow ?? 0)} (${percent}%)`
+              }
             />
             <ContextComposition
               statusText={breakdownStatus}
-              total={usage.tokens ?? 0}
-              window={usage.contextWindow}
+              total={usage?.tokens ?? 0}
+              window={usage?.contextWindow ?? 0}
             />
             <SectionLabel>Tokens</SectionLabel>
             <StatRow label="Input" value={formatTokens(stats.tokens.input)} />
@@ -161,7 +184,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             )}
             <StatRow label="Messages" value={String(stats.totalMessages)} />
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
-            <PlanUsage />
+            {isClaudeCliModel(model) && <PlanUsage />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
         </PopupMenu>
@@ -276,17 +299,24 @@ function McpServers({
  * this section: `PlanLimits` below only ever sees a window once the CLI's
  * warning threshold has crossed it.
  *
- * Renders nothing when the fetch fails — a popover is a glance, and the
- * Settings → Claude Code tab is where failures get diagnosed.
+ * The section always renders: "Checking…" while the run is in flight, then
+ * either the windows or the reason there are none. It used to disappear on a
+ * failed fetch, which is indistinguishable from a fetch that never happened —
+ * and the fetch not happening was the actual bug (the meter had unmounted).
  */
-function PlanUsage(): React.JSX.Element | null {
+function PlanUsage(): React.JSX.Element {
   const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void window.pidex.invoke('claude:usageSnapshot').then((result) => {
-      if (!cancelled) setState(result)
-    })
+    void window.pidex
+      .invoke('claude:usageSnapshot')
+      // A rejected invoke (no handler, main-process restart) must read as a
+      // failed run, not as a permanent "Checking…".
+      .catch((): ClaudeUsageSnapshotResult => ({ ok: false, error: 'run-failed' }))
+      .then((result) => {
+        if (!cancelled) setState(result)
+      })
     return () => {
       cancelled = true
     }
@@ -300,7 +330,16 @@ function PlanUsage(): React.JSX.Element | null {
       </>
     )
   }
-  if (!state.ok || state.snapshot.windows.length === 0) return null
+  if (!state.ok || state.snapshot.windows.length === 0) {
+    return (
+      <>
+        <SectionLabel>Plan usage · Claude account</SectionLabel>
+        <div className="text-text-tertiary text-sm">
+          {usageUnavailableReason(state.ok ? 'no-usage' : state.error)}
+        </div>
+      </>
+    )
+  }
   const { snapshot } = state
 
   return (

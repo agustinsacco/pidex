@@ -122,12 +122,12 @@ recorded cadence. Rules that matter:
 Four sources, three different confidence levels — and the UI is required to
 keep them distinguishable, because they are not equally trustworthy.
 
-| Section             | Source                                                                                                  | Shown for                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Tokens / cost       | `get_session_stats`                                                                                     | every session                 |
-| Context composition | `pidex-context-breakdown` status key (bundled extension)                                                | every session                 |
-| Plan usage          | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents, any account signed in to a subscription |
-| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)                                                        | Claude Code provider sessions |
+| Section             | Source                                                         | Shown for                     |
+| ------------------- | -------------------------------------------------------------- | ----------------------------- |
+| Tokens / cost       | `get_session_stats`                                            | every session                 |
+| Context composition | `pidex-context-breakdown` status key (bundled extension)       | every session                 |
+| Plan usage          | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions |
+| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions |
 
 **Plan usage vs Plan limits.** The two plan sections answer different
 questions and must never be merged into one dashboard. **Plan usage** is
@@ -140,6 +140,19 @@ constraint as the provider relays it mid-turn — one window, only once the
 CLI's warning threshold has crossed it, but the only source that can say
 "capped now" between turns. All-day percent: Plan usage; the wall: Plan
 limits.
+
+**The meter is the only door to all four, so it must not close.** It renders
+whenever the session has stats, and draws the ring unfilled with a `—` when
+the percentage is briefly unknown. It used to return `null` on a null
+percent, which is exactly the state pi reports from the moment a session
+compacts until fresh usage arrives — the ring vanished, and with it the
+popover and the `claude:usageSnapshot` fetch that only ever runs when the
+popover opens. "Usage never showed up" was usually this, not a failed fetch.
+For the same reason Plan usage now always renders a row: `Checking…` while
+the run is in flight, then the windows or the one-line reason there are none
+(`usageUnavailableReason`, shared with Settings → Claude Code). A section
+that disappears on failure is indistinguishable from a fetch that never
+happened, and the fetch never happening was the actual bug.
 
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`

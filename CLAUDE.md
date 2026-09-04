@@ -146,7 +146,12 @@ you want to watch.
   installed version first: `>= 0.4.16` is required for both. **`>= 0.5.1`**
   is required for MCP isolation: pidex sets `PI_CLAUDE_CLI_STRICT_MCP=1` on
   every Claude session so the CLI cannot load the user's own MCP servers
-  alongside pi's, and older versions ignore it. **`>= 0.7.0`** keeps ONE CLI
+  alongside pi's, and older versions ignore it. **`>= 0.6.1`** is required
+  after a compaction: below it the first message (often the second too) does
+  nothing, because the CLI answers its own queued `<task-notification>` first
+  and the provider read that empty `result` as the end of the turn. The same
+  bug re-billed the whole conversation as a cache write on the next resume.
+  **`>= 0.7.0`** keeps ONE CLI
   process per session (proxied tool handoffs, parked between turns); below
   it every pi-side tool call and every turn restarts the CLI, and Claude
   Code's system prompt embeds a git snapshot, so every commit or branch
@@ -160,7 +165,9 @@ you want to watch.
   and
   [docs/log/2026-09-02-persistent-claude-cli.md](docs/log/2026-09-02-persistent-claude-cli.md)
   and
-  [docs/log/2026-09-04-naming-hang-on-parked-cli.md](docs/log/2026-09-04-naming-hang-on-parked-cli.md).
+  [docs/log/2026-09-04-naming-hang-on-parked-cli.md](docs/log/2026-09-04-naming-hang-on-parked-cli.md)
+  and
+  [docs/log/2026-09-03-post-compaction-stall-and-context-meter.md](docs/log/2026-09-03-post-compaction-stall-and-context-meter.md).
 
 - **pidex ships five extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in

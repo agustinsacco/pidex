@@ -715,10 +715,12 @@ export interface ClaudeUsageSnapshot {
   contributing: string | null
 }
 
+/** Why a `claude -p /usage` run produced no windows. */
+export type ClaudeUsageError = 'claude-not-found' | 'run-failed' | 'no-usage'
+
 /** `claude:usageSnapshot` channel result. */
 export type ClaudeUsageSnapshotResult =
-  | { ok: true; snapshot: ClaudeUsageSnapshot }
-  | { ok: false; error: 'claude-not-found' | 'run-failed' | 'no-usage' }
+  { ok: true; snapshot: ClaudeUsageSnapshot } | { ok: false; error: ClaudeUsageError }
 
 /**
  * Where an in-app `claude auth login` has got to.
