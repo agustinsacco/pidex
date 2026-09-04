@@ -9,11 +9,9 @@ Coding-only. No "normal chat" mode, no routines, no cloud sync. The user opens w
 **Many sessions at once is the normal case, not the edge case.** A project
 usually has several chats in flight, each on its own branch, and the product's
 job is to make that legible rather than to pretend one session is the unit of
-work. So the home screen is mission control — what every agent is doing, what
-is blocked on you, answerable in place — and each project can have an
-**orchestration agent** that watches its sessions and reports on them when
-asked. Watching costs nothing and is always on; the agent costs tokens and
-only runs when you ask it to. See [13-orchestration.md](orchestration.md).
+work. So the home screen is mission control — what every agent is doing, and what
+needs you — answered in place across workspaces. Each session is independent;
+there is no cross-session manager or orchestration agent.
 
 ## Non-negotiables
 

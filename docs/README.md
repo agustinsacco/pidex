@@ -31,7 +31,6 @@ Start with [overview.md](overview.md) for what pidex is, or
 | [worktrees.md](worktrees.md)           | Git worktree lifecycle and the branch control                      |
 | [mcp.md](mcp.md)                       | MCP servers via the pi-mcp-adapter config chain                    |
 | [extensions.md](extensions.md)         | The bundled pi extensions; provider transcript shapes              |
-| [orchestration.md](orchestration.md)   | The orchestrator session, fleet hub, and its three modes           |
 | [cli-providers.md](cli-providers.md)   | Running sessions on external CLI providers (Claude Code)           |
 
 ## Two rules that keep this workable

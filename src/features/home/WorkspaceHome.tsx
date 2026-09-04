@@ -9,7 +9,6 @@ import { errorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
-import { FleetOverview } from './FleetOverview'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { projectName } from '@/lib/path'
@@ -166,10 +165,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
 
-          {/* Mission control: what every agent is doing, and what needs you.
-              Entirely mechanical — it renders with no orchestrator running and
-              costs nothing. See docs/orchestration.md. */}
-          <FleetOverview workspacePath={workspacePath} />
+          {/* Project state shown mechanically; no model runs. */}
+          <div className="w-full max-w-2xl pt-4">
+            {stats && stats.sessionCount > 0 && (
+              <p className="text-text-secondary text-sm">
+                {stats.sessionCount} session{stats.sessionCount > 1 ? 's' : ''} ·{' '}
+                {formatNumber(stats.messages)} messages
+              </p>
+            )}
+          </div>
 
           {stats && stats.sessionCount > 0 && (
             <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">

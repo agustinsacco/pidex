@@ -12,7 +12,6 @@ import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
-import { OrchestratorChat, useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
@@ -84,7 +83,7 @@ export function App(): React.JSX.Element {
         // main's own threads and re-attach through their button instead.
         const orphans = await window.pidex
           .invoke('pi:listLiveSessions')
-          .then((live) => live.filter((s) => !s.isOrchestrator))
+          .then((live) => live)
           .catch(() => [])
         for (const orphan of orphans) {
           if (cancelled) return
@@ -219,9 +218,6 @@ function MainWithPanes({
   workspacePath: string
   activeSessionId: string
 }): React.JSX.Element {
-  // An orchestrator thread renders with its own chrome: it manages sessions
-  // rather than being one, and the two must not look identical once open.
-  const orchestratorFor = useIsOrchestrator(activeSessionId)
   const { pane: rightPane, expanded, side, size } = useActivePanes()
 
   // Fullscreen (↗) is an OVERLAY, not a resize. It used to imperatively
@@ -233,15 +229,7 @@ function MainWithPanes({
 
   const chatPanel = (
     <Panel id="chat" order={side === 'left' ? 2 : 1} minSize={15}>
-      {orchestratorFor ? (
-        <OrchestratorChat
-          key={activeSessionId}
-          sessionId={activeSessionId}
-          workspacePath={orchestratorFor}
-        />
-      ) : (
-        <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={workspacePath} />
-      )}
+      <ChatView key={activeSessionId} sessionId={activeSessionId} workspacePath={workspacePath} />
     </Panel>
   )
 

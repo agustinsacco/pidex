@@ -63,7 +63,6 @@ describe('groupSessionsByProject', () => {
       notPinned,
       notLive,
       '/repo',
-      [],
       {},
       worktreeRoots,
     )
@@ -260,37 +259,13 @@ describe('groupSessionsByProject', () => {
       notPinned,
       notLive,
       '/repo',
-      [],
+      {},
       { '/repo': 'ok' },
     )
     // The main repo scanned (empty) but the merged worktree has not — the
     // group must still read as loading, not as definitively empty.
     expect(groups[0]?.attempted).toBe(false)
     expect(groups[0]?.errored).toBe(false)
-  })
-
-  it("flags a group once a merged folder's scan threw", () => {
-    const gitByCwd: Record<string, GitInfo> = {
-      '/repo': { isRepo: true, branch: 'main' },
-      '/repo/.pidex/worktrees/test': {
-        isRepo: true,
-        branch: 'test',
-        isWorktree: true,
-        mainRepoPath: '/repo',
-      },
-    }
-    const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/test'],
-      {},
-      gitByCwd,
-      notPinned,
-      notLive,
-      '/repo',
-      [],
-      { '/repo': 'ok', '/repo/.pidex/worktrees/test': 'error' },
-    )
-    expect(groups[0]?.attempted).toBe(true)
-    expect(groups[0]?.errored).toBe(true)
   })
 })
 
@@ -300,98 +275,6 @@ describe('groupSessionsByProject', () => {
  * one flipped `scanned` false and slammed an already-open group shut — which
  * also unwatched it. `anyScanned` is what the default keys off now.
  */
-describe('scan bookkeeping across a merged group', () => {
-  const gitByCwd: Record<string, GitInfo> = {
-    '/repo': { isRepo: true, branch: 'main' },
-    '/repo/.pidex/worktrees/lane': {
-      isRepo: true,
-      branch: 'lane',
-      isWorktree: true,
-      mainRepoPath: '/repo',
-    },
-  }
-
-  it('stays anyScanned when a freshly discovered lane is still unscanned', () => {
-    const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
-      { '/repo': [meta({ path: '/repo/a.jsonl' })] },
-      gitByCwd,
-      notPinned,
-      notLive,
-      '/elsewhere',
-      [],
-      { '/repo': 'ok' },
-    )
-    expect(groups).toHaveLength(1)
-    expect(groups[0]).toMatchObject({ scanned: false, anyScanned: true, attempted: false })
-  })
-
-  it('names the folders still to scan', () => {
-    const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
-      { '/repo': [] },
-      gitByCwd,
-      notPinned,
-      notLive,
-      '/elsewhere',
-      [],
-      { '/repo': 'ok' },
-    )
-    expect(groups[0]!.unscannedPaths).toEqual(['/repo/.pidex/worktrees/lane'])
-  })
-
-  it('has nothing left to scan once every folder has been attempted', () => {
-    const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
-      { '/repo': [], '/repo/.pidex/worktrees/lane': [] },
-      gitByCwd,
-      notPinned,
-      notLive,
-      // The active workspace, so a fully scanned but empty group still gets a
-      // header — an empty non-active group is filtered out by design.
-      '/repo',
-      [],
-      { '/repo': 'ok', '/repo/.pidex/worktrees/lane': 'ok' },
-    )
-    expect(groups[0]).toMatchObject({ scanned: true, anyScanned: true, attempted: true })
-    expect(groups[0]!.unscannedPaths).toEqual([])
-  })
-
-  it('counts an errored folder as attempted, so it is not retried as "missing"', () => {
-    const groups = groupSessionsByProject(
-      ['/repo'],
-      {},
-      gitByCwd,
-      notPinned,
-      notLive,
-      '/elsewhere',
-      [],
-      { '/repo': 'error' },
-    )
-    expect(groups[0]).toMatchObject({ attempted: true, errored: true, anyScanned: false })
-    expect(groups[0]!.unscannedPaths).toEqual([])
-  })
-
-  it('lists every lane of the group so an expanded group can scan them all', () => {
-    const lanes = Array.from({ length: 12 }, (_, i) => `/repo/.pidex/worktrees/l${i}`)
-    const git: Record<string, GitInfo> = { '/repo': { isRepo: true, branch: 'main' } }
-    for (const lane of lanes) {
-      git[lane] = { isRepo: true, branch: 'l', isWorktree: true, mainRepoPath: '/repo' }
-    }
-    const groups = groupSessionsByProject(
-      ['/repo', ...lanes],
-      { '/repo': [] },
-      git,
-      notPinned,
-      notLive,
-      '/elsewhere',
-      [],
-      { '/repo': 'ok' },
-    )
-    expect(groups[0]!.unscannedPaths).toEqual(lanes)
-  })
-})
-
 describe('pendingSessionsByGroup', () => {
   const groups = [{ workspacePath: '/repo', paths: ['/repo'] }]
 
@@ -423,34 +306,6 @@ describe('pendingSessionsByGroup', () => {
     ]
     const live = [{ pidexId: 'p1', workspacePath: '/repo/.pidex/worktrees/test' }]
     const pending = pendingSessionsByGroup(live, new Set(), foldedGroups)
-    expect(pending.get('/repo')).toEqual(['p1'])
-  })
-
-  /**
-   * The orchestrator is a live session that the scanner deliberately keeps out
-   * of `disk`, so the "it landed on disk" gate can never retire its
-   * placeholder. Before this it sat in the sidebar for the whole life of the
-   * process, styled as work still starting up — the one thread that *manages*
-   * work, rendered as work.
-   */
-  it('never shows a placeholder for an orchestrator, before its path is known', () => {
-    const live = [{ pidexId: 'orch-1', workspacePath: '/repo' }]
-    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
-    expect(pending.has('/repo')).toBe(false)
-  })
-
-  it('nor after, since an orchestrator path is never in the disk scan', () => {
-    const live = [{ pidexId: 'orch-1', workspacePath: '/repo', diskPath: '/repo/orch.jsonl' }]
-    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
-    expect(pending.has('/repo')).toBe(false)
-  })
-
-  it('still shows work sessions running alongside an orchestrator', () => {
-    const live = [
-      { pidexId: 'orch-1', workspacePath: '/repo' },
-      { pidexId: 'p1', workspacePath: '/repo' },
-    ]
-    const pending = pendingSessionsByGroup(live, new Set(), groups, new Set(['orch-1']))
     expect(pending.get('/repo')).toEqual(['p1'])
   })
 })

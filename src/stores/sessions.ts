@@ -501,13 +501,6 @@ function attachSessionPushHandler(pidexId: string): void {
       case 'stderr':
         console.warn(`[pi stderr] ${push.text}`)
         break
-      case 'injected':
-        // The visible-hand rule: main sent this on the orchestrator's behalf,
-        // so the renderer never added it optimistically. pi persists it either
-        // way — without this the transcript of a session being steered stays
-        // silent until it is reopened. See docs/orchestration.md.
-        chatStore.addUserMessage(pidexId, push.text)
-        break
       case 'extension-ui':
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(pidexId, push.request),
@@ -802,18 +795,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
     }))
-    // Opening an orchestrator is what "you have seen it" means for its badge.
+    // Opening a session activates it directly; badge tracking removed with orchestration feature.
     if (sessionId) {
-      void (async () => {
-        try {
-          const { useFleetStore } = await import('./fleet')
-          const fleet = useFleetStore.getState()
-          const entry = Object.entries(fleet.liveOrchestrators).find(([, id]) => id === sessionId)
-          if (entry) fleet.clearUnread(entry[0])
-        } catch {
-          // A badge is never worth breaking activation for.
-        }
-      })()
+      // Badge clearing removed with orchestration feature.
     }
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.

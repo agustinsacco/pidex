@@ -2,8 +2,6 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcInvokeChannel, IpcInvokeMap, PidexApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type {
-  FleetSnapshot,
-  OrchestratorDigest,
   SessionPush,
   UpdateState,
   LoginFlowState,
@@ -43,11 +41,6 @@ const api: PidexApi = {
 
   onSessionsChanged: (listener) =>
     subscribe<[{ workspacePath: string }]>('sessions:changed', listener),
-
-  onFleetChanged: (listener) => subscribe<[FleetSnapshot]>('fleet:changed', listener),
-
-  onOrchestratorDigest: (listener) =>
-    subscribe<[OrchestratorDigest]>('orchestrator:digest', listener),
 
   onFsChanged: (listener) =>
     subscribe<[{ workspacePath: string; paths: string[] }]>('fs:changed', listener),

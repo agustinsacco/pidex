@@ -4,7 +4,7 @@ import { listSessions, readSessionTree, workspaceStats } from '../pi/session-sca
 import { deleteSession } from '../pi/session-deleter'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 import { claudeSessionIdFor } from '../pi/claude-session-map'
-import { clearDraft, getPrefs } from '../store'
+import { clearDraft } from '../store'
 import { deleteDraftBlobs } from '../drafts-blobs'
 
 /** On-disk session discovery, tree reading and history rewrites. */
@@ -13,9 +13,7 @@ export function registerSessionsHandlers(): void {
 
   // Home tiles describe work, so the project's orchestrator thread is not part
   // of them.
-  handle('sessions:stats', (_event, workspacePath: string) =>
-    workspaceStats(workspacePath, Object.values(getPrefs().orchestratorSessions)),
-  )
+  handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
 
   handle('sessions:watch', (_event, workspacePath: string) => {
     watchWorkspaceSessions(workspacePath)

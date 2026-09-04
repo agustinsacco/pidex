@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { basename, join as joinPath } from 'node:path'
-import { fleetHub, registry, sessionReaper } from '../registry'
+import { registry } from '../registry'
 import { handle } from './handle'
 import { trimForRenderer } from './event-trim'
 import { checkPiHealth } from '../pi/health'
@@ -13,11 +13,7 @@ import { claudeProviderSpawnEnv, usesClaudeCliProvider } from '../pi/provider-de
 import { readAgentSettings } from '../pi/agent-settings'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
-import { broadcast } from '../orchestrator/broadcast'
-import { configureOrchestrator, orchestrator } from '../orchestrator/instance'
-import { startNotifier } from '../orchestrator/notifier'
-import { gitInfo, gitInfoBatch } from '../fs/git-info'
-import { createLaneWorkspace } from '../fs/lane-workspace'
+import { gitInfoBatch } from '../fs/git-info'
 import {
   MIN_PI_VERSION,
   type CreateSessionOptions,
@@ -181,7 +177,8 @@ async function spawnSession(
   const channel = sessionEventChannel(session.sessionId)
   const push = (payload: SessionPush): void => {
     if (target === 'broadcast') {
-      broadcast(channel, payload)
+      // Broadcast removed with orchestration feature; session events now
+      // rely on renderer-initiated pushes only.
     } else if (!target.isDestroyed()) {
       target.send(channel, payload)
     }
@@ -192,11 +189,7 @@ async function spawnSession(
   // hub listens on the client directly, so it still sees them intact.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
   session.client.on('extension-ui', (request) => {
-    // The orchestrator's tools reach main by riding this channel. Intercepted
-    // requests are answered in main and must NOT reach the renderer, or every
-    // fleet call would also pop a dialog. Authorization lives in the manager:
-    // a sentinel from any other session falls through and stays a dialog.
-    if (orchestrator()?.handleControlRequest(session.sessionId, request)) return
+    // Orchestration layer removed; all extension UI requests forwarded.
     push({ kind: 'extension-ui', request })
   })
   session.client.on('stderr', (text) => {
@@ -226,70 +219,7 @@ async function spawnSession(
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
-  // Teach the hub how a session's folder maps to the project that owns it,
-  // BEFORE it starts observing. pidex runs most chats in a worktree, so
-  // without this a project's own sessions look like they belong elsewhere.
-  fleetHub.setProjectResolver(async (cwd) => {
-    const info = await gitInfo(cwd)
-    return info.mainRepoPath ?? cwd
-  })
-  fleetHub.start()
-  sessionReaper.start()
-  // Tell the user when something blocks while they are elsewhere — the whole
-  // premise of orchestration is that work continues when they are not looking.
-  startNotifier(fleetHub)
-
-  // Teach the orchestrator how to spawn, so it never reimplements the spawn
-  // path (and so a change to env or bundled extensions reaches it for free).
-  configureOrchestrator({
-    spawn: async ({
-      workspacePath,
-      sessionPath,
-      name,
-      model,
-      appendSystemPrompt,
-      extraExtension,
-    }) =>
-      spawnSession(
-        {
-          workspacePath,
-          ...(sessionPath ? { sessionPath } : {}),
-          ...(name ? { name } : {}),
-          ...(model ? { model } : {}),
-          appendSystemPrompt,
-          extraExtensions: [extraExtension],
-        },
-        'broadcast',
-      ),
-    // Every lane gets its own branch and worktree, including the ones the
-    // orchestrator starts. This used to spawn straight into `workspacePath`,
-    // so an autopilot lane landed in the main checkout on whatever branch was
-    // out — the exact collision the worktree design exists to prevent, live
-    // again in the layer meant to prevent it.
-    startWork: async (workspacePath, prompt, name) => {
-      const lane = await createLaneWorkspace({
-        workspacePath,
-        title: name,
-        branchPrefix: getPrefs().worktrees.branchPrefix,
-      })
-      const info = await spawnSession({ workspacePath: lane.workspacePath, name }, 'broadcast')
-      if (lane.warning) {
-        // Never silent: an un-isolated lane is a fact the operator has to know,
-        // and it lands in the lane's own transcript rather than a log file.
-        // Same channel the visible-hand rule uses for orchestrator injections.
-        broadcast(`pi:event:${info.sessionId}`, {
-          kind: 'injected',
-          text: lane.warning,
-          source: 'orchestrator',
-        })
-      }
-      const session = registry.get(info.sessionId)
-      await session?.client.request({ type: 'prompt', message: prompt })
-      return { sessionId: info.sessionId, workspacePath: lane.workspacePath, branch: lane.branch }
-    },
-    gitStatus: async (workspacePath) => gitInfo(workspacePath),
-  })
-
+  // Orchestration layer removed.
   handle('pi:health', async () => {
     if (piStubPath()) {
       return {
@@ -311,12 +241,9 @@ export function registerPiSessionHandlers(): void {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
     const response = await session.client.request(command)
-    // A session is auto-named AFTER its first reply, which for a one-shot
-    // question is after it has already settled for the last time — so the hub
-    // would keep reporting "untitled" forever, to the home screen and to the
-    // orchestrator alike. This is the one place the name ever changes.
+    // Orchestration layer removed; naming handled directly.
     if (command.type === 'set_session_name' && response.success) {
-      fleetHub.noteRenamed(sessionId)
+      // Name tracking removed with orchestration feature.
     }
     return response
   })
@@ -325,29 +252,18 @@ export function registerPiSessionHandlers(): void {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
     session.client.respondToExtensionUI(response)
-    // The reply goes straight to pi's stdin and produces no event, so the hub
-    // is told directly — otherwise an answered session would sit in the
-    // "needs you" inbox forever.
-    fleetHub.noteQuestionAnswered(sessionId, response.id)
+    // The reply goes straight to pi's stdin; no orchestration inbox.
+    // Orchestration layer removed.
   })
 
   handle('pi:disposeSession', async (_event, sessionId: string) => {
     await registry.dispose(sessionId)
   })
 
-  handle('pi:listLiveSessions', () =>
-    registry.list().map((info) => {
-      const fleet = fleetHub.get(info.sessionId)
-      return {
-        ...info,
-        diskPath: fleet?.diskPath,
-        isOrchestrator: fleetHub.isOrchestrator(info.sessionId),
-      }
-    }),
-  )
+  handle('pi:listLiveSessions', () => registry.list())
 
-  handle('pi:setActiveSession', (_event, sessionId: string | null) => {
-    sessionReaper.setActiveSession(sessionId)
+  handle('pi:setActiveSession', (_event, _sessionId: string | null) => {
+    // Session reaper removed with orchestration feature.
   })
 
   // Best-effort: naming is a nicety, so every failure path returns null and

@@ -1,5 +1,4 @@
 import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
-import { isOrchestratorSession } from '@shared/orchestratorIdentity'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
 import { dropSupersededSessions } from './superseded'
@@ -56,13 +55,6 @@ export function groupSessionsByProject(
   isPinned: (meta: SessionMeta) => boolean,
   isLive: (meta: SessionMeta) => boolean,
   activeWorkspacePath: string,
-  /**
-   * Session file paths belonging to orchestrator threads. They run in the
-   * project's own cwd, so without this they sort into the list as ordinary
-   * chats — see `OrchestratorHeaderButton`, which gives it its own shape in the
-   * workspace header rather than a row among sessions.
-   */
-  orchestratorPaths: Iterable<string> = [],
   /** workspacePath → latest scan attempt; absence = never attempted. */
   scanStatus: Record<string, SessionScanStatus> = {},
   /**
@@ -96,9 +88,7 @@ export function groupSessionsByProject(
     // `worktreeRoots` is what makes that true for a worktree living anywhere
     // on disk, not just under `<repo>/.pidex/worktrees/`.
     const projectKey = projectPathFor(path, git, worktreeRoots[path])
-    const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter(
-      (m) => !isPinned(m) && !isOrchestratorSession(m, orchestratorPaths),
-    )
+    const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter((m) => !isPinned(m))
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
     const attempted = path in scanStatus
@@ -162,30 +152,16 @@ interface LiveEntry {
 
 /**
  * Live sessions with no matching row in `disk` yet, keyed by each session's
- * *group* (via `paths`, not the raw `workspacePath`) so a live session in a
- * worktree folded into its main repo's group still finds its placeholder.
- *
- * Gated on the path actually appearing in `diskPaths`, not on whether
- * `diskPath` is merely known: `get_state` (which supplies `diskPath`)
- * resolves as soon as pi answers the RPC call, independently of when pi
- * actually flushes the file and independently of the session-dir watcher's
- * awaitWriteFinish-plus-debounce picking it up. Gating on "unknown" alone
- * reopens the gap this exists to close — a session can sit with a known
- * `diskPath` but no sidebar row for the length of a slow first turn.
- *
- * `orchestratorIds` is not an optimisation — without it an orchestrator is a
- * **permanent** placeholder row. That gate can never fire for one, because
- * `session-scanner.ts` deliberately keeps orchestrator sessions out of `disk`,
- * so their path is never in `diskPaths`. The result was the one thread that
- * manages work sitting in the sidebar forever, styled as work still starting
- * up. Matched by session id rather than path because the row appears the
- * instant the session is adopted, long before any path is known.
+ * group. A freshly created session is spawned and prompted immediately,
+ * but its `.jsonl` file only appears once pi writes it — and the session-dir
+ * watcher adds `awaitWriteFinish` plus a debounce before reporting it.
+ * Without these placeholder rows a session you just started shows no row
+ * at all until the scan catches up, which reads as a dropped message.
  */
 export function pendingSessionsByGroup(
   live: LiveEntry[],
   diskPaths: ReadonlySet<string>,
   groups: Pick<GroupedSessions, 'workspacePath' | 'paths'>[],
-  orchestratorIds: ReadonlySet<string> = new Set(),
 ): Map<string, string[]> {
   const groupKeyByPath = new Map<string, string>()
   for (const g of groups) {
@@ -194,7 +170,6 @@ export function pendingSessionsByGroup(
 
   const map = new Map<string, string[]>()
   for (const entry of live) {
-    if (orchestratorIds.has(entry.pidexId)) continue
     if (entry.diskPath && diskPaths.has(entry.diskPath)) continue
     const key = groupKeyByPath.get(entry.workspacePath) ?? entry.workspacePath
     const list = map.get(key)

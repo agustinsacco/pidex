@@ -5,8 +5,6 @@ import { useChatStore } from '@/stores/chat'
 import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
-import { cycleOrchestratorMode } from '@/features/orchestrator/OrchestratorModePicker'
-import { useIsOrchestrator } from '@/features/orchestrator/OrchestratorChat'
 import { ContextMeter } from './composer/ContextMeter'
 import {
   buildCommandEntries,
@@ -57,10 +55,6 @@ export function Composer({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
-  // Non-null only for an orchestrator thread. The mode PICKER lives in that
-  // thread's banner now (it is per-project, not per-message), but ⇧Tab still
-  // has to know whether this composer belongs to one.
-  const orchestratorWorkspace = useIsOrchestrator(sessionId)
   /*
    * Draft state lives in the store, not in `useState`.
    *
@@ -356,14 +350,7 @@ export function Composer({
       }
     }
 
-    // ⇧Tab cycles what the thread is allowed to do — Claude Code's mode
-    // switch, on the one thread here that has modes.
-    if (event.key === 'Tab' && event.shiftKey && orchestratorWorkspace) {
-      event.preventDefault()
-      void cycleOrchestratorMode(orchestratorWorkspace)
-      return true
-    }
-
+    // Mode controls removed with orchestration feature.
     // ↑/↓ recall earlier prompts (Claude Code's REPL history). Browsing starts
     // only from an empty composer and ends at the first keystroke (see the
     // textarea's onChange), so the arrows go back to moving the caret the

@@ -17,8 +17,6 @@ import {
   type AgentDirectivePrefs,
   type AppPrefs,
   type ComposerDraftRecord,
-  type OrchestratorDigest,
-  type OrchestratorWorkspacePrefs,
   type ThemePreference,
   type WorkspaceInfo,
 } from '@shared/models'
@@ -85,9 +83,6 @@ export function getPrefs(): AppPrefs {
       ]),
     ),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
-    orchestrator: s.get('orchestrator') ?? {},
-    orchestratorSessions: s.get('orchestratorSessions') ?? {},
-    orchestratorDigests: s.get('orchestratorDigests') ?? {},
     notificationsMuted: s.get('notificationsMuted') ?? false,
     claudeAutocompact: s.get('claudeAutocompact') ?? '',
     // Normalized on read as well as write: these numbers gate process kills.
@@ -125,54 +120,6 @@ export function clearDraft(key: string): string[] {
 /** Replace the whole map — used by the launch-time sweep. */
 export function setDrafts(drafts: Record<string, ComposerDraftRecord>): void {
   prefs().set('drafts', drafts)
-}
-
-export function setOrchestratorPrefs(
-  workspacePath: string,
-  value: OrchestratorWorkspacePrefs,
-): void {
-  const s = prefs()
-  s.set('orchestrator', { ...(s.get('orchestrator') ?? {}), [workspacePath]: value })
-}
-
-/** Remember which session file is this project's orchestrator, for resume. */
-export function setOrchestratorSession(workspacePath: string, sessionPath: string): void {
-  const s = prefs()
-  s.set('orchestratorSessions', {
-    ...(s.get('orchestratorSessions') ?? {}),
-    [workspacePath]: sessionPath,
-  })
-}
-
-/**
- * Forget which session file is this project's orchestrator.
- *
- * The escape hatch for a thread that can no longer take a turn — a model that
- * emitted a malformed tool call used to brick one permanently, because
- * `ensure()` kept resuming the same poisoned file and nothing could clear the
- * pointer. See `OrchestratorManager.reset`.
- */
-export function clearOrchestratorSession(workspacePath: string): void {
-  const s = prefs()
-  const map = { ...(s.get('orchestratorSessions') ?? {}) }
-  delete map[workspacePath]
-  s.set('orchestratorSessions', map)
-}
-
-/** Drop a project's published digest (its findings are about a dead thread). */
-export function clearOrchestratorDigest(workspacePath: string): void {
-  const s = prefs()
-  const map = { ...(s.get('orchestratorDigests') ?? {}) }
-  delete map[workspacePath]
-  s.set('orchestratorDigests', map)
-}
-
-export function setOrchestratorDigest(digest: OrchestratorDigest): void {
-  const s = prefs()
-  s.set('orchestratorDigests', {
-    ...(s.get('orchestratorDigests') ?? {}),
-    [digest.workspacePath]: digest,
-  })
 }
 
 export function setNotificationsMuted(muted: boolean): void {

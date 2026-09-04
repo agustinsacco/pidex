@@ -1,4 +1,5 @@
 import { handle } from './handle'
+import { BrowserWindow } from 'electron'
 import { homedir } from 'node:os'
 import { shell } from 'electron'
 import type { ConnectorAuthState } from '@shared/models'
@@ -19,7 +20,11 @@ import {
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
-import { broadcast } from '../orchestrator/broadcast'
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+}
 
 /**
  * Open the adapter's authorization page.
