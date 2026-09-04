@@ -9,9 +9,10 @@ Coding-only. No "normal chat" mode, no routines, no cloud sync. The user opens w
 **Many sessions at once is the normal case, not the edge case.** A project
 usually has several chats in flight, each on its own branch, and the product's
 job is to make that legible rather than to pretend one session is the unit of
-work. So the home screen is mission control — what every agent is doing, and what
-needs you — answered in place across workspaces. Each session is independent;
-there is no cross-session manager or orchestration agent.
+work. So the home screen is a lane board: every lane of the project in a column
+named for what it needs from you, next to a ledger of what running them all
+costs. Each session is still independent; there is no cross-session manager and
+no orchestration agent, and the board spends nothing to render.
 
 ## Non-negotiables
 
