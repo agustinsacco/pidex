@@ -13,6 +13,7 @@ import type {
   ThinkingLevelMap,
   ModelCost,
 } from './rpc'
+import type { ConnectorCheckResult } from './connectors'
 import type {
   McpCacheEntry,
   McpConfigsResult,
@@ -395,6 +396,19 @@ export interface IpcInvokeMap {
   'mcp:submitAuthCallback': { args: [serverName: string, url: string]; result: boolean }
   /** Abandon an authorization in progress. No-op if nothing is running. */
   'mcp:cancelAuth': { args: [serverName: string]; result: void }
+  /**
+   * Test one connector, with or without a session open.
+   *
+   * Main spawns a throwaway `pi --mode rpc --no-session` and sends the
+   * adapter's `/mcp reconnect <server>` (an extension command — no model
+   * call, no tokens), which closes and re-opens the connection and reports
+   * the outcome. Always resolves: an unrecognised answer is `unknown`, never
+   * a wrong verdict.
+   */
+  'mcp:checkServer': {
+    args: [serverName: string, workspacePath?: string]
+    result: ConnectorCheckResult
+  }
   'mcp:readFile': {
     args: [scope: McpScope, workspacePath: string | undefined]
     result: { path: string; content: string }

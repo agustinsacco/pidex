@@ -986,6 +986,11 @@ test('Connectors: signing in works with no session open', async () => {
 
     await linear.getByRole('button', { name: 'Cancel' }).click()
     await expect(linear.getByText(/Approve access in your browser/)).toHaveCount(0)
+
+    // Same headless path answers "is it up?": main reconnects the server
+    // through its own throwaway pi and reports the adapter's verdict.
+    await linear.getByRole('button', { name: 'Test', exact: true }).click()
+    await expect(linear.getByText('Up · 7 tools')).toBeVisible({ timeout: 20_000 })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })
