@@ -94,7 +94,11 @@ export function stateLabel(state: McpServerState): string {
     case 'failed':
       return 'Failed'
     case 'cached':
-      return 'Idle'
+      // The adapter has this server's tools cached from an authenticated
+      // connection it has since dropped (it connects lazily). Saying only
+      // "Idle" next to a "Connect" button read as "not set up yet", and
+      // people re-authorized servers that were signed in the whole time.
+      return 'Signed in · idle'
     case 'disabled':
       return 'Disabled'
     case 'not-connected':
@@ -138,6 +142,6 @@ export function connectorActionLabel(action: ConnectorAction): string {
     case 'reconnect':
       return 'Reconnect'
     case 'connect':
-      return 'Connect'
+      return 'Connect now'
   }
 }

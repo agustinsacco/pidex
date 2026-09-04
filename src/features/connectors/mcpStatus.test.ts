@@ -52,7 +52,7 @@ describe('parseMcpStatus', () => {
 
   it('labels every state it can report', () => {
     expect(stateLabel('needs-auth')).toBe('Needs sign-in')
-    expect(stateLabel('cached')).toBe('Idle')
+    expect(stateLabel('cached')).toBe('Signed in · idle')
   })
 })
 
@@ -91,13 +91,13 @@ describe('connectorActionLabel', () => {
   it('names each action', () => {
     expect(connectorActionLabel('sign-in')).toBe('Sign in')
     expect(connectorActionLabel('reconnect')).toBe('Reconnect')
-    expect(connectorActionLabel('connect')).toBe('Connect')
+    expect(connectorActionLabel('connect')).toBe('Connect now')
   })
 })
 
 describe('stateLabel', () => {
   it('does not describe an idle server in words that imply breakage', () => {
-    expect(stateLabel('cached')).toBe('Idle')
+    expect(stateLabel('cached')).toBe('Signed in · idle')
     expect(stateLabel('needs-auth')).toBe('Needs sign-in')
   })
 })

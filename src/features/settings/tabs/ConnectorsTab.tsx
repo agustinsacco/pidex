@@ -462,7 +462,9 @@ function ConfiguredRow({
             title={
               action === 'connect'
                 ? 'Open a connection now. Already signed in — this does not re-authorize.'
-                : undefined
+                : action === 'reconnect'
+                  ? 'Drop and re-open the connection. This does not re-authorize.'
+                  : undefined
             }
             onClick={() => {
               const store = useConnectorsStore.getState()
@@ -525,8 +527,8 @@ function ConfiguredRow({
             className="flex items-center gap-1"
             title={
               keepAlive
-                ? 'Connection stays open between calls, so the row reads Connected'
-                : 'Adapter default: connect per call, then drop. The row will read Idle between uses.'
+                ? 'Connection stays open after the first call of the session, so the row reads Connected once a tool has been used. Until then it stays idle.'
+                : 'Adapter default: connect per call, then drop. The row stays idle between uses.'
             }
           >
             <input
