@@ -193,8 +193,7 @@ export async function parseSessionFile(path: string, mtimeMs: number): Promise<S
  * Aggregate stats for the workspace home screen (tiles + heatmap).
  */
 export async function workspaceStats(workspacePath: string): Promise<WorkspaceSessionStats> {
-  const all = await listSessions(workspacePath)
-  const sessions = all
+  const sessions = await listSessions(workspacePath)
   const activityByDay = new Map<string, number>()
   let messages = 0
   let tokens = 0

@@ -197,8 +197,6 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
 | `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus                       |
 
-Plus `orchestrator.ts`, loaded only into orchestrator sessions.
-
 ### The artifact tools, and what each one costs
 
 `artifacts.ts` registers five tools. The split exists for one reason: an
@@ -249,13 +247,12 @@ extension and the banner were removed on 2026-08-28; the idea is meant to come
 back in a different shape. See
 [docs/log/2026-08-28-removing-the-lane-loop-pane.md](log/2026-08-28-removing-the-lane-loop-pane.md).
 
-Every tool `orchestrator.ts` registers declares at least one **required**
+Every tool an extension registers should declare at least one **required**
 parameter. A tool call carrying no arguments reaches pi as `arguments: ""` on
 the Claude Code provider (no `input_json_delta` is streamed, so the bridge's
 accumulated JSON is empty), and pi validates before `execute` runs — so an
 empty-or-all-optional schema fails every call with `root: must be object` and
-the extension never runs. `fleet_status` and `memory_read` both shipped that
-way. `pi-ext/orchestrator.test.ts` guards it; see
+the extension never runs. See
 [docs/log/2026-08-27-orchestrator-empty-tool-arguments.md](log/2026-08-27-orchestrator-empty-tool-arguments.md).
 
 `worktree-paths.ts` is the only pidex code that can refuse a tool call. A

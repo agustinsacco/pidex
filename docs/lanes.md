@@ -4,8 +4,8 @@ A **lane** is one unit of work: a session, the branch it runs on, the worktree
 that branch is checked out in, and the pull request it becomes. pidex shows all
 four on a single sidebar row, and this document is the contract for that row.
 
-Related: [orchestration.md](orchestration.md) for how lanes are supervised,
-[extensions.md](extensions.md) for the artifact tools a lane can call.
+Related: [extensions.md](extensions.md) for the artifact tools a lane can
+call.
 
 ## The row
 

@@ -62,15 +62,12 @@ you want to watch.
    guards (`_NoMissingResponseKeys` / `_NoExtraResponseKeys`). Adding an RPC
    command means updating both the command union and `RpcResponseDataMap`, or
    it won't compile — that's intentional.
-5. **The orchestrator is a session that manages sessions**, not a feature
-   bolted onto one. One pi session per project (`electron/orchestrator/`),
-   spawned through the same `SessionRegistry` as any other, plus a
-   zero-inference "fleet hub" that projects what every live session is doing.
-   Two rules it must keep: nothing spends tokens unless the user asks, and
-   its **mode** (`observe` / `supervise` / `autopilot`) is enforced in
-   `bridge.ts` at CALL time — never trusted from the system prompt, which is
-   fixed at spawn and goes stale the moment the user switches. Full design in
-   [docs/orchestration.md](docs/orchestration.md).
+5. **Every session is independent.** There is no cross-session manager: no
+   fleet hub, no orchestrator thread, no automatic reclamation of an idle
+   session's subprocess. Sessions are created from the renderer, and
+   `electron/registry.ts` is the only thing that knows what is running.
+   Removed 2026-09-03; see
+   [docs/log/2026-09-03-remove-orchestration.md](docs/log/2026-09-03-remove-orchestration.md).
 6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
@@ -158,11 +155,10 @@ you want to watch.
   and
   [docs/log/2026-09-02-persistent-claude-cli.md](docs/log/2026-09-02-persistent-claude-cli.md).
 
-- **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
-  loaded with `-e`; the five bundled ones are listed in `bundledExtensions()`
-  in `electron/ipc/pi-session-handlers.ts`, plus `orchestrator.ts` for
-  orchestrator sessions only). They are the only pidex code with a say inside
-  a turn, and two of them can change or refuse what the model did:
+- **pidex ships five extensions that run inside pi's process** (`pi-ext/`,
+  loaded with `-e` into every session; listed in `bundledExtensions()` in
+  `electron/ipc/pi-session-handlers.ts`). They are the only pidex code with a
+  say inside a turn, and two of them can change or refuse what the model did:
   - **`worktree-paths.ts` can refuse a tool call.** It blocks a
     `read`/`write`/`edit`/`ls`/`grep`/`find` whose path escapes a worktree
     session into the repo's main checkout (a different branch) when the same
@@ -287,7 +283,5 @@ whose `result` field holds the real API error. Its error template prints
 render as the self-contradictory `Error: Claude CLI returned success`.
 
 `cd /tmp && echo hi | pi -p` decides pidex-vs-pi in one command: if it fails
-there too, it is not a pidex bug. And check a plain session before blaming the
-orchestrator — the orchestrator spawns ordinary pi sessions, so any provider
-fault looks like an orchestration bug. The `/debug` skill has the full
-procedure, including how to shim a nested CLI to capture its real argv.
+there too, it is not a pidex bug. The `/debug` skill has the full procedure,
+including how to shim a nested CLI to capture its real argv.

@@ -57,7 +57,7 @@ as raw JSON — exactly the bug fixed in #88.
 
 **D4 — one short-lived connector session per connect.** Reuse the workspace's
 live session if there is one, otherwise spawn a hidden session through the
-existing `SessionRegistry` (the orchestrator is the precedent) and dispose it
+existing `SessionRegistry` and dispose it
 when the flow settles. Settings must work with no session open, which
 `AdapterSessionStatus` currently does not (F5).
 

@@ -21,8 +21,6 @@ import type {
   McpWriteScope,
 } from './mcp'
 import type {
-  AdoptableSession,
-  SessionReaperPrefs,
   AddWorktreeBranch,
   AppPrefs,
   AboutInfo,
@@ -108,12 +106,7 @@ export interface IpcInvokeMap {
    * ~200 MB processes stranded until quit — and to avoid spawning a SECOND
    * process for a session file an orphan still owns.
    */
-  'pi:listLiveSessions': { args: []; result: AdoptableSession[] }
-  /**
-   * Which session the user is looking at, for the idle-session reaper — the
-   * active session is never reaped, and main has no other way to know it.
-   */
-  'pi:setActiveSession': { args: [sessionId: string | null]; result: void }
+  'pi:listLiveSessions': { args: []; result: LiveSessionInfo[] }
   /** One-shot `pi -p` completion that names a session after its first message. */
   'pi:generateTitle': {
     args: [workspacePath: string, message: string, existingNames: string[]]
@@ -159,10 +152,7 @@ export interface IpcInvokeMap {
     args: [prefs: AgentDirectivePrefs | null, projectPath?: string]
     result: void
   }
-  /** Suppress orchestrator desktop notifications (global, not per project). */
-  'app:setNotificationsMuted': { args: [muted: boolean]; result: void }
   'app:setClaudeAutocompact': { args: [value: string]; result: void }
-  'app:setSessionReaperPrefs': { args: [prefs: SessionReaperPrefs]; result: void }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   /** Absolute path of the main-process debug log, or null if it could not be opened. */
   'app:debugLogPath': { args: []; result: string | null }
@@ -597,7 +587,6 @@ export interface PidexApi {
   /** Session-dir change notifications (chokidar); returns unsubscribe. */
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
 
-  /** Fleet snapshot updates (debounced in main); returns unsubscribe. */
   /** Workspace file-change notifications; returns unsubscribe. */
   onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void
 

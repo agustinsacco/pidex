@@ -55,19 +55,10 @@ function bundledExtensions(): string[] {
 
 /**
  * Spawn a live session and wire its push channels.
- *
- * Extracted from the `pi:createSession` handler because the orchestrator
- * needs the exact same spawn path (login-shell env, bundled extensions, stub
- * handling) without going through the renderer. `target` decides where pushes
- * go: a renderer-initiated session pushes to its own window, while a
- * main-initiated one broadcasts, since no window owns it.
  */
 async function spawnSession(
-  options: CreateSessionOptions & {
-    appendSystemPrompt?: string
-    extraExtensions?: string[]
-  },
-  target: Electron.WebContents | 'broadcast',
+  options: CreateSessionOptions,
+  target: Electron.WebContents,
 ): Promise<LiveSessionInfo> {
   const stub = piStubPath()
   let binaryPath: string | undefined
@@ -108,10 +99,7 @@ async function spawnSession(
         ...(claudeAutocompact ? { PI_CLAUDE_CLI_AUTOCOMPACT: claudeAutocompact } : {}),
       }
 
-  const extensions = [
-    ...bundledExtensions(),
-    ...(options.extraExtensions ?? []).map(bundledExtensionPath),
-  ]
+  const extensions = [...bundledExtensions()]
 
   // Worktree sessions get an explicit working-directory block: pi's own
   // `Current working directory:` line is correct but has been observed to
@@ -135,8 +123,6 @@ async function spawnSession(
     // Present only for a lane on its own branch. A session opened in the main
     // checkout is not a lane and is not told it owes a PR.
     ...(git.isWorktree && git.branch ? { charter: { branch: git.branch } } : {}),
-    // The orchestrator supplies its own preamble and is not a lane.
-    ...(options.appendSystemPrompt ? { extra: options.appendSystemPrompt } : {}),
   })
 
   // Claude-provider sessions get `--no-context-files`: the Claude CLI loads
@@ -176,22 +162,13 @@ async function spawnSession(
 
   const channel = sessionEventChannel(session.sessionId)
   const push = (payload: SessionPush): void => {
-    if (target === 'broadcast') {
-      // Broadcast removed with orchestration feature; session events now
-      // rely on renderer-initiated pushes only.
-    } else if (!target.isDestroyed()) {
-      target.send(channel, payload)
-    }
+    if (!target.isDestroyed()) target.send(channel, payload)
   }
 
   // Trimmed, not forwarded whole: two of pi's events restate the entire run
-  // after it has already streamed, and the renderer reads neither. The fleet
-  // hub listens on the client directly, so it still sees them intact.
+  // after it has already streamed, and the renderer reads neither.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
-  session.client.on('extension-ui', (request) => {
-    // Orchestration layer removed; all extension UI requests forwarded.
-    push({ kind: 'extension-ui', request })
-  })
+  session.client.on('extension-ui', (request) => push({ kind: 'extension-ui', request }))
   session.client.on('stderr', (text) => {
     // Persist as well as forward. pi's stderr is where a provider prints the
     // reason a turn failed, and forwarding it to the renderer alone means it
@@ -219,7 +196,6 @@ async function spawnSession(
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
-  // Orchestration layer removed.
   handle('pi:health', async () => {
     if (piStubPath()) {
       return {
@@ -240,20 +216,13 @@ export function registerPiSessionHandlers(): void {
   handle('pi:command', async (_event, sessionId: string, command: RpcCommand) => {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
-    const response = await session.client.request(command)
-    // Orchestration layer removed; naming handled directly.
-    if (command.type === 'set_session_name' && response.success) {
-      // Name tracking removed with orchestration feature.
-    }
-    return response
+    return session.client.request(command)
   })
 
   handle('pi:extensionUiResponse', (_event, sessionId: string, response: ExtensionUIResponse) => {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
     session.client.respondToExtensionUI(response)
-    // The reply goes straight to pi's stdin; no orchestration inbox.
-    // Orchestration layer removed.
   })
 
   handle('pi:disposeSession', async (_event, sessionId: string) => {
@@ -261,10 +230,6 @@ export function registerPiSessionHandlers(): void {
   })
 
   handle('pi:listLiveSessions', () => registry.list())
-
-  handle('pi:setActiveSession', (_event, _sessionId: string | null) => {
-    // Session reaper removed with orchestration feature.
-  })
 
   // Best-effort: naming is a nicety, so every failure path returns null and
   // the session keeps its first-message-derived title.

@@ -350,7 +350,6 @@ export function Composer({
       }
     }
 
-    // Mode controls removed with orchestration feature.
     // ↑/↓ recall earlier prompts (Claude Code's REPL history). Browsing starts
     // only from an empty composer and ends at the first keystroke (see the
     // textarea's onChange), so the arrows go back to moving the caret the
@@ -483,13 +482,6 @@ export function Composer({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {/*
-                The orchestrator's mode used to sit here, beside model and
-                thinking level, which read as a per-message setting. It is
-                neither: it is per-project, persisted, and governs what the
-                thread may do to other sessions. It lives in the orchestrator's
-                banner now, next to the rest of its controls.
-              */}
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               <div className="flex items-center gap-1.5">

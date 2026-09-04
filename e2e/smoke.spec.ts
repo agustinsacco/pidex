@@ -1931,17 +1931,76 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
   }
 })
 
-/**
- * The fleet hub, end to end: a live session becomes a card on the home screen
- * with a working inline composer, and the project shows an orchestrator row.
- *
- * Scope note — the stub is spawned WITHOUT pidex's bundled extensions (see
- * `bundledExtensions` in pi-session-handlers), so the orchestrator's own tools
- * cannot run here. What this proves is the mechanical layer that costs no
- * tokens: main observing pi's event stream, pushing snapshots, and the home
- * screen rendering them. Orchestrator tool behaviour is covered by unit tests
- * over the bridge instead.
- */
+test('the workspace header carries fixed search / new / menu controls', async () => {
+  const harness = await launch({
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-header-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // All three are permanent, not hover-revealed: a control you cannot see is
+    // a control you do not know exists.
+    await expect(page.getByTestId('workspace-group-search').first()).toBeVisible({
+      timeout: 20_000,
+    })
+    await expect(page.getByTestId('workspace-group-new-session').first()).toBeVisible()
+    await expect(page.getByTestId('workspace-group-menu').first()).toBeVisible()
+
+    // Select-all is not a fourth icon: it moved into the workspace menu when
+    // search took its place.
+    await page.getByTestId('workspace-group-menu').first().click()
+    await expect(page.getByTestId('workspace-group-select')).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('the workspace header filters lanes on Enter and restores them on Escape', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // Wait for the named row: the title is what the filter matches on.
+    const row = page.getByTestId('session-row').first()
+    await expect(row).toContainText('Stub Session Title', { timeout: 30_000 })
+
+    // The bar opens under the header, focused, and typing alone filters
+    // nothing — Enter is the commit, so the list cannot jump mid-keystroke.
+    await page.getByTestId('workspace-group-search').first().click()
+    const input = page.getByTestId('lane-search-input')
+    await expect(input).toBeFocused()
+    await input.fill('zzz no such lane')
+    await expect(row).toBeVisible()
+
+    await input.press('Enter')
+    await expect(page.getByTestId('lane-search-empty')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('session-row')).toHaveCount(0)
+
+    // The clear control is earned by an applied filter, and retracts both the
+    // filter and the bar — a closed bar must never still be hiding lanes.
+    await page.getByTestId('lane-search-clear').click()
+    await expect(page.getByTestId('lane-search-input')).toHaveCount(0)
+    await expect(row).toBeVisible()
+
+    // Order-free terms across the title, then Escape as the second retraction.
+    await page.getByTestId('workspace-group-search').first().click()
+    await page.getByTestId('lane-search-input').fill('title stub')
+    await page.getByTestId('lane-search-input').press('Enter')
+    await expect(row).toBeVisible()
+    await expect(page.getByTestId('lane-search-empty')).toHaveCount(0)
+
+    await page.getByTestId('lane-search-input').press('Escape')
+    await expect(page.getByTestId('lane-search-input')).toHaveCount(0)
+    await expect(row).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('a renderer reload re-adopts the live session instead of orphaning it', async () => {
   // The leak this guards: the pi subprocess registry lives in main, the
   // renderer's live map is plain store state. A reload (HMR, crash,

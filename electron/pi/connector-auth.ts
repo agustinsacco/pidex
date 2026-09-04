@@ -15,7 +15,7 @@ import { log } from '../debug-log'
  * it when the flow settles, the same machinery `model-catalogue.ts` uses to
  * ask a question with nothing running. `--no-session` matters twice: no
  * session file appears in the sidebar, and the process is never in the
- * registry, so the fleet hub never projects it as work in progress.
+ * registry, so nothing projects it as work in progress.
  *
  * No tokens are spent. `/mcp-auth` is an extension command, which pi runs
  * immediately without an LLM call, and this process is never prompted with
