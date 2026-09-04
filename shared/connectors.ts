@@ -83,3 +83,75 @@ export function parseAuthNotice(message: string): AuthNotice | null {
   }
   return null
 }
+
+/**
+ * The verdict of `/mcp reconnect <server>` — pidex's connection test.
+ *
+ * "Is this connector up?" had no answer without a live session, because
+ * per-server state only arrives from the adapter running inside one. The
+ * adapter's reconnect command IS the probe: it closes the connection, opens a
+ * fresh one, and reports the outcome as a notify. Every branch of
+ * `reconnectServer` in `pi-mcp-adapter/commands.ts` emits one of these lines,
+ * so the parse covers all of them and fails closed on anything else.
+ */
+export interface ReconnectNotice {
+  serverName: string
+  outcome: 'connected' | 'needs-auth' | 'disabled' | 'failed' | 'missing'
+  /** Tools the server exposed, on a successful reconnect. */
+  toolCount?: number
+  resourceCount?: number
+  /** The adapter's own message, for a non-success outcome. */
+  detail?: string
+}
+
+export function parseReconnectNotice(message: string): ReconnectNotice | null {
+  const text = stripAnsi(message).trim()
+
+  const ok = /^MCP: Reconnected to (.+?) \((\d+) tools?, (\d+) resources?\)/.exec(text)
+  if (ok?.[1]) {
+    return {
+      serverName: ok[1],
+      outcome: 'connected',
+      toolCount: Number(ok[2]),
+      resourceCount: Number(ok[3]),
+    }
+  }
+
+  const auth = /^MCP: (.+?) requires OAuth\b/.exec(text)
+  if (auth?.[1]) {
+    return { serverName: auth[1], outcome: 'needs-auth', detail: 'Sign-in required.' }
+  }
+
+  const disabled = /^MCP: (.+?) is disabled\b/.exec(text)
+  if (disabled?.[1]) {
+    return { serverName: disabled[1], outcome: 'disabled', detail: 'Server is disabled.' }
+  }
+
+  const failed = /^MCP: Failed to reconnect to (.+?): ([\s\S]*)$/.exec(text)
+  if (failed?.[1]) {
+    return {
+      serverName: failed[1],
+      outcome: 'failed',
+      ...(failed[2]?.trim() ? { detail: failed[2].trim() } : {}),
+    }
+  }
+
+  const missing = /^Server "(.+?)" not found in config/.exec(text)
+  if (missing?.[1]) {
+    return {
+      serverName: missing[1],
+      outcome: 'missing',
+      detail: 'Not in the resolved mcp.json chain.',
+    }
+  }
+
+  return null
+}
+
+/**
+ * What a connection test concluded. `unknown` carries the reason: an
+ * unparseable answer, a refused command or a timeout is reported as such
+ * rather than rendered as a failing server.
+ */
+export type ConnectorCheckResult =
+  ReconnectNotice | { serverName: string; outcome: 'unknown'; detail: string }

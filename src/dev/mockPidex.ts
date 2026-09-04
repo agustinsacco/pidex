@@ -6,6 +6,7 @@
  */
 import type { PidexApi } from '@shared/ipc'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
+import type { ConnectorCheckResult } from '@shared/connectors'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
 import fixtureRaw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'
@@ -998,6 +999,18 @@ export function installMockPidex(): void {
 
         case 'mcp:cancelAuth':
           return undefined
+
+        case 'mcp:checkServer': {
+          const serverName = String(args[0])
+          const result: ConnectorCheckResult =
+            serverName === 'notion'
+              ? { serverName, outcome: 'failed', detail: 'fetch failed (ENOTFOUND)' }
+              : { serverName, outcome: 'connected', toolCount: 42, resourceCount: 0 }
+          // Slow enough that the harness shows the pending state.
+          return new Promise<ConnectorCheckResult>((resolve) =>
+            setTimeout(() => resolve(result), 900),
+          )
+        }
 
         case 'mcp:readCache':
           return Promise.resolve([

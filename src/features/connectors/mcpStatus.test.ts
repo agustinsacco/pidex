@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { parseMcpStatus, stateLabel, connectorAction, connectorActionLabel } from './mcpStatus'
+import {
+  CHECK_DOT,
+  checkResultLabel,
+  connectorAction,
+  connectorActionLabel,
+  parseMcpStatus,
+  stateLabel,
+} from './mcpStatus'
 
 /** Shaped like the adapter's own `createMcpStatusSnapshot` output. */
 const snapshot = JSON.stringify({
@@ -99,5 +106,27 @@ describe('stateLabel', () => {
   it('does not describe an idle server in words that imply breakage', () => {
     expect(stateLabel('cached')).toBe('Signed in · idle')
     expect(stateLabel('needs-auth')).toBe('Needs sign-in')
+  })
+})
+
+describe('checkResultLabel', () => {
+  it('reports a live server with its tool count', () => {
+    expect(checkResultLabel({ serverName: 'linear', outcome: 'connected', toolCount: 67 })).toBe(
+      'Up · 67 tools',
+    )
+  })
+
+  it('never renders an inconclusive test as up or down', () => {
+    const label = checkResultLabel({ serverName: 'x', outcome: 'unknown', detail: 'timed out' })
+    expect(label).toBe('Test inconclusive')
+    expect(CHECK_DOT.unknown).not.toBe('bg-success')
+    expect(CHECK_DOT.unknown).not.toBe('bg-danger')
+  })
+
+  it('distinguishes a credential problem from an unreachable server', () => {
+    expect(checkResultLabel({ serverName: 'x', outcome: 'needs-auth' })).toBe('Needs sign-in')
+    expect(checkResultLabel({ serverName: 'x', outcome: 'failed', detail: 'ENOTFOUND' })).toBe(
+      'Down',
+    )
   })
 })
