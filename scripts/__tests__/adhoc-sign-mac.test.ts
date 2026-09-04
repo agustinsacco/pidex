@@ -14,11 +14,30 @@ import adhocSignMac from '../adhoc-sign-mac.mjs'
  * (TCC) stores it next to each folder grant, so an auto-update silently
  * invalidated every Allow the user had clicked and the prompts came back.
  *
+ * The bundle therefore carries NESTED code, as the real one does. A flat
+ * bundle verifies under any combination of flags, which is why the first
+ * version of these tests passed while every macOS release build failed with
+ * "nested code is modified or invalid" — `-r` and `--deep` in one command
+ * re-sign the nested Helper after the parent has sealed it.
+ *
  * These run only on macOS — `codesign` does not exist elsewhere, and CI builds
  * the mac artifacts on a macOS runner.
  */
 const APP_ID = 'works.pidex.adhoc-sign-test'
 const dirs: string[] = []
+
+function plist(executable: string, id: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>${executable}</string>
+<key>CFBundleIdentifier</key><string>${id}</string>
+<key>CFBundleName</key><string>${executable}</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0</string>
+</dict></plist>
+`
+}
 
 function makeBundle(marker: string): { appOutDir: string; app: string } {
   const appOutDir = mkdtempSync(join(tmpdir(), 'pidex-sign-test-'))
@@ -26,23 +45,19 @@ function makeBundle(marker: string): { appOutDir: string; app: string } {
   const app = join(appOutDir, 'pidex.app')
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true })
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true })
-  writeFileSync(
-    join(app, 'Contents', 'Info.plist'),
-    `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>pidex</string>
-<key>CFBundleIdentifier</key><string>${APP_ID}</string>
-<key>CFBundleName</key><string>pidex</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0</string>
-</dict></plist>
-`,
-  )
+  writeFileSync(join(app, 'Contents', 'Info.plist'), plist('pidex', APP_ID))
   // A real Mach-O is required; /bin/echo is the smallest one always present.
   execFileSync('/bin/cp', ['/bin/echo', join(app, 'Contents', 'MacOS', 'pidex')])
   // Differs per build, so the two bundles get different code hashes.
   writeFileSync(join(app, 'Contents', 'Resources', 'version.txt'), marker)
+
+  // Electron ships four Helper apps and several frameworks; one nested bundle
+  // is enough to reproduce every nesting bug seen so far.
+  const helper = join(app, 'Contents', 'Frameworks', 'pidex Helper.app')
+  mkdirSync(join(helper, 'Contents', 'MacOS'), { recursive: true })
+  writeFileSync(join(helper, 'Contents', 'Info.plist'), plist('pidex Helper', `${APP_ID}.helper`))
+  execFileSync('/bin/cp', ['/bin/echo', join(helper, 'Contents', 'MacOS', 'pidex Helper')])
+
   return { appOutDir, app }
 }
 
@@ -79,6 +94,17 @@ describe.skipIf(process.platform !== 'darwin')('adhoc-sign-mac', () => {
 
     expect(designatedRequirement(app)).toContain(`designated => identifier "${APP_ID}"`)
     expect(designatedRequirement(app)).not.toContain('cdhash')
+  })
+
+  it('seals nested code so the bundle verifies, requirement and all', async () => {
+    const { appOutDir, app } = makeBundle('v1')
+    await sign(appOutDir)
+
+    // What CI runs after packaging, and what Finder effectively runs on a
+    // downloaded bundle. `-r` plus `--deep` in one pass fails here.
+    expect(() =>
+      execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' }),
+    ).not.toThrow()
   })
 
   it('lets the next build satisfy the requirement TCC recorded for the last one', async () => {
