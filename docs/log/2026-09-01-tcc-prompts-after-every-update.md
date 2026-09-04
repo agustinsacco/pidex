@@ -42,6 +42,14 @@ codesign --force --deep --sign - --timestamp=none \
   '-r=designated => identifier "works.pidex.app"' pidex.app
 ```
 
+> **Corrected 2026-09-03.** That single command does not survive nested code:
+> `--deep` applies `-r` to every Helper and Framework too, and the bundle then
+> fails `codesign --verify --deep --strict` with "nested code is modified or
+> invalid". It failed every macOS release build until it was split into two
+> passes — see
+> [2026-09-03-adhoc-sign-nested-code.md](2026-09-03-adhoc-sign-nested-code.md).
+> The pinned requirement itself, and everything below, still stands.
+
 The same two-bundle experiment then passes, which is exactly the check TCC
 performs after an update:
 

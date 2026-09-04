@@ -41,6 +41,28 @@
  * in /Applications can already re-sign it ad-hoc under any identifier. A real
  * Developer ID (the CSC_LINK path above) gets a stable team-anchored
  * requirement from electron-builder and never reaches this code.
+ *
+ * ## Why the requirement needs its OWN pass
+ *
+ * `-r` and `--deep` in one command produce a bundle that does not verify:
+ *
+ *     codesign --verify --deep --strict pidex.app
+ *     pidex.app: nested code is modified or invalid
+ *
+ * `--deep` applies the requirement to every nested Helper and Framework as
+ * well, and re-signing them after the enclosing seal was computed leaves the
+ * parent sealing a binary that no longer matches (`file modified:
+ * …/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler`).
+ * Shipped as one command in #156, it failed 100% of macOS release builds —
+ * v0.1.172 and v0.1.174 both published Linux-only, no `.dmg`, no
+ * `latest-mac.yml`.
+ *
+ * So: seal nested code first with no requirement of our own, then re-sign only
+ * the OUTER bundle with `-r`. Signing outside-in is what Apple asks for anyway
+ * — the outer signature seals the (already signed) nested code by hash, so the
+ * second pass recomputes those seals rather than invalidating them. Nested
+ * code keeps a per-build cdhash requirement, which is what it had before #156
+ * and what TCC never looks at; only the app's own requirement is consulted.
  */
 import { execFileSync } from 'node:child_process'
 
@@ -61,14 +83,18 @@ export default async function adhocSignMac(context) {
   // "No such file or directory / invalid requirement specification".
   const requirement = `-r=designated => identifier "${appId}"`
 
-  // --deep so nested Helpers and Frameworks are sealed too; an unsealed
-  // nested bundle fails verification of the parent. --force replaces the
-  // stock linker signature rather than erroring on it.
-  execFileSync(
-    'codesign',
-    ['--force', '--deep', '--sign', '-', '--timestamp=none', requirement, app],
-    { stdio: 'inherit' },
-  )
+  // Pass 1 — nested code. --deep so nested Helpers and Frameworks are sealed
+  // too; an unsealed nested bundle fails verification of the parent. --force
+  // replaces the stock linker signature rather than erroring on it. No `-r`
+  // here: see "Why the requirement needs its OWN pass" above.
+  execFileSync('codesign', ['--force', '--deep', '--sign', '-', '--timestamp=none', app], {
+    stdio: 'inherit',
+  })
+
+  // Pass 2 — the outer bundle only, this time carrying the pinned requirement.
+  execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', requirement, app], {
+    stdio: 'inherit',
+  })
 
   // Verify here, not in a later job: a broken signature must fail the build
   // that produced it, not surface as a "damaged app" on a user's Mac.

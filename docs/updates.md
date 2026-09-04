@@ -123,6 +123,15 @@ build is allowed to pass. It must be the inline `-r=<text>` form: given `-r`
 and the text as separate arguments, `codesign` reads the text as a path to a
 requirements file.
 
+That requirement needs a pass of its own. `--deep` applies `-r` to every nested
+Helper and Framework as well, and re-signing those after the parent has sealed
+them leaves a bundle that fails `codesign --verify --deep --strict` with
+"nested code is modified or invalid" — which killed every macOS release build
+for a day (see
+[2026-09-03-adhoc-sign-nested-code.md](log/2026-09-03-adhoc-sign-nested-code.md)).
+The hook seals nested code first, unrequirement-ed, then re-signs the outer
+bundle alone with `-r`.
+
 This does not weaken the bundle in any real sense — an ad-hoc signature has no
 anchor to bind to, and anyone able to replace the app in `/Applications` can
 re-sign it under any identifier. A real Developer ID gets a stable
