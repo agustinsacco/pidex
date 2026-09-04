@@ -50,3 +50,23 @@ export function usesClaudeCliProvider(
 export function claudeProviderSpawnEnv(): Record<string, string> {
   return { PI_CLAUDE_CLI_STRICT_MCP: '1' }
 }
+
+/**
+ * Extra environment a ONE-SHOT `pi -p` run needs when it may land on the
+ * Claude provider. Not for sessions — they want the park.
+ *
+ * pi-claude-cli >= 0.7.0 keeps one CLI process per session and, after
+ * `result`, PARKS it for the next turn instead of ending it
+ * (`PI_CLAUDE_CLI_KEEPALIVE_MS`, default ten minutes). A parked child holds
+ * pi's event loop open, so `pi -p` prints its answer and then never exits.
+ * Measured on 0.7.0: the title landed on stdout at 4.6s and the process was
+ * still alive at 90s. `runPrintMode` gave up at 30s, so from the moment
+ * 0.7.0 was installed every session auto-name failed — and with it every
+ * branch rename, which only runs on a non-null title.
+ *
+ * A one-shot has no next turn to park for, so `0` costs it nothing.
+ * Harmless env for every other provider, and ignored below 0.7.0.
+ */
+export function claudeOneShotEnv(): Record<string, string> {
+  return { PI_CLAUDE_CLI_KEEPALIVE_MS: '0' }
+}

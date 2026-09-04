@@ -178,6 +178,15 @@ absent**: providers register through extension discovery, so `-ne` makes
 `pi -p` blocks until stdin reaches EOF, so it must never run through
 `execFile`. See `electron/pi/print-mode.ts`.
 
+**A one-shot must also opt out of the Claude provider's process park.**
+pi-claude-cli >= 0.7.0 keeps one CLI process per session and parks it after
+`result` for the next turn, which holds pi's event loop open — so `pi -p`
+prints its title and then does not exit for ten minutes. The naming env
+passes `claudeOneShotEnv()` (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`); a title run has
+no next turn to park for. `runPrintMode` also keeps whatever stdout arrived
+before a timeout, so a slow exit can no longer throw away a finished title.
+See [docs/log/2026-09-04-naming-hang-on-parked-cli.md](log/2026-09-04-naming-hang-on-parked-cli.md).
+
 ## Preferences
 
 `LanePrefs` in `AppPrefs.lanes`, edited in Settings → Workspaces, stored via

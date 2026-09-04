@@ -11,6 +11,7 @@ import type {
   PiPackageResources,
 } from '@shared/models'
 import { piAgentDir } from './pi-paths'
+import { claudeOneShotEnv } from './provider-detect'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
 import { readJsonFile } from './json-config'
 
@@ -541,6 +542,9 @@ export async function runClaudeProviderTest(
       'pi-claude-cli/claude-haiku-4-5',
       'Reply with exactly: pidex-provider-ok',
     ],
-    { cwd: tmpdir(), env: invoker.env },
+    // `claudeOneShotEnv` or the job never ends: 0.7.0 parks the CLI process
+    // after `result`, and startJob has no timeout — the test would print
+    // "pidex-provider-ok" and then sit as a running job for ten minutes.
+    { cwd: tmpdir(), env: { ...invoker.env, ...claudeOneShotEnv() } },
   )
 }

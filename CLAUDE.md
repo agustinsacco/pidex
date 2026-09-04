@@ -153,10 +153,17 @@ you want to watch.
   process per session (proxied tool handoffs, parked between turns); below
   it every pi-side tool call and every turn restarts the CLI, and Claude
   Code's system prompt embeds a git snapshot, so every commit or branch
-  rename in between re-bills the whole context as cache write. See
+  rename in between re-bills the whole context as cache write. That park is
+  also why **every one-shot `pi -p` spawn must pass `claudeOneShotEnv()`**
+  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`): a parked child holds pi's event loop
+  open, so a naming run prints its title and then does not exit for ten
+  minutes. That silently killed session auto-naming, and with it every branch
+  rename, the hour 0.7.0 was installed. See
   [docs/log/2026-08-29-claude-cli-lifecycle-verification.md](docs/log/2026-08-29-claude-cli-lifecycle-verification.md)
   and
-  [docs/log/2026-09-02-persistent-claude-cli.md](docs/log/2026-09-02-persistent-claude-cli.md).
+  [docs/log/2026-09-02-persistent-claude-cli.md](docs/log/2026-09-02-persistent-claude-cli.md)
+  and
+  [docs/log/2026-09-04-naming-hang-on-parked-cli.md](docs/log/2026-09-04-naming-hang-on-parked-cli.md).
 
 - **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e`; the five bundled ones are listed in `bundledExtensions()`

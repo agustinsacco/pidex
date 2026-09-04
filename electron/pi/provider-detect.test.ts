@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'
+import { claudeOneShotEnv, claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'
 
 describe('usesClaudeCliProvider', () => {
   it('trusts an explicit provider over everything else', () => {
@@ -46,5 +46,20 @@ describe('claudeProviderSpawnEnv', () => {
     // Hermetic reaches the same MCP flag but also empties --setting-sources,
     // leaving the model with project instructions from neither side.
     expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_HERMETIC')
+  })
+
+  // A session wants the park: it is the whole point of one CLI process per
+  // session. Only one-shots opt out.
+  it('leaves the 0.7.0 keepalive alone for real sessions', () => {
+    expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
+  })
+})
+
+describe('claudeOneShotEnv', () => {
+  it('turns the 0.7.0 park off so `pi -p` can exit', () => {
+    // With the park on, a print-mode run answers and then holds pi's event
+    // loop for ten minutes. That is what stopped session auto-naming, and
+    // with it every branch rename, the day 0.7.0 was installed.
+    expect(claudeOneShotEnv().PI_CLAUDE_CLI_KEEPALIVE_MS).toBe('0')
   })
 })

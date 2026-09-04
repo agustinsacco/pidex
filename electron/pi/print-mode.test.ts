@@ -13,6 +13,7 @@ import { runPrintMode } from './print-mode'
 let dir: string
 let blockingScript: string
 let failingScript: string
+let answersThenHangsScript: string
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'pidex-print-mode-'))
@@ -27,6 +28,14 @@ beforeAll(() => {
       '  process.exit(0)',
       '})',
     ].join('\n'),
+  )
+  // pi-claude-cli >= 0.7.0 parks its CLI child after `result`, so `pi -p`
+  // prints a complete answer and then stays alive. Measured on 0.7.0: the
+  // title landed at 4.6s, the process was still running at 90s.
+  answersThenHangsScript = join(dir, 'answers-then-hangs.cjs')
+  writeFileSync(
+    answersThenHangsScript,
+    ["process.stdout.write('Friendly Greeting\\n')", 'setInterval(() => {}, 1000)'].join('\n'),
   )
   failingScript = join(dir, 'fails.cjs')
   writeFileSync(failingScript, ["process.stderr.write('nope\\n')", 'process.exit(3)'].join('\n'))
@@ -49,6 +58,15 @@ describe('runPrintMode', () => {
     expect(result.stdout).toBe('')
     expect(result.error).toContain('exited 3')
     expect(result.error).toContain('nope')
+  })
+
+  it('keeps stdout already printed when the run times out', async () => {
+    const result = await run(answersThenHangsScript, 1_000)
+    // Both set: the answer is usable, and the caller can still see that the
+    // process had to be killed. Throwing the title away here is what left
+    // three sessions unnamed the day pi-claude-cli 0.7.0 landed.
+    expect(result.stdout.trim()).toBe('Friendly Greeting')
+    expect(result.error).toContain('timed out')
   })
 
   it('reports a spawn failure rather than throwing', async () => {

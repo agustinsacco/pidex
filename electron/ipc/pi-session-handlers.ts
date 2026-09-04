@@ -9,7 +9,11 @@ import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { composeDirectives } from '../pi/directives'
 import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
-import { claudeProviderSpawnEnv, usesClaudeCliProvider } from '../pi/provider-detect'
+import {
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+  usesClaudeCliProvider,
+} from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
@@ -380,6 +384,9 @@ export function registerPiSessionHandlers(): void {
           // run.
           PI_CLAUDE_CLI_HERMETIC: '1',
           PI_CLAUDE_CLI_SYSTEM_PROMPT: 'pi',
+          // Without this the run prints the title and then hangs until
+          // runPrintMode kills it — see claudeOneShotEnv.
+          ...claudeOneShotEnv(),
         }
       }
 

@@ -25,7 +25,12 @@ const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_BYTES = 1024 * 1024
 
 export interface PrintModeResult {
-  /** Collected stdout, empty when the run failed. */
+  /**
+   * Collected stdout. Empty when the run failed BEFORE printing — but a
+   * timeout keeps whatever arrived, so `stdout` and `error` can both be set.
+   * A caller that treats any error as "no answer" is still correct; one that
+   * can use a partial answer should read `stdout` first.
+   */
   stdout: string
   /** Why it failed, or undefined on a clean exit 0. */
   error?: string
@@ -68,9 +73,15 @@ export async function runPrintMode(
       resolve(result)
     }
 
+    // Answering and exiting are two different events, and a print-mode run
+    // can do the first without the second: pi-claude-cli >= 0.7.0 parks its
+    // CLI child after `result`, which holds pi's event loop open long past
+    // the answer. Discarding the stdout we already have would throw away a
+    // complete title because the process was slow to die. The kill still
+    // happens; only the verdict changes.
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
-      finish({ stdout: '', error: `timed out after ${timeoutMs}ms` })
+      finish({ stdout, error: `timed out after ${timeoutMs}ms` })
     }, timeoutMs)
 
     child.stdout?.on('data', (chunk: Buffer) => {
