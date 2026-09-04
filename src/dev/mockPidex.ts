@@ -615,9 +615,6 @@ export function installMockPidex(): void {
             binaryPath: '/mock/pi',
             minVersion: MIN_PI_VERSION,
           })
-        case 'fleet:state':
-          // Removed: orchestration feature deleted.
-          return Promise.resolve({ sessions: [], updatedAt: Date.now() })
         case 'app:getPrefs':
           return Promise.resolve({
             theme: DEFAULT_APP_PREFS.theme,

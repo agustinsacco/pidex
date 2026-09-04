@@ -39,7 +39,7 @@
 
 - **Main process owns all side effects**: pi subprocesses, PTYs, filesystem, git, watchers, dialogs, app prefs.
 - **Renderer is pure UI** over typed IPC. `contextIsolation: true`, `nodeIntegration: false`, sandbox on, strict CSP. Model-authored HTML renders only in the sandboxed iframe.
-- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, 11 prefixes today: `pi:*` (session lifecycle + RPC passthrough + event stream), `sessions:*`, `pty:*`, `fs:*`, `git:*`, `gh:*`, `mcp:*`, `clipboard:*`, `packages:*`, `updates:*`, `app:*` (prefs, dialogs, theme). Every message type is declared in [`shared/ipc.ts`](../shared/ipc.ts).
+- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, 13 prefixes today: `pi:*` (session lifecycle + RPC passthrough + event stream), `sessions:*`, `artifacts:*`, `claude:*`, `pty:*`, `fs:*`, `git:*`, `gh:*`, `mcp:*`, `clipboard:*`, `packages:*`, `updates:*`, `app:*` (prefs, dialogs, theme). Every message type is declared in [`shared/ipc.ts`](../shared/ipc.ts).
 - **Data flow for one streamed prompt**: renderer `pi:prompt` → main writes JSONL line to child stdin → child stdout events parsed by PiRpcClient → forwarded on `pi:event:<sessionId>` → chat store reduces events into message view-models → virtualized list renders deltas.
 
 ## Repo layout

@@ -154,9 +154,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
   return (
     <div className="flex h-full flex-col">
-      {/* Scrolls on its own: a busy fleet (many running sessions, a long
-          digest) must never push the composer below the fold or drag it
-          around as cards mount. The composer below is a sibling, not a
+      {/* Scrolls on its own, so a tall project-stats block never pushes the
+          composer below the fold. The composer below is a sibling, not a
           child of this scroll container, so it stays put. */}
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
         <div className="w-full max-w-2xl pt-10 pb-6">
@@ -164,16 +163,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <span className="text-accent mr-2">✳</span>
             What&apos;s up next{username ? `, ${username}` : ''}?
           </h1>
-
-          {/* Project state shown mechanically; no model runs. */}
-          <div className="w-full max-w-2xl pt-4">
-            {stats && stats.sessionCount > 0 && (
-              <p className="text-text-secondary text-sm">
-                {stats.sessionCount} session{stats.sessionCount > 1 ? 's' : ''} ·{' '}
-                {formatNumber(stats.messages)} messages
-              </p>
-            )}
-          </div>
 
           {stats && stats.sessionCount > 0 && (
             <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">

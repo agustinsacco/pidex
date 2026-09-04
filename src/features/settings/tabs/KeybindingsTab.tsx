@@ -34,7 +34,6 @@ const CHAT: Binding[] = [
   [['Esc Esc'], 'Rewind to an earlier message'],
   [['↑'], 'Previous prompt (empty composer)'],
   [['↓'], 'Next prompt'],
-  [['shift', 'Tab'], 'Cycle orchestrator mode'],
   [['ctrl', 'O'], 'Expand / collapse tool output'],
 ]
 

@@ -11,8 +11,6 @@ import { deleteDraftBlobs } from '../drafts-blobs'
 export function registerSessionsHandlers(): void {
   handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
 
-  // Home tiles describe work, so the project's orchestrator thread is not part
-  // of them.
   handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
 
   handle('sessions:watch', (_event, workspacePath: string) => {

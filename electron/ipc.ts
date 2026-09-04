@@ -19,8 +19,6 @@ import { registerUpdateHandlers } from './ipc/updates-handlers'
  * channel prefix, so a new handler has exactly one obvious home.
  */
 export function registerIpcHandlers(): void {
-  // First: it starts the fleet hub and teaches the orchestrator how to spawn,
-  // both of which the orchestrator handlers below assume are in place.
   registerPiSessionHandlers()
   registerAppHandlers()
   registerDebugLogHandlers()

@@ -29,9 +29,7 @@ import {
   setTheme,
   setAgentDirectives,
   setWorktreePrefs,
-  setNotificationsMuted,
   setClaudeAutocompact,
-  setSessionReaperPrefs,
   setDraft,
   clearDraft,
   setDrafts,
@@ -190,16 +188,8 @@ export function registerAppHandlers(): void {
     setAgentDirectives(directives, projectPath)
   })
 
-  handle('app:setNotificationsMuted', (_event, muted: boolean) => {
-    setNotificationsMuted(muted)
-  })
-
   handle('app:setClaudeAutocompact', (_event, value: string) => {
     setClaudeAutocompact(value)
-  })
-
-  handle('app:setSessionReaperPrefs', (_event, prefs) => {
-    setSessionReaperPrefs(prefs)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {

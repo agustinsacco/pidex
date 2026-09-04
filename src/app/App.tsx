@@ -79,17 +79,13 @@ export function App(): React.JSX.Element {
         // to open. A renderer reload (HMR, crash, re-navigation) used to
         // orphan every one of them — ~200 MB each, stranded until quit — and
         // resuming a session an orphan still owned would have spawned a
-        // SECOND process against the same session file. Orchestrators are
-        // main's own threads and re-attach through their button instead.
-        const orphans = await window.pidex
-          .invoke('pi:listLiveSessions')
-          .then((live) => live)
-          .catch(() => [])
+        // SECOND process against the same session file. `adoptSession` learns
+        // each one's session file from `get_state`, which is what the resume
+        // match below waits on.
+        const orphans = await window.pidex.invoke('pi:listLiveSessions').catch(() => [])
         for (const orphan of orphans) {
           if (cancelled) return
-          await useSessionsStore
-            .getState()
-            .adoptSession(orphan.sessionId, orphan.workspacePath, orphan.diskPath)
+          await useSessionsStore.getState().adoptSession(orphan.sessionId, orphan.workspacePath)
         }
 
         const target = await window.pidex.invoke('app:resumeTarget')

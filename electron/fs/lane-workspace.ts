@@ -14,11 +14,9 @@ import { addWorktree, listBranches, listWorktrees, startPoint } from './git-work
  * and the untracked files were unrecoverable (docs/specs/TRACKER.md:114).
  *
  * This exists because that isolation lived **entirely in the renderer**
- * (`src/features/sessions/startChat.ts`), so every session a user started was
- * isolated and every session the orchestrator started was not. `startWork`
- * passed a bare `workspacePath` to `spawnSession`, which lands the agent in
- * the main checkout on whatever branch happens to be out. The layer built to
- * stop lanes colliding was the one reintroducing the collision.
+ * (`src/features/sessions/startChat.ts`), so any main-side caller that passed
+ * a bare `workspacePath` to `spawnSession` landed the agent in the main
+ * checkout on whatever branch happened to be out.
  *
  * Degrades the way the renderer's path does, and for the same reason: a git
  * refusal must never stop a lane from starting. It returns the original folder

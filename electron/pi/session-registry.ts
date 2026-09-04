@@ -19,11 +19,10 @@ interface SessionRegistryEvents {
  * The single source of truth for what's running; renderer stores are
  * projections fed over IPC.
  *
- * It emits `created` / `disposed` so cross-session observers (the fleet hub)
- * can attach without every creation path having to remember to tell them.
- * Putting that here rather than in the IPC handler is what makes a future
- * second creation path — an orchestrator spawning work, a CLI entry point —
- * visible to the hub for free.
+ * It emits `created` / `disposed` so cross-session observers can attach
+ * without every creation path having to remember to tell them. Putting that
+ * here rather than in the IPC handler is what makes a future second creation
+ * path (a CLI entry point, say) visible to them for free.
  */
 export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
   private readonly sessions = new Map<string, LiveSession>()

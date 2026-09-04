@@ -63,7 +63,7 @@ for l in open(sys.argv[1]):
 
 **An assistant message with empty content, `totalTokens: 0`, and a sub-second
 timestamp gap means the model never ran.** The provider failed before the API
-call. Do not read that as a model or orchestrator problem — go to step 3.
+call. Do not read that as a model problem — go to step 3.
 
 To tell a provider fault from a pidex fault, compare across sessions: if every
 session on one provider is empty while another provider's sessions have real
@@ -143,10 +143,3 @@ A setting on **either** side can break the other. A real case:
 `"alwaysThinkingEnabled": false` in `~/.claude/settings.json` made the CLI
 reject pi's `--effort max`, and every turn failed. Neither file is wrong on its
 own — they were incompatible.
-
-## When the orchestrator "isn't working"
-
-Check a plain session on the same provider first. The orchestrator spawns
-ordinary pi sessions, so a provider fault takes it down along with everything
-else and looks like an orchestration bug. Only investigate
-`electron/orchestrator/` once a plain session on that provider works.
