@@ -378,6 +378,19 @@ function handle(cmd) {
         })
         break
       }
+      // The connection test: `/mcp reconnect <server>` is an extension
+      // command too, and its verdict arrives as a `notify` — the string pidex
+      // parses into an up/down badge.
+      if (message.startsWith('/mcp reconnect ')) {
+        const server = message.slice('/mcp reconnect '.length).trim()
+        out({
+          type: 'extension_ui_request',
+          id: `mcp-reconnect-${server}`,
+          method: 'notify',
+          message: `MCP: Reconnected to ${server} (7 tools, 0 resources)`,
+        })
+        break
+      }
       if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('fanout')) runSubagentTurn()

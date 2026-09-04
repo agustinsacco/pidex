@@ -16,6 +16,7 @@ import {
   startConnectorAuth,
   submitConnectorCallback,
 } from '../pi/connector-auth'
+import { checkConnector } from '../pi/connector-check'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
@@ -99,4 +100,22 @@ export function registerMcpHandlers(): void {
   )
 
   handle('mcp:cancelAuth', (_event, serverName) => cancelConnectorAuth(serverName))
+
+  handle('mcp:checkServer', async (_event, serverName, workspacePath) => {
+    const stub = piStubPath()
+    const binaryPath = stub ? process.execPath : (await checkPiHealth()).binaryPath
+    if (!binaryPath) {
+      return { serverName, outcome: 'unknown' as const, detail: 'pi is not available.' }
+    }
+    // Home is the safest cwd for a connector reached from the home screen —
+    // it resolves the global mcp.json chain and no project-scope file. Same
+    // choice as `mcp:authorize`.
+    return checkConnector({
+      serverName,
+      cwd: workspacePath ?? homedir(),
+      binaryPath,
+      ...(stub ? { prefixArgs: [stub] } : {}),
+      env: stub ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv(),
+    })
+  })
 }

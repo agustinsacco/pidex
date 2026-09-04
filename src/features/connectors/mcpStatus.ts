@@ -7,6 +7,8 @@
  * inferred from prose — the old MCP tab could only show the adapter's footer
  * sentence, which says nothing per server.
  */
+import type { ConnectorCheckResult } from '@shared/connectors'
+
 export const MCP_STATUS_STATUS_KEY = 'pidex-mcp-status'
 
 /** Mirrors the adapter's `McpServerStatusSnapshot["status"]`. */
@@ -104,6 +106,40 @@ export function stateLabel(state: McpServerState): string {
     case 'not-connected':
       return 'Not connected'
   }
+}
+
+/**
+ * A connection test's verdict, as a badge.
+ *
+ * This is stronger evidence than the adapter's status snapshot: the snapshot
+ * says what the adapter last saw, the test says the server answered a fresh
+ * connection just now. So the row prefers it once it exists.
+ */
+export function checkResultLabel(result: ConnectorCheckResult): string {
+  switch (result.outcome) {
+    case 'connected':
+      return typeof result.toolCount === 'number' ? `Up · ${String(result.toolCount)} tools` : 'Up'
+    case 'needs-auth':
+      return 'Needs sign-in'
+    case 'disabled':
+      return 'Disabled'
+    case 'failed':
+      return 'Down'
+    case 'missing':
+      return 'Not in config'
+    case 'unknown':
+      return 'Test inconclusive'
+  }
+}
+
+/** Dot colour per verdict. `unknown` is never green and never red. */
+export const CHECK_DOT: Record<ConnectorCheckResult['outcome'], string> = {
+  connected: 'bg-success',
+  'needs-auth': 'bg-warning',
+  disabled: 'bg-border-strong',
+  failed: 'bg-danger',
+  missing: 'bg-danger',
+  unknown: 'bg-info',
 }
 
 /** What the button on a connector row should actually offer. */

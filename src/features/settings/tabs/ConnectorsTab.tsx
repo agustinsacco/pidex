@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { McpCacheEntry, McpConfigsResult, McpResolvedServer, McpScope } from '@shared/mcp'
+import type { ConnectorCheckResult } from '@shared/connectors'
 import { errorText } from '@shared/errors'
 import { stripAnsi } from '@shared/ansi'
 import { useActiveWorkspace } from '@/stores/workspaces'
@@ -20,7 +21,9 @@ import {
   type ConnectorEntry,
 } from '@/features/connectors/catalog'
 import {
+  CHECK_DOT,
   MCP_STATUS_STATUS_KEY,
+  checkResultLabel,
   connectorAction,
   connectorActionLabel,
   parseMcpStatus,
@@ -72,6 +75,7 @@ export function ConnectorsTab(): React.JSX.Element {
   const [editing, setEditing] = useState<McpResolvedServer | null>(null)
   const [rawEdit, setRawEdit] = useState<McpScope | null>(null)
   const [advanced, setAdvanced] = useState(false)
+  const [checks, setChecks] = useState<Record<string, ConnectorCheck>>({})
 
   const flows = useConnectorsStore((s) => s.flows)
   const statusText = useExtensionUiStore((s) =>
@@ -103,6 +107,31 @@ export function ConnectorsTab(): React.JSX.Element {
 
   const installJob = usePackageJob(() => void refresh())
   const adapterInstalled = packages?.some((p) => p.includes('pi-mcp-adapter')) ?? false
+
+  /**
+   * Test one connector: the adapter reconnects it and reports what happened.
+   * Needs no session, so this works from the home screen — which is where the
+   * question "is this thing up?" is actually asked.
+   */
+  const runCheck = async (serverName: string): Promise<void> => {
+    setChecks((c) => ({ ...c, [serverName]: { status: 'running' } }))
+    try {
+      const result = await window.pidex.invoke(
+        'mcp:checkServer',
+        serverName,
+        workspacePath ?? undefined,
+      )
+      setChecks((c) => ({ ...c, [serverName]: { status: 'done', result } }))
+    } catch (err) {
+      setChecks((c) => ({
+        ...c,
+        [serverName]: {
+          status: 'done',
+          result: { serverName, outcome: 'unknown', detail: errorText(err) },
+        },
+      }))
+    }
+  }
 
   const act = async (fn: () => Promise<unknown>): Promise<void> => {
     setError(null)
@@ -197,6 +226,8 @@ export function ConnectorsTab(): React.JSX.Element {
               cache={cache.find((c) => c.name === server.name)}
               flow={flows[server.name]}
               sessionId={activeSessionId}
+              check={checks[server.name]}
+              onCheck={() => void runCheck(server.name)}
               onToggle={(disabled) =>
                 void act(() =>
                   window.pidex.invoke(
@@ -361,6 +392,9 @@ export function ConnectorsTab(): React.JSX.Element {
   )
 }
 
+/** One row's connection test: in flight, or the verdict it produced. */
+type ConnectorCheck = { status: 'running' } | { status: 'done'; result: ConnectorCheckResult }
+
 const STATE_DOT: Record<McpServerState, string> = {
   connected: 'bg-success',
   'needs-auth': 'bg-warning',
@@ -383,6 +417,8 @@ function ConfiguredRow({
   cache,
   flow,
   sessionId,
+  check,
+  onCheck,
   onToggle,
   onKeepAlive,
   onRemove,
@@ -395,6 +431,8 @@ function ConfiguredRow({
   cache?: McpCacheEntry
   flow?: ConnectFlow
   sessionId: string | null
+  check?: ConnectorCheck
+  onCheck: () => void
   onToggle: (disabled: boolean) => void
   onKeepAlive: (keep: boolean) => void
   onRemove: () => void
@@ -413,6 +451,7 @@ function ConfiguredRow({
     server.config.lifecycle === 'keep-alive' ||
     server.config.lifecycle === 'eager'
   const directTools = server.config.directTools ?? []
+  const checked = check?.status === 'done' ? check : undefined
 
   return (
     <div
@@ -431,7 +470,20 @@ function ConfiguredRow({
         >
           {SCOPE_LABELS[server.scope]}
         </span>
-        {!state && !sessionId && (
+        {checked && (
+          <span
+            className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
+            title={
+              'detail' in checked.result && checked.result.detail
+                ? `Last test — ${checked.result.detail}`
+                : 'Result of the last test, which reconnected the server'
+            }
+          >
+            <span className={clsx('h-1.5 w-1.5 rounded-full', CHECK_DOT[checked.result.outcome])} />
+            {checkResultLabel(checked.result)}
+          </span>
+        )}
+        {!checked && !state && !sessionId && (
           <span
             className="text-text-tertiary shrink-0 text-sm"
             title="Per-server state comes from the MCP adapter, which runs inside a session"
@@ -439,7 +491,7 @@ function ConfiguredRow({
             state unknown
           </span>
         )}
-        {state && (
+        {!checked && state && (
           <span
             className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
             title={`${server.name}: ${stateLabel(state)}`}
@@ -455,6 +507,14 @@ function ConfiguredRow({
         >
           {transport}
         </span>
+        <Button
+          size="sm"
+          onClick={onCheck}
+          disabled={check?.status === 'running'}
+          title="Reconnect this server through the adapter and report what happened. No session needed, no tokens spent."
+        >
+          {check?.status === 'running' ? 'Testing…' : 'Test'}
+        </Button>
         {signInable && (
           <Button
             size="sm"
@@ -552,6 +612,19 @@ function ConfiguredRow({
 
       {showTools && cache && (
         <div className="text-text-secondary mt-1 font-mono text-sm">{cache.tools.join(' · ')}</div>
+      )}
+
+      {checked && 'detail' in checked.result && checked.result.detail && (
+        <div
+          className={clsx(
+            'mt-1 text-sm',
+            checked.result.outcome === 'failed' || checked.result.outcome === 'missing'
+              ? 'text-danger'
+              : 'text-text-tertiary',
+          )}
+        >
+          {checked.result.detail}
+        </div>
       )}
 
       {flow && <FlowCard serverName={server.name} flow={flow} />}

@@ -18,8 +18,8 @@ The list is now the resolved chain, enriched with catalog metadata wherever a
 server's URL matches a known connector. Sections, in order:
 
 1. **Connected** — one row per resolved server: scope badge, status chip,
-   transport, Sign in / Reconnect (URL servers only), enable toggle, Edit,
-   Remove. Plus cached-tool disclosure, shadow notes, and a warning when
+   transport, **Test**, Sign in / Reconnect / Connect now (URL servers only),
+   enable toggle, Edit, Remove. Plus cached-tool disclosure, shadow notes, and a warning when
    `directTools` is set, since that opts the server out of the `mcp` gateway
    and costs its full schema on every request. Rendered FIRST on purpose.
 2. **Add a connector** — the curated catalog, minus anything already
@@ -32,6 +32,21 @@ connectors — Linear, Notion, Braintrust, Datadog, Fellow, Slack — each with 
 endpoint checked against the vendor's docs, because a wrong URL fails as
 "broken auth" (`src/features/connectors/catalog.ts`; endpoints and their
 gotchas are documented per entry there).
+
+**"Is it up?" is a button, not an inference.** The status chip comes from the
+adapter inside a live session, so with nothing open the row could only say
+`state unknown`, and with a session it said `Signed in · idle` — true, and
+silent about whether the server answers right now. **Test** runs the adapter's
+own `/mcp reconnect <server>` in a throwaway
+`pi --mode rpc --no-session` (`electron/pi/connector-check.ts`, IPC
+`mcp:checkServer`), which closes the connection, opens a fresh one, and
+reports the outcome as a notify. `shared/connectors.ts`
+`parseReconnectNotice` turns that line into a verdict — `Up · N tools`,
+`Needs sign-in`, `Down`, `Disabled`, `Not in config` — and the row prefers it
+over the status chip, because a fresh reconnect is stronger evidence than the
+last snapshot. It fails closed: anything unrecognised, refused or timed out is
+`Test inconclusive`, never a wrong up-or-down. No model runs, so a test spends
+no tokens.
 
 Three rules hold this together:
 
@@ -173,13 +188,15 @@ shows:
   for hermetic tests: `electron/pi/mcp-config.test.ts`).
 - IPC: `mcp:readConfigs / upsertServer / removeServer / setDisabled /
 readCache / readFile / writeFile`, plus `mcp:authorize /
-mcp:submitAuthCallback / mcp:cancelAuth` and the `mcp:authState` broadcast
+mcp:submitAuthCallback / mcp:cancelAuth / mcp:checkServer` and the
+  `mcp:authState` broadcast
   (`electron/ipc/mcp-handlers.ts`). The in-session route adds no IPC — it
   drives pi over the existing `piCommand` path and `app:openExternal`.
 - Connectors: `shared/connectors.ts` (the adapter's prompt/verdict parsers,
   shared because main and renderer both read them),
   `src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`),
   `src/stores/connectors.ts`, `electron/pi/connector-auth.ts`,
+  `electron/pi/connector-check.ts` (the headless connection test),
   `src/features/connectors/FlowCard.tsx` (the OAuth round-trip card),
   `src/features/connectors/ServerEditor.tsx` (the add/edit form),
   `pi-ext/mcp-status.ts`.
@@ -195,4 +212,6 @@ mcp:submitAuthCallback / mcp:cancelAuth` and the `mcp:authState` broadcast
   on the EU site and asserts the written endpoint, since a per-site host that
   silently defaults to US authorizes and then returns nothing. “Connectors:
   signing in works with no session open” drives the headless flow against the
-  stub, which answers `/mcp-auth` with the adapter's real prompt shape.
+  stub, which answers `/mcp-auth` with the adapter's real prompt shape, then
+  clicks **Test** and asserts the `Up · 7 tools` verdict the stub's
+  `/mcp reconnect` reply produces.
