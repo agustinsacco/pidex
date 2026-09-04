@@ -85,10 +85,20 @@ real tokens — see
 
 ### Home — where a session starts
 
-The home screen is the composer: pick the folder, the branch (or a fresh
+The home screen starts a session: pick the folder, the branch (or a fresh
 worktree branch off trunk), the model, and go. The sidebar carries every
 session — live state, edit counts, worktree badge, and the PR badge once one
 exists.
+
+Above the composer sits the **lane board**: this project's lanes in columns by
+what they need from you — waiting on you, ready to merge, needs a push, in
+review, running — each card carrying the one action that unblocks it. Below it
+a **ledger** of what the parallelism costs: spend, tokens, live processes, and
+the account window that will stop you first.
+
+Nothing there polls or spends tokens. Every column is derived from state the
+renderer already holds (the session scan, git, `gh`, the dialog store), so the
+board is correct with no live session and after a restart.
 
 ![Home over the real sessions of a repo](docs/img/home.png)
 

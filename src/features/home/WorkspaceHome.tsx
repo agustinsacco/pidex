@@ -9,6 +9,9 @@ import { errorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
+import { LaneBoard, useLaneBoard } from './LaneBoard'
+import { Ledger } from './Ledger'
+import { boardHeadline } from './laneState'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { projectName } from '@/lib/path'
@@ -24,6 +27,8 @@ import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
+  const laneBoard = useLaneBoard(workspacePath)
+  const headline = boardHeadline(laneBoard.board)
   /*
    * The first-prompt draft, per workspace, persisted.
    *
@@ -158,11 +163,17 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           composer below the fold. The composer below is a sibling, not a
           child of this scroll container, so it stays put. */}
       <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
-        <div className="w-full max-w-2xl pt-10 pb-6">
+        <div className="w-full max-w-3xl pt-10 pb-6">
+          {/* The board's own summary when it has one: "3 ready to merge" is a
+              better greeting than a question, and it saves the reader from
+              counting the columns themselves. */}
           <h1 className="text-center text-4xl font-semibold tracking-tight">
             <span className="text-accent mr-2">✳</span>
-            What&apos;s up next{username ? `, ${username}` : ''}?
+            {headline ?? `What's up next${username ? `, ${username}` : ''}?`}
           </h1>
+
+          <LaneBoard data={laneBoard} />
+          <Ledger workspacePath={workspacePath} stats={stats} lanes={laneBoard.lanes} />
 
           {stats && stats.sessionCount > 0 && (
             <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
