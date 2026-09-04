@@ -114,42 +114,6 @@ describe('adoptSession', () => {
   })
 })
 
-describe('reaped push', () => {
-  const invoke = vi.fn()
-  let pushListener: ((push: unknown) => void) | null = null
-
-  beforeEach(() => {
-    invoke.mockReset().mockResolvedValue(undefined)
-    pushListener = null
-    vi.stubGlobal('window', {
-      pidex: {
-        invoke,
-        piCommand: vi.fn().mockResolvedValue({ success: false }),
-        onSessionPush: (_id: string, listener: (push: unknown) => void) => {
-          pushListener = listener
-          return () => {}
-        },
-      },
-    })
-    useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null, suspendedPaths: [] })
-  })
-
-  it('cleans local state and marks the row suspended, without a second dispose', async () => {
-    await useSessionsStore.getState().adoptSession('r-1', '/repo', '/sessions/r1.jsonl')
-    expect(pushListener).not.toBeNull()
-    invoke.mockClear()
-
-    pushListener!({ kind: 'reaped', diskPath: '/sessions/r1.jsonl', workspacePath: '/repo' })
-    // cleanup is async (lazy store imports); wait for it to settle.
-    await vi.waitFor(() => {
-      expect(useSessionsStore.getState().live['r-1']).toBeUndefined()
-    })
-    expect(useSessionsStore.getState().suspendedPaths).toContain('/sessions/r1.jsonl')
-    // Main already killed the process; the renderer must not ask again.
-    expect(invoke).not.toHaveBeenCalledWith('pi:disposeSession', 'r-1')
-  })
-})
-
 describe('session scan status', () => {
   const invoke = vi.fn()
 

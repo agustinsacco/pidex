@@ -19,7 +19,7 @@ import {
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
-import { broadcast } from '../orchestrator/broadcast'
+import { broadcast } from '../broadcast'
 
 /**
  * Open the adapter's authorization page.

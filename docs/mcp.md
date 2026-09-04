@@ -51,8 +51,7 @@ Three rules hold this together:
      `pi --mode rpc --no-session` (`electron/pi/connector-auth.ts`), drives the
      flow, opens the browser itself, and kills the process when it settles.
      `--no-session` matters twice — no session file appears in the sidebar, and
-     the process is never in the registry, so the fleet hub never projects it as
-     work. Progress arrives on the `mcp:authState` broadcast. This is what makes
+     the process is never in the registry, so nothing projects it as work. Progress arrives on the `mcp:authState` broadcast. This is what makes
      Settings usable on a fresh launch, which is when people go there.
    - **In-session**: the adapter auto-authenticates mid-turn when a model calls
      a tool whose server has no token, so the same prompt can arrive on a live

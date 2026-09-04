@@ -23,8 +23,8 @@ import type { PiEvent } from '@shared/rpc'
  * the boundary keeps the wire shape intact, keeps the change reversible, and
  * keeps the drift guards doing their job.
  *
- * This trims only what goes to the RENDERER. The fleet hub subscribes to the
- * client directly and still sees every event whole.
+ * This trims only what goes to the RENDERER. Anything subscribing to the
+ * client directly still sees every event whole.
  */
 export function trimForRenderer(event: PiEvent): PiEvent {
   if (event.type === 'agent_end' && event.messages.length > 0) {

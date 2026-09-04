@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
-import { registry, sessionReaper } from './registry'
+import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeConnectorAuth } from './pi/connector-auth'
 import { cancelAllLogins } from './pi/login-flow'
@@ -104,10 +104,9 @@ function createWindow(): BrowserWindow {
 /**
  * One pidex per machine.
  *
- * Two instances would each own a copy of the session registry and a copy of
- * every project's orchestrator, so they would run duplicate sweeps and race
- * each other writing the same `.pidex/orchestrator-memory.md`. Focusing the
- * existing window is also what a user expects from relaunching.
+ * Two instances would each own a copy of the session registry, so they would
+ * race each other over the same session files. Focusing the existing window is
+ * also what a user expects from relaunching.
  *
  * E2E launches deliberately opt out: Playwright drives several app instances,
  * and the lock would make the second one exit instead of starting.
@@ -175,8 +174,6 @@ app.on('before-quit', (event) => {
   // A connector flow owns its own throwaway pi child — not in the registry, so
   // disposeAll below would not touch it, and it holds the OAuth callback port.
   disposeConnectorAuth()
-  // Stop the reaper before disposeAll so a sweep cannot interleave with it.
-  sessionReaper.stop()
   ptyManager.killAll()
   void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
     () => app.quit(),

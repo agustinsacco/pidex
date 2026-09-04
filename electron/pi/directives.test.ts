@@ -13,14 +13,13 @@ const ALL_OFF: AgentDirectivePrefs = {
   custom: '',
 }
 
-function compose(prefs: Partial<AgentDirectivePrefs>, extra?: string): string {
+function compose(prefs: Partial<AgentDirectivePrefs>): string {
   return (
     composeDirectives({
       cwd: CWD,
       git: GIT,
       prefs: { ...ALL_OFF, ...prefs },
       charter: CHARTER,
-      extra,
     }) ?? ''
   )
 }
@@ -50,18 +49,16 @@ describe('composeDirectives', () => {
     expect(compose({ laneCharter: true })).toContain('<pidex_lane>')
   })
 
-  it('keeps the documented order: workspace, lane, sub-agents, extra, custom', () => {
-    const out = compose(
-      { worktreeGuard: true, laneCharter: true, subagentPolicy: true, custom: 'MY OWN TEXT' },
-      'ORCHESTRATOR PREAMBLE',
+  it('keeps the documented order: workspace, lane, sub-agents, custom', () => {
+    const out = compose({
+      worktreeGuard: true,
+      laneCharter: true,
+      subagentPolicy: true,
+      custom: 'MY OWN TEXT',
+    })
+    const order = ['<pidex_workspace>', '<pidex_lane>', '<pidex_subagents>', 'MY OWN TEXT'].map(
+      (needle) => out.indexOf(needle),
     )
-    const order = [
-      '<pidex_workspace>',
-      '<pidex_lane>',
-      '<pidex_subagents>',
-      'ORCHESTRATOR PREAMBLE',
-      'MY OWN TEXT',
-    ].map((needle) => out.indexOf(needle))
 
     expect(order.every((index) => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)

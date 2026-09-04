@@ -19,29 +19,6 @@ import {
 } from '@/features/chat/reducer'
 import { drop, keyedSliceFrom } from './keyedSlice'
 
-/**
- * Bump the unread count for an orchestrator whose turn just ended, unless the
- * user is currently looking at it.
- *
- * Imported lazily and guarded: `chat.ts` must not take a hard dependency on
- * the fleet store (which imports sessions, which imports chat).
- */
-function noteOrchestratorTurnEnded(sessionId: string): void {
-  void (async () => {
-    try {
-      const { useFleetStore } = await import('./fleet')
-      const fleet = useFleetStore.getState()
-      const entry = Object.entries(fleet.liveOrchestrators).find(([, id]) => id === sessionId)
-      if (!entry) return
-      const { useSessionsStore } = await import('./sessions')
-      if (useSessionsStore.getState().activeSessionId === sessionId) return
-      fleet.noteUnread(entry[0])
-    } catch {
-      // A badge is never worth breaking event handling for.
-    }
-  })()
-}
-
 export interface ChatSession extends ChatSessionState {
   /** Session metadata fetched over RPC. */
   meta: RpcSessionState | null
@@ -134,13 +111,6 @@ export const useChatStore = create<ChatStore>((set) => ({
     ),
 
   applyEvent: (sessionId, event) => {
-    // An orchestrator that finishes a turn while you are looking elsewhere has
-    // said something you have not seen. Counted here rather than in the fleet
-    // store because this is the only place that knows a turn ENDED, and the
-    // badge means "has it spoken since you looked?" — not "is it busy?".
-    if (event.type === 'agent_end' || event.type === 'agent_settled') {
-      noteOrchestratorTurnEnded(sessionId)
-    }
     set((state) => {
       const session = chats.read(state.sessions, sessionId)
       const reduced = reduceChatEvent(session, event)

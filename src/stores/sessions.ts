@@ -387,11 +387,6 @@ function markSuspended(diskPath: string): void {
 /**
  * Drop everything the renderer holds for a session whose process is gone.
  *
- * Shared by `disposeSession` (renderer asked main to kill it) and the
- * `reaped` push (main killed it on its own) — the only difference between the
- * two is who called `pi:disposeSession`, so the reap path must NOT invoke it
- * again.
- *
  * Session-scoped side state: kill its PTYs, drop its artifacts, and clear
  * its extension UI. Lazy imports keep this store free of load-order
  * cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
@@ -501,25 +496,10 @@ function attachSessionPushHandler(pidexId: string): void {
       case 'stderr':
         console.warn(`[pi stderr] ${push.text}`)
         break
-      case 'injected':
-        // The visible-hand rule: main sent this on the orchestrator's behalf,
-        // so the renderer never added it optimistically. pi persists it either
-        // way — without this the transcript of a session being steered stays
-        // silent until it is reopened. See docs/orchestration.md.
-        chatStore.addUserMessage(pidexId, push.text)
-        break
       case 'extension-ui':
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(pidexId, push.request),
         )
-        break
-      case 'reaped':
-        // Main reclaimed this idle session's subprocess. The process is gone,
-        // so this is local cleanup only — calling pi:disposeSession again
-        // would be a no-op at best. The sidebar row survives via the disk
-        // scan; marking the path suspended is what labels it.
-        if (push.diskPath) markSuspended(push.diskPath)
-        void cleanupLocalSessionState(pidexId)
         break
     }
   })
@@ -763,9 +743,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     useChatStore.getState().ensure(sessionId, { resuming: true })
     attachSessionPushHandler(sessionId)
     set((s) => ({
-      // diskPath when the caller already knows it (reload re-adoption learns
-      // it from the fleet hub) — bootstrapSession's get_state confirms it, but
-      // resume matching needs it before that round trip lands.
+      // diskPath only when the caller already knows it; `bootstrapSession`'s
+      // `get_state` is what supplies it for a reload re-adoption, and resume
+      // matching waits on that round trip.
       live: { ...s.live, [sessionId]: { pidexId: sessionId, workspacePath, diskPath } },
       unread: { ...s.unread, [sessionId]: 0 },
     }))
@@ -802,19 +782,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
     }))
-    // Opening an orchestrator is what "you have seen it" means for its badge.
-    if (sessionId) {
-      void (async () => {
-        try {
-          const { useFleetStore } = await import('./fleet')
-          const fleet = useFleetStore.getState()
-          const entry = Object.entries(fleet.liveOrchestrators).find(([, id]) => id === sessionId)
-          if (entry) fleet.clearUnread(entry[0])
-        } catch {
-          // A badge is never worth breaking activation for.
-        }
-      })()
-    }
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
     const live = sessionId ? get().live[sessionId] : undefined
@@ -1007,19 +974,3 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     })
   },
 }))
-
-/**
- * Tell main which session is on screen, for the idle-session reaper — the
- * active session is never reaped, and main has no other way to know it.
- * A store subscription rather than a call in `activate`, because
- * `createSession` also sets `activeSessionId` directly.
- */
-let lastReportedActive: string | null | undefined
-useSessionsStore.subscribe((state) => {
-  const active = state.activeSessionId
-  if (active === lastReportedActive) return
-  lastReportedActive = active
-  void window.pidex.invoke('pi:setActiveSession', active).catch(() => {
-    // Main missing the report only costs reap immunity; never break the UI.
-  })
-})

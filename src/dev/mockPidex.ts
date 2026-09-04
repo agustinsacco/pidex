@@ -615,28 +615,6 @@ export function installMockPidex(): void {
             binaryPath: '/mock/pi',
             minVersion: MIN_PI_VERSION,
           })
-        case 'fleet:state':
-          return Promise.resolve({ sessions: [], updatedAt: Date.now() })
-        case 'orchestrator:overview':
-          return Promise.resolve({ digests: {}, prefs: {}, sessions: {} })
-        case 'orchestrator:rules':
-          return Promise.resolve({
-            path: '/mock/.pidex/orchestrator.md',
-            content: '',
-            exists: false,
-          })
-        case 'orchestrator:writeRules':
-        case 'orchestrator:setPrefs':
-        case 'orchestrator:sweep':
-        case 'orchestrator:restart':
-          return Promise.resolve(undefined)
-        case 'orchestrator:ensure':
-        case 'orchestrator:acceptProposal':
-          return Promise.resolve({ sessionId: 'mock-orchestrator' })
-        case 'orchestrator:reset':
-          // A reset returns a NEW session id; reusing the old one would hide
-          // the very bug this exists to escape.
-          return Promise.resolve({ sessionId: `mock-orchestrator-${Date.now()}` })
         case 'app:getPrefs':
           return Promise.resolve({
             theme: DEFAULT_APP_PREFS.theme,
@@ -1495,11 +1473,6 @@ export function installMockPidex(): void {
 
     onSessionsChanged: () => () => {},
 
-    // The browser harness has no live sessions, so the fleet stays empty and
-    // the home screen falls back to its greeting — which is itself the state
-    // worth being able to render here.
-    onFleetChanged: () => () => {},
-    onOrchestratorDigest: () => () => {},
     onFsChanged: () => () => {},
     onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {
       const entry = mockJobChannel(jobId)

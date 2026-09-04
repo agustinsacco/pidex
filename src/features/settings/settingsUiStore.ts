@@ -3,7 +3,6 @@ import { create } from 'zustand'
 export type SettingsTab =
   | 'appearance'
   | 'agent'
-  | 'orchestration'
   | 'accounts'
   | 'extensions'
   | 'claude-provider'

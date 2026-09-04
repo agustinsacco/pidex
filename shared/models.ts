@@ -42,38 +42,12 @@ export interface LiveSessionInfo {
   pid?: number
 }
 
-/**
- * One live session as reported to a freshly loaded renderer, so a reload can
- * re-adopt the pi subprocesses it orphaned instead of stranding ~200 MB each.
- * `diskPath` comes from the fleet hub (which asks `get_state` itself) and can
- * be briefly absent for a session that just spawned.
- */
-export interface AdoptableSession extends LiveSessionInfo {
-  diskPath?: string
-  isOrchestrator: boolean
-}
-
 /** Pushed on the per-session event channel. */
 export type SessionPush =
   | { kind: 'event'; event: PiEvent }
   | { kind: 'extension-ui'; request: ExtensionUIRequest }
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
-  /**
-   * A message main sent into this session on someone else's behalf (today:
-   * the orchestrator). pi persists it either way, but the renderer only paints
-   * messages it added itself — without this the transcript of a session being
-   * steered stays silent until it is reopened. See docs/orchestration.md,
-   * "the visible-hand rule".
-   */
-  | { kind: 'injected'; text: string; source: 'orchestrator' }
-  /**
-   * Main reclaimed this session's idle pi subprocess (the session reaper).
-   * The transcript is on disk and reopening resumes it; the renderer's job is
-   * local cleanup plus marking the sidebar row suspended — the process is
-   * already gone, so it must NOT call `pi:disposeSession` again.
-   */
-  | { kind: 'reaped'; diskPath?: string; workspacePath: string }
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
@@ -432,240 +406,6 @@ export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
   auto: true,
   branchPrefix: 'pidex/',
 }
-
-// ---------- orchestration (docs/orchestration.md) ----------
-
-/**
- * What a live session is doing, as observed mechanically in main. No model is
- * involved in producing this — it is a projection of pi's own event stream.
- */
-export type FleetPhase = 'streaming' | 'awaiting-input' | 'idle' | 'error' | 'exited'
-
-/** A clarifying question a session is blocked on, mirrored from extension UI. */
-export interface FleetQuestion {
-  requestId: string
-  method: 'select' | 'confirm' | 'input'
-  title: string
-  message?: string
-  options?: string[]
-  askedAt: number
-}
-
-export interface FleetSession {
-  /** pidex-side live session id. */
-  sessionId: string
-  workspacePath: string
-  /**
-   * The project this session belongs to: its repo's main working tree, or its
-   * own cwd when that is unknown.
-   *
-   * Load-bearing, not cosmetic. pidex gives most chats their own git worktree,
-   * so `workspacePath` is usually a folder under `.pidex/worktrees/` that
-   * matches no project path exactly — grouping on it made a project's own
-   * orchestrator report "no sessions are running" while several were.
-   */
-  projectRoot?: string
-  /** Session file, once `get_state` has reported it. */
-  diskPath?: string
-  title?: string
-  phase: FleetPhase
-  /** Last assistant prose line, truncated. */
-  lastLine?: string
-  /** Tool executing right now, if any. */
-  currentTool?: string
-  /**
-   * Paths this session's tools touched. Best-effort — harvested from tool
-   * arguments, so it is a signal and never a claim. Bounded; see FILES_TOUCHED_CAP.
-   */
-  filesTouched: string[]
-  pendingQuestion?: FleetQuestion
-  lastActivityAt: number
-  /** When the session went idle; powers "waiting 14 min". */
-  idleSince?: number
-  turns: number
-  isOrchestrator: boolean
-}
-
-export interface FleetSnapshot {
-  sessions: FleetSession[]
-  updatedAt: number
-}
-
-/** Upper bound on remembered paths per session, so the hub cannot grow forever. */
-export const FILES_TOUCHED_CAP = 50
-
-/** One line of a digest the orchestrator published. */
-export interface DigestItem {
-  kind: 'attention' | 'suggestion' | 'note'
-  /** Session file path this item is about, when it is about one. */
-  sessionPath?: string
-  text: string
-  /**
-   * Synthesized by the bridge from a per-item `startPrompt` — the model never
-   * sends it. `start` is the only kind: `open`, `resume`, `archive` and
-   * `merge` sat in this union unproduced and unrendered until 2026-08-30.
-   */
-  action?: {
-    label: string
-    kind: 'start'
-    payload?: string
-  }
-}
-
-/**
- * The orchestrator's report on one project. Owned by main (not by the
- * per-session status map) so it survives restarts and renders on the home
- * screen before any orchestrator process exists.
- */
-export interface OrchestratorDigest {
-  workspacePath: string
-  updatedAt: number
-  headline: string
-  items: DigestItem[]
-}
-
-/** Which kind of pass to run. `question` is an ordinary user prompt. */
-export type SweepKind = 'brief' | 'review'
-
-/**
- * How much the orchestrator may do on its own.
- *
- * A single axis, from "look but do not touch" to "act unattended". It replaces
- * the old `autopilot` boolean, which conflated two different questions (may it
- * message sessions? may it start them?) into one switch.
- *
- * Enforced in `electron/orchestrator/bridge.ts` at call time, so switching mode
- * takes effect on the very next tool call — no respawn, no stale posture.
- */
-export type OrchestratorMode = 'observe' | 'supervise' | 'autopilot'
-
-export const ORCHESTRATOR_MODES: readonly OrchestratorMode[] = ['observe', 'supervise', 'autopilot']
-
-export interface OrchestratorModeInfo {
-  label: string
-  /** One line, shown in the picker. */
-  summary: string
-}
-
-export const ORCHESTRATOR_MODE_INFO: Record<OrchestratorMode, OrchestratorModeInfo> = {
-  observe: {
-    label: 'Observe',
-    summary: 'Read and report only. Cannot message, stop or start sessions.',
-  },
-  supervise: {
-    label: 'Supervise',
-    summary: 'May message, stop and unblock sessions. Proposes new work; never starts it.',
-  },
-  autopilot: {
-    label: 'Autopilot',
-    summary: 'May also start new sessions unattended, up to the cap.',
-  },
-}
-
-export interface OrchestratorWorkspacePrefs {
-  /** False until the user first opens the orchestrator for this project. */
-  enabled: boolean
-  /** How much it may do on its own. See OrchestratorMode. */
-  mode: OrchestratorMode
-  /** Cap on autopilot-started live sessions. */
-  maxConcurrent: number
-  /**
-   * Model for the FIRST spawn only. After that the orchestrator's own picker
-   * owns it: pi records `model_change` in the session file and restores the
-   * model on resume, so the choice persists with no pidex state.
-   */
-  model?: string
-}
-
-export const DEFAULT_ORCHESTRATOR_PREFS: OrchestratorWorkspacePrefs = {
-  enabled: false,
-  mode: 'supervise',
-  maxConcurrent: 2,
-}
-
-/**
- * Read a mode off stored prefs, migrating the pre-modes `autopilot` boolean.
- *
- * Prefs are persisted electron-store JSON, so old installs carry
- * `{ autopilot: true|false }` and no `mode`. Defaulting those to `supervise`
- * silently would DOWNGRADE someone who had autopilot on, so the boolean maps
- * across explicitly.
- */
-export function orchestratorModeOf(
-  prefs: Partial<OrchestratorWorkspacePrefs> & { autopilot?: boolean },
-): OrchestratorMode {
-  if (prefs.mode && ORCHESTRATOR_MODES.includes(prefs.mode)) return prefs.mode
-  if (prefs.autopilot === true) return 'autopilot'
-  return DEFAULT_ORCHESTRATOR_PREFS.mode
-}
-
-/** May the orchestrator message, stop or answer sessions in this mode? */
-export function modeAllowsSessionControl(mode: OrchestratorMode): boolean {
-  return mode !== 'observe'
-}
-
-/** May the orchestrator start work itself in this mode? */
-export function modeAllowsStartingWork(mode: OrchestratorMode): boolean {
-  return mode === 'autopilot'
-}
-
-/**
- * Session names carry this prefix so an orchestrator session stays
- * identifiable when the prefs pointer is lost (fresh machine, cleared prefs).
- * Deliberately a visible glyph rather than a hidden marker — a user browsing
- * their pi sessions outside pidex should be able to tell what it is.
- */
-export const ORCHESTRATOR_NAME_PREFIX = '✳ Orchestrator'
-
-/**
- * The idle-session reaper's policy. Both conditions must hold before a
- * session's pi subprocess is reclaimed: the live count is over
- * `maxLiveSessions` AND the candidate has been idle longer than
- * `idleGraceMinutes`. Either alone is wrong — the cap alone can take a
- * session the user touched seconds ago, the grace alone leaves ten rotating
- * lanes holding ~2 GB.
- */
-export interface SessionReaperPrefs {
-  enabled: boolean
-  maxLiveSessions: number
-  idleGraceMinutes: number
-}
-
-export const DEFAULT_SESSION_REAPER_PREFS: SessionReaperPrefs = {
-  enabled: true,
-  maxLiveSessions: 4,
-  idleGraceMinutes: 15,
-}
-
-export const SESSION_REAPER_LIMITS = {
-  maxLiveSessions: { min: 1, max: 32 },
-  idleGraceMinutes: { min: 1, max: 24 * 60 },
-} as const
-
-/** Clamp anything read off disk or sent over IPC; these gate process kills. */
-export function normalizeSessionReaperPrefs(
-  input: Partial<SessionReaperPrefs> | undefined,
-): SessionReaperPrefs {
-  const merged = { ...DEFAULT_SESSION_REAPER_PREFS, ...input }
-  const clamp = (value: number, lo: number, hi: number, fallback: number): number =>
-    Number.isFinite(value) ? Math.min(hi, Math.max(lo, Math.round(value))) : fallback
-  return {
-    enabled: Boolean(merged.enabled),
-    maxLiveSessions: clamp(
-      merged.maxLiveSessions,
-      SESSION_REAPER_LIMITS.maxLiveSessions.min,
-      SESSION_REAPER_LIMITS.maxLiveSessions.max,
-      DEFAULT_SESSION_REAPER_PREFS.maxLiveSessions,
-    ),
-    idleGraceMinutes: clamp(
-      merged.idleGraceMinutes,
-      SESSION_REAPER_LIMITS.idleGraceMinutes.min,
-      SESSION_REAPER_LIMITS.idleGraceMinutes.max,
-      DEFAULT_SESSION_REAPER_PREFS.idleGraceMinutes,
-    ),
-  }
-}
-
 export interface AppPrefs {
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
@@ -705,17 +445,6 @@ export interface AppPrefs {
   /** Per-project override of the above, keyed by main-repo path. */
   agentDirectivesByProject: Record<string, AgentDirectivePrefs>
   worktrees: WorktreePrefs
-  /** Orchestrator settings per main-repo path. */
-  orchestrator: Record<string, OrchestratorWorkspacePrefs>
-  /**
-   * Main-repo path → the orchestrator's session FILE path. Doubles as the
-   * resume target, so the same thread comes back across restarts.
-   */
-  orchestratorSessions: Record<string, string>
-  /** Last digest per main-repo path, so home renders before anything spawns. */
-  orchestratorDigests: Record<string, OrchestratorDigest>
-  /** Suppress orchestrator desktop notifications. */
-  notificationsMuted: boolean
   /**
    * Claude Code auto-compact window for pi-claude-cli sessions, passed as
    * `PI_CLAUDE_CLI_AUTOCOMPACT` when a session spawns. Empty string means
@@ -727,8 +456,6 @@ export interface AppPrefs {
    * default rather than passing a bad value to the CLI.
    */
   claudeAutocompact: string
-  /** Idle-session reaper policy. See SessionReaperPrefs. */
-  sessionReaper: SessionReaperPrefs
   /**
    * Unsent composer drafts, keyed by `session:<pidexId>` or
    * `home:<workspacePath>`.
@@ -861,12 +588,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   agentDirectives: DEFAULT_AGENT_DIRECTIVES,
   agentDirectivesByProject: {},
   worktrees: DEFAULT_WORKTREE_PREFS,
-  orchestrator: {},
-  orchestratorSessions: {},
-  orchestratorDigests: {},
-  notificationsMuted: false,
   claudeAutocompact: '',
-  sessionReaper: DEFAULT_SESSION_REAPER_PREFS,
   drafts: {},
 }
 

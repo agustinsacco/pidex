@@ -106,8 +106,6 @@ export interface ComposeDirectivesOptions {
   git: GitInfo
   prefs: AgentDirectivePrefs
   charter?: LaneCharter
-  /** The orchestrator's own preamble, when this is an orchestrator session. */
-  extra?: string
 }
 
 /**
@@ -123,13 +121,11 @@ export function composeDirectives({
   git,
   prefs,
   charter,
-  extra,
 }: ComposeDirectivesOptions): string | undefined {
   const blocks: (string | undefined)[] = [
     prefs.worktreeGuard ? worktreePromptBlock(cwd, git) : undefined,
     prefs.laneCharter && charter ? laneCharterBlock(charter) : undefined,
     prefs.subagentPolicy ? subagentPolicyBlock() : undefined,
-    extra,
     prefs.custom.trim() ? prefs.custom.trim() : undefined,
   ]
   return blocks.filter(Boolean).join('\n\n') || undefined

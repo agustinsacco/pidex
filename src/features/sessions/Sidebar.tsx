@@ -50,8 +50,6 @@ import { cloneSession, exportSidebarSession, renameSidebarSession } from './side
 import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
-import { OrchestratorHeaderButton } from '@/features/orchestrator/OrchestratorHeaderButton'
-import { useFleetStore } from '@/stores/fleet'
 
 const SIDEBAR_WIDTH_KEY = 'pidex:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -285,23 +283,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
-  /** Orchestrator threads get their own row, so they never sort among work. */
-  const orchestratorSessions = useFleetStore((s) => s.orchestratorSessions)
-  const orchestratorPaths = useMemo(
-    () => Object.values(orchestratorSessions),
-    [orchestratorSessions],
-  )
-  /**
-   * Live orchestrator session ids. Needed as well as the paths above: a
-   * placeholder row is keyed by session id and appears before any path is
-   * known, so the path list cannot suppress it.
-   */
-  const liveOrchestrators = useFleetStore((s) => s.liveOrchestrators)
-  const orchestratorIds = useMemo(
-    () => new Set(Object.values(liveOrchestrators)),
-    [liveOrchestrators],
-  )
-
   /** Pinned sessions across every workspace — this group deliberately mixes. */
   const pinnedMetas = useMemo(
     () =>
@@ -332,7 +313,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         (m) => pinnedSet.has(m.path),
         (m) => liveByDisk.has(m.path),
         workspacePath,
-        orchestratorPaths,
         scanStatus,
         worktreeRoots,
       ),
@@ -344,7 +324,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       pinnedSet,
       liveByDisk,
       workspacePath,
-      orchestratorPaths,
       worktreeRoots,
     ],
   )
@@ -368,8 +347,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * scan catches up, which reads as a dropped message.
    */
   const pendingByWorkspace = useMemo(
-    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups, orchestratorIds),
-    [live, diskPaths, groups, orchestratorIds],
+    () => pendingSessionsByGroup(Object.values(live), diskPaths, groups),
+    [live, diskPaths, groups],
   )
 
   /**
@@ -864,10 +843,6 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   >
                     <PlusIcon size={12} strokeWidth={2.5} />
                   </button>
-                  <OrchestratorHeaderButton
-                    workspacePath={group.workspacePath}
-                    projectName={group.name}
-                  />
                 </div>
                 {isSearching(group) && (
                   <LaneSearchBar

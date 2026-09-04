@@ -25,8 +25,7 @@ counterpart). Those are listed first among the high-severity items.
 >   but there is no second window to pay for it.
 >
 > **2026-09-01** — F7, F8, F10, F16 and F17 fixed by the session resource
-> work: [backlog/session-resource-management.md](session-resource-management.md)
-> (its S1/S5/S4/S2/S6), logs
+> work (its S1/S5/S4/S2/S6), logs
 > [2026-09-01-session-scan-and-ipc-trims.md](../../log/2026-09-01-session-scan-and-ipc-trims.md)
 > and
 > [2026-09-01-session-reaper-and-live-stats.md](../../log/2026-09-01-session-reaper-and-live-stats.md).

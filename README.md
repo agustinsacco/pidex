@@ -46,11 +46,6 @@ agent made available to review or revert.
   `artifact_edit` / `artifact_update` tools; substantial deliverables land in a
   versioned side panel with previews and diffs between versions, and survive app
   restarts via session replay.
-- **An orchestrator that manages sessions.** One orchestrator session per
-  project plus a zero-inference hub that shows what every live session is doing.
-  Its mode — `observe`, `supervise`, `autopilot` — is enforced in the bridge at
-  call time. See
-  [docs/orchestration.md](docs/orchestration.md).
 - **Your machine, your models.** Sign in to providers, pick models, set themes,
   and mount MCP servers from Settings. MCP OAuth is owned by the adapter, never
   by pidex: [docs/mcp.md](docs/mcp.md).
@@ -93,9 +88,9 @@ session on reopen.
 
 ### Settings — and it is not only dark
 
-Eleven tabs: appearance (theme, UI scale, fonts), agent, accounts, orchestration,
-extensions, connectors, MCP, workspaces, advanced, keybindings, about. Light
-theme included, because diff review at 2am is a real workflow.
+Ten tabs: appearance (theme, UI scale, fonts), agent, accounts, extensions,
+connectors, MCP, workspaces, advanced, keybindings, about. Light theme
+included, because diff review at 2am is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
 
@@ -176,11 +171,10 @@ Six facts that explain the rest:
    sessions list is a scan of pi's session directory. pidex also appends to those
    files for bookmarks, branch jumps and forks — which is only safe while no pi
    process owns the file, and call sites enforce that by convention.
-5. **Six extensions run inside pi's process** (`pi-ext/`, loaded with `-e`):
-   five bundled into every session (`artifacts`, `context-breakdown`,
-   `mcp-status`, `tool-name-guard`, `worktree-paths`) plus `orchestrator`, only
-   on orchestrator sessions. Two of them can change or refuse what the model
-   did — read
+5. **Five extensions run inside pi's process** (`pi-ext/`, loaded with `-e`
+   into every session): `artifacts`, `context-breakdown`, `mcp-status`,
+   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
+   the model did — read
    [docs/extensions.md](docs/extensions.md) first.
 6. **Failure is reported, not hidden.** Failures surface on the session's chat;
    main-process detail goes to `pidex.log`. When diagnosing a bad session,
@@ -247,40 +241,39 @@ electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family — 14 of them today
-                     (app, claude-auth, clipboard, fs, git, mcp, orchestrator,
-                      packages, pi-auth, pi-config, pi-session, pty, sessions,
+  ipc/               one module per channel-prefix family — 13 of them today
+                     (app, claude-auth, clipboard, fs, git, mcp, packages,
+                      pi-auth, pi-config, pi-session, pty, sessions,
                       updates) plus handle.ts, the envelope unwrapper. The
                      contract lives in shared/ipc.ts; ipc.ts is the composition
                       root, so a handler module never imports it back.
   registry.ts        the live pi session registry
+  broadcast.ts       send a push to every open window
   pi/                RPC client (strict LF JSONL framing), session scanner,
                      writer, paths, print mode, model catalogue, login flow
   pty/               node-pty manager + spawn-helper repair
   fs/                file service, git layer (git-exec/info/sync/worktrees),
                      workspace watcher
-  orchestrator/      the per-project orchestrator session and the fleet hub
   updates/           update check + download state machine
   store.ts           app prefs (electron-store, constructed lazily)
 shared/              types and pure logic shared by main + renderer
   ipc.ts             the typed IpcInvokeMap contract
   rpc.ts             hand-mirrored copy of pi's RPC protocol + drift guards
-  models.ts          model catalogue and orchestration types
+  models.ts          model catalogue and shared app types
 src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
   features/          one folder per surface: chat, sessions, files, terminal,
-                     artifacts, settings, home, orchestrator, worktrees,
-                     workspaces, palette, updates, connectors, extension-ui
+                     artifacts, settings, home, worktrees, workspaces,
+                     palette, updates, connectors, extension-ui
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers)
   stores/            zustand stores — projections of main-process state
   lib/               framework-free helpers (format, path, rpc, fuzzy, time…)
   styles/            the Phosphor design tokens
   dev/               browser-only mock of the preload API (never bundled)
-pi-ext/              the six pi extensions that run inside pi's process:
-                     artifacts, context-breakdown, mcp-status, tool-name-guard
-                     and worktree-paths (bundled into every session), plus
-                     orchestrator (orchestrator sessions only)
+pi-ext/              the five pi extensions that run inside pi's process,
+                     bundled into every session: artifacts, context-breakdown,
+                     mcp-status, tool-name-guard, worktree-paths
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
@@ -295,14 +288,14 @@ only ever renders inside a sandboxed iframe.
 
 ## Documentation map
 
-| Read                                           | When                                                      |
-| ---------------------------------------------- | --------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging          |
-| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred   |
-| [docs/](docs/)                                 | How pidex works now (architecture, orchestration, MCP, …) |
-| [docs/log/](docs/log/)                         | Dated notes on what changed and why                       |
-| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                     |
-| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent            |
+| Read                                           | When                                                    |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging        |
+| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred |
+| [docs/](docs/)                                 | How pidex works now (architecture, extensions, MCP, …)  |
+| [docs/log/](docs/log/)                         | Dated notes on what changed and why                     |
+| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                   |
+| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent          |
 
 `docs/` is current behaviour. `docs/specs/build/` is a dated design doc;
 reading one as current is how stale conclusions survive.
