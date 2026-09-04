@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:e2e": "npm run build && ./scripts/e2e.sh",
     "validate": "./scripts/validate.sh",
+    "automerge": "node scripts/automerge-prs.mjs",
     "shots": "node scripts/capture-readme-shots.mjs",
     "shots:live": "node scripts/capture-live-shots.mjs",
     "pack": "npm run build && electron-builder --dir",
