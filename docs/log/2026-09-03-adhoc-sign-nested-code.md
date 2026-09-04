@@ -103,6 +103,12 @@ of the four cases fail with the CI error; against the fix all four pass. One
 nested bundle is enough — the failure does not need Electron's four Helpers and
 five frameworks to appear.
 
+That suite is `skipIf(platform !== 'darwin')`, because `codesign` exists
+nowhere else, and CI's unit-test job runs on `ubuntu-latest` — so **CI never
+executed it once**. It ran on whoever last opened the file on a Mac. The
+macOS e2e job is the only macOS runner in CI, so it now runs this suite too,
+after its build step; the whole file takes well under a second.
+
 ## What this does not fix
 
 It does not add mac assets to v0.1.172 or v0.1.174. The next green merge to
