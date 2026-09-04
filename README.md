@@ -78,18 +78,19 @@ Enter. Details and alternative installs are under [Install](#install).
 
 Every session pairs the transcript with one switchable pane — Files, Changes,
 Terminal or Artifacts. Each pane docks right or left of the chat (your pick,
-persisted per session) and can go fullscreen. All shots below are real captures
-of the app, reproducible with `npm run shots` — see
+persisted per session) and can go fullscreen. Every shot below is a capture of
+the app running against a real pi instance — real providers, real sessions,
+real tokens — see
 [the screenshots in this README](#the-screenshots-in-this-readme).
 
-### Home — mission control
+### Home — where a session starts
 
-The home screen greets you with what is running, a brief, project stats, and a
-composer that starts a session in the folder and branch you pick. Every card is
-a projection of what main sees in pi's event stream, and each one can be
-answered without opening the session.
+The home screen is the composer: pick the folder, the branch (or a fresh
+worktree branch off trunk), the model, and go. The sidebar carries every
+session — live state, edit counts, worktree badge, and the PR badge once one
+exists.
 
-![Home with a running session](docs/img/home.png)
+![Home over the real sessions of a repo](docs/img/home.png)
 
 ### Chat — the transcript, not a blob
 
@@ -99,6 +100,31 @@ own block. The composer takes `@` file references, `/` commands, `!` shell
 lines, and queues follow-ups while a turn is running.
 
 ![A finished turn: the activity run expanded on the edit's diff, Changes panel open beside it](docs/img/changes.png)
+
+### The composer — every model, every provider, one chip away
+
+The model chooser lists everything you are signed into — pi's native providers
+and installed provider packages alike — searchable, starrable, switchable
+mid-session. The chip names what actually serves the session (`via
+pi-claude-cli` when it is your Claude subscription, not the API):
+
+![The model menu open over the composer](docs/img/models.png)
+
+Models with a thinking ladder get a second chip for effort:
+
+![The thinking-level menu](docs/img/thinking.png)
+
+The context meter opens into a live breakdown of the window — what the system
+prompt, tools and conversation actually cost, and your plan's rate-limit
+window on subscription providers:
+
+![The context meter popover](docs/img/context.png)
+
+`/` opens commands, `@` mentions workspace files:
+
+![The slash-command menu](docs/img/commands.png)
+
+![The @ file-mention menu, resolved against the workspace](docs/img/mentions.png)
 
 ### Files — explorer and editor, on whichever side you like
 
@@ -140,7 +166,17 @@ included, because diff review at 2am is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
 
-The light theme, on the same session:
+Accounts is where providers sign in — subscription login or API key, per
+provider:
+
+![The Accounts tab with signed-in providers](docs/img/accounts.png)
+
+Connectors mounts MCP servers (Notion, Linear, and anything else with an MCP
+endpoint); OAuth is owned by the adapter, never by pidex:
+
+![The Connectors tab](docs/img/connectors.png)
+
+And the light theme, on the artifact session:
 
 ![The session in the light theme](docs/img/light.png)
 
@@ -236,20 +272,21 @@ npm install
 npm run dev
 ```
 
-| Script              | Purpose                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| `npm run dev`       | Electron + Vite dev server with HMR                            |
-| `npm run dev:web`   | Renderer alone, in a browser, against the mock preload API     |
-| `npm run build`     | Bundle main, preload and renderer to `out/`                    |
-| `npm run typecheck` | TypeScript project checks (main + renderer)                    |
-| `npm run lint`      | ESLint                                                         |
-| `npm run format`    | Prettier                                                       |
-| `npm test`          | Vitest unit tests                                              |
-| `npm run test:e2e`  | Playwright-Electron smoke tests against the deterministic `pi` |
-| `npm run validate`  | All of the above, quiet — one PASS/FAIL line per step + a log  |
-| `npm run pack`      | Package for the current platform without packing (quick check) |
-| `npm run dist`      | Package for the current platform via electron-builder          |
-| `npm run shots`     | Re-shoot the screenshots in this README (see below)            |
+| Script               | Purpose                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| `npm run dev`        | Electron + Vite dev server with HMR                            |
+| `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API     |
+| `npm run build`      | Bundle main, preload and renderer to `out/`                    |
+| `npm run typecheck`  | TypeScript project checks (main + renderer)                    |
+| `npm run lint`       | ESLint                                                         |
+| `npm run format`     | Prettier                                                       |
+| `npm test`           | Vitest unit tests                                              |
+| `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi` |
+| `npm run validate`   | All of the above, quiet — one PASS/FAIL line per step + a log  |
+| `npm run pack`       | Package for the current platform without packing (quick check) |
+| `npm run dist`       | Package for the current platform via electron-builder          |
+| `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)  |
+| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)    |
 
 Tests live beside their subject as `*.test.ts`, in `electron/`, `shared/` and
 `pi-ext/` included.
@@ -261,18 +298,27 @@ accurate orientation for a human too.
 
 ### The screenshots in this README
 
-They are real captures of the app, not mockups — and they are reproducible:
+They are captures of the app running against a **real pi instance** — the
+developer's own `~/.pi`, real signed-in providers, a real repo as the
+workspace, and two genuinely metered model turns:
 
 ```bash
-npm run build && npm run shots
+npm run build && npm run shots:live
 ```
 
-The runner (`scripts/capture-readme-shots.mjs`) launches the built app against a
-scratch git workspace and drives it with the same deterministic `pi` stub the CI
-end-to-end suite uses, so the captures are deterministic too. That is also why
-the model chip reads _Stub Model_: the screenshots are of the app, not of a
-metered model run. `ONLY=chat,changes node scripts/capture-readme-shots.mjs`
-re-shoots a subset.
+The live runner (`scripts/capture-live-shots.mjs`) isolates app prefs (so it
+never fights an installed pidex) but deliberately not pi: it runs one small
+edit task in a disposable git worktree and one artifact task, then shoots the
+transcript, panes, menus and popovers those turns produced. It spends real
+tokens and leaves the two sessions and the worktree behind — that is the
+point; delete them like any other session. `ONLY=models,context` re-shoots a
+subset, `WORKSPACE=… TASK1=… MODEL2=…` re-aim it.
+
+There is also a deterministic runner, `npm run shots`
+(`scripts/capture-readme-shots.mjs`): same capture mechanics, but a scratch
+workspace and the CI e2e suite's `pi` stub — no key, no network, model chip
+reads _Stub Model_. Use it to verify UI changes reproducibly; use the live
+one to regenerate what this README shows.
 
 ### Repo layout
 

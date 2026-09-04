@@ -113,6 +113,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
     <div className="relative flex items-center gap-1">
       <button
         onClick={() => setOpen(open === 'model' ? null : 'model')}
+        data-testid="model-chip"
         className={clsx(
           'rounded-md px-2 py-1 text-base font-medium transition-colors',
           open === 'model'
@@ -144,6 +145,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       {levelsToRender.length > 1 && (
         <button
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
+          data-testid="thinking-chip"
           className={clsx(
             'rounded-md px-2 py-1 text-base transition-colors',
             open === 'thinking'
