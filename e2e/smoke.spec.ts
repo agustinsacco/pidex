@@ -170,6 +170,33 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
   }
 })
 
+test('floating IDE panes share compact corners in both themes', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => {
+        document.documentElement.dataset.theme = value
+      }, theme)
+      for (const title of ['Files pane', 'Terminal pane', 'Artifacts pane']) {
+        await page.getByTitle(new RegExp(`^${title}`)).click()
+        const pane = page.getByTestId('right-pane')
+        await expect(pane).toBeVisible()
+        await expect(pane).toHaveCSS('border-radius', '6px')
+        await expect(pane).toHaveCSS('box-shadow', 'none')
+        await expect(pane.getByRole('button', { name: 'Close pane', exact: true })).toBeVisible()
+        await pane.getByRole('button', { name: 'Close pane', exact: true }).click()
+      }
+    }
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 /** 1×1 transparent PNG, as base64. */
 const PNG_1X1 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
