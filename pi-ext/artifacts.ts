@@ -147,17 +147,40 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     name: 'artifact_create',
     label: 'Create artifact',
     description:
-      'Create a rich artifact rendered in a dedicated panel beside the chat. ' +
-      `type is one of: ${ARTIFACT_TYPES.join(', ')}. Use for substantial, ` +
-      'self-contained content: full HTML pages/mockups, SVG graphics, mermaid ' +
-      'diagrams, markdown documents/reports, chart specs (Chart.js JSON), or ' +
-      'complete code files meant for review. Small snippets belong inline in chat.',
+      'Render a self-contained page as an artifact — a private web page shown ' +
+      'beside the chat. Use this when a visual or interactive deliverable is ' +
+      'clearer than terminal text: a report the team will read, a plan others ' +
+      'will follow, a reference document, a dashboard mockup, an interactive ' +
+      'prototype, or a decision case the team has not made yet. A finished ' +
+      'deliverable with an audience is not fully delivered while it lives only ' +
+      'in scrollback — finish it as an artifact, and hand the user the link. ' +
+      'When the user asks for such a page, offer it; when they ask only for ' +
+      'advice they will act on alone now, in the code at hand, no audience ' +
+      'exists — keep it as text. ' +
+      'Type is one of: ' +
+      ARTIFACT_TYPES.join(', ') +
+      '. ' +
+      'Always author HTML pages directly — no <!DOCTYPE>, <html>, <head>, or ' +
+      '<body> tags of your own; the viewer wraps the file in a skeleton at ' +
+      'publish time. Put your own <title> and <style> at the top of the file. ' +
+      'Set a short noun-phrase title (2–4 words, distinctive to the page); ' +
+      'the explanation belongs in the title parameter, not appended to the name. ' +
+      'Keep the design responsive: use relative units, flexbox or grid, ' +
+      'max-width: 100% on images, and wrap wide content (tables, code, ' +
+      'diagrams) in its own overflow-x: auto container — the page body must ' +
+      'never scroll horizontally. Use theme-aware palettes: define colors as ' +
+      'tokens on bare :root, with a dark-mode override guarded by ' +
+      ':root:not([data-theme="light"]) and :root[data-theme="dark"] so the ' +
+      'toggle wins in both directions. Give body an explicit background ' +
+      'token; the viewer paints its own ground behind the page. Small snippets ' +
+      'and inline code stay in chat, not artifacts.',
     promptSnippet:
-      'Create a rich artifact (html/svg/markdown/mermaid/chart/code) in the side panel',
+      'Create a rich artifact (html / svg / markdown / mermaid / chart / code) in the side panel — design-aware, theme-aware, responsive',
     promptGuidelines: [
-      'Use artifact_create for substantial self-contained deliverables (HTML mockups, SVG graphics, diagrams, documents, reports, chart specs) so they render in the artifact panel; keep short snippets inline in chat.',
-      'To revise an artifact, call artifact_edit with the smallest old_string that uniquely identifies the region. artifact_update re-sends the ENTIRE document and costs tokens proportional to its size — reserve it for rewrites that touch most of the content.',
-      'If you no longer have an artifact’s current text in context (after compaction, or in a resumed session), call artifact_list then artifact_read before editing. Never guess at old_string.',
+      'Use artifact_create for substantial, self-contained deliverables — HTML mockups, SVG graphics, mermaid diagrams, markdown reports, chart specs, or complete code files meant for review. Small snippets stay inline in chat.',
+      'Before writing: calibrate the design investment. A finished deliverable (report, plan, reference, decision case) must include a theme-aware, responsive design — light palette as :root tokens, dark-mode guarded override, relative units, flex/grid layout, overflow-x: auto for wide content. The title is a short noun phrase (2–4 words), distinctive to the page; explanation goes in the description parameter, not appended after a dash.',
+      'To revise: prefer artifact_edit (exact-string replacement, lowest token cost) over artifact_update (full rewrite). If you no longer have the current content (after compaction or a resumed session), call artifact_list then artifact_read first. Never guess old_string — whitespace and indentation must match exactly.',
+      'Format: HTML artifacts are authored directly — the file is wrapped in a skeleton at publish time, so include <title> and <style> at the top but never add <!DOCTYPE>, <html>, <head>, or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',
     ],
     parameters: Type.Object({
       id: Type.Optional(
