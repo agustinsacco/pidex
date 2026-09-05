@@ -6,6 +6,7 @@ import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
+import { SkillsPane } from '@/features/skills/SkillsPane'
 
 /**
  * Right-hand region: a floating rounded card inset from the chat (matching
@@ -53,6 +54,7 @@ export const RightPane = memo(function RightPane({
           <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
         )}
         {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
+        {rightPane === 'skills' && <SkillsPane workspacePath={workspacePath} />}
       </div>
     </div>
   )

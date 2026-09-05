@@ -20,6 +20,7 @@ import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import {
   ArtifactsIcon,
+  SkillsIcon,
   ChevronDownIcon,
   ChevronIcon,
   GearIcon,
@@ -704,6 +705,11 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           label="Artifacts"
           onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
           icon={<ArtifactsIcon />}
+        />
+        <NavRow
+          label="Skills"
+          onClick={() => useLayoutStore.getState().toggleRightPane('skills')}
+          icon={<SkillsIcon />}
         />
       </nav>
 

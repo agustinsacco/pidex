@@ -2095,3 +2095,72 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
     await rm(userDataDir, { recursive: true, force: true })
   }
 })
+
+test('skills page lists a seeded skill, and creates a new one on disk', async () => {
+  // Solo agent dir: the created skill writes into <agentDir>/skills, and the
+  // shared dir would leak it into every later test's resolution.
+  const soloAgentDir = privateAgentDir()
+  await mkdir(join(soloAgentDir, 'skills', 'seeded-e2e-skill'), { recursive: true })
+  await writeFile(
+    join(soloAgentDir, 'skills', 'seeded-e2e-skill', 'SKILL.md'),
+    '---\nname: seeded-e2e-skill\ndescription: A fixture skill for the e2e suite\n---\n\n# Seeded\n',
+  )
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-skills-')),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // The pane is per-session (the sidebar toggle is a no-op on home), so
+    // start a session first, like a user would.
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:/).first()).toBeVisible({ timeout: 30_000 })
+
+    await page.getByRole('button', { name: 'Skills', exact: true }).click()
+
+    // Yours: the seeded skill resolves (stub answers get_commands without
+    // skills, so this exercises the scan fallback end to end).
+    await expect(page.getByText('seeded-e2e-skill')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('A fixture skill for the e2e suite')).toBeVisible()
+
+    // Detail view renders the bundle.
+    await page.getByText('seeded-e2e-skill').click()
+    await expect(page.getByRole('button', { name: 'Export' })).toBeVisible()
+    await page.getByRole('button', { name: '← Skills' }).click()
+
+    // Discover: the pinned catalog renders with Add affordances.
+    await page.getByRole('button', { name: 'Discover' }).click()
+    await expect(page.getByText('Anthropic — official skills')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add', exact: true }).first()).toBeVisible()
+
+    // Create flow writes a real bundle into the global root.
+    await page.getByRole('button', { name: 'New skill' }).click()
+    await page.getByPlaceholder('weekly-status-report').fill('made-in-e2e')
+    await page
+      .getByPlaceholder(/Generate weekly status reports/)
+      .fill('A skill created by the e2e suite.')
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(
+            join(soloAgentDir, 'skills', 'made-in-e2e', 'SKILL.md'),
+            'utf8',
+          )
+          return raw.includes('name: made-in-e2e')
+        } catch {
+          return false
+        }
+      })
+      .toBe(true)
+    // Back to Yours (the catalog tab is still selected) for the new row.
+    await page.getByRole('button', { name: /^Yours/ }).click()
+    await expect(page.getByText('made-in-e2e').first()).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
