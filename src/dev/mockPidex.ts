@@ -669,6 +669,8 @@ export function installMockPidex(): void {
           return Promise.resolve(undefined)
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/pidex')
+        case 'app:createSandbox':
+          return Promise.resolve('/Users/dev/sandboxes/sandbox-1')
         case 'pi:createSession':
           // The bundled context-breakdown extension publishes on
           // session_start; mirror that so the meter has data in the harness.

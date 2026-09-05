@@ -3,7 +3,7 @@ import { Button } from '@/components/form'
 import { useWorkspacesStore } from '@/stores/workspaces'
 
 export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JSX.Element {
-  const { recents, pickAndOpen, openWorkspace } = useWorkspacesStore()
+  const { recents, pickAndOpen, openWorkspace, openSandbox } = useWorkspacesStore()
   // The native folder dialog takes a beat to appear; without this the button
   // gives no feedback and a second click queues a second dialog.
   const [picking, setPicking] = useState(false)
@@ -42,6 +42,14 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
         >
           {picking ? 'Opening…' : 'Open Folder…'}
         </Button>
+
+        <button
+          onClick={() => void openSandbox()}
+          className="text-text-secondary hover:text-text -mt-4 cursor-pointer text-base underline-offset-4 transition-colors hover:underline"
+          title="Start in a fresh sandbox folder that belongs to no project"
+        >
+          or start without a folder
+        </button>
 
         {recents.length > 0 && (
           <div className="w-full max-w-md">

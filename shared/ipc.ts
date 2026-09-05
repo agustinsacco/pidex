@@ -119,6 +119,12 @@ export interface IpcInvokeMap {
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
   /**
+   * The "No folder" option: mint a fresh `<userData>/sandboxes/sandbox-N`
+   * folder for a session that belongs to no project, and return its path.
+   * From then on it is an ordinary workspace (recents, sessions, removal).
+   */
+  'app:createSandbox': { args: []; result: string }
+  /**
    * Stage model-authored HTML for the artifact iframe and return a
    * `pidex-artifact://` URL for it. The document is served on its own opaque
    * origin with `default-src 'none'`, which is what lets it run scripts

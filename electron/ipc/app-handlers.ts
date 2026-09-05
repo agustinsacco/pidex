@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
-import { basename } from 'node:path'
+import { basename, join } from 'node:path'
+import { createSandboxFolder } from '../sandbox'
 import { access } from 'node:fs/promises'
 import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
@@ -224,6 +225,10 @@ export function registerAppHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0] ?? null
   })
+
+  // userData, not homedir: E2E redirects userData (PIDEX_TEST_USER_DATA), so
+  // stub-driven runs can exercise this without writing into the real one.
+  handle('app:createSandbox', () => createSandboxFolder(join(app.getPath('userData'), 'sandboxes')))
 
   handle('app:saveDialog', async (event, options) => {
     const window = BrowserWindow.fromWebContents(event.sender)

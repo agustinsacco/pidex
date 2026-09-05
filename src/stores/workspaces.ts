@@ -20,6 +20,8 @@ interface WorkspacesState {
   openWorkspace: (path: string) => void
   /** Native folder picker; adds the chosen folder rather than replacing. */
   pickAndOpen: () => Promise<string | null>
+  /** "No folder": mint a fresh sandbox folder in main and open it. */
+  openSandbox: () => Promise<string>
   /** Move a workspace in the user-defined sidebar/switcher order. */
   moveWorkspace: (path: string, direction: 'up' | 'down') => void
   hydrate: () => Promise<void>
@@ -62,6 +64,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   pickAndOpen: async () => {
     const path = await window.pidex.invoke('app:selectFolder')
     if (path) get().openWorkspace(path)
+    return path
+  },
+
+  openSandbox: async () => {
+    const path = await window.pidex.invoke('app:createSandbox')
+    get().openWorkspace(path)
     return path
   },
 

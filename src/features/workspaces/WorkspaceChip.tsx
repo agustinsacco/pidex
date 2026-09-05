@@ -101,6 +101,26 @@ export function WorkspaceChip({
           >
             <span className="text-lg">Open folder…</span>
           </MenuRow>
+          <MenuRow
+            active={false}
+            onClick={() => {
+              setOpen(false)
+              void useWorkspacesStore
+                .getState()
+                .openSandbox()
+                .then(() => {
+                  useSessionsStore.getState().activate(null)
+                })
+            }}
+          >
+            <span
+              className="min-w-0 flex-1 truncate text-lg"
+              title="Start in a fresh sandbox folder that belongs to no project"
+            >
+              No folder
+            </span>
+            <span className="text-text-tertiary shrink-0 text-sm">sandbox</span>
+          </MenuRow>
         </PopupMenu>
       )}
     </span>
