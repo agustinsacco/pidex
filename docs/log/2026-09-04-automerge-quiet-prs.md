@@ -49,13 +49,19 @@ exactly that reason.
 
 ## What drives it
 
-`.github/workflows/automerge.yml`, on `workflow_run` from CI. That single
-trigger closes the loop in both directions: CI finishing on a PR is what makes
-that PR eligible, and CI finishing on **main** — after a merge lands — is what
-re-evaluates everything still open. The queue drains one PR per CI cycle with
-no schedule, no polling, and nothing running on a laptop.
+`.github/workflows/automerge.yml`, on two triggers. `workflow_run` from CI
+closes the loop in both directions: CI finishing on a PR is what makes that PR
+eligible, and CI finishing on **main** — after a merge lands — is what
+re-evaluates everything still open, so the queue drains one PR per CI cycle.
+And a `schedule` poll every 15 minutes, so a PR that went green with nobody
+watching still merges and a run that died is retried within the quarter hour.
+Both are confined to 10:00–22:00 `America/Toronto`; nothing merges overnight.
 
-`workflow_dispatch` runs it by hand, defaulting to a dry run.
+`workflow_dispatch` runs it by hand, defaulting to a dry run, and ignores the
+window — a person pressed the button.
+
+See [2026-09-05-automerge-window-and-token.md](2026-09-05-automerge-window-and-token.md)
+for why the poll was added and what the token check covers.
 
 **`AUTOMERGE_TOKEN` must be a PAT.** A push made by `GITHUB_TOKEN` does not
 trigger workflows, so merging with it would land on main without running CI:
