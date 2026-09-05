@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RpcCommand } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
-import { dropQueuedEntry, unqueueMessage } from './queueActions'
+import { CLEAR_QUEUE_MIN_PI, dropQueuedEntry, unqueueMessage } from './queueActions'
 
 const piCommand = vi.fn()
+const invoke = vi.fn()
+
+/** What `pi:health` reports back for the version gate in the failure path. */
+function installedPi(version: string | undefined): void {
+  invoke.mockResolvedValue({ ok: true, version, minVersion: '0.84.1' })
+}
 
 /** Queue state pi reports when `clear_queue` drains it. */
 function drains(steering: string[], followUp: string[]): void {
@@ -22,7 +28,9 @@ function sentAfterDrain(): RpcCommand[] {
 
 beforeEach(() => {
   piCommand.mockReset()
-  vi.stubGlobal('window', { pidex: { piCommand } })
+  invoke.mockReset()
+  installedPi('0.84.1')
+  vi.stubGlobal('window', { pidex: { piCommand, invoke } })
   useChatStore.setState({ sessions: {} }, false)
 })
 
@@ -72,11 +80,33 @@ describe('unqueueMessage', () => {
     expect(useChatStore.getState().sessions.s1?.error).toMatch(/already delivered/)
   })
 
-  it('leaves the queue alone and names the version when the drain is unsupported', async () => {
+  it('leaves the queue alone and names both versions when the drain is unsupported', async () => {
     piCommand.mockResolvedValue({ success: false, error: 'Unknown command: clear_queue' })
     await unqueueMessage('s1', 'steer', 0, 'drop me')
     expect(sentAfterDrain()).toEqual([])
-    expect(useChatStore.getState().sessions.s1?.error).toMatch(/pi 0\.84\.4/)
+    const error = useChatStore.getState().sessions.s1?.error
+    expect(error).toMatch(/unchanged/)
+    expect(error).toMatch(new RegExp(`needs pi ${CLEAR_QUEUE_MIN_PI.replace(/\./g, '\\.')}`))
+    expect(error).toMatch(/this machine has 0\.84\.1/)
+    expect(error).toMatch(/npm install -g @earendil-works\/pi-coding-agent/)
+  })
+
+  it('still advises an upgrade when the installed version is unknown', async () => {
+    piCommand.mockResolvedValue({ success: false, error: 'Unknown command: clear_queue' })
+    invoke.mockRejectedValue(new Error('no ipc'))
+    await unqueueMessage('s1', 'steer', 0, 'drop me')
+    const error = useChatStore.getState().sessions.s1?.error
+    expect(error).toMatch(/needs pi/)
+    expect(error).not.toMatch(/this machine has/)
+  })
+
+  it('does not blame the version when the installed pi already supports the drain', async () => {
+    piCommand.mockResolvedValue({ success: false, error: 'not streaming' })
+    installedPi('0.85.1')
+    await unqueueMessage('s1', 'steer', 0, 'drop me')
+    const error = useChatStore.getState().sessions.s1?.error
+    expect(error).toMatch(/not streaming/)
+    expect(error).not.toMatch(/needs pi/)
   })
 
   it('names the messages it could not put back', async () => {
