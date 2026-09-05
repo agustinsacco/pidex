@@ -4,20 +4,25 @@ import type { ResolvedSkill, SkillImportPreview, SkillScope } from '@shared/skil
 import { parseSkillFrontmatter, setSkillDraftFlag } from '@shared/skills'
 import { SKILL_CATALOG, type SkillCatalogLibrary } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
-import { PaneShell, PaneTitle } from '@/components/PaneShell'
+import { PageShell } from '@/components/PageShell'
+import { PaneTitle } from '@/components/PaneShell'
 import { ModalOverlay } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { Markdown } from '@/components/markdown/Markdown'
 import { NewSkillModal } from './NewSkillModal'
 
 /**
- * Right-pane Skills page (sidebar → Skills), modeled on Claude Desktop's
+ * Global Skills page (sidebar → Skills), modeled on Claude Desktop's
  * Customize → Skills: a **Yours** tab listing everything pi resolves, grouped
  * by where it lives, and a **Discover** tab of pinned curated libraries with
  * one-click install into the global root. Everything shown comes from
  * `skills:list`; every mutation round-trips through main and refreshes.
+ *
+ * A page, not a right pane: skills are global/project state with no tie to
+ * any session, so this renders over the whole main region and works from the
+ * home screen too (the pane version needed a live session to exist at all).
  */
-export const SkillsPane = memo(function SkillsPane({
+export const SkillsPage = memo(function SkillsPage({
   workspacePath,
 }: {
   workspacePath: string
@@ -44,7 +49,7 @@ export const SkillsPane = memo(function SkillsPane({
   }
 
   return (
-    <PaneShell
+    <PageShell
       title={<PaneTitle label="Skills" meta={result ? `${skills.length}` : undefined} />}
       actions={
         <div className="flex items-center gap-1.5">
@@ -57,7 +62,9 @@ export const SkillsPane = memo(function SkillsPane({
         </div>
       }
     >
-      <div className="flex h-full min-h-0 flex-col">
+      {/* Centered column: a page spans the whole main region, and list rows
+          stretched across an ultrawide window stop reading as rows. */}
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
         {selected ? (
           <SkillDetail
             skill={selected}
@@ -120,7 +127,7 @@ export const SkillsPane = memo(function SkillsPane({
           }}
         />
       )}
-    </PaneShell>
+    </PageShell>
   )
 })
 

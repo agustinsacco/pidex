@@ -47,8 +47,9 @@ describe('parseWorktreeList', () => {
   it('normalises the POSIX separators git prints, even on Windows', () => {
     // Real Windows porcelain output. Left as-is, this path never compares
     // equal to a `join`-built session cwd in the same folder.
-    const [wt] = parseWorktreeList('worktree C:/repo/.pidex/worktrees/x\nHEAD abc\n')
-    expect(wt.path).toBe(normalize('C:/repo/.pidex/worktrees/x'))
+    const parsed = parseWorktreeList('worktree C:/repo/.pidex/worktrees/x\nHEAD abc\n')
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.path).toBe(normalize('C:/repo/.pidex/worktrees/x'))
   })
 
   it('parses main + linked + detached + prunable entries', () => {

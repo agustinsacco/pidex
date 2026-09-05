@@ -27,10 +27,9 @@ It is the **only** element allowed in the strip the OS draws window controls in,
 Main area is a **resizable multi-pane layout** with drag handles, persisted per-session (selection, side, split size, fullscreen — localStorage, pruned on session dispose), panes closable/reopenable from a view menu and shortcuts:
 
 1. **Chat pane** — always present ([04-chat.md](chat.md)).
-2. **Files pane** — explorer tree + open-file tabs with Monaco ([05-files-editor.md](specs/build/05-files-editor.md)). Opening a file from tree, chat file-chips, or diffs lands here; support split (open to the side).
+2. **Files pane** — file management and explorer tree + open-file tabs with Monaco ([files.md](files.md)). Opening a file from tree, chat file-chips, or diffs lands here.
 3. **Terminal pane** — tabbed terminals ([06-terminal.md](terminal.md)).
-4. **Artifacts pane** — gallery + viewer ([07-artifacts.md](specs/build/07-artifacts.md)); opens automatically when a session produces its first artifact.
-5. **Skills pane** — browse, create, import/export and install skills into pi's global or project roots ([2026-09-04-skills-page.md](log/2026-09-04-skills-page.md)); opened from the sidebar's Skills row.
+4. **Artifacts pane** — gallery + viewer ([07-artifacts.md](specs/build/07-artifacts.md)); opens automatically when a session produces its first artifact. The cross-session index is the global Artifacts _page_ (below), not this pane.
 
 Requirements:
 
@@ -47,6 +46,7 @@ Requirements:
 
 ## Global surfaces
 
+- **Global pages** — Artifacts and Skills (sidebar rows, `data-testid="global-page"`). Full-main-region overlays belonging to no session, so they work from the home screen; any session activation (a lane row, New) closes them ([2026-09-05-skills-artifacts-pages.md](log/2026-09-05-skills-artifacts-pages.md)). Skills lives only here — browse, create, import/export and install into pi's global or project roots ([2026-09-04-skills-page.md](log/2026-09-04-skills-page.md)). The Artifacts page indexes every open session's artifacts; opening one jumps to its session with the per-session pane on it.
 - **Toasts** (also used by extension `notify`).
 - **Status strip** (bottom of chat pane or window): extension `setStatus` entries, pi crash/restart notices, update availability.
 - **Command palette** (Cmd/Ctrl+K): app actions (new session, toggle panes, switch workspace/session, theme) — distinct from the chat `/` command menu.

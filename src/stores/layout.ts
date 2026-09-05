@@ -2,10 +2,19 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
 
-export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'skills' | null
+export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null
 export type PaneSide = 'left' | 'right'
 
-const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts', 'skills'] as const
+/**
+ * Global full-window surfaces (sidebar → Artifacts / Skills). A page is not a
+ * right pane: it belongs to no session, renders over the whole main region,
+ * and is reachable from the home screen. Skills lives ONLY here; Artifacts
+ * keeps its per-session pane (side-by-side viewing while the model iterates)
+ * and the page is the cross-session index.
+ */
+export type GlobalPage = 'artifacts' | 'skills'
+
+const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts'] as const
 
 /** Float-pane layout for ONE chat session. */
 interface SessionPanes {
@@ -43,9 +52,17 @@ const panes = keyedSlice<SessionPanes>({ ...DEFAULT_PANES })
  */
 interface LayoutState {
   sidebarVisible: boolean
+  /**
+   * Open global page, or null. Deliberately NOT per session and NOT
+   * persisted: it is app-level navigation, and any session activation
+   * (clicking a lane, New) closes it — see `activate` in stores/sessions.ts.
+   */
+  page: GlobalPage | null
   /** session id → that session's float-pane layout. */
   bySession: Record<string, SessionPanes>
   toggleSidebar: () => void
+  setPage: (page: GlobalPage | null) => void
+  togglePage: (page: GlobalPage) => void
   setRightPane: (pane: RightPane, sessionId?: string) => void
   toggleRightPane: (pane: Exclude<RightPane, null>, sessionId?: string) => void
   toggleRightExpanded: (sessionId?: string) => void
@@ -115,9 +132,14 @@ function schedulePersist(bySession: Record<string, SessionPanes>): void {
 
 export const useLayoutStore = create<LayoutState>((set) => ({
   sidebarVisible: true,
+  page: null,
   bySession: loadPersisted(),
 
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
+
+  setPage: (page) => set({ page }),
+
+  togglePage: (page) => set((state) => ({ page: state.page === page ? null : page })),
 
   setRightPane: (pane, sessionId) =>
     set((state) => patch(state, sessionId, (current) => ({ ...current, pane }))),

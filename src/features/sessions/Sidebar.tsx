@@ -72,6 +72,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const activePage = useLayoutStore((s) => s.page)
   const recents = useWorkspacesStore((s) => s.recents)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
   const [worktreeModal, setWorktreeModal] = useState<{
@@ -701,7 +702,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
       {/* Flat nav rows, matching the reference: icon + label, no border or
           shadow. New routes to the home screen; the folder is chosen there
-          via the composer's workspace chip. */}
+          via the composer's workspace chip. Artifacts and Skills open GLOBAL
+          pages over the main region — they used to toggle a per-session right
+          pane, which made both rows silent no-ops on the home screen. */}
       <nav className="px-2 pb-1.5">
         <NavRow
           label="New"
@@ -711,12 +714,14 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         />
         <NavRow
           label="Artifacts"
-          onClick={() => useLayoutStore.getState().toggleRightPane('artifacts')}
+          active={activePage === 'artifacts'}
+          onClick={() => useLayoutStore.getState().togglePage('artifacts')}
           icon={<ArtifactsIcon />}
         />
         <NavRow
           label="Skills"
-          onClick={() => useLayoutStore.getState().toggleRightPane('skills')}
+          active={activePage === 'skills'}
+          onClick={() => useLayoutStore.getState().togglePage('skills')}
           icon={<SkillsIcon />}
         />
       </nav>
@@ -1772,18 +1777,25 @@ function NavRow({
   label,
   icon,
   badge = false,
+  active = false,
   onClick,
 }: {
   label: string
   icon: React.ReactNode
   /** Draw the icon in a bordered circle (the reference does this for New only). */
   badge?: boolean
+  /** This row's page is the one on screen — same fill as an active session row. */
+  active?: boolean
   onClick: () => void
 }): React.JSX.Element {
   return (
     <button
       onClick={onClick}
-      className="text-text hover:bg-sidebar-hover group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors"
+      aria-pressed={active}
+      className={clsx(
+        'text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors',
+        active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
+      )}
     >
       <span
         className={clsx(
