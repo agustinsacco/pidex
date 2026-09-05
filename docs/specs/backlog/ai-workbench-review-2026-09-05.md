@@ -23,6 +23,9 @@ through customer research or production telemetry.
 
 ## Visual and interaction assessment
 
+For specific font delivery, type sizes, density, surfaces and interaction rules,
+see the [Phosphor refinement proposal](phosphor-refinement-2026-09-05.md).
+
 - **Keep Phosphor.** Warm graphite/amber dark, cool-neutral/ember light, restrained
   borders and structural monospace are distinctive. This needs stronger hierarchy,
   not a new palette, glowing dashboards, or a wholesale VS Code imitation.
