@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename, join } from 'node:path'
-import { createSandboxFolder } from '../sandbox'
+import { listSandboxFolders, openSandboxFolder, resolveSandboxFolder } from '../sandbox'
 import { access } from 'node:fs/promises'
+import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
+import { registry } from '../registry'
 import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
 import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
@@ -55,6 +57,20 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * Where sandboxes live. userData, not homedir: E2E redirects userData
+ * (PIDEX_TEST_USER_DATA), so stub-driven runs never touch the real one.
+ */
+function sandboxBase(): string {
+  return join(app.getPath('userData'), 'sandboxes')
+}
+
+/** Trash a path if it is there — a missing one is not an error here. */
+async function trashIfPresent(path: string): Promise<void> {
+  if (!(await pathExists(path))) return
+  await shell.trashItem(path)
 }
 
 /** App preferences, native dialogs, and runtime info. */
@@ -226,9 +242,42 @@ export function registerAppHandlers(): void {
     return result.filePaths[0] ?? null
   })
 
-  // userData, not homedir: E2E redirects userData (PIDEX_TEST_USER_DATA), so
-  // stub-driven runs can exercise this without writing into the real one.
-  handle('app:createSandbox', () => createSandboxFolder(join(app.getPath('userData'), 'sandboxes')))
+  handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
+
+  handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
+
+  /**
+   * A sandbox's transcripts go with it. They are scratch chats about a folder
+   * that no longer exists, and leaving them behind would hand the next
+   * `sandbox-N` — numbers are reused once the folder above them is gone — a
+   * sidebar full of somebody else's history.
+   *
+   * Everything goes to the Trash rather than being unlinked, the same as
+   * deleting a session (electron/pi/session-deleter.ts): the user may have
+   * written real work into a folder they only meant as scratch.
+   */
+  handle('app:deleteSandbox', async (_event, path: string) => {
+    const target = resolveSandboxFolder(sandboxBase(), path)
+    if (!target) return { ok: false as const, reason: 'not-a-sandbox' as const }
+    if (registry.list().some((session) => session.workspacePath === target)) {
+      return { ok: false as const, reason: 'in-use' as const }
+    }
+
+    // Resolved before the folder goes: both paths mangle the REAL cwd, which
+    // is unknowable once the folder is in the Trash.
+    const transcripts = [sessionDirForCwd(target), claudeProjectDirForCwd(target)]
+    try {
+      await shell.trashItem(target)
+    } catch {
+      return { ok: false as const, reason: 'failed' as const }
+    }
+    // Best-effort, and after the folder: a transcript left behind is a worse
+    // outcome than the folder surviving, but not one worth failing over.
+    await Promise.allSettled(transcripts.map(trashIfPresent))
+
+    setRecentWorkspaces(getPrefs().recentWorkspaces.filter((w) => w.path !== target))
+    return { ok: true as const }
+  })
 
   handle('app:saveDialog', async (event, options) => {
     const window = BrowserWindow.fromWebContents(event.sender)

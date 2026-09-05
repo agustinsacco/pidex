@@ -118,6 +118,14 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const [worktreeDirs, setWorktreeDirs] = useState<{ path: string; root: string }[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  /** Which group's "Delete sandbox…" row is waiting for its second click. */
+  const [confirmSandboxDelete, setConfirmSandboxDelete] = useState<string | null>(null)
+  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
+  const sandboxPaths = useMemo(() => new Set(sandboxes.map((sandbox) => sandbox.path)), [sandboxes])
+  const closeWorkspaceMenu = (): void => {
+    setWorkspaceMenuFor(null)
+    setConfirmSandboxDelete(null)
+  }
   /** Which roots we already listed worktrees for (avoids re-listing on toggle). */
   const worktreeListedKey = useRef<string | null>(null)
 
@@ -664,7 +672,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     // A merged worktree group is represented by its main-repo workspace path,
     // which is the entry the user sees and orders in the sidebar.
     useWorkspacesStore.getState().moveWorkspace(group.workspacePath, direction)
-    setWorkspaceMenuFor(null)
+    closeWorkspaceMenu()
   }
 
   const rowProps = (meta: SessionMeta) => {
@@ -806,7 +814,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   </button>
                   {workspaceMenuFor === group.workspacePath && (
                     <PopupMenu
-                      onClose={() => setWorkspaceMenuFor(null)}
+                      onClose={() => closeWorkspaceMenu()}
                       triggerRef={workspaceMenuTriggerRef}
                       className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
                     >
@@ -817,7 +825,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                         onClick={() => {
                           if (selectingThis) clearSelection()
                           else selectWholeGroup(group, visible)
-                          setWorkspaceMenuFor(null)
+                          closeWorkspaceMenu()
                         }}
                       >
                         {selectingThis ? 'Clear selection' : 'Select all lanes'}
@@ -836,6 +844,37 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                       >
                         Move down
                       </MenuRow>
+                      {/* Only a sandbox is deletable from here: it is pidex's
+                          own scratch folder, so removing it is ours to offer.
+                          A project folder is the user's and is only ever
+                          forgotten, in Settings. */}
+                      {sandboxPaths.has(group.workspacePath) && (
+                        <MenuRow
+                          active={false}
+                          testId="workspace-group-delete-sandbox"
+                          onClick={() => {
+                            // Second click confirms, in place — a sandbox goes
+                            // to the Trash, so a modal would cost more than the
+                            // mistake it prevents.
+                            if (confirmSandboxDelete !== group.workspacePath) {
+                              setConfirmSandboxDelete(group.workspacePath)
+                              return
+                            }
+                            closeWorkspaceMenu()
+                            void useWorkspacesStore.getState().deleteSandbox(group.workspacePath)
+                          }}
+                        >
+                          <span
+                            className={
+                              confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
+                            }
+                          >
+                            {confirmSandboxDelete === group.workspacePath
+                              ? 'Delete, with its chats?'
+                              : 'Delete sandbox…'}
+                          </span>
+                        </MenuRow>
+                      )}
                     </PopupMenu>
                   )}
                   <button
