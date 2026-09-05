@@ -945,6 +945,34 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
         // used to offer "Sign in" as though the token were gone.
         lifecycle: 'lazy-keep-alive',
       })
+
+    // Slack is the other interesting row: a client id alone must produce a
+    // public-client config. Slack only accepts the loopback redirect URL from
+    // a PKCE app, and a PKCE app's token exchange carries no secret — an
+    // empty one written here would make the adapter send client_secret_post.
+    const slack = page.getByTestId('connector-slack')
+    await slack.getByPlaceholder('client ID').fill('4242.1337')
+    await slack.getByRole('button', { name: 'Add', exact: true }).click()
+
+    await expect
+      .poll(async () => {
+        try {
+          const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
+          return JSON.parse(raw).mcpServers.slack as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .toEqual({
+        url: 'https://mcp.slack.com/mcp',
+        auth: 'oauth',
+        lifecycle: 'lazy-keep-alive',
+        oauth: {
+          clientId: '4242.1337',
+          redirectUri: 'http://localhost:19876/callback',
+          scope: expect.stringContaining('search:read.public'),
+        },
+      })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })
