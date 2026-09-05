@@ -464,6 +464,7 @@ function mockStats(): Record<string, unknown> {
   }
 }
 
+let mockFileClipboard = { paths: [] as string[], cut: false }
 const mockFs = new Map<string, boolean>(
   [
     'src/',
@@ -1293,6 +1294,11 @@ export function installMockPidex(): void {
           return Promise.resolve(mockStats())
         case 'app:openExternal':
           return Promise.resolve(undefined)
+        case 'clipboard:readFiles':
+          return Promise.resolve(mockFileClipboard)
+        case 'clipboard:writeFiles':
+          mockFileClipboard = { paths: args[0] as string[], cut: args[1] as boolean }
+          return Promise.resolve(undefined)
         case 'clipboard:writeImage':
           return mockClipboardWriteImage(args[0] as { data: string; mimeType: string })
         case 'gh:available':
@@ -1511,6 +1517,21 @@ export function installMockPidex(): void {
             size: 64,
             mtimeMs: Date.now(),
           })
+        }
+        case 'fs:pickEntries':
+          return Promise.resolve([])
+        case 'fs:transfer': {
+          const [, from, dir, mode] = args as [string, string, string, string]
+          const to = dir + '/' + from.slice(from.lastIndexOf('/') + 1)
+          if (mockFs.has(to)) return Promise.reject(new Error(`Already exists: ${to}`))
+          if (!mockFs.has(from))
+            return Promise.reject(new Error('Source is unavailable in browser preview'))
+          for (const [path, directory] of [...mockFs]) {
+            if (path !== from && !path.startsWith(from + '/')) continue
+            mockFs.set(to + path.slice(from.length), directory)
+            if (mode === 'move') mockFs.delete(path)
+          }
+          return Promise.resolve(to)
         }
         case 'fs:createFile':
         case 'fs:createDir': {
