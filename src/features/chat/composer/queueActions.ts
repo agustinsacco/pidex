@@ -1,5 +1,9 @@
+import { isNewerVersion } from '@shared/version'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
+
+/** The pi release that added `clear_queue`. Above `MIN_PI_VERSION`, on purpose. */
+export const CLEAR_QUEUE_MIN_PI = '0.84.4'
 
 /**
  * Drop one entry from a rendered queue snapshot, returning the survivors.
@@ -38,11 +42,8 @@ export async function unqueueMessage(
   const response = await window.pidex.piCommand<'clear_queue'>(sessionId, { type: 'clear_queue' })
   const drainedQueues = response.success ? response.data : undefined
   if (!drainedQueues) {
-    const reason = response.success ? 'clear_queue returned no queues' : response.error
-    chat.setError(
-      sessionId,
-      `Could not remove the queued message: ${reason}. This needs pi 0.84.4 or newer.`,
-    )
+    const rejection = response.success ? null : response.error
+    chat.setError(sessionId, await unqueueFailureMessage(rejection))
     return
   }
 
@@ -67,4 +68,39 @@ export async function unqueueMessage(
   if (dropped === null) {
     chat.setError(sessionId, 'That message was already delivered to the agent.')
   }
+}
+
+/**
+ * Explain a failed drain in terms the reader can act on.
+ *
+ * `clear_queue` sits above `MIN_PI_VERSION`, so a perfectly supported install
+ * can be running a pi that never heard of it — naming the requirement alone
+ * left the user with no way to tell whether that was their case. The installed
+ * version has to come from the main process; the chat store knows pi's
+ * protocol, not its build. Health is TTL-cached there, so this is cheap.
+ *
+ * Upgrading is not the whole instruction either: the session is already bound
+ * to a subprocess of the old pi, which lives until the session is restarted.
+ *
+ * `rejection` is pi's own error, or null when pi answered success with no
+ * queues. Only a rejection proves the queues were left alone, so only then
+ * does this promise they were.
+ */
+async function unqueueFailureMessage(rejection: string | null): Promise<string> {
+  const parts = [
+    `Could not remove the queued message: ${rejection ?? 'clear_queue returned no queues'}.`,
+  ]
+  if (rejection) parts.push('Your queued messages are unchanged.')
+
+  const installed = await window.pidex
+    .invoke('pi:health')
+    .then((health) => health.version)
+    .catch(() => undefined)
+  if (!installed || isNewerVersion(CLEAR_QUEUE_MIN_PI, installed)) {
+    parts.push(
+      `Removing a queued message needs pi ${CLEAR_QUEUE_MIN_PI} or newer${installed ? `; this machine has ${installed}` : ''}.`,
+      'Update with npm install -g @earendil-works/pi-coding-agent@latest, then start a new session — this one keeps the pi it spawned.',
+    )
+  }
+  return parts.join(' ')
 }
