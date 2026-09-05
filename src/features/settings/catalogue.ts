@@ -44,6 +44,13 @@ export const PACKAGE_CATALOGUE: CatalogueEntry[] = [
     description: 'Delegate tasks to parallel or chained pi subagents with isolated contexts.',
     docsUrl: 'https://www.npmjs.com/package/pi-subagents',
   },
+  {
+    spec: 'npm:@injaneity/pi-computer-use',
+    name: 'Computer use',
+    description:
+      'Desktop app control for macOS, Windows, and Linux — observe windows, search UI, click, type, and scroll through accessible interfaces.',
+    docsUrl: 'https://github.com/injaneity/pi-computer-use',
+  },
 ]
 
 /** True when a settings `packages` entry already covers a catalogue spec. */

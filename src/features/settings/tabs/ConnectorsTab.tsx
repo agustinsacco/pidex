@@ -156,7 +156,7 @@ export function ConnectorsTab(): React.JSX.Element {
 
   return (
     <div className="max-w-xl">
-      <h2 className="text-xl font-semibold">Connectors</h2>
+      <h2 className="text-xl font-semibold">MCP Connectors</h2>
       <p className="text-text-secondary mt-1 text-base">
         Services reachable over the Model Context Protocol, provided to sessions by the{' '}
         <span className="font-mono">pi-mcp-adapter</span> package. Signing in runs the

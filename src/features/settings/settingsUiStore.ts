@@ -7,6 +7,7 @@ export type SettingsTab =
   | 'extensions'
   | 'claude-provider'
   | 'web-access'
+  | 'computer-use'
   | 'connectors'
   | 'workspaces'
   | 'advanced'
