@@ -84,10 +84,24 @@ Three rules hold this together:
    adapter also auto-authenticates mid-turn when a model calls a tool whose
    server has no token.
 
-Slack is the one connector that cannot be one click: it does not support
-dynamic registration, so its row takes a client id/secret and writes an
-`oauth.redirectUri` that must match what was registered in the Slack app —
-which also pins the callback port (`MCP_OAUTH_CALLBACK_PORT` overrides it).
+Slack is the one connector that cannot be one click, and its row carries the
+whole reason why. Slack has no dynamic registration, so the user registers an
+app and pastes its **client id**. Slack also refuses a `http://localhost`
+redirect URL unless that app has **PKCE** enabled, and a PKCE app is a _public_
+client whose token exchange carries no secret — so the secret field is
+optional, and an empty one is never written (the adapter reads any secret as
+`client_secret_post`). The registered redirect URI pins the callback port:
+default `19876`, `MCP_OAUTH_CALLBACK_PORT` overrides it.
+
+Two more Slack rules the row states, both of which fail late and confusingly:
+only **internal or Marketplace-published** apps may use MCP at all, and the
+app's declared user scopes must cover what pidex asks for. The row's "Set up
+the app" disclosure hands over an app manifest that sets the scopes, the
+redirect URL and `pkce_enabled` in one paste, and the catalog writes
+`oauth.scope` from the same list (`SLACK_USER_SCOPES`) — with no scope
+configured the MCP SDK asks for every scope in the server's
+protected-resource metadata, and Slack fails the whole authorization for any
+scope the app does not declare.
 
 ## The Claude provider reaches MCP through pi, not around it
 

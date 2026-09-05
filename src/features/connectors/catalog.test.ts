@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CONNECTORS,
   OAUTH_REDIRECT_URI,
+  SLACK_APP_MANIFEST,
+  SLACK_USER_SCOPES,
   buildConnectorConfig,
   connectorForUrl,
   connectorUrl,
@@ -67,22 +69,48 @@ describe('connector catalog', () => {
     })
   })
 
-  it('carries the exact registered redirect URI for a confidential client', () => {
+  it('writes a pre-registered client as a public PKCE client by default', () => {
+    // Slack only accepts a loopback redirect URL from a PKCE app, and a PKCE
+    // app's token exchange carries no secret. An empty secret must not reach
+    // mcp.json: the adapter reads one as client_secret_post.
     const slack = CONNECTORS.find((c) => c.id === 'slack')!
-    expect(buildConnectorConfig(slack, { clientId: 'abc', clientSecret: 'shh' })).toEqual({
+    expect(buildConnectorConfig(slack, { clientId: 'abc', clientSecret: '  ' })).toEqual({
       url: 'https://mcp.slack.com/mcp',
       auth: 'oauth',
       lifecycle: 'lazy-keep-alive',
-      oauth: { clientId: 'abc', clientSecret: 'shh', redirectUri: OAUTH_REDIRECT_URI },
+      oauth: {
+        clientId: 'abc',
+        redirectUri: OAUTH_REDIRECT_URI,
+        scope: SLACK_USER_SCOPES.join(' '),
+      },
     })
   })
 
-  it('refuses to write a confidential connector with no credentials', () => {
+  it('keeps a client secret when a pre-PKCE app supplies one', () => {
+    const slack = CONNECTORS.find((c) => c.id === 'slack')!
+    const oauth = buildConnectorConfig(slack, { clientId: 'abc', clientSecret: 'shh' })
+      .oauth as Record<string, string>
+    expect(oauth.clientSecret).toBe('shh')
+  })
+
+  it('refuses to write a pre-registered connector with no client ID', () => {
     const slack = CONNECTORS.find((c) => c.id === 'slack')!
     expect(() => buildConnectorConfig(slack)).toThrow(/client ID/)
     expect(() => buildConnectorConfig(slack, { clientId: ' ', clientSecret: 'x' })).toThrow(
       /client ID/,
     )
+  })
+
+  it('asks Slack for exactly the scopes its own manifest declares', () => {
+    // With no scope configured the MCP SDK requests every scope in the
+    // server's protected-resource metadata, and Slack fails the whole
+    // authorization for any scope the registered app does not declare.
+    const manifest = JSON.parse(SLACK_APP_MANIFEST) as {
+      oauth_config: { redirect_urls: string[]; pkce_enabled: boolean; scopes: { user: string[] } }
+    }
+    expect(manifest.oauth_config.scopes.user).toEqual(SLACK_USER_SCOPES)
+    expect(manifest.oauth_config.redirect_urls).toEqual([OAUTH_REDIRECT_URI])
+    expect(manifest.oauth_config.pkce_enabled).toBe(true)
   })
 
   it('recognises a configured server by endpoint, whatever it is named', () => {
@@ -98,8 +126,8 @@ describe('connector catalog', () => {
     // reports `cached` and the row used to offer "Sign in" for it.
     for (const entry of CONNECTORS) {
       const config =
-        entry.authKind === 'confidential'
-          ? buildConnectorConfig(entry, { clientId: 'a', clientSecret: 'b' })
+        entry.authKind === 'preregistered'
+          ? buildConnectorConfig(entry, { clientId: 'a' })
           : buildConnectorConfig(entry)
       expect(config.lifecycle).toBe('lazy-keep-alive')
     }

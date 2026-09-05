@@ -18,12 +18,25 @@ import type { McpServerConfig } from '@shared/mcp'
  * How a connector authorizes.
  *
  * - `dcr` — the adapter registers itself dynamically. One click, no secrets.
- * - `confidential` — the provider does NOT support dynamic registration, so
- *   the user must create an app and supply its client id/secret, and the
- *   redirect URI has to match exactly. Slack is the only one so far.
+ * - `preregistered` — the provider does NOT support dynamic registration, so
+ *   the user creates an app up front and supplies its client id, and the
+ *   redirect URI has to match byte for byte. Slack is the only one so far,
+ *   and it is a *public* client: it only accepts a loopback redirect URL from
+ *   an app with PKCE enabled, and a PKCE app's token exchange carries no
+ *   secret. The secret field stays optional for that reason.
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
  */
-export type ConnectorAuthKind = 'dcr' | 'confidential' | 'oauth-or-key'
+export type ConnectorAuthKind = 'dcr' | 'preregistered' | 'oauth-or-key'
+
+/**
+ * What a `preregistered` connector needs done in the provider's console
+ * before its row can do anything. Data, not markup: the tab renders it.
+ */
+export interface ConnectorSetup {
+  steps: string[]
+  /** Something to paste into the provider's console, verbatim. */
+  snippet?: { label: string; text: string }
+}
 
 /** A regional/site variant of the same service, each with its own endpoint. */
 export interface ConnectorVariant {
@@ -47,6 +60,17 @@ export interface ConnectorEntry {
   variants?: { label: string; options: ConnectorVariant[] }
   /** A distinct read-only endpoint, offered as a checkbox when present. */
   readOnlyUrl?: string
+  /**
+   * Exact OAuth scope string, for providers whose default is wrong. With no
+   * scope configured the MCP SDK asks for every scope in the server's
+   * protected-resource metadata (`client/auth.js`: `scopes_supported.join`),
+   * and a provider that only grants what the registered app declares rejects
+   * the whole authorization over the difference — so Slack pins the same set
+   * its manifest declares.
+   */
+  scope?: string
+  /** Console steps the user must complete first (`preregistered` only). */
+  setup?: ConnectorSetup
   /** The thing that will bite, shown in the row. */
   caveat?: string
 }
@@ -54,10 +78,67 @@ export interface ConnectorEntry {
 /**
  * The adapter's OAuth callback, from its own defaults
  * (`mcp-oauth-provider.ts`: port 19876, path `/callback`). Only relevant for
- * `confidential` connectors, where the provider requires the redirect URI to
+ * `preregistered` connectors, where the provider requires the redirect URI to
  * be registered up front and match byte for byte.
  */
 export const OAUTH_REDIRECT_URI = 'http://localhost:19876/callback'
+
+/**
+ * Slack's user-token scopes, verbatim from the server's own
+ * `.well-known/oauth-protected-resource` (checked 2026-09-04). One list feeds
+ * both the manifest the user pastes into Slack and the `oauth.scope` pidex
+ * writes, because Slack fails the authorization if they disagree.
+ */
+export const SLACK_USER_SCOPES = [
+  'canvases:read',
+  'canvases:write',
+  'channels:history',
+  'channels:read',
+  'channels:write',
+  'chat:write',
+  'emoji:read',
+  'files:read',
+  'files:write',
+  'groups:history',
+  'groups:read',
+  'groups:write',
+  'im:history',
+  'im:read',
+  'im:write',
+  'lists:read',
+  'lists:write',
+  'mpim:history',
+  'mpim:read',
+  'mpim:write',
+  'reactions:read',
+  'reactions:write',
+  'search:read.files',
+  'search:read.im',
+  'search:read.mpim',
+  'search:read.private',
+  'search:read.public',
+  'search:read.users',
+  'users:read',
+  'users:read.email',
+]
+
+/**
+ * An app manifest for Slack's "create from a manifest" flow, which sets the
+ * scopes, the redirect URL and `pkce_enabled` in one paste. No bot user: a
+ * desktop (loopback) redirect may not request bot scopes at all.
+ */
+export const SLACK_APP_MANIFEST = JSON.stringify(
+  {
+    display_information: { name: 'pidex MCP' },
+    oauth_config: {
+      redirect_urls: [OAUTH_REDIRECT_URI],
+      scopes: { user: SLACK_USER_SCOPES },
+      pkce_enabled: true,
+    },
+  },
+  null,
+  2,
+)
 
 export const CONNECTORS: ConnectorEntry[] = [
   {
@@ -109,11 +190,13 @@ export const CONNECTORS: ConnectorEntry[] = [
         { id: 'us3', label: 'US3', url: 'https://mcp.us3.datadoghq.com/v1/mcp' },
         { id: 'us5', label: 'US5', url: 'https://mcp.us5.datadoghq.com/v1/mcp' },
         { id: 'eu1', label: 'EU1', url: 'https://mcp.datadoghq.eu/v1/mcp' },
+        { id: 'uk1', label: 'UK1', url: 'https://mcp.uk1.datadoghq.com/v1/mcp' },
         { id: 'ap1', label: 'AP1', url: 'https://mcp.ap1.datadoghq.com/v1/mcp' },
+        { id: 'ap2', label: 'AP2', url: 'https://mcp.ap2.datadoghq.com/v1/mcp' },
       ],
     },
     caveat:
-      'The host is per site — the wrong one authorizes and then returns nothing. Append ?toolsets=… to trim a large tool set.',
+      'The host is per site — the wrong one authorizes and then returns nothing. The default endpoint serves a subset of the tools: append ?toolsets=all for every tool, or ?toolsets=apm,llmobs for one product. GovCloud (ddog-gov.com) is not supported.',
   },
   {
     id: 'fellow',
@@ -131,10 +214,19 @@ export const CONNECTORS: ConnectorEntry[] = [
     name: 'Slack',
     serverName: 'slack',
     summary: 'Channels, threads, messages and canvases.',
-    authKind: 'confidential',
+    authKind: 'preregistered',
     docsUrl: 'https://docs.slack.dev/ai/slack-mcp-server',
     url: 'https://mcp.slack.com/mcp',
-    caveat: `Slack does not support dynamic registration. Create a Slack app, register ${OAUTH_REDIRECT_URI} as its redirect URL, and paste its credentials below.`,
+    scope: SLACK_USER_SCOPES.join(' '),
+    caveat: `Slack has no dynamic registration, and it accepts ${OAUTH_REDIRECT_URI} as a redirect URL only from an app with PKCE enabled — which makes the app a public client, so the secret stays empty. Enabling PKCE cannot be undone without Slack support, and only internal or Marketplace-published apps may use MCP at all.`,
+    setup: {
+      steps: [
+        'At api.slack.com/apps choose Create New App → From a manifest, and paste the manifest below. It sets the user scopes, the redirect URL and PKCE together.',
+        'Install the app to your workspace, then copy Basic Information → Client ID.',
+        'Paste the client ID here and press Add. Leave the secret empty unless your app predates PKCE.',
+      ],
+      snippet: { label: 'Slack app manifest', text: SLACK_APP_MANIFEST },
+    },
   },
 ]
 
@@ -143,8 +235,9 @@ export interface ConnectorChoice {
   /** Variant id, for connectors that have variants. */
   variant?: string
   readOnly?: boolean
-  /** `confidential` connectors only. Stored in mcp.json, so env refs are ok. */
+  /** `preregistered` connectors only. Stored in mcp.json, so env refs are ok. */
   clientId?: string
+  /** Optional: a PKCE app has no secret to give. */
   clientSecret?: string
 }
 
@@ -181,14 +274,19 @@ export function buildConnectorConfig(
     auth: 'oauth',
     lifecycle: 'lazy-keep-alive',
   }
-  if (entry.authKind === 'confidential') {
+  const oauth: Record<string, string> = {}
+  if (entry.authKind === 'preregistered') {
     const clientId = choice.clientId?.trim()
+    if (!clientId) throw new Error(`${entry.name} needs a client ID`)
+    oauth.clientId = clientId
+    // A PKCE app is a public client and its token exchange carries no secret;
+    // writing an empty string would make the adapter pick client_secret_post.
     const clientSecret = choice.clientSecret?.trim()
-    if (!clientId || !clientSecret) {
-      throw new Error(`${entry.name} needs a client ID and client secret`)
-    }
-    config.oauth = { clientId, clientSecret, redirectUri: OAUTH_REDIRECT_URI }
+    if (clientSecret) oauth.clientSecret = clientSecret
+    oauth.redirectUri = OAUTH_REDIRECT_URI
   }
+  if (entry.scope) oauth.scope = entry.scope
+  if (Object.keys(oauth).length > 0) config.oauth = oauth
   return config
 }
 

@@ -103,14 +103,14 @@ keyed on the adapter's prompt shape, not a modal owned by the Settings window.
 All six speak Streamable HTTP; all six use OAuth. Sources are the vendors' own
 docs, checked 2026-08-27.
 
-| Connector      | URL                                | Auth                            | The thing that will bite                                                                                     |
-| -------------- | ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Linear**     | `https://mcp.linear.app/mcp`       | OAuth 2.1 + DCR — one click     | `…/mcp/readonly` is a real second endpoint; offer read-only as a checkbox. `/sse` is deprecated.             |
-| **Notion**     | `https://mcp.notion.com/mcp`       | OAuth + DCR — one click         | `/sse` exists as legacy; never default to it.                                                                |
-| **Braintrust** | `https://api.braintrust.dev/mcp`   | OAuth **or** API key            | EU data plane is `https://api-eu.braintrust.dev/mcp` — must be a choice, not a guess.                        |
-| **Datadog**    | `https://mcp.datadoghq.com/v1/mcp` | OAuth                           | Host is per **site** (`mcp.datadoghq.eu`, us3/us5/ap1…); `?toolsets=apm,llmobs` trims a very large tool set. |
-| **Fellow**     | `https://fellow.app/mcp`           | OAuth                           | A workspace admin must first enable _Security → Allow users to create MCP connections_, or auth just fails.  |
-| **Slack**      | `https://mcp.slack.com/mcp`        | **Confidential** OAuth — no DCR | Needs a Slack app's `client_id`/`client_secret` and an **exact** registered redirect URI.                    |
+| Connector      | URL                                | Auth                            | The thing that will bite                                                                                    |
+| -------------- | ---------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Linear**     | `https://mcp.linear.app/mcp`       | OAuth 2.1 + DCR — one click     | `…/mcp/readonly` is a real second endpoint; offer read-only as a checkbox. `/sse` is deprecated.            |
+| **Notion**     | `https://mcp.notion.com/mcp`       | OAuth + DCR — one click         | `/sse` exists as legacy; never default to it.                                                               |
+| **Braintrust** | `https://api.braintrust.dev/mcp`   | OAuth **or** API key            | EU data plane is `https://api-eu.braintrust.dev/mcp` — must be a choice, not a guess.                       |
+| **Datadog**    | `https://mcp.datadoghq.com/v1/mcp` | OAuth 2.1 + DCR — one click     | Host is per **site** (`mcp.datadoghq.eu`, us3/us5/uk1/ap1/ap2); `?toolsets=all` widens a default subset.    |
+| **Fellow**     | `https://fellow.app/mcp`           | OAuth                           | A workspace admin must first enable _Security → Allow users to create MCP connections_, or auth just fails. |
+| **Slack**      | `https://mcp.slack.com/mcp`        | **Pre-registered** app — no DCR | Needs a PKCE Slack app's `client_id` (public client, no secret) and an **exact** registered redirect URI.   |
 
 Slack is the one connector that cannot be one-click, and it dictates a config
 shape the others do not need:
@@ -121,11 +121,18 @@ shape the others do not need:
   "auth": "oauth",
   "oauth": {
     "clientId": "${SLACK_MCP_CLIENT_ID}",
-    "clientSecret": "${SLACK_MCP_CLIENT_SECRET}",
-    "redirectUri": "http://localhost:19876/callback"
+    "redirectUri": "http://localhost:19876/callback",
+    "scope": "canvases:read canvases:write …" // SLACK_USER_SCOPES
   }
 }
 ```
+
+Re-checked 2026-09-04 against Slack's own metadata, which moved the shape:
+Slack accepts a `http://localhost` redirect URL only from an app with **PKCE**
+enabled, and a PKCE app is a public client, so `clientSecret` is now optional
+and omitted by default. `oauth.scope` is required in practice — without it the
+MCP SDK requests every scope in `.well-known/oauth-protected-resource` and
+Slack rejects the authorization for anything the app has not declared.
 
 The adapter reads exactly these keys (`extractOAuthConfig`,
 `mcp-auth-flow.ts:156`) and interpolates `${ENV}`. The redirect URI must match

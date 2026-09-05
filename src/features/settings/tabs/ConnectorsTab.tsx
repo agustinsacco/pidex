@@ -19,6 +19,7 @@ import {
   connectorUrl,
   type ConnectorChoice,
   type ConnectorEntry,
+  type ConnectorSetup,
 } from '@/features/connectors/catalog'
 import {
   CHECK_DOT,
@@ -695,7 +696,7 @@ function CatalogRow({
             read-only
           </label>
         )}
-        {entry.authKind === 'confidential' && (
+        {entry.authKind === 'preregistered' && (
           <>
             <TextInput
               value={clientId}
@@ -706,12 +707,61 @@ function CatalogRow({
             <TextInput
               value={clientSecret}
               onChange={(e) => setClientSecret(e.target.value)}
-              placeholder="client secret"
-              className="w-40 font-mono"
+              placeholder="client secret (optional)"
+              className="w-48 font-mono"
             />
           </>
         )}
       </div>
+
+      {entry.setup && <SetupSteps setup={entry.setup} />}
+    </div>
+  )
+}
+
+/**
+ * The console work a `preregistered` connector needs before its client id
+ * exists. Collapsed by default — it is a one-time errand, and the row above
+ * it is what people came for.
+ */
+function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <div className="text-text-tertiary mt-1.5 text-sm">
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1">
+        <ChevronIcon size={8} expanded={open} />
+        Set up the app
+      </button>
+
+      {open && (
+        <ol className="mt-1 ml-4 list-decimal space-y-1">
+          {setup.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      )}
+
+      {open && setup.snippet && (
+        <div className="mt-2">
+          <div className="flex items-center gap-2">
+            <span>{setup.snippet.label}</span>
+            <button
+              className="underline-offset-2 hover:underline"
+              onClick={() => {
+                void navigator.clipboard.writeText(setup.snippet?.text ?? '')
+                setCopied(true)
+              }}
+            >
+              {copied ? 'copied' : 'copy'}
+            </button>
+          </div>
+          <pre className="border-border bg-bg-secondary mt-1 max-h-48 overflow-auto rounded border p-2 font-mono text-sm">
+            {setup.snippet.text}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
