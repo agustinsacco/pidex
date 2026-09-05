@@ -123,15 +123,15 @@ jobs:
       # place a Windows-specific bug shows up first.
       - name: Unit tests (Windows)
         if: runner.os == 'Windows'
-        # Non-fatal for the same reason the job is, and additionally so a unit
-        # failure does not skip the e2e step below — the two answer different
-        # questions and the first run needs both. Drop this once the
-        # POSIX-only suites are platform-gated.
-        continue-on-error: true
         run: npm test
 
+      # `always()` so a red unit step does not skip this one: the two answer
+      # different questions (path handling vs. does the app run at all), and
+      # while Windows is being brought up both answers are wanted from every
+      # run. The job-level `continue-on-error` is what keeps either failure
+      # off the workflow's conclusion.
       - name: E2E (Windows)
-        if: runner.os == 'Windows'
+        if: always() && runner.os == 'Windows'
         run: npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - uses: actions/upload-artifact@v4
