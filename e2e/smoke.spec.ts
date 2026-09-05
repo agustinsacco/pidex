@@ -165,6 +165,18 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     // Artifacts pane got the artifact from the tool result.
     await page.getByTitle('Artifacts pane').click()
     await expect(page.getByText('E2E Card').first()).toBeVisible({ timeout: 10_000 })
+
+    // The global Artifacts page (sidebar row) indexes it across sessions…
+    await page.getByRole('button', { name: 'Artifacts', exact: true }).click()
+    const globalPage = page.getByTestId('global-page')
+    await expect(globalPage.getByText('Everything your open sessions have produced')).toBeVisible()
+    const row = globalPage.getByRole('button', { name: /E2E Card/ })
+    await expect(row).toBeVisible()
+
+    // …and opening a row jumps back into the session with the pane on it.
+    await row.click()
+    await expect(globalPage).not.toBeVisible()
+    await expect(page.getByTestId('right-pane').getByText('E2E Card').first()).toBeVisible()
   } finally {
     await shutdown(harness)
   }
@@ -2118,13 +2130,10 @@ test('skills page lists a seeded skill, and creates a new one on disk', async ()
   try {
     await openWorkspace(page)
 
-    // The pane is per-session (the sidebar toggle is a no-op on home), so
-    // start a session first, like a user would.
-    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
-    await expect(page.getByText(/Done:/).first()).toBeVisible({ timeout: 30_000 })
-
+    // A global page: opens straight from the home screen, no session needed
+    // (the old right-pane version silently no-oped here).
     await page.getByRole('button', { name: 'Skills', exact: true }).click()
+    await expect(page.getByTestId('global-page')).toBeVisible()
 
     // Yours: the seeded skill resolves (stub answers get_commands without
     // skills, so this exercises the scan fallback end to end).

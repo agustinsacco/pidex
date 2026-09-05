@@ -13,6 +13,8 @@ import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
+import { SkillsPage } from '@/features/skills/SkillsPage'
+import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { RightPane } from '@/features/files/RightPane'
@@ -35,6 +37,7 @@ export function App(): React.JSX.Element {
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const starting = useStartingChatStore((s) => s.starting)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
+  const page = useLayoutStore((s) => s.page)
   const currentWorkspaceGit = useSessionsStore((s) =>
     currentWorkspace ? s.gitByCwd[currentWorkspace] : undefined,
   )
@@ -177,7 +180,7 @@ export function App(): React.JSX.Element {
       <TopBar workspacePath={currentWorkspace} />
       <div className="flex min-h-0 flex-1">
         {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
-        <main className="min-w-0 flex-1">
+        <main className="relative min-w-0 flex-1">
           {/*
             Three states, in priority order. `starting` sits between the other
             two on purpose: it covers the window where a chat has been sent but
@@ -193,6 +196,23 @@ export function App(): React.JSX.Element {
             <StartingChat starting={starting} />
           ) : (
             <WorkspaceHome workspacePath={currentWorkspace} />
+          )}
+          {/*
+            Global pages cover the main region as an overlay, like an expanded
+            pane (z-20 inside MainWithPanes) but one level up and one z higher.
+            Overlay rather than a fourth main state so the session underneath
+            stays mounted — closing the page returns to the chat exactly as it
+            was. Sidebar and top bar stay reachable; session activation closes
+            the page (stores/sessions.ts activate).
+          */}
+          {page && (
+            <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
+              {page === 'skills' ? (
+                <SkillsPage workspacePath={currentWorkspace} />
+              ) : (
+                <ArtifactsPage />
+              )}
+            </div>
           )}
         </main>
       </div>

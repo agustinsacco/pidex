@@ -16,6 +16,7 @@ import {
   recordUsageDelta,
 } from '@/lib/liveStats'
 import { isArtifactWriteTool } from '@/lib/artifactTools'
+import { useLayoutStore } from './layout'
 import { lanePrefs } from './lanePrefs'
 
 /**
@@ -782,6 +783,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   activate: (sessionId) => {
+    // Activation means "show me this session" (or home, for null), so any
+    // global page in the way closes. Direct call rather than a subscription:
+    // re-activating the CURRENT session (clicking its sidebar row while a
+    // page is up) changes no state a subscriber could see, but must still
+    // bring the chat back.
+    useLayoutStore.getState().setPage(null)
     set((s) => ({
       activeSessionId: sessionId,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
