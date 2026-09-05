@@ -1,5 +1,10 @@
 # 2026-09-04 — merge the PRs nobody had anything to say about
 
+> **Removed 2026-09-05.** Automerge no longer exists — the workflow, the
+> script and its tests were deleted. See
+> [2026-09-05-remove-automerge.md](2026-09-05-remove-automerge.md). This entry
+> is history only.
+
 Lanes open PRs faster than a person clicks Merge. Three sat open on this date,
 all green, all unread. The queue, not the work, was the bottleneck.
 
