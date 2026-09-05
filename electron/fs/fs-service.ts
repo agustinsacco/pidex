@@ -27,7 +27,7 @@ export async function listDir(
       workspacePath,
       visible.map((e) => join(dirPath, e.name)),
     )
-    if (ignored) visible = visible.filter((e) => !ignored.has(gitPath(join(dirPath, e.name))))
+    if (ignored) visible = visible.filter((e) => !ignored.has(e.name))
   }
 
   const result: DirEntry[] = visible.map((entry) => ({
@@ -45,7 +45,26 @@ export async function listDir(
 }
 
 /**
- * Returns the subset of paths that are gitignored, or null when not a repo.
+ * The trailing name of a path git printed, whichever way it spelled it.
+ *
+ * Matching git's output against our own `join`-built absolute paths does not
+ * survive Windows: `join` emits backslashes, git emits forward slashes, and
+ * git may hand back a canonicalised drive letter or the long form of an 8.3
+ * directory (`RUNNER~1` → `runneradmin`). Any one of those makes every lookup
+ * miss, nothing gets filtered, and files the user ignored — `.env` and friends
+ * — appear in the explorer.
+ *
+ * Every candidate in one call is a direct child of the same directory, so
+ * basenames are unique among them and comparing on the basename alone is both
+ * sufficient and immune to all of that.
+ */
+function basenameOf(path: string): string {
+  return path.split(/[/\\]/).pop() ?? path
+}
+
+/**
+ * Returns the basenames of the paths that are gitignored, or null when not a
+ * repo.
  *
  * Three things here are load-bearing:
  *
@@ -63,22 +82,6 @@ export async function listDir(
  * stdin must be written on the returned child handle or git waits forever and
  * every call dies on the timeout with filtering silently disabled.
  */
-/**
- * One spelling for both sides of the ignored-set lookup.
- *
- * `join()` produces backslashes on Windows; git speaks forward slashes and
- * ends its lines with CRLF there. Either difference alone makes every `has()`
- * miss, so nothing is ever filtered and files the user ignored — `.env` and
- * friends — show up in the explorer. Normalising the Set and the lookup the
- * same way is correct whichever spelling git happens to echo back.
- *
- * `sep`-based rather than a blind `\` → `/` replace: on POSIX a backslash is
- * a legal filename character, and there this is the identity.
- */
-function gitPath(path: string): string {
-  return path.split(sep).join('/')
-}
-
 function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<string> | null> {
   return new Promise((resolve) => {
     const child = execFile(
@@ -86,7 +89,8 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
       ['check-ignore', '--stdin'],
       { cwd: workspacePath, timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout) => {
-        if (!error) return resolve(new Set(stdout.split(/\r?\n/).filter(Boolean).map(gitPath)))
+        // CRLF on Windows, so split on both.
+        if (!error) return resolve(new Set(stdout.split(/\r?\n/).filter(Boolean).map(basenameOf)))
         if ((error as { code?: number }).code === 1) return resolve(new Set())
         resolve(null)
       },

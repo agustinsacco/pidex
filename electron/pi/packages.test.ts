@@ -67,7 +67,8 @@ describe('resolveInstallPath', () => {
     // pi stores home-adjacent local packages as ../../../<name> relative to
     // ~/.pi/agent (verified against pi 0.84.2).
     expect(resolveInstallPath('../../../pkg', 'path', dirs)).toBe(resolve('/home/pkg'))
-    expect(resolveInstallPath('/abs/pkg', 'path', dirs)).toBe(resolve('/abs/pkg'))
+    // An absolute spec is handed back verbatim, so no resolve() here.
+    expect(resolveInstallPath('/abs/pkg', 'path', dirs)).toBe('/abs/pkg')
   })
 })
 

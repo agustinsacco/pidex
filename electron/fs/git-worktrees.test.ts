@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { normalize, join } from 'node:path'
 import {
   addWorktree,
   commitAll,
@@ -44,6 +44,13 @@ afterEach(async () => {
 })
 
 describe('parseWorktreeList', () => {
+  it('normalises the POSIX separators git prints, even on Windows', () => {
+    // Real Windows porcelain output. Left as-is, this path never compares
+    // equal to a `join`-built session cwd in the same folder.
+    const [wt] = parseWorktreeList('worktree C:/repo/.pidex/worktrees/x\nHEAD abc\n')
+    expect(wt.path).toBe(normalize('C:/repo/.pidex/worktrees/x'))
+  })
+
   it('parses main + linked + detached + prunable entries', () => {
     const parsed = parseWorktreeList(
       [
