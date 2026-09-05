@@ -2,10 +2,10 @@
 // Merge open PRs that nobody has commented on, whose CI is green, and that
 // have no conflicts. Everything else is left alone, with a printed reason.
 //
-// The driver is `.github/workflows/automerge.yml`, which runs this after CI
-// finishes. It is not a poller: a merge lands on main, main's CI runs, that
-// completion triggers the next evaluation, and the queue drains one PR at a
-// time. `--dry-run` locally prints the verdicts and touches nothing.
+// The driver is `.github/workflows/automerge.yml`: every 15 minutes inside a
+// local-time window, plus every CI completion. `--dry-run` locally prints the
+// verdicts and touches nothing; `--anytime` ignores the window (a human asked
+// for this run by hand).
 //
 // The decision is a pure function (`decide`) over one `gh pr view --json`
 // object plus a `behindBy` count, so the rules are unit-tested without
@@ -19,6 +19,7 @@
 //   scripts/automerge-prs.mjs              # merge/update what qualifies
 //   scripts/automerge-prs.mjs --dry-run    # print the verdicts, change nothing
 //   scripts/automerge-prs.mjs --pr 169     # consider one PR only
+//   scripts/automerge-prs.mjs --anytime    # ignore the 10:00-22:00 window
 
 import { execFile } from 'node:child_process'
 import { realpathSync } from 'node:fs'
@@ -50,6 +51,61 @@ function isBot(author) {
 
 /** A check result that counts as "not a failure". */
 const CHECK_OK = new Set(['SUCCESS', 'SKIPPED', 'NEUTRAL'])
+
+/** When nothing is merged: 10:00–22:00 local, so nothing lands at 3am. */
+export const DEFAULT_WINDOW = '10:00-22:00'
+
+/**
+ * `"10:00-22:00"` → `{ start: 600, end: 1320 }`, minutes from local midnight.
+ * Returns null on anything malformed, including a window that wraps past
+ * midnight — that is a mistake here, not a late-night schedule.
+ */
+export function parseWindow(spec) {
+  const match = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/.exec(spec ?? '')
+  if (!match) return null
+  const [sh, sm, eh, em] = match.slice(1).map(Number)
+  if (sh > 23 || eh > 23 || sm > 59 || em > 59) return null
+  const start = sh * 60 + sm
+  const end = eh * 60 + em
+  if (end <= start) return null
+  return { start, end }
+}
+
+/** Minutes from midnight in `timeZone` — local, so DST is handled by Intl. */
+function localMinutesOf(date, timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date)
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value)
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value)
+    return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : undefined
+  } catch {
+    // A bad zone name throws RangeError out of Intl. Not our problem to fix,
+    // only to fail closed on.
+    return undefined
+  }
+}
+
+/**
+ * True when `date` is inside `window`, read as wall-clock time in `timeZone`.
+ * Half-open: `[start, end)`. Returns false — never true — on an unreadable
+ * window, time zone, or instant, so a typo cannot turn into a 24/7 merge bot.
+ *
+ * @param {Date} date
+ * @param {{ window?: string, timeZone?: string }} [options]
+ */
+export function isWithinWindow(date, { window = DEFAULT_WINDOW, timeZone } = {}) {
+  const parsed = parseWindow(window)
+  if (!parsed) return false
+  const zone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  const minutes = localMinutesOf(date, zone)
+  if (!Number.isFinite(minutes)) return false
+  return minutes >= parsed.start && minutes < parsed.end
+}
 
 /**
  * @param {object} pr one PR from `gh pr view --json`, plus `behindBy`: how
@@ -151,6 +207,22 @@ async function main(argv) {
   const dryRun = argv.includes('--dry-run')
   const onlyIndex = argv.indexOf('--pr')
   const only = onlyIndex >= 0 ? argv[onlyIndex + 1] : null
+
+  // The window is enforced HERE, not only in the cron, for two reasons: cron is
+  // evaluated in UTC and cannot follow a DST shift, and the CI-completion
+  // trigger fires around the clock no matter what the schedule says.
+  const window = process.env.AUTOMERGE_WINDOW || DEFAULT_WINDOW
+  if (!argv.includes('--anytime')) {
+    const timeZone = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (!parseWindow(window)) {
+      console.error(`AUTOMERGE_WINDOW "${window}" is not HH:MM-HH:MM — holding every PR`)
+      return 1
+    }
+    if (!isWithinWindow(new Date(), { window, timeZone })) {
+      console.log(`outside the automerge window (${window} ${timeZone}) — nothing merged`)
+      return 0
+    }
+  }
 
   const repo = (
     await gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])

@@ -4,10 +4,23 @@ name: Automerge
 # have no conflicts. The rules live in `scripts/automerge-prs.mjs`; this file
 # only decides WHEN they run.
 #
-# Event-driven, not a poll. `workflow_run` on CI covers both halves of the
-# loop: CI finishing on a PR is what makes that PR eligible, and CI finishing
-# on main (after a merge lands) is what re-evaluates everything still open.
-# So the queue drains itself one PR per CI cycle with no schedule at all.
+# Two triggers, and each covers a hole in the other.
+#
+# `workflow_run` on CI is the fast path: CI finishing on a PR is what makes that
+# PR eligible, and CI finishing on main (after a merge lands) is what
+# re-evaluates everything still open, so the queue drains itself one PR per CI
+# cycle. But it only fires when something pushes, and it cannot follow a DST
+# shift, so it is not the schedule.
+#
+# `schedule` is the poll: every 15 minutes, so a PR that went green while nobody
+# was watching still merges, and a run that died for any reason is retried
+# within the quarter hour rather than sitting until the next push.
+#
+# Both are bounded by the same window — 10:00–22:00 America/Toronto — which
+# `automerge-prs.mjs` enforces, NOT the cron. Cron is evaluated in UTC, so a
+# UTC-hour band can only approximate a local window across a DST change; the
+# band below is deliberately a little wider than the window and the script trims
+# it, which also keeps the overnight hours silent.
 #
 # NOTE: GitHub only evaluates `workflow_run` from the copy of this file on the
 # DEFAULT branch, so this does nothing until it is merged to main.
@@ -18,6 +31,12 @@ on:
     types: [completed]
   pull_request_target:
     types: [ready_for_review]
+  schedule:
+    # The union of the window under both offsets: 10:00-22:00 EDT is
+    # 14:00-02:00 UTC, the same clock hours EST are 15:00-03:00 UTC. So every
+    # in-window minute is polled year-round, and the extra hour on one side of
+    # each shift is scheduled but skipped by the script. Nothing runs overnight.
+    - cron: '*/15 14-23,0-2 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -47,20 +66,39 @@ jobs:
       # on main without running CI — which means no Continuous Release, and no
       # event to evaluate the next PR. The loop would stop dead after one
       # merge. Fail loudly rather than half-work.
+      #
+      # A fine-grained PAT also EXPIRES, and every 15 minutes thereafter this
+      # job would go red on the token check while a reader sees only "not set".
+      # So the check verifies the token is accepted for the two permissions the
+      # merge needs, and names the one that is missing.
       - name: Check the token
         env:
           AUTOMERGE_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if [ -z "$AUTOMERGE_TOKEN" ]; then
-            echo "::error::AUTOMERGE_TOKEN is not set. Create a fine-grained PAT with Contents: read/write and Pull requests: read/write, then add it as a repository secret named AUTOMERGE_TOKEN."
+            echo "::error::AUTOMERGE_TOKEN is not set. Create a fine-grained PAT with Contents: read/write and Pull requests: read/write, then add it as a repository secret named AUTOMERGE_TOKEN: gh secret set AUTOMERGE_TOKEN --repo $GH_REPO < token.txt"
             exit 1
           fi
+
+          rejected=""
+          gh api "repos/$GH_REPO" --jq .full_name >/dev/null 2>&1 || rejected="$rejected Contents:read"
+          gh api "repos/$GH_REPO/pulls?per_page=1" >/dev/null 2>&1 || rejected="$rejected Pull_requests:read"
+          if [ -n "$rejected" ]; then
+            echo "::error::AUTOMERGE_TOKEN was rejected ($rejected). It has expired, been revoked, or is missing a permission — mint a new fine-grained PAT with Contents: read/write and Pull requests: read/write and set it again: gh secret set AUTOMERGE_TOKEN --repo $GH_REPO < token.txt"
+            exit 1
+          fi
+          echo "token accepted for $GH_REPO"
 
       - name: Decide and merge
         env:
           GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          # The window is wall-clock Toronto time; the script reads TZ.
+          TZ: America/Toronto
         run: |
           node scripts/automerge-prs.mjs \
+            ${{ github.event_name == 'workflow_dispatch' && '--anytime' || '' }} \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
             | tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error - plain-JS script, no declarations
-import { decide } from './automerge-prs.mjs'
+import { decide, isWithinWindow, parseWindow } from './automerge-prs.mjs'
 
 /**
  * The shape `gh pr view --json` returns for a PR that qualifies: mine, green,
@@ -151,5 +151,49 @@ describe('automerge decide', () => {
       })
       expect(decide(pr).action).toBe('merge')
     })
+  })
+})
+
+describe('automerge window', () => {
+  const TORONTO = 'America/Toronto'
+  const at = (iso: string) => isWithinWindow(new Date(iso), { timeZone: TORONTO })
+
+  it('parses HH:MM-HH:MM into minutes from midnight', () => {
+    expect(parseWindow('10:00-22:00')).toEqual({ start: 600, end: 1320 })
+  })
+
+  describe('refuses a window it cannot trust', () => {
+    for (const bad of ['22:00-02:00', '9:00-22:00', '10:00-25:00', '22:00-22:00', '', undefined]) {
+      it(`${bad === undefined ? 'nothing' : JSON.stringify(bad)}`, () => {
+        expect(parseWindow(bad as string | undefined)).toBeNull()
+      })
+    }
+  })
+
+  it('is half-open on local wall-clock time', () => {
+    // 14:00Z is 10:00 EDT: the window opens here and not a minute earlier.
+    expect(at('2026-07-01T14:00:00Z')).toBe(true)
+    expect(at('2026-07-01T13:59:00Z')).toBe(false)
+    // 02:00Z is 22:00 EDT: closed at the end, same as it opens at the start.
+    expect(at('2026-07-01T01:59:00Z')).toBe(true)
+    expect(at('2026-07-01T02:00:00Z')).toBe(false)
+  })
+
+  it('follows the DST shift, which a UTC cron cannot', () => {
+    // The same UTC hour on both sides of the shift: 14:00Z is 10:00 EDT in
+    // July (inside) and 09:00 EST in January (outside). This is why the cron
+    // band is only an approximation and the script holds the real rule.
+    expect(at('2026-07-01T14:00:00Z')).toBe(true)
+    expect(at('2026-01-01T14:00:00Z')).toBe(false)
+    expect(at('2026-01-01T15:00:00Z')).toBe(true)
+    // ...and the winter window still runs to 22:00 EST, i.e. 03:00Z.
+    expect(at('2026-01-01T02:59:00Z')).toBe(true)
+    expect(at('2026-01-01T03:00:00Z')).toBe(false)
+  })
+
+  it('holds every PR when the window or zone cannot be read', () => {
+    const now = new Date('2026-07-01T16:00:00Z')
+    expect(isWithinWindow(now, { window: 'all-day', timeZone: TORONTO })).toBe(false)
+    expect(isWithinWindow(now, { timeZone: 'Mars/Phobos' })).toBe(false)
   })
 })
