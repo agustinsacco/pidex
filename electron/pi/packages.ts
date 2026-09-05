@@ -1,5 +1,3 @@
-import { execFile, spawn } from 'node:child_process'
-import { promisify } from 'node:util'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
@@ -13,9 +11,8 @@ import type {
 import { piAgentDir } from './pi-paths'
 import { claudeOneShotEnv } from './provider-detect'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { execFileAsync, spawn } from './spawn'
 import { readJsonFile } from './json-config'
-
-const execFileAsync = promisify(execFile)
 
 /**
  * Reading the `packages` arrays of pi's settings files and resolving each

@@ -27,7 +27,7 @@ export async function listDir(
       workspacePath,
       visible.map((e) => join(dirPath, e.name)),
     )
-    if (ignored) visible = visible.filter((e) => !ignored.has(join(dirPath, e.name)))
+    if (ignored) visible = visible.filter((e) => !ignored.has(e.name))
   }
 
   const result: DirEntry[] = visible.map((entry) => ({
@@ -45,7 +45,26 @@ export async function listDir(
 }
 
 /**
- * Returns the subset of paths that are gitignored, or null when not a repo.
+ * The trailing name of a path git printed, whichever way it spelled it.
+ *
+ * Matching git's output against our own `join`-built absolute paths does not
+ * survive Windows: `join` emits backslashes, git emits forward slashes, and
+ * git may hand back a canonicalised drive letter or the long form of an 8.3
+ * directory (`RUNNER~1` → `runneradmin`). Any one of those makes every lookup
+ * miss, nothing gets filtered, and files the user ignored — `.env` and friends
+ * — appear in the explorer.
+ *
+ * Every candidate in one call is a direct child of the same directory, so
+ * basenames are unique among them and comparing on the basename alone is both
+ * sufficient and immune to all of that.
+ */
+function basenameOf(path: string): string {
+  return path.split(/[/\\]/).pop() ?? path
+}
+
+/**
+ * Returns the basenames of the paths that are gitignored, or null when not a
+ * repo.
  *
  * Three things here are load-bearing:
  *
@@ -70,7 +89,8 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
       ['check-ignore', '--stdin'],
       { cwd: workspacePath, timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout) => {
-        if (!error) return resolve(new Set(stdout.split('\n').filter(Boolean)))
+        // CRLF on Windows, so split on both.
+        if (!error) return resolve(new Set(stdout.split(/\r?\n/).filter(Boolean).map(basenameOf)))
         if ((error as { code?: number }).code === 1) return resolve(new Set())
         resolve(null)
       },

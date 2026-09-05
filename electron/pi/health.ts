@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { MIN_PI_VERSION, type PiHealth } from '@shared/models'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { execFileAsync } from './spawn'
 import { createTtlCache } from './ttl-cache'
-
-const execFileAsync = promisify(execFile)
 
 /** Compare dotted semver-ish strings. Returns <0, 0, >0. */
 export function compareVersions(a: string, b: string): number {

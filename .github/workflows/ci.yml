@@ -46,6 +46,7 @@ jobs:
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +68,18 @@ jobs:
           - os: macos-latest
             shardIndex: 1
             shardTotal: 1
+          # Windows has never run here, and nothing has ever been built or
+          # shipped for it (143 releases, zero Windows assets), so this job
+          # exists to find out what breaks rather than to gate anything yet.
+          # `continue-on-error` is deliberate and TEMPORARY: a red job here
+          # must not fail the CI workflow, because `release-continuous.yml`
+          # triggers on CI success and would otherwise stop publishing the
+          # macOS and Linux builds that do work. Flip it to blocking in the
+          # same PR that turns on the Windows release build.
+          - os: windows-latest
+            shardIndex: 1
+            shardTotal: 1
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +114,24 @@ jobs:
 
       - name: E2E (macOS)
         if: runner.os == 'macOS'
+        run: npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+
+      # The full unit suite, not just the e2e run: the `checks` job is
+      # ubuntu-only, so every path-handling and cwd-mangling test in
+      # `pi-paths`, `claude-paths` and `session-writer` has only ever been
+      # asserted against POSIX separators. Cheap (~10s) and the most likely
+      # place a Windows-specific bug shows up first.
+      - name: Unit tests (Windows)
+        if: runner.os == 'Windows'
+        run: npm test
+
+      # `always()` so a red unit step does not skip this one: the two answer
+      # different questions (path handling vs. does the app run at all), and
+      # while Windows is being brought up both answers are wanted from every
+      # run. The job-level `continue-on-error` is what keeps either failure
+      # off the workflow's conclusion.
+      - name: E2E (Windows)
+        if: always() && runner.os == 'Windows'
         run: npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - uses: actions/upload-artifact@v4

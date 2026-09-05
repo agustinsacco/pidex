@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, normalize } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
 import { abortMergeAndCollectConflicts, dirtyCount, git, gitErrorText } from './git-exec'
 
@@ -70,7 +70,19 @@ export function parseWorktreeList(
   for (const line of output.split('\n')) {
     if (line.startsWith('worktree ')) {
       flush()
-      current = { path: line.slice(9), branch: null, head: '', locked: false, prunable: false }
+      // `normalize`, because git prints POSIX separators in porcelain output
+      // even on Windows: `worktree C:/repo/.pidex/worktrees/x`. Every other
+      // path in pidex is built with `join`, so leaving git's spelling here
+      // means a worktree path never compares equal to the session cwd that
+      // sits in it — the sidebar cannot group it and `addWorktree` cannot find
+      // what it just created. On POSIX this is a no-op.
+      current = {
+        path: normalize(line.slice(9)),
+        branch: null,
+        head: '',
+        locked: false,
+        prunable: false,
+      }
     } else if (!current) {
       continue
     } else if (line.startsWith('HEAD ')) {

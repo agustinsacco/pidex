@@ -52,7 +52,9 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-describe('ensureSpawnHelperExecutable', () => {
+// `ensureSpawnHelperExecutable` returns immediately on win32 — there is no
+// exec bit to restore — so these assertions only mean something on POSIX.
+describe.skipIf(process.platform === 'win32')('ensureSpawnHelperExecutable', () => {
   it('adds the exec bit to a prebuilt helper that npm unpacked as 0644', async () => {
     const dir = `prebuilds/${process.platform}-${process.arch}`
     const root = fakeNodePty({ [dir]: 0o644 })

@@ -2,23 +2,23 @@
 
 ## Locked technical decisions
 
-| Area                 | Decision                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| Shell                | Electron (current stable), TypeScript everywhere, strict mode                                    |
-| Renderer             | React 18+, Vite, Tailwind CSS                                                                    |
-| State                | Zustand (per-domain stores); no Redux                                                            |
-| Code viewing/editing | Monaco Editor (also provides the diff editor)                                                    |
-| Terminal             | xterm.js + node-pty (real PTY, user shell, full interactivity)                                   |
-| Markdown             | Streaming-tolerant pipeline (react-markdown + remark-gfm class) with Shiki or highlight.js       |
-| Diagrams             | Mermaid, client-side                                                                             |
-| Math                 | KaTeX                                                                                            |
-| Charts               | Fenced chart specs (`vega-lite / `chart JSON) via vega-lite or Chart.js                          |
-| HTML preview         | Sandboxed `<iframe sandbox>`, Code/Preview toggle                                                |
-| File watching        | chokidar (main process)                                                                          |
-| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb), Windows (nsis)              |
-| Install              | GitHub Releases + `curl … install.sh \| sh` (see [10-packaging.md](specs/build/10-packaging.md)) |
-| IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                    |
-| pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([02-pi-integration.md](pi-integration.md)) |
+| Area                 | Decision                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shell                | Electron (current stable), TypeScript everywhere, strict mode                                                                                          |
+| Renderer             | React 18+, Vite, Tailwind CSS                                                                                                                          |
+| State                | Zustand (per-domain stores); no Redux                                                                                                                  |
+| Code viewing/editing | Monaco Editor (also provides the diff editor)                                                                                                          |
+| Terminal             | xterm.js + node-pty (real PTY, user shell, full interactivity)                                                                                         |
+| Markdown             | Streaming-tolerant pipeline (react-markdown + remark-gfm class) with Shiki or highlight.js                                                             |
+| Diagrams             | Mermaid, client-side                                                                                                                                   |
+| Math                 | KaTeX                                                                                                                                                  |
+| Charts               | Fenced chart specs (`vega-lite / `chart JSON) via vega-lite or Chart.js                                                                                |
+| HTML preview         | Sandboxed `<iframe sandbox>`, Code/Preview toggle                                                                                                      |
+| File watching        | chokidar (main process)                                                                                                                                |
+| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb). Windows (nsis) is configured but never built — see [README](../README.md#install) |
+| Install              | GitHub Releases + `curl … install.sh \| sh` (see [10-packaging.md](specs/build/10-packaging.md))                                                       |
+| IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                                                                          |
+| pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([02-pi-integration.md](pi-integration.md))                                                       |
 
 ## Process model
 
@@ -53,5 +53,5 @@ pointer now.
 
 - Single source of truth for session state lives in main (registry of live sessions ↔ pi children); renderer stores are projections.
 - All long/streaming output is incrementally reduced — never rebuild whole message arrays per delta.
-- Every feature works on macOS, Linux, Windows (path handling via `node:path`, PTY shells per-OS: `$SHELL` / PowerShell).
+- Features are written to be OS-portable (path handling via `node:path`, PTY shells per-OS: `$SHELL` / PowerShell), and every binary pidex spawns goes through `electron/pi/spawn.ts` so npm's Windows `.cmd` shims are runnable. macOS and Linux are the shipped platforms; **Windows is unverified and unpublished** — CI runs its suites on `windows-latest` non-blocking, and no Windows installer has ever been released.
 - App prefs (theme, layout, workspaces, font size) in electron-store — never written into pi's config files. pi config editing is explicit and user-initiated ([09-settings.md](settings.md)).

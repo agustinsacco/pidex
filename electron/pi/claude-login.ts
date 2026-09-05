@@ -1,12 +1,8 @@
-import { spawn, type ChildProcess } from 'node:child_process'
-import { execFile } from 'node:child_process'
 import { homedir } from 'node:os'
-import { promisify } from 'node:util'
 import type { ClaudeLoginState } from '@shared/models'
 import { claudeStatus, resolveBinary } from './packages'
 import { piProcessEnv } from './shell-env'
-
-const execFileAsync = promisify(execFile)
+import { execFileAsync, spawnPiped, type ChildProcess } from './spawn'
 
 /**
  * Signing the Claude Code CLI in and out from inside pidex.
@@ -104,10 +100,9 @@ export async function startClaudeLogin(
     throw new Error('claude not found on your login-shell PATH. Install @anthropic-ai/claude-code.')
   }
 
-  const child = spawn(binary, ['auth', 'login'], {
+  const child = spawnPiped(binary, ['auth', 'login'], {
     cwd: homedir(),
     env: { ...(await piProcessEnv()), ...extraEnv },
-    stdio: ['pipe', 'pipe', 'pipe'],
   })
 
   // Who was signed in before. Needed because `claude auth status` says

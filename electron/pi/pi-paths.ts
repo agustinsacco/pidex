@@ -44,10 +44,24 @@ export function webSearchConfigPath(): string {
   return join(homedir(), '.pi', 'web-search.json')
 }
 
-/** `/Users/x/proj` → `--Users-x-proj--` (verified against real dirs). */
+/**
+ * `/Users/x/proj` → `--Users-x-proj--`, `C:\Users\x\proj` → `--C-Users-x-proj--`.
+ *
+ * A byte-for-byte mirror of pi's own `getDefaultSessionDirPath` (read off
+ * 0.84.1): strip ONE leading separator, then replace every `/`, `\` and `:`
+ * with `-`. Nothing here may be "simplified" independently of pi — this name
+ * is how both programs find the same directory.
+ *
+ * The colon is the rule that is easy to miss and expensive to get wrong. It
+ * only ever appears on Windows, in the drive letter, and `:` is illegal in an
+ * NTFS filename (it opens an alternate data stream), so a name built without
+ * this replacement can be neither created nor found: every session vanishes
+ * from the sidebar and `sessions:changed` never fires. Verified by the first
+ * Windows CI run, which failed with
+ * `ENOENT … sessions\--C:-Users-RUNNER~1-…--`.
+ */
 export function sessionDirNameForCwd(cwd: string): string {
-  const segments = cwd.split(/[/\\]/).filter(Boolean)
-  return `--${segments.join('-')}--`
+  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
 }
 
 /**

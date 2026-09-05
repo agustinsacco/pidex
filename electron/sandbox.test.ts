@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   createSandboxFolder,
   listSandboxFolders,
@@ -122,8 +122,10 @@ describe('resolveSandboxFolder', () => {
   const base = '/data/sandboxes'
 
   it('accepts a sandbox-N folder directly inside the base', () => {
+    // `resolve()` on both sides: the contract is "the same folder", not the
+    // POSIX spelling of it. On Windows a rooted path gains the cwd's drive.
     expect(resolveSandboxFolder(base, '/data/sandboxes/sandbox-3')).toBe(
-      '/data/sandboxes/sandbox-3',
+      resolve('/data/sandboxes/sandbox-3'),
     )
   })
 

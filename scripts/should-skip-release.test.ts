@@ -29,7 +29,9 @@ function skips(message: string): boolean {
  * The first two cases below are those exact commit messages. They are the
  * point of this file.
  */
-describe('should-skip-release', () => {
+// Runs the real POSIX shell script; the release workflow it guards only ever
+// runs on ubuntu.
+describe.skipIf(process.platform === 'win32')('should-skip-release', () => {
   describe('the regressions that motivated the trailer', () => {
     it('publishes a commit whose BODY documents the marker (v0.1.37)', () => {
       const message = [
