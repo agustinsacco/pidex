@@ -11,6 +11,7 @@ import { registerPtyHandlers } from './ipc/pty-handlers'
 import { registerMcpHandlers } from './ipc/mcp-handlers'
 import { registerPackagesHandlers } from './ipc/packages-handlers'
 import { registerUpdateHandlers } from './ipc/updates-handlers'
+import { registerSkillsHandlers } from './ipc/skills-handlers'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -33,4 +34,5 @@ export function registerIpcHandlers(): void {
   registerMcpHandlers()
   registerPackagesHandlers()
   registerUpdateHandlers()
+  registerSkillsHandlers()
 }

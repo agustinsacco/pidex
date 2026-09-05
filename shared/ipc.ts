@@ -21,6 +21,7 @@ import type {
   McpServerConfig,
   McpWriteScope,
 } from './mcp'
+import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
 import type {
   AddWorktreeBranch,
   AppPrefs,
@@ -292,6 +293,60 @@ export interface IpcInvokeMap {
    * shell out to pi's own package-manager CLI; output streams on
    * `packages:output:<jobId>` with the exit code on `packages:exit:<jobId>`.
    */
+  /**
+   * Skills page (sidebar → Skills). Resolution asks pi itself
+   * (`get_commands` over a throwaway RPC process, no tokens) with a
+   * filesystem scan fallback; mutations touch only the pidex-writable roots.
+   * All paths cross this boundary only after `skills:list` reported them.
+   */
+  'skills:list': { args: [workspacePath?: string]; result: SkillsListResult }
+  'skills:readFile': {
+    args: [dir: string, relPath: string]
+    result: { content: string | null; binary: boolean; size: number }
+  }
+  'skills:create': {
+    args: [
+      options: {
+        scope: SkillScope
+        workspacePath?: string
+        name: string
+        description: string
+        content: string
+        draft: boolean
+      },
+    ]
+    result: { dir: string }
+  }
+  'skills:writeFile': {
+    args: [dir: string, relPath: string, content: string, workspacePath?: string]
+    result: void
+  }
+  'skills:delete': { args: [dir: string, workspacePath?: string]; result: void }
+  /** Zip the bundle and offer a save dialog. Null when the user cancelled. */
+  'skills:export': { args: [dir: string]; result: { savedTo: string } | null }
+  /** Install one skill from the pinned catalog into the user root. */
+  'skills:install': {
+    args: [
+      libraryId: string,
+      skillName: string,
+      options?: { targetName?: string; overwrite?: boolean },
+    ]
+    result: { dir: string; fileCount: number }
+  }
+  /** Open-dialog for a .md/.zip/.skill and preview it. Null when cancelled. */
+  'skills:importPick': { args: []; result: SkillImportPreview | null }
+  'skills:importConfirm': {
+    args: [
+      options: {
+        sourcePath: string
+        scope: SkillScope
+        workspacePath?: string
+        overrideName?: string
+      },
+    ]
+    result: { dir: string }
+  }
+
   'packages:list': { args: [workspacePath?: string]; result: PiPackageEntry[] }
   'packages:run': {
     args: [

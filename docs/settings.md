@@ -28,7 +28,7 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 ## Advanced
 
-- Raw file editors (Monaco JSON, schema-validated where schemas exist) for `~/.pi/agent/settings.json` and `models.json`, with a "restart sessions to apply" note. Read-only viewer for discovered skills/extensions/prompts (paths + descriptions). Never render `auth.json` contents.
+- Raw file editors (Monaco JSON, schema-validated where schemas exist) for `~/.pi/agent/settings.json` and `models.json`, with a "restart sessions to apply" note. Read-only viewer for discovered extensions/prompts/themes (paths + descriptions) — skills moved to their own page (sidebar → Skills, [2026-09-04-skills-page.md](log/2026-09-04-skills-page.md)). Never render `auth.json` contents.
 - pi health: detected pi path + version, min supported, re-check.
 
 ## Keybindings

@@ -171,6 +171,15 @@ export function ArtifactsIcon({ size = 14, className }: IconProps): React.JSX.El
   )
 }
 
+/** Four-point spark — the Skills page. */
+export function SkillsIcon({ size = 14, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className}>
+      <path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2L12 3z" />
+    </svg>
+  )
+}
+
 /** Document with a folded corner. */
 export function FileIcon({ size = 14, className }: IconProps): React.JSX.Element {
   return (

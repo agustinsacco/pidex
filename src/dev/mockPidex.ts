@@ -752,6 +752,59 @@ export function installMockPidex(): void {
             defaultThinkingLevel: 'medium',
             packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
           })
+        case 'skills:list':
+          return Promise.resolve({
+            probe: 'scan' as const,
+            userRoot: '/mock/.pi/agent/skills',
+            projectRoot: '/mock/workspace/.pi/skills',
+            skills: [
+              {
+                name: 'snowflake-mcp',
+                description: 'Write safe, scoped Snowflake SQL queries against the warehouse.',
+                dir: '/mock/.pi/agent/skills/snowflake-mcp',
+                scope: 'user' as const,
+                source: 'scan',
+                origin: 'top-level' as const,
+                writable: true,
+                borrowed: false,
+                draft: false,
+                files: [{ path: 'SKILL.md', size: 4495 }],
+                totalSize: 4495,
+                warnings: [],
+              },
+              {
+                name: 'debug',
+                description: 'Diagnose a failing pidex session outside-in.',
+                dir: '/mock/workspace/.claude/skills/debug',
+                scope: 'project' as const,
+                source: 'scan',
+                origin: 'top-level' as const,
+                writable: false,
+                borrowed: true,
+                draft: false,
+                files: [{ path: 'SKILL.md', size: 5905 }],
+                totalSize: 5905,
+                warnings: [],
+              },
+            ],
+          })
+        case 'skills:readFile':
+          return Promise.resolve({
+            content: '---\nname: mock\ndescription: Mock skill\n---\n\n# Mock skill\n',
+            binary: false,
+            size: 64,
+          })
+        case 'skills:create':
+        case 'skills:importConfirm':
+          return Promise.resolve({ dir: '/mock/.pi/agent/skills/new-skill' })
+        case 'skills:install':
+          return Promise.resolve({ dir: '/mock/.pi/agent/skills/installed', fileCount: 1 })
+        case 'skills:writeFile':
+        case 'skills:delete':
+          return Promise.resolve(undefined)
+        case 'skills:export':
+        case 'skills:importPick':
+          return Promise.resolve(null)
         case 'packages:list':
           return Promise.resolve([
             {

@@ -2,10 +2,10 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
 
-export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null
+export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'skills' | null
 export type PaneSide = 'left' | 'right'
 
-const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts'] as const
+const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts', 'skills'] as const
 
 /** Float-pane layout for ONE chat session. */
 interface SessionPanes {

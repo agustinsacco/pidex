@@ -30,6 +30,7 @@ Main area is a **resizable multi-pane layout** with drag handles, persisted per-
 2. **Files pane** — explorer tree + open-file tabs with Monaco ([05-files-editor.md](specs/build/05-files-editor.md)). Opening a file from tree, chat file-chips, or diffs lands here; support split (open to the side).
 3. **Terminal pane** — tabbed terminals ([06-terminal.md](terminal.md)).
 4. **Artifacts pane** — gallery + viewer ([07-artifacts.md](specs/build/07-artifacts.md)); opens automatically when a session produces its first artifact.
+5. **Skills pane** — browse, create, import/export and install skills into pi's global or project roots ([2026-09-04-skills-page.md](log/2026-09-04-skills-page.md)); opened from the sidebar's Skills row.
 
 Requirements:
 
