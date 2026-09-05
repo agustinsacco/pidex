@@ -9,8 +9,47 @@ const A = 'session-a'
 const B = 'session-b'
 
 beforeEach(() => {
-  useLayoutStore.setState({ bySession: {}, sidebarVisible: true })
+  useLayoutStore.setState({ bySession: {}, sidebarVisible: true, page: null })
   useSessionsStore.setState({ activeSessionId: A })
+})
+
+describe('layout store — global pages', () => {
+  it('toggles a page open and closed, and swaps between pages', () => {
+    useLayoutStore.getState().togglePage('skills')
+    expect(useLayoutStore.getState().page).toBe('skills')
+
+    useLayoutStore.getState().togglePage('artifacts')
+    expect(useLayoutStore.getState().page).toBe('artifacts')
+
+    useLayoutStore.getState().togglePage('artifacts')
+    expect(useLayoutStore.getState().page).toBeNull()
+  })
+
+  it('opens with no active session — pages are global, unlike right panes', () => {
+    // The old sidebar rows toggled a per-session pane, which silently no-oped
+    // on the home screen. The page must not need a session.
+    useSessionsStore.setState({ activeSessionId: null })
+    useLayoutStore.getState().togglePage('skills')
+    expect(useLayoutStore.getState().page).toBe('skills')
+  })
+
+  it('closes on session activation, including re-activating the current one', () => {
+    useLayoutStore.getState().setPage('artifacts')
+    useSessionsStore.getState().activate(A)
+    expect(useLayoutStore.getState().page).toBeNull()
+
+    // Clicking the ALREADY-active session's row means "show me the chat" too;
+    // no observable session state changes, so only a direct call covers it.
+    useLayoutStore.getState().setPage('skills')
+    useSessionsStore.getState().activate(A)
+    expect(useLayoutStore.getState().page).toBeNull()
+
+    // "New" (activate null) from the home screen closes it as well.
+    useSessionsStore.setState({ activeSessionId: null })
+    useLayoutStore.getState().setPage('skills')
+    useSessionsStore.getState().activate(null)
+    expect(useLayoutStore.getState().page).toBeNull()
+  })
 })
 
 describe('layout store — right pane is per session', () => {
@@ -113,5 +152,12 @@ describe('layout store — persisted layout sanitizing', () => {
     expect(sanitizePersistedPanes('corrupt')).toEqual({})
     expect(sanitizePersistedPanes([1, 2])).toEqual({})
     expect(sanitizePersistedPanes({ [A]: 'corrupt' })).toEqual({})
+  })
+
+  it('drops a persisted skills pane from before skills became a page', () => {
+    const restored = sanitizePersistedPanes({
+      [A]: { pane: 'skills', expanded: false, side: 'right', size: 45 },
+    })
+    expect(restored[A]!.pane).toBeNull()
   })
 })

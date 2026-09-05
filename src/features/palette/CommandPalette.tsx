@@ -85,6 +85,18 @@ export function CommandPalette({
         hint: formatShortcut('mod', 'B'),
         run: () => layout.toggleSidebar(),
       },
+      // Global pages, deliberately NOT session-gated: they cover the main
+      // region on their own and are the whole point of having them.
+      {
+        id: 'open-artifacts-page',
+        label: 'Open artifacts page',
+        run: () => layout.setPage('artifacts'),
+      },
+      {
+        id: 'open-skills-page',
+        label: 'Open skills page',
+        run: () => layout.setPage('skills'),
+      },
       // Right-pane commands only exist inside a session — the pane itself is
       // rendered by MainWithPanes, which requires one. Offering them on the
       // home screen produced a no-op that also desynced the pane state.
