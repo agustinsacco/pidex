@@ -135,8 +135,11 @@ export const TerminalView = memo(function TerminalView({
     const platform = hostPlatform()
     term.attachCustomKeyEventHandler((event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'f' && event.type === 'keydown') {
+        const previousFocus = document.activeElement
         setSearchOpen(true)
-        setTimeout(() => searchInputRef.current?.focus(), 30)
+        setTimeout(() => {
+          if (document.activeElement === previousFocus) searchInputRef.current?.focus()
+        }, 30)
         return false
       }
       const action = clipboardActionFor(event, platform)

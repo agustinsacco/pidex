@@ -11,7 +11,7 @@
 F6 moves between the composer and pane controls, returning from global pages;
 in a fullscreen pane it focuses Exit fullscreen rather than hidden chat.
 Dialogs block app navigation (not zoom). IME/AltGr and editor-owned letter chords
-are not interpreted as app commands. Terminal refits do not reclaim moved focus.
+are not interpreted as app commands. Terminal refits and search activation do not reclaim moved focus.
 Bindings belong to the app document, not sandboxed artifact iframe contents.
 
 ### Top bar

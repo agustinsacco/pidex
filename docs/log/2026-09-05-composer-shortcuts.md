@@ -3,8 +3,8 @@
 F6 moves between composer and pane controls; fullscreen exposes its exit rather
 than focusing hidden chat. New/file-finder/Files/Changes shortcuts work from the
 composer while ordinary editor input, IME/AltGr and dialogs are protected. Legacy
-portal markers scope shortcuts, not a new focus trap. Late terminal refits respect
-focus moved by the user. Formatting and palette shortcuts keep separate chords.
+portal markers scope shortcuts, not a new focus trap. Terminal refits and search
+activation respect focus moved by the user. Formatting and palette shortcuts keep separate chords.
 
 Steer now / Queue follow-up expose existing running-turn modes. Empty drafts
 disable them without moving controls; sending returns focus to the input.

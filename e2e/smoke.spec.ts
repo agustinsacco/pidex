@@ -487,8 +487,9 @@ test('work-area shortcuts work from chat without stealing dialog or editor input
     await expect(chat).toHaveValue('preserved draft')
     await chat.press(`${mod}+Backquote`)
     await expect(page.locator('.xterm')).toBeVisible()
-    await page.locator('.xterm-helper-textarea').focus()
+    await page.locator('.xterm-helper-textarea').press(`${mod}+f`)
     await page.keyboard.press('F6')
+    await page.waitForTimeout(60) // Cross the terminal search's 30ms focus timer.
     await expect(chat).toBeFocused()
     await page.getByRole('button', { name: 'Skills', exact: true }).click()
     await expect(page.getByTestId('global-page')).toBeVisible()
