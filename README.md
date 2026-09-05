@@ -42,7 +42,7 @@ needed. Switch models mid-session and the conversation carries over.
 # 1. pi is the engine — pidex needs it on your PATH (Node ≥ 22.19)
 npm install -g @earendil-works/pi-coding-agent
 
-# 2. Install pidex (macOS / Linux; Windows builds are on tagged releases)
+# 2. Install pidex (macOS / Linux — no Windows build yet; see Install)
 curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
 ```
 
@@ -203,9 +203,15 @@ verifying the download against the release's `checksums.txt`. Binaries are also
 on the [Releases page](https://github.com/agustinsacco/pidex/releases) — DMG and
 ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows builds are produced by the tagged `Release` workflow rather than the
-per-merge one, so a `.exe` is only present on releases that were cut from a `v*`
-tag.
+**There is no Windows build yet.** `electron-builder.yml` configures an NSIS
+target and `.github/workflows/release.yml` has a `windows-latest` job, but that
+workflow has never run: it triggers on a pushed `v*` tag, and the per-merge
+release creates its tags through the GitHub API with `GITHUB_TOKEN`, which by
+design does not start another workflow. Every release therefore comes from
+`release-continuous.yml`, whose matrix is macOS and Linux only — hence zero
+Windows assets across all releases so far. CI now runs the unit and e2e suites
+on `windows-latest` (non-blocking) to establish what actually works before a
+build is published.
 
 pidex needs `pi` on your PATH:
 

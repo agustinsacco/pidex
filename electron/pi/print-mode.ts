@@ -16,7 +16,7 @@
  * reading stdin, so it is happy either way. `print-mode.test.ts`
  * uses a fixture that blocks on stdin the way real pi does.
  */
-import { spawn } from 'node:child_process'
+import { spawn } from './spawn'
 
 /** Stop waiting on a print-mode run. Generous: it is off any critical path. */
 const DEFAULT_TIMEOUT_MS = 30_000

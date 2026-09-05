@@ -1,5 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { spawnPiped, type ChildProcessWithoutNullStreams } from './spawn'
 import { JsonlDecoder } from './jsonl'
 import type {
   ExtensionUIRequest,
@@ -114,10 +114,9 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     for (const ext of o.extensions ?? []) args.push('-e', ext)
     if (o.appendSystemPrompt) args.push('--append-system-prompt', o.appendSystemPrompt)
 
-    const child = spawn(o.binaryPath ?? 'pi', args, {
+    const child = spawnPiped(o.binaryPath ?? 'pi', args, {
       cwd: o.cwd,
       env: { ...process.env, ...o.env },
-      stdio: ['pipe', 'pipe', 'pipe'],
     })
     this.child = child
 

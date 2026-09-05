@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import type { SubscriptionProvider, SubscriptionProviderStatus } from '@shared/models'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
-
-const execFileAsync = promisify(execFile)
+import { execFileAsync } from './spawn'
 
 /**
  * Every provider pi offers under "Sign in with an account".
@@ -119,7 +116,7 @@ export async function checkProviderAuth(
     const { stdout } = await execFileAsync(
       health.binaryPath,
       ['auth', 'check', '--provider', providerId, '--json', '--no-refresh'],
-      { env, timeout: 10_000, encoding: 'utf8' },
+      { env, timeout: 10_000 },
     )
     return parseAuthCheck(stdout)
   } catch (error) {
@@ -155,7 +152,7 @@ export async function checkSubscriptionAuth(): Promise<SubscriptionProviderStatu
         const { stdout } = await execFileAsync(
           binaryPath,
           ['auth', 'check', '--provider', provider.id, '--json', '--no-refresh'],
-          { env, timeout: 10_000, encoding: 'utf8' },
+          { env, timeout: 10_000 },
         )
         return { ...provider, ...parseAuthCheck(stdout) }
       } catch (error) {
