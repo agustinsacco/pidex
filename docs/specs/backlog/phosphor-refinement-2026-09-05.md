@@ -95,6 +95,8 @@ separately: compact changes padding/row height, not legibility or font size.
 
 ## First implementation slices and verification
 
+For the bounded next PR, see [Readable sessions and diffs](session-polish-pr-2026-09-05.md).
+
 1. Bundle/verify fonts, correct important low-contrast copy, migrate typography by
    role. Check fallback scripts, glyph ambiguity, offline startup and license files.
 2. Polish sidebar → conversation → composer → Changes as one coherent slice.
