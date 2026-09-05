@@ -17,6 +17,8 @@ import { DownloadIcon, FileIcon } from '@/components/icons'
 import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 
+type ViewMode = 'preview' | 'code' | 'diff'
+
 /** Right-pane Artifacts region: gallery + versioned viewer. */
 export const ArtifactsPane = memo(function ArtifactsPane({
   workspacePath,
@@ -44,7 +46,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   )
   const selected = (selectedId && artifacts?.[selectedId]) || list[0]
 
-  if (!activeSessionId || list.length === 0) {
+  if (!activeSessionId || !selected) {
     return (
       <PaneShell title={<PaneTitle label="Artifacts" />}>
         <div className="flex h-full items-center justify-center px-6">
@@ -61,112 +63,43 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   }
 
   return (
-    // The artifact IS the pane title. The old header spent four stacked rows
-    // (shell label, gallery chips, title band, toolbar) before any content;
-    // the switcher dropdown replaces the chip row and the title band both.
-    <PaneShell
-      title={
-        selected && (
-          <ArtifactSwitcher
-            list={list}
-            selected={selected}
-            onSelect={(id) =>
-              activeSessionId && useArtifactsStore.getState().select(activeSessionId, id)
-            }
-          />
-        )
-      }
-    >
-      {selected && (
-        <ArtifactViewer
-          key={selected.id}
-          artifact={selected}
-          workspacePath={workspacePath}
-          requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
-        />
-      )}
-    </PaneShell>
+    <ArtifactWorkspace
+      key={selected.id}
+      artifact={selected}
+      list={list}
+      workspacePath={workspacePath}
+      onSelect={(id) => useArtifactsStore.getState().select(activeSessionId, id)}
+      requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
+    />
   )
 })
 
 /**
- * Header title = the selected artifact itself (glyph, name, age). With more
- * than one artifact it becomes a dropdown switcher; with one it is a plain
- * label. Replaces the old chip gallery row AND the per-artifact title band.
+ * One artifact: header chrome plus body.
+ *
+ * The chrome is ONE row. It used to be four stacked bands (shell label,
+ * gallery chips, title band, viewer toolbar); the switcher dropdown replaced
+ * the chips and the title band, and the toolbar now rides in PaneShell's
+ * `actions` slot beside it. Header and body are separate PaneShell slots but
+ * share tab + version state, so they are one component — remounted per
+ * artifact by its `key`, which is what resets the view on a switch.
  */
-function ArtifactSwitcher({
-  list,
-  selected,
-  onSelect,
-}: {
-  list: Artifact[]
-  selected: Artifact
-  onSelect: (id: string) => void
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const multiple = list.length > 1
-
-  return (
-    <div className="relative min-w-0 flex-1">
-      <button
-        ref={triggerRef}
-        disabled={!multiple}
-        aria-haspopup={multiple ? 'listbox' : undefined}
-        aria-expanded={multiple ? open : undefined}
-        title={multiple ? 'Switch artifact' : undefined}
-        onClick={() => setOpen((v) => !v)}
-        className={clsx(
-          'flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors',
-          multiple && 'hover:bg-bg-secondary',
-        )}
-      >
-        <span className="shrink-0 text-lg leading-none">{artifactGlyph(selected.type)}</span>
-        <span className="min-w-0 truncate text-lg font-semibold">{selected.title}</span>
-        <span className="text-text-tertiary shrink-0 text-xs">
-          {relativeTimeShort(selected.updatedAt)}
-        </span>
-        {multiple && <ChevronDownIcon size={12} className="text-text-tertiary shrink-0" />}
-      </button>
-      {open && (
-        <PopupMenu
-          onClose={() => setOpen(false)}
-          triggerRef={triggerRef}
-          fitViewport
-          className="absolute left-0 top-full mt-1 w-72 max-w-[calc(100vw-16rem)] py-1"
-        >
-          {list.map((artifact) => (
-            <MenuRow
-              key={artifact.id}
-              active={artifact.id === selected.id}
-              onClick={() => {
-                onSelect(artifact.id)
-                setOpen(false)
-              }}
-              trailing={`v${artifact.versions.length} · ${relativeTimeShort(artifact.updatedAt)}`}
-            >
-              <span className="mr-1.5">{artifactGlyph(artifact.type)}</span>
-              {artifact.title}
-            </MenuRow>
-          ))}
-        </PopupMenu>
-      )}
-    </div>
-  )
-}
-
-function ArtifactViewer({
+function ArtifactWorkspace({
   artifact,
+  list,
   workspacePath,
+  onSelect,
   requestedVersion,
 }: {
   artifact: Artifact
+  list: Artifact[]
   workspacePath: string
+  onSelect: (id: string) => void
   /** Version explicitly navigated to (e.g. a chat card's "Open in panel"). */
   requestedVersion?: number
 }): React.JSX.Element {
   const latest = artifact.versions[artifact.versions.length - 1]!
-  const [mode, setMode] = useState<'preview' | 'code' | 'diff'>('preview')
+  const [mode, setMode] = useState<ViewMode>('preview')
   const [versionIndex, setVersionIndex] = useState<number>(() => {
     const requested = artifact.versions.findIndex((v) => v.version === requestedVersion)
     return requested >= 0 ? requested : artifact.versions.length - 1
@@ -193,6 +126,7 @@ function ArtifactViewer({
 
   const shown = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1)] ?? latest
   const previous = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1) - 1]
+  const versioned = artifact.versions.length > 1
 
   const save = async (): Promise<void> => {
     const outputPath = await window.pidex.invoke('app:saveDialog', {
@@ -211,48 +145,63 @@ function ArtifactViewer({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-border flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
-        <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>
-          Preview
-        </Tab>
-        <Tab active={mode === 'code'} onClick={() => setMode('code')}>
-          Code
-        </Tab>
-        {artifact.versions.length > 1 && (
-          <Tab active={mode === 'diff'} onClick={() => setMode('diff')}>
-            Diff
-          </Tab>
-        )}
-        <div className="flex-1" />
-        {artifact.versions.length > 1 && (
-          <select
-            value={shown.version}
-            onChange={(e) => {
-              const index = artifact.versions.findIndex((v) => v.version === Number(e.target.value))
-              if (index !== -1) setVersionIndex(index)
-            }}
-            className="border-border bg-surface text-text rounded-md border px-1.5 py-0.5 text-sm outline-none"
+    <PaneShell
+      title={<ArtifactSwitcher list={list} selected={artifact} onSelect={onSelect} />}
+      actions={
+        /*
+         * Shrinkable and scrollable, following the terminal's tab strip: the
+         * shell's own ↔ / ↗ / ✕ come AFTER this in the row, so a toolbar that
+         * refused to give ground would push them out of a narrow pane and
+         * leave no way to close it. The pane title (flex-basis 0) collapses
+         * first; only then does this scroll.
+         */
+        <div className="flex min-w-0 shrink items-center gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="View">
+            <Tab active={mode === 'preview'} onClick={() => setMode('preview')}>
+              Preview
+            </Tab>
+            <Tab active={mode === 'code'} onClick={() => setMode('code')}>
+              Code
+            </Tab>
+            {versioned && (
+              <Tab active={mode === 'diff'} onClick={() => setMode('diff')}>
+                Diff
+              </Tab>
+            )}
+          </div>
+          {versioned && (
+            <select
+              value={shown.version}
+              title="Version"
+              aria-label="Version"
+              onChange={(e) => {
+                const index = artifact.versions.findIndex(
+                  (v) => v.version === Number(e.target.value),
+                )
+                if (index !== -1) setVersionIndex(index)
+              }}
+              className="border-border bg-surface text-text-secondary shrink-0 rounded-md border px-1 py-0.5 text-sm outline-none"
+            >
+              {artifact.versions.map((v) => (
+                <option key={v.version} value={v.version}>
+                  v{v.version}
+                </option>
+              ))}
+            </select>
+          )}
+          <CopyButton text={shown.content} className="shrink-0" />
+          <ActionIcon title="Save to file…" onClick={() => void save()}>
+            <DownloadIcon />
+          </ActionIcon>
+          <ActionIcon
+            title="Write into workspace and open in Files"
+            onClick={() => void openInFiles()}
           >
-            {artifact.versions.map((v) => (
-              <option key={v.version} value={v.version}>
-                v{v.version}
-              </option>
-            ))}
-          </select>
-        )}
-        <CopyButton text={shown.content} />
-        <ActionIcon title="Save to file…" onClick={() => void save()}>
-          <DownloadIcon />
-        </ActionIcon>
-        <ActionIcon
-          title="Write into workspace and open in Files"
-          onClick={() => void openInFiles()}
-        >
-          <FileIcon size={12} />
-        </ActionIcon>
-      </div>
-
+            <FileIcon size={12} />
+          </ActionIcon>
+        </div>
+      }
+    >
       <div className="min-h-0 flex-1 overflow-y-auto" data-testid="artifact-scroll">
         {mode === 'preview' && <ArtifactPreview artifact={artifact} content={shown.content} />}
         {mode === 'code' && (
@@ -271,6 +220,87 @@ function ArtifactViewer({
           </div>
         )}
       </div>
+    </PaneShell>
+  )
+}
+
+/**
+ * Header title = the selected artifact itself (glyph, name). With more than
+ * one artifact it becomes a dropdown switcher; with one it is a plain label.
+ *
+ * No timestamp here: it cost ~45px of a row that also carries the tabs, the
+ * version picker and the shell's buttons, and the dropdown already dates every
+ * artifact.
+ */
+function ArtifactSwitcher({
+  list,
+  selected,
+  onSelect,
+}: {
+  list: Artifact[]
+  selected: Artifact
+  onSelect: (id: string) => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const multiple = list.length > 1
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <button
+        ref={triggerRef}
+        disabled={!multiple}
+        aria-haspopup={multiple ? 'listbox' : undefined}
+        aria-expanded={multiple ? open : undefined}
+        title={multiple ? 'Switch artifact' : selected.title}
+        onClick={() => setOpen((v) => !v)}
+        className={clsx(
+          // `overflow-hidden` on the BUTTON, not on the relative wrapper: the
+          // wrapper anchors the dropdown, and clipping there would cut the
+          // popup off. Without it the glyph and chevron (both `shrink-0`)
+          // spill out of a title box that a narrow pane has squeezed to zero,
+          // and paint on top of the tabs.
+          'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-md px-1 py-0.5 text-left transition-colors',
+          multiple && 'hover:bg-bg-secondary',
+        )}
+      >
+        <span className="shrink-0 text-base leading-none">{artifactGlyph(selected.type)}</span>
+        <span className="min-w-0 truncate text-lg font-semibold">{selected.title}</span>
+        {multiple && <ChevronDownIcon size={11} className="text-text-tertiary shrink-0" />}
+      </button>
+      {open && (
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
+          fitViewport
+          className="absolute left-0 top-full mt-1 w-80 py-1"
+        >
+          {list.map((artifact) => (
+            <MenuRow
+              key={artifact.id}
+              active={artifact.id === selected.id}
+              onClick={() => {
+                onSelect(artifact.id)
+                setOpen(false)
+              }}
+            >
+              {/*
+               * Title truncates and the meta is a sibling, not MenuRow's
+               * `trailing` overlay: `v3 · 1m ago` is far wider than the 36px
+               * that overlay reserves, so it used to sit on top of a title
+               * that had already wrapped to two lines.
+               */}
+              <span className="shrink-0 text-base leading-none">
+                {artifactGlyph(artifact.type)}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{artifact.title}</span>
+              <span className="text-text-tertiary shrink-0 text-sm">
+                v{artifact.versions.length} · {relativeTimeShort(artifact.updatedAt)}
+              </span>
+            </MenuRow>
+          ))}
+        </PopupMenu>
+      )}
     </div>
   )
 }
@@ -314,7 +344,7 @@ function ArtifactPreview({
       )
     case 'markdown':
       return (
-        <div className="p-4">
+        <div className="p-3">
           <Markdown text={content} />
         </div>
       )
@@ -340,8 +370,9 @@ function Tab({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={clsx(
-        'rounded-md px-2.5 py-1 text-base font-medium transition-colors',
+        'rounded-md px-1.5 py-0.5 text-sm font-medium transition-colors',
         active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
       )}
     >
@@ -362,8 +393,9 @@ function ActionIcon({
   return (
     <button
       title={title}
+      aria-label={title}
       onClick={onClick}
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
     >
       {children}
     </button>
