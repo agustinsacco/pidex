@@ -5,7 +5,7 @@ import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
-import { createIn, renameEntry, trashEntry } from './fileActions'
+import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 
 export const FileExplorer = memo(function FileExplorer({
   workspacePath,
@@ -25,12 +25,47 @@ export const FileExplorer = memo(function FileExplorer({
   }, [workspacePath])
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
+    <div
+      data-testid="file-explorer"
+      className="flex h-full min-w-0 flex-col"
+      onContextMenu={(event) =>
+        showContextMenu(event, [
+          {
+            label: 'New file…',
+            onClick: () => runFileAction(createIn(workspacePath, undefined, 'file')),
+          },
+          {
+            label: 'New folder…',
+            onClick: () => runFileAction(createIn(workspacePath, undefined, 'folder')),
+          },
+        ])
+      }
+    >
+      <div className="border-border flex shrink-0 flex-wrap items-center justify-between gap-1 border-b px-2 py-1">
         <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
           Explorer
         </span>
         <div className="flex items-center gap-0.5">
+          {(['file', 'folder'] as const).map((kind) => (
+            <IconToggle
+              key={kind}
+              title={`New ${kind}`}
+              active={false}
+              onClick={() => runFileAction(createIn(workspacePath, undefined, kind))}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d={kind === 'file' ? 'M14 2H4v20h16V8l-6-6v6h6' : 'M3 20V4h7l3 3h8v13H3'} />
+                <path d="M8 14h8m-4-4v8" />
+              </svg>
+            </IconToggle>
+          ))}
           <IconToggle
             title="Show hidden files"
             active={showHidden}
@@ -57,7 +92,9 @@ export const FileExplorer = memo(function FileExplorer({
           <ExplorerRow key={entry.path} entry={entry} workspacePath={workspacePath} depth={0} />
         ))}
         {rootEntries?.length === 0 && (
-          <div className="text-text-tertiary px-3 py-2 text-base">Empty folder</div>
+          <div className="text-text-tertiary px-3 py-2 text-base">
+            Empty folder. Create a file or folder using the buttons above.
+          </div>
         )}
       </div>
     </div>
@@ -98,7 +135,7 @@ function ExplorerRow({
     if (entry.isDirectory) {
       void store.toggleDir(workspacePath, entry.path)
     } else {
-      void store.openFile(workspacePath, entry.path)
+      runFileAction(store.openFile(workspacePath, entry.path))
     }
   }
 
@@ -119,22 +156,22 @@ function ExplorerRow({
       {
         label: 'New file…',
         separatorAbove: true,
-        onClick: () => void createIn(workspacePath, entry, 'file'),
+        onClick: () => runFileAction(createIn(workspacePath, entry, 'file')),
       },
       {
         label: 'New folder…',
-        onClick: () => void createIn(workspacePath, entry, 'folder'),
+        onClick: () => runFileAction(createIn(workspacePath, entry, 'folder')),
       },
       {
         label: 'Rename…',
-        onClick: () => void renameEntry(workspacePath, entry),
+        onClick: () => runFileAction(renameEntry(workspacePath, entry)),
       },
       {
         label: 'Delete',
         hint: 'to trash',
         danger: true,
         separatorAbove: true,
-        onClick: () => void trashEntry(workspacePath, entry),
+        onClick: () => runFileAction(trashEntry(workspacePath, entry)),
       },
     ])
   }
@@ -142,6 +179,7 @@ function ExplorerRow({
   return (
     <>
       <button
+        data-path={entry.path}
         onClick={onClick}
         onContextMenu={onContextMenu}
         className={clsx(
@@ -212,9 +250,10 @@ function IconToggle({
   return (
     <button
       title={title}
+      aria-label={title}
       onClick={onClick}
       className={clsx(
-        'flex h-6 w-6 items-center justify-center rounded-md transition-colors',
+        'flex h-6 w-6 items-center justify-center rounded-sm transition-colors',
         active
           ? 'text-accent bg-accent-soft'
           : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',

@@ -170,6 +170,51 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
   }
 })
 
+test('explorer creates entries from empty space and keeps renamed editor buffers', async () => {
+  const harness = await launch()
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await rm(join(workspace, 'hello.ts'))
+    await page.getByTitle(/^Files pane/).click()
+    const explorer = page.getByTestId('file-explorer')
+    await expect(explorer.getByText(/Empty folder/)).toBeVisible()
+    await explorer.getByRole('button', { name: 'New folder', exact: true }).click()
+    await page.getByRole('textbox').last().fill('notes')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await explorer.getByRole('button', { name: 'notes', exact: true }).click({ button: 'right' })
+    await page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: 'New file…', exact: true })
+      .click()
+    await page.getByPlaceholder('Name', { exact: true }).fill('draft.md')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await expect(explorer.getByRole('button', { name: 'draft.md', exact: true })).toBeVisible()
+    expect(await readFile(join(workspace, 'notes/draft.md'), 'utf8')).toBe('')
+    const editor = page.locator('.monaco-editor [role="textbox"]').first()
+    await editor.focus()
+    await page.keyboard.type('unsaved notes')
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('unsaved notes')
+    await explorer.getByRole('button', { name: 'notes', exact: true }).click({ button: 'right' })
+    await page.getByTestId('context-menu').getByRole('button', { name: 'Rename…' }).click()
+    await page.getByRole('textbox').last().fill('docs')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await expect(page.getByTitle('docs/draft.md', { exact: true })).toBeVisible()
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('unsaved notes')
+    await editor.focus()
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s')
+    await expect
+      .poll(() => readFile(join(workspace, 'docs/draft.md'), 'utf8'))
+      .toBe('unsaved notes')
+    expect(existsSync(join(workspace, 'notes'))).toBe(false)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('floating IDE panes share compact corners in both themes', async () => {
   const harness = await launch()
   const { page } = harness
