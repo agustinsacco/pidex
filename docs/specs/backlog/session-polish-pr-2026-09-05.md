@@ -66,9 +66,11 @@ Merge in order: [fonts #194](https://github.com/agustinsacco/pidex/pull/194) →
 [controls #198](https://github.com/agustinsacco/pidex/pull/198) →
 [shortcuts #199](https://github.com/agustinsacco/pidex/pull/199).
 
-At `d1cafcb`: typecheck/lint/format/build passed; 1,844 unit tests and 43 Electron
+At `7676d62`: typecheck/lint/format/build passed; 1,844 unit tests and 43 Electron
 e2e tests passed. All six PRs have green Linux/macOS CI. Native captures covered
-both themes, laptop widths and zoom. Independent review found no blocking defect.
+both themes, laptop widths and zoom. Independent review found no blocking defect;
+a final twin check also reproduced/fixed terminal search reclaiming F6 focus.
+An intermittent pinning-test failure passed unchanged targeted and full reruns.
 No live-provider turns, manual Windows/OS-IME validation or screen-reader audit
 were claimed. Recovery/readiness findings remain separate. Each PR is under 400
 changed text lines and 20 files, including tests/docs/license notices.
