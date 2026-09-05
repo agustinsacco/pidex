@@ -1,11 +1,12 @@
-# Proposed PR: readable sessions and diffs
+# Readable sessions and diffs
 
-**Plan only; implementation awaits approval.** The next implementation PR should
-be separate from the assessment-only PR #183. This narrows the
+**Implemented in open PRs #194–#199; awaiting merge.** The approved scope grew to
+include richer input and shortcuts, so it landed as a small stack, separate from
+assessment-only PR #183. This implements a bounded part of the
 [Phosphor proposal](phosphor-refinement-2026-09-05.md) to one everyday path:
 **find a lane → read/steer → open a diff → return without losing context.**
 
-## Ship in this PR
+## Approved core scope
 
 1. **Reliable typography.** Bundle Inter and JetBrains Mono locally, with license
    notices and system/script fallbacks; no font CDN or new runtime font service.
@@ -27,9 +28,9 @@ be separate from the assessment-only PR #183. This narrows the
    Use separate sibling buttons for open/revert, not nested buttons. Do not change
    restore logic or make Revert more prominent while its safety finding is open.
 
-Two-line sidebar titles and extra spacing adjustments are the first cuts if the
-font integration and regression coverage consume the review budget. The core is
-reliable type, preference-consistent diffs, readable labels and keyboard navigation.
+The core and two-line titles are implemented. The added input scope includes
+undo-safe formatting, IME guards, links, expansion, scoped navigation shortcuts and
+explicit streaming send controls; no workbench/orchestration features were added.
 
 ## Explicitly outside this PR
 
@@ -56,5 +57,18 @@ reliable type, preference-consistent diffs, readable labels and keyboard navigat
   Aim for at most 20 files and about 400 changed text lines, including tests/docs
   and license notices. Disclose font binary sizes. Cut optional polish, not tests.
 
-**Not an implementation or an estimate of proven delivery time.** Scope is grounded
-in the reviewed checkout; recheck current main before starting the separate PR.
+## Implementation and evidence
+
+Merge in order: [fonts #194](https://github.com/agustinsacco/pidex/pull/194) →
+[diffs #195](https://github.com/agustinsacco/pidex/pull/195) →
+[readability #196](https://github.com/agustinsacco/pidex/pull/196) →
+[editing #197](https://github.com/agustinsacco/pidex/pull/197) →
+[controls #198](https://github.com/agustinsacco/pidex/pull/198) →
+[shortcuts #199](https://github.com/agustinsacco/pidex/pull/199).
+
+At `d1cafcb`: typecheck/lint/format/build passed; 1,844 unit tests and 43 Electron
+e2e tests passed. All six PRs have green Linux/macOS CI. Native captures covered
+both themes, laptop widths and zoom. Independent review found no blocking defect.
+No live-provider turns, manual Windows/OS-IME validation or screen-reader audit
+were claimed. Recovery/readiness findings remain separate. Each PR is under 400
+changed text lines and 20 files, including tests/docs/license notices.

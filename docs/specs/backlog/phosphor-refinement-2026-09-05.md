@@ -2,7 +2,9 @@
 
 **Visual/UX proposal, not shipped behavior.** Companion to the
 [engineering workbench review](ai-workbench-review-2026-09-05.md), assessed
-2026-09-05. No application styles or dependencies change in this proposal.
+2026-09-05. This assessment remains docs-only; the approved subset is implemented
+in the [#194–#199 stack](session-polish-pr-2026-09-05.md#implementation-and-evidence),
+awaiting merge. The rest remains a proposal.
 
 ## Direction
 

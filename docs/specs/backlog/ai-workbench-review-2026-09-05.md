@@ -3,7 +3,9 @@
 **Assessment and proposal, not shipped behavior.** Reviewed 2026-09-05 at
 `ae57ae3d4ac826da83585815419109a7c2b23801`. Priorities are design judgments;
 observations, code-traced risks, and untested hypotheses are distinguished below.
-No application behavior changes accompany this review.
+No application behavior changes accompany this review. Follow-through:
+[typography, session polish and richer input](session-polish-pr-2026-09-05.md#implementation-and-evidence)
+are implemented in open PRs #194–#199; the broader workbench remains proposed.
 
 ## Recommendation
 
