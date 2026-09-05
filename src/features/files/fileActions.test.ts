@@ -1,8 +1,31 @@
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'typescript' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
-import { entryPath } from './fileActions'
+import { entryPath, trashEntry } from './fileActions'
 import { useFilesStore } from '@/stores/files'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+it('only closes trashed tabs after confirmation and successful IPC', async () => {
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  const confirm = vi.fn(() => false)
+  const invoke = vi.fn().mockRejectedValue(new Error('Permission denied'))
+  vi.stubGlobal('window', { confirm, pidex: { invoke } })
+  const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
+  vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
+  await trashEntry('/repo', entry)
+  expect(invoke).not.toHaveBeenCalled()
+  confirm.mockReturnValue(true)
+  await expect(trashEntry('/repo', entry)).rejects.toThrow('Permission denied')
+  expect(reconcile).not.toHaveBeenCalled()
+  invoke.mockResolvedValue(undefined)
+  await trashEntry('/repo', entry)
+  expect(invoke).toHaveBeenCalledWith('fs:trash', entry.path)
+  expect(reconcile).toHaveBeenCalledWith('/repo', entry.path)
+})
 
 it('accepts file names, not traversal or absolute paths', () => {
   for (const name of ['..', '.', '../out', '/tmp/out', 'a\\b', '\0', ' ']) {

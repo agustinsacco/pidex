@@ -6,6 +6,7 @@ import { showContextMenu } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
+import { useExplorer } from './useExplorer'
 
 export const FileExplorer = memo(function FileExplorer({
   workspacePath,
@@ -15,6 +16,7 @@ export const FileExplorer = memo(function FileExplorer({
   const rootEntries = useFilesStore((s) => s.entries[workspacePath])
   const showHidden = useFilesStore((s) => s.showHidden)
   const respectGitignore = useFilesStore((s) => s.respectGitignore)
+  const controls = useExplorer(workspacePath)
 
   useEffect(() => {
     const store = useFilesStore.getState()
@@ -26,9 +28,15 @@ export const FileExplorer = memo(function FileExplorer({
 
   return (
     <div
+      {...controls.rootProps}
       data-testid="file-explorer"
-      className="flex h-full min-w-0 flex-col"
-      onContextMenu={(event) =>
+      className={clsx(
+        'flex h-full min-w-0 flex-col outline-none',
+        controls.dropDir === workspacePath && 'bg-accent-soft ring-accent ring-1 ring-inset',
+      )}
+      onContextMenu={(event) => {
+        controls.context()
+        event.currentTarget.focus()
         showContextMenu(event, [
           {
             label: 'New file…',
@@ -38,8 +46,9 @@ export const FileExplorer = memo(function FileExplorer({
             label: 'New folder…',
             onClick: () => runFileAction(createIn(workspacePath, undefined, 'folder')),
           },
+          ...controls.menu(),
         ])
-      }
+      }}
     >
       <div className="border-border flex shrink-0 flex-wrap items-center justify-between gap-1 border-b px-2 py-1">
         <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
@@ -51,7 +60,7 @@ export const FileExplorer = memo(function FileExplorer({
               key={kind}
               title={`New ${kind}`}
               active={false}
-              onClick={() => runFileAction(createIn(workspacePath, undefined, kind))}
+              onClick={() => runFileAction(createIn(workspacePath, controls.selected.at(-1), kind))}
             >
               <svg
                 width="13"
@@ -89,13 +98,31 @@ export const FileExplorer = memo(function FileExplorer({
           <div className="text-text-tertiary animate-pulse px-3 py-2 text-base">Loading…</div>
         )}
         {rootEntries?.map((entry) => (
-          <ExplorerRow key={entry.path} entry={entry} workspacePath={workspacePath} depth={0} />
+          <ExplorerRow
+            key={entry.path}
+            entry={entry}
+            workspacePath={workspacePath}
+            depth={0}
+            controls={controls}
+          />
         ))}
         {rootEntries?.length === 0 && (
           <div className="text-text-tertiary px-3 py-2 text-base">
-            Empty folder. Create a file or folder using the buttons above.
+            Empty folder. Create an entry above, drop files here, or right-click to import.
           </div>
         )}
+      </div>
+      <div
+        role="status"
+        className="border-border text-text-tertiary shrink-0 border-t px-2 py-1 text-xs"
+      >
+        {controls.busy
+          ? 'Working…'
+          : controls.dropDir
+            ? 'Drop here · Option/Ctrl to copy'
+            : controls.selected.length
+              ? `${controls.selected.length} selected · right-click for actions`
+              : 'Drop files to import · right-click for actions'}
       </div>
     </div>
   )
@@ -113,10 +140,12 @@ function ExplorerRow({
   entry,
   workspacePath,
   depth,
+  controls,
 }: {
   entry: DirEntry
   workspacePath: string
   depth: number
+  controls: ReturnType<typeof useExplorer>
 }): React.JSX.Element {
   const isExpanded = useFilesStore((s) => s.expanded[entry.path] ?? false)
   const children = useFilesStore((s) => s.entries[entry.path])
@@ -130,7 +159,8 @@ function ExplorerRow({
   const dirDirty =
     entry.isDirectory && Object.keys(gitStatus).some((p) => p.startsWith(entry.relativePath + '/'))
 
-  const onClick = (): void => {
+  const onClick = (event: React.MouseEvent): void => {
+    if (!controls.select(entry, event)) return
     const store = useFilesStore.getState()
     if (entry.isDirectory) {
       void store.toggleDir(workspacePath, entry.path)
@@ -140,6 +170,8 @@ function ExplorerRow({
   }
 
   const onContextMenu = (event: React.MouseEvent): void => {
+    controls.context(entry)
+    ;(event.currentTarget as HTMLElement).focus()
     showContextMenu(event, [
       {
         label: revealLabel(),
@@ -162,12 +194,19 @@ function ExplorerRow({
         label: 'New folder…',
         onClick: () => runFileAction(createIn(workspacePath, entry, 'folder')),
       },
+      ...controls.menu(entry),
       {
         label: 'Rename…',
+        disabled:
+          controls.busy ||
+          (controls.selected.length > 1 && controls.selected.some((e) => e.path === entry.path)),
         onClick: () => runFileAction(renameEntry(workspacePath, entry)),
       },
       {
         label: 'Delete',
+        disabled:
+          controls.busy ||
+          (controls.selected.length > 1 && controls.selected.some((e) => e.path === entry.path)),
         hint: 'to trash',
         danger: true,
         separatorAbove: true,
@@ -180,13 +219,20 @@ function ExplorerRow({
     <>
       <button
         data-path={entry.path}
+        data-directory={entry.isDirectory}
+        aria-pressed={controls.selected.some((e) => e.path === entry.path)}
+        aria-expanded={entry.isDirectory ? isExpanded : undefined}
+        draggable={!controls.busy}
+        onDragStart={(event) => controls.dragStart(event, entry)}
         onClick={onClick}
         onContextMenu={onContextMenu}
         className={clsx(
           'group flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-base transition-colors',
-          isActive
-            ? 'bg-bg-secondary text-text'
-            : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
+          controls.selected.some((e) => e.path === entry.path) || controls.dropDir === entry.path
+            ? 'bg-accent-soft text-text'
+            : isActive
+              ? 'bg-bg-secondary text-text'
+              : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
         )}
         style={{ paddingLeft: 10 + depth * 14 }}
       >
@@ -228,6 +274,7 @@ function ExplorerRow({
               entry={child}
               workspacePath={workspacePath}
               depth={depth + 1}
+              controls={controls}
             />
           ))}
         </>
