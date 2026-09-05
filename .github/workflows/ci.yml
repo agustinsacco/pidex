@@ -123,6 +123,11 @@ jobs:
       # place a Windows-specific bug shows up first.
       - name: Unit tests (Windows)
         if: runner.os == 'Windows'
+        # Non-fatal for the same reason the job is, and additionally so a unit
+        # failure does not skip the e2e step below — the two answer different
+        # questions and the first run needs both. Drop this once the
+        # POSIX-only suites are platform-gated.
+        continue-on-error: true
         run: npm test
 
       - name: E2E (Windows)
