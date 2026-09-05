@@ -8,6 +8,19 @@ import {
   submitClaudeLoginCode,
 } from '../pi/claude-login'
 import { fetchUsageSnapshot } from '../claude/usage'
+import {
+  accountViews,
+  beginAddAccount,
+  bindSession,
+  claudeAccountEnv,
+  finishAddAccount,
+  loadAccounts,
+  refreshCooldowns,
+  removeAccount,
+  reorderAccounts,
+  setRouting,
+} from '../claude/accounts'
+import { takeSpawnAccount } from '../pi/session-accounts'
 
 function broadcast(state: ClaudeLoginState): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -34,7 +47,26 @@ function claudeBinOverride(): string | undefined {
  * second tab is one the user could paste a stale code from.
  */
 export function registerClaudeAuthHandlers(): void {
-  handle('claude:startLogin', () => startClaudeLogin(broadcast, claudeBinOverride()))
+  handle('claude:startLogin', async (_event, accountId) => {
+    const override = claudeBinOverride()
+    // The credential directory has to exist before the CLI writes to it, so
+    // the account record is opened here and only *kept* if `auth status`
+    // afterwards says a login actually landed.
+    const target = accountId
+      ? { id: accountId, env: await accountEnvFor(accountId) }
+      : await beginAddAccount(override)
+    await startClaudeLogin(
+      (state) => {
+        if (state.phase === 'signed-in') {
+          void finishAddAccount(target.id, override).finally(() => broadcast(state))
+          return
+        }
+        broadcast(state)
+      },
+      override,
+      target.env,
+    )
+  })
   handle('claude:submitCode', (_event, code) => {
     submitClaudeLoginCode(code)
   })
@@ -42,6 +74,34 @@ export function registerClaudeAuthHandlers(): void {
     cancelClaudeLogin()
   })
   handle('claude:logout', () => logoutClaude(claudeBinOverride()))
-  /** Read-only, cached ~60 s in main; the spawn is zero-quota. */
-  handle('claude:usageSnapshot', () => fetchUsageSnapshot({ claudeOverride: claudeBinOverride() }))
+  /** Read-only, cached ~60 s in main *per account*; the spawn is zero-quota. */
+  handle('claude:usageSnapshot', async (_event, accountId) => {
+    const override = claudeBinOverride()
+    return fetchUsageSnapshot({
+      ...(override ? { claudeOverride: override } : {}),
+      ...(accountId ? { cacheKey: accountId, extraEnv: await accountEnvFor(accountId) } : {}),
+    })
+  })
+
+  handle('claude:accounts', () => accountViews(claudeBinOverride()))
+  handle('claude:removeAccount', (_event, id) => removeAccount(id, claudeBinOverride()))
+  handle('claude:reorderAccounts', (_event, ids) => reorderAccounts(ids, claudeBinOverride()))
+  handle('claude:setRouting', (_event, mode, pinnedId) =>
+    setRouting(mode, pinnedId, claudeBinOverride()),
+  )
+  handle('claude:refreshAccountUsage', async () => {
+    const override = claudeBinOverride()
+    await refreshCooldowns(override)
+    return accountViews(override)
+  })
+  handle('claude:bindSession', async (_event, sessionPath, pidexSessionId) => {
+    const accountId = takeSpawnAccount(pidexSessionId)
+    if (accountId) await bindSession(sessionPath, accountId)
+  })
+}
+
+/** Credential env for one stored account, or none when the id is unknown. */
+async function accountEnvFor(id: string): Promise<Record<string, string>> {
+  const prefs = await loadAccounts(claudeBinOverride())
+  return claudeAccountEnv(prefs.accounts.find((a) => a.id === id) ?? null)
 }

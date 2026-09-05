@@ -90,6 +90,12 @@ export async function startClaudeLogin(
   onState: (state: ClaudeLoginState) => void,
   /** E2E-only binary override; gated in the handler, as everywhere else. */
   claudeOverride?: string,
+  /**
+   * Credential-scoping env, so the sign-in lands in ONE account's keychain
+   * entry instead of replacing the shared one. Empty for the default account.
+   * See electron/claude/accounts.ts.
+   */
+  extraEnv?: Record<string, string>,
 ): Promise<void> {
   if (running) throw new Error('A Claude sign-in is already in progress.')
 
@@ -100,14 +106,14 @@ export async function startClaudeLogin(
 
   const child = spawn(binary, ['auth', 'login'], {
     cwd: homedir(),
-    env: await piProcessEnv(),
+    env: { ...(await piProcessEnv()), ...extraEnv },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 
   // Who was signed in before. Needed because `claude auth status` says
   // "loggedIn" for the OLD account too, so on a *switch* it cannot by itself
   // tell a completed sign-in from an abandoned one.
-  const emailBefore = (await claudeStatus(claudeOverride).catch(() => null))?.auth.email
+  const emailBefore = (await claudeStatus(claudeOverride, extraEnv).catch(() => null))?.auth.email
 
   let output = ''
   let settled = false
@@ -150,7 +156,7 @@ export async function startClaudeLogin(
     // successful."), so ask for the fact instead — and disbelieve a "logged in"
     // that names the same account we started with after a rejected code, which
     // is the credential we never replaced rather than a new one.
-    void claudeStatus(claudeOverride)
+    void claudeStatus(claudeOverride, extraEnv)
       .then((status) => {
         const stale = hasInvalidCodeNotice(output) && status.auth.email === emailBefore
         if (status.auth.loggedIn && !stale) emit({ phase: 'signed-in', email: status.auth.email })
@@ -209,11 +215,14 @@ export function cancelAllClaudeLogins(): void {
 }
 
 /** Sign the CLI out. Credentials are the CLI's, so this is its own subcommand. */
-export async function logoutClaude(claudeOverride?: string): Promise<void> {
+export async function logoutClaude(
+  claudeOverride?: string,
+  extraEnv?: Record<string, string>,
+): Promise<void> {
   const binary = claudeOverride ?? (await resolveBinary('claude'))
   if (!binary) throw new Error('claude not found on your login-shell PATH.')
   await execFileAsync(binary, ['auth', 'logout'], {
-    env: await piProcessEnv(),
+    env: { ...(await piProcessEnv()), ...extraEnv },
     timeout: 30_000,
   })
 }

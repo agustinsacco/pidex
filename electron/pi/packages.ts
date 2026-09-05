@@ -471,10 +471,12 @@ export function parseClaudeAuthStatus(stdout: string): ClaudeAuthStatus {
       email?: unknown
       subscriptionType?: unknown
       orgName?: unknown
+      orgId?: unknown
     }
     return {
       ok: true,
       loggedIn: parsed.loggedIn === true,
+      orgId: typeof parsed.orgId === 'string' ? parsed.orgId : undefined,
       plan: typeof parsed.subscriptionType === 'string' ? parsed.subscriptionType : undefined,
       organization: typeof parsed.orgName === 'string' ? parsed.orgName : undefined,
       method: typeof parsed.authMethod === 'string' ? parsed.authMethod : undefined,
@@ -495,11 +497,15 @@ function versionFrom(output: string): string | undefined {
  * local auth state. `claude auth status` reads local credentials only (no
  * network round-trip), so probing on tab mount is fine.
  */
-export async function claudeStatus(claudeOverride?: string): Promise<ClaudeStatus> {
+export async function claudeStatus(
+  claudeOverride?: string,
+  /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
+  extraEnv?: Record<string, string>,
+): Promise<ClaudeStatus> {
   const path = claudeOverride ?? (await resolveBinary('claude'))
   if (!path) return { binary: { found: false }, auth: { ok: false, error: 'claude not found' } }
 
-  const env = await piProcessEnv()
+  const env = { ...(await piProcessEnv()), ...extraEnv }
   let version: string | undefined
   try {
     const { stdout } = await execFileAsync(path, ['--version'], { timeout: 10_000, env })

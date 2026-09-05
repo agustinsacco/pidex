@@ -457,7 +457,11 @@ alternative is discovering it from a user report.
 limits at all, or whether that section stays empty for ChatGPT sessions the
 way it would have under a bridge. Whether pi's auth store supports more than
 one credential per provider, which decides whether Phase B's second account
-shape is implementable without an upstream change. And what a Claude account
+shape is implementable without an upstream change. (Answered for the _Claude_
+provider on 2026-09-04: it does not need pi's auth store at all —
+`CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's own keychain entry, so pidex
+holds several accounts and picks one per session. See
+[log/2026-09-04-claude-multi-account.md](log/2026-09-04-claude-multi-account.md).) And what a Claude account
 in the pool actually costs to add, given each one needs its own real
 subscription and its own `claude login`.
 

@@ -1,5 +1,10 @@
 # Switching the Claude account without a terminal
 
+> **Superseded 2026-09-04.** The "exactly one credential" premise below is
+> wrong: `CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's keychain entry, so
+> pidex now keeps several accounts and routes sessions between them. See
+> [2026-09-04-claude-multi-account.md](2026-09-04-claude-multi-account.md).
+
 Date: 2026-08-27
 
 ## What changed

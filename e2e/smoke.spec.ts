@@ -1930,7 +1930,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
     await page.keyboard.press('ControlOrMeta+Comma')
     await page.getByRole('button', { name: 'Claude Code', exact: true }).click()
 
-    // Health card sees the fake binary and its auth state.
+    // Health card sees the fake binary; the accounts list sees its auth state.
     await expect(page.getByText(/v2\.1\.219 at /)).toBeVisible()
     await expect(page.getByText('e2e@test · max')).toBeVisible()
 
@@ -1938,19 +1938,24 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
     // real spawn, real parse, real IPC — the stub's JSON is shaped like a
     // live capture, so this is the end-to-end proof of the plan bars.
     await expect(page.getByText('5-hour window')).toBeVisible()
-    await expect(page.getByText(/40% used/)).toBeVisible()
+    await expect(page.getByText(/40% used/).first()).toBeVisible()
     await expect(page.getByText('Weekly window')).toBeVisible()
     await expect(page.getByText(/51% used/)).toBeVisible()
 
-    // Switching accounts is in-app: the CLI's sign-in runs with piped stdio, so
+    // The existing login is seeded as account one, and it keeps the CLI's own
+    // keychain entry — the routing picker only appears once an account exists.
+    await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Route new sessions' })).toBeVisible()
+
+    // Re-authenticating is in-app: the CLI's sign-in runs with piped stdio, so
     // the paste-code box is the whole UI it needs — no terminal, no pty.
-    await page.getByRole('button', { name: 'Switch account' }).click()
+    await page.getByRole('button', { name: 'Sign in again' }).click()
     await expect(page.getByPlaceholder('Paste code')).toBeVisible()
     await page.getByPlaceholder('Paste code').fill('e2e-code')
     await page.getByRole('button', { name: 'Continue' }).click()
     // Back to a settled row — completion is read from `auth status`, never from
     // the CLI's "Login successful." prose.
-    await expect(page.getByRole('button', { name: 'Switch account' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in again' })).toBeVisible()
     await expect(page.getByText('e2e@test · max')).toBeVisible()
 
     // The one-click proof runs through the (stubbed) pi print mode.

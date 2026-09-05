@@ -255,6 +255,10 @@ export async function bootstrapSession(pidexId: string): Promise<void> {
           [pidexId]: { ...(s.live[pidexId] ?? { pidexId, workspacePath: '' }), diskPath },
         },
       }))
+      // Same reason the Claude account binding happens here: main picked the
+      // account at spawn, but the file it has to be recorded against did not
+      // exist yet. No-op for a session that is not on the Claude provider.
+      void window.pidex.invoke('claude:bindSession', diskPath, pidexId)
       // The path only becomes known here (get_state resolves after spawn), so
       // persist it now if this session is the one on screen.
       if (useSessionsStore.getState().activeSessionId === pidexId) {
