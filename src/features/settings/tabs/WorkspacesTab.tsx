@@ -1,22 +1,38 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { Button, NumberField, Row, SectionTitle, TextField, Toggle } from '@/components/form'
 import { normalizePrefix, slugifyTitle } from '@shared/branchName'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { LANE_PREF_LIMITS, type WorkspaceInfo } from '@shared/models'
+import { relativeTime } from '@/lib/time'
+import { LANE_PREF_LIMITS, type SandboxInfo, type WorkspaceInfo } from '@shared/models'
 
 /** How new chats get their branch, plus recent workspaces and layout reset. */
 
 export function WorkspacesTab(): React.JSX.Element {
-  const recents = useWorkspacesStore((s) => s.recents)
+  const allRecents = useWorkspacesStore((s) => s.recents)
+  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
+  // Item counts change whenever a session writes, so the list is re-read on
+  // open rather than trusted from launch.
+  useEffect(() => {
+    void useWorkspacesStore.getState().refreshSandboxes()
+  }, [])
+  // A sandbox IS a recent workspace, but listing it twice would mean two
+  // different Remove buttons for one folder. It belongs to its own section.
+  const recents = useMemo(() => {
+    const sandboxPaths = new Set(sandboxes.map((sandbox) => sandbox.path))
+    return allRecents.filter((workspace) => !sandboxPaths.has(workspace.path))
+  }, [allRecents, sandboxes])
   const preferWorktree = useWorktreesStore((s) => s.preferWorktree)
   const branchPrefix = useWorktreesStore((s) => s.branchPrefix)
   const lanes = useLanePrefsStore((s) => s.lanes)
   const setLanePrefs = useLanePrefsStore((s) => s.setLanePrefs)
 
   const remove = async (workspace: WorkspaceInfo): Promise<void> => {
-    const next = recents.filter((w) => w.path !== workspace.path)
+    // `allRecents`, not the filtered list: writing the filtered one back would
+    // forget every sandbox as a side effect of removing one project.
+    const next = allRecents.filter((w) => w.path !== workspace.path)
     await window.pidex.invoke('app:setRecentWorkspaces', next)
     useWorkspacesStore.setState({ recents: next })
   }
@@ -178,6 +194,71 @@ export function WorkspacesTab(): React.JSX.Element {
           </div>
         ))}
       </div>
+
+      <SectionTitle>Sandboxes</SectionTitle>
+      <p className="text-text-tertiary mb-2 text-base">
+        Scratch folders behind “No folder”. An empty one is reused, so asking again lands you back
+        in the same place until something is written there. Deleting moves the folder and its chats
+        to the Trash.
+      </p>
+      {sandboxes.length === 0 && <p className="text-text-tertiary text-base">No sandboxes yet.</p>}
+      <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
+        {sandboxes.map((sandbox) => (
+          <SandboxRow key={sandbox.path} sandbox={sandbox} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** One sandbox, with the delete behind a second click rather than a modal. */
+function SandboxRow({ sandbox }: { sandbox: SandboxInfo }): React.JSX.Element {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const del = async (): Promise<void> => {
+    setBusy(true)
+    // The store reports the outcome (including a refusal) as a toast.
+    await useWorkspacesStore.getState().deleteSandbox(sandbox.path)
+    setBusy(false)
+    setConfirming(false)
+  }
+
+  return (
+    <div className="bg-surface flex items-center gap-3 px-4 py-2.5">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-lg font-medium">{sandbox.name}</span>
+        <span className="text-text-tertiary block truncate text-sm">
+          {sandbox.itemCount === 0
+            ? 'Empty'
+            : `${sandbox.itemCount} item${sandbox.itemCount === 1 ? '' : 's'}`}
+          {' · '}
+          {relativeTime(sandbox.lastUsedAt)}
+        </span>
+      </span>
+      {confirming ? (
+        <>
+          <Button size="xs" onClick={() => setConfirming(false)} className="shrink-0">
+            Cancel
+          </Button>
+          <Button
+            size="xs"
+            variant="danger"
+            disabled={busy}
+            onClick={() => void del()}
+            className="shrink-0"
+          >
+            {busy ? 'Deleting…' : 'Confirm'}
+          </Button>
+        </>
+      ) : (
+        <button
+          onClick={() => setConfirming(true)}
+          className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
+        >
+          Delete
+        </button>
+      )}
     </div>
   )
 }

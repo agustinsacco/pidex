@@ -751,6 +751,17 @@ export function installMockPidex(): void {
           return Promise.resolve('/Users/dev/projects/pidex')
         case 'app:createSandbox':
           return Promise.resolve('/Users/dev/sandboxes/sandbox-1')
+        case 'app:listSandboxes':
+          return Promise.resolve([
+            {
+              path: '/Users/dev/sandboxes/sandbox-1',
+              name: 'sandbox-1',
+              itemCount: 0,
+              lastUsedAt: Date.now() - 3_600_000,
+            },
+          ])
+        case 'app:deleteSandbox':
+          return Promise.resolve({ ok: true })
         case 'pi:createSession':
           // The bundled context-breakdown extension publishes on
           // session_start; mirror that so the meter has data in the harness.

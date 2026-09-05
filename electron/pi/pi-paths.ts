@@ -107,6 +107,11 @@ export function claudeProjectsRoot(): string {
   return join(claudeConfigDir(), 'projects')
 }
 
+/** The CLI's directory of transcripts for one workspace. */
+export function claudeProjectDirForCwd(cwd: string): string {
+  return join(claudeProjectsRoot(), claudeProjectDirName(realCwd(cwd)))
+}
+
 /**
  * The CLI's parallel copy of one session's transcript. pi passes its own
  * session id through to the CLI, so the two ledgers share an id and differ
@@ -116,5 +121,5 @@ export function claudeProjectsRoot(): string {
  * missing file as normal.
  */
 export function claudeSessionFileForCwd(cwd: string, sessionId: string): string {
-  return join(claudeProjectsRoot(), claudeProjectDirName(realCwd(cwd)), `${sessionId}.jsonl`)
+  return join(claudeProjectDirForCwd(cwd), `${sessionId}.jsonl`)
 }

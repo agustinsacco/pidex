@@ -53,6 +53,7 @@ import type {
   SubscriptionProviderStatus,
   PiResources,
   PullResult,
+  SandboxInfo,
   SaveDialogOptions,
   SessionMeta,
   SessionPush,
@@ -121,11 +122,23 @@ export interface IpcInvokeMap {
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
   /**
-   * The "No folder" option: mint a fresh `<userData>/sandboxes/sandbox-N`
-   * folder for a session that belongs to no project, and return its path.
-   * From then on it is an ordinary workspace (recents, sessions, removal).
+   * The "No folder" option: the `<userData>/sandboxes/sandbox-N` folder a
+   * project-less session should run in. An empty sandbox is reused; a fresh
+   * one is minted only when every existing sandbox holds something. From then
+   * on it is an ordinary workspace (recents, sessions, removal).
    */
   'app:createSandbox': { args: []; result: string }
+  /** Every sandbox on disk, most recently touched first (Settings lists it). */
+  'app:listSandboxes': { args: []; result: SandboxInfo[] }
+  /**
+   * Move one sandbox — folder and transcripts — to the Trash, and forget it.
+   * Refused for a path that is not a sandbox, or one with a live session in
+   * it; main re-derives what is legal rather than trusting the renderer.
+   */
+  'app:deleteSandbox': {
+    args: [path: string]
+    result: { ok: true } | { ok: false; reason: 'not-a-sandbox' | 'in-use' | 'failed' }
+  }
   /**
    * Stage model-authored HTML for the artifact iframe and return a
    * `pidex-artifact://` URL for it. The document is served on its own opaque

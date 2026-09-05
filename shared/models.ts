@@ -20,6 +20,20 @@ export interface WorkspaceInfo {
   lastOpenedAt: number
 }
 
+/**
+ * A `<userData>/sandboxes/sandbox-N` folder — the "No folder" scratch space.
+ * A sandbox is an ordinary workspace once opened; this is the extra state
+ * Settings needs to say whether one is still worth keeping.
+ */
+export interface SandboxInfo {
+  path: string
+  name: string
+  /** Entries the model wrote, dotfiles excluded. 0 means untouched. */
+  itemCount: number
+  /** Folder mtime — when something was last added to or removed from it. */
+  lastUsedAt: number
+}
+
 /** Options for creating/attaching a live pi session (subprocess). */
 export interface CreateSessionOptions {
   workspacePath: string

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { WorkspaceInfo } from '@shared/models'
+import type { SandboxInfo, WorkspaceInfo } from '@shared/models'
 import { isWorktreeFolder } from '@/lib/path'
+import { useExtensionUiStore } from './extensionUi'
 import { useSessionsStore } from './sessions'
 
 /**
@@ -16,12 +17,22 @@ interface WorkspacesState {
   /** Folder the home screen composes against when no session is active. */
   homePath: string | null
   recents: WorkspaceInfo[]
+  /**
+   * Scratch folders main has minted. Two surfaces need it: Settings lists
+   * them, and the sidebar asks whether a group is one before offering to
+   * delete it.
+   */
+  sandboxes: SandboxInfo[]
   /** Point the home screen at a workspace (adds it to recents if new). */
   openWorkspace: (path: string) => void
   /** Native folder picker; adds the chosen folder rather than replacing. */
   pickAndOpen: () => Promise<string | null>
-  /** "No folder": mint a fresh sandbox folder in main and open it. */
+  /** "No folder": open a sandbox folder (an empty one is reused) from main. */
   openSandbox: () => Promise<string>
+  /** Re-read the sandbox list from disk. */
+  refreshSandboxes: () => Promise<void>
+  /** Trash a sandbox (folder + transcripts) and drop it from every list. */
+  deleteSandbox: (path: string) => Promise<{ ok: boolean; reason?: string }>
   /** Move a workspace in the user-defined sidebar/switcher order. */
   moveWorkspace: (path: string, direction: 'up' | 'down') => void
   hydrate: () => Promise<void>
@@ -36,6 +47,7 @@ const entryFor = (path: string): WorkspaceInfo => {
 export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   homePath: null,
   recents: [],
+  sandboxes: [],
 
   openWorkspace: (path) => {
     // A worktree folder is a *branch* of a workspace, not a workspace of its
@@ -70,7 +82,49 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   openSandbox: async () => {
     const path = await window.pidex.invoke('app:createSandbox')
     get().openWorkspace(path)
+    // Main may have minted a new one, and its item count changes the moment a
+    // session writes anything — so re-read rather than patching the list.
+    await get().refreshSandboxes()
     return path
+  },
+
+  refreshSandboxes: async () => {
+    set({ sandboxes: await window.pidex.invoke('app:listSandboxes') })
+  },
+
+  deleteSandbox: async (path) => {
+    const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path
+    const result = await window.pidex.invoke('app:deleteSandbox', path)
+    // Reported here rather than at each call site: main refuses for reasons
+    // (a live session) the sidebar and Settings would both have to explain.
+    if (!result.ok) {
+      useExtensionUiStore
+        .getState()
+        .pushToast(
+          result.reason === 'in-use'
+            ? `${name} has a session running in it`
+            : `Could not delete ${name}`,
+          'error',
+        )
+      return result
+    }
+    useExtensionUiStore.getState().pushToast(`${name} moved to the Trash`, 'info')
+    // Main already pruned recents on its side; mirror it here rather than
+    // re-hydrating.
+    const wasHome = get().homePath === path
+    set((s) => ({
+      recents: s.recents.filter((w) => w.path !== path),
+      sandboxes: s.sandboxes.filter((sandbox) => sandbox.path !== path),
+    }))
+    if (wasHome) {
+      // Step off the folder that just went to the Trash. Through
+      // `openWorkspace`, so `lastWorkspacePath` stops naming it too — otherwise
+      // the next launch resumes into a path that no longer exists.
+      const next = get().recents.at(-1)?.path
+      if (next) get().openWorkspace(next)
+      else set({ homePath: null })
+    }
+    return result
   },
 
   moveWorkspace: (path, direction) => {
@@ -87,8 +141,11 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   },
 
   hydrate: async () => {
-    const prefs = await window.pidex.invoke('app:getPrefs')
-    set({ recents: prefs.recentWorkspaces })
+    const [prefs, sandboxes] = await Promise.all([
+      window.pidex.invoke('app:getPrefs'),
+      window.pidex.invoke('app:listSandboxes'),
+    ])
+    set({ recents: prefs.recentWorkspaces, sandboxes })
   },
 }))
 
