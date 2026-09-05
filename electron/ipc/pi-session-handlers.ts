@@ -9,6 +9,8 @@ import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { composeDirectives } from '../pi/directives'
 import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
+import { accountForSpawn, claudeAccountEnv, primaryAccount } from '../claude/accounts'
+import { forgetSpawnAccount, rememberSpawnAccount } from '../pi/session-accounts'
 import {
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
@@ -148,6 +150,18 @@ async function spawnSession(
   // Rationale and the pi-claude-cli version floor live in provider-detect.ts.
   if (claudeProvider) Object.assign(spawnEnv, claudeProviderSpawnEnv())
 
+  // Which Claude login bills this session (Settings -> Claude Code ->
+  // Accounts). One env var on the pi spawn is enough: pi-claude-cli spawns the
+  // CLI with `{ ...process.env }`, and 0.7.0 keeps ONE CLI process per session,
+  // so the credential is fixed for the session's whole life. Chosen here and
+  // not later for exactly that reason — see electron/claude/routing.ts.
+  const claudeAccount = claudeProvider
+    ? await accountForSpawn({
+        ...(options.sessionPath ? { sessionPath: options.sessionPath } : {}),
+      }).catch(() => null)
+    : null
+  if (claudeAccount) Object.assign(spawnEnv, claudeAccountEnv(claudeAccount))
+
   const session = registry.create(options.workspacePath, {
     binaryPath,
     prefixArgs,
@@ -190,6 +204,10 @@ async function spawnSession(
     push({ kind: 'exit', code, signal: signal ?? null, expected })
   })
 
+  // Parked until the renderer learns the session's file path; see
+  // electron/pi/session-accounts.ts.
+  if (claudeAccount) rememberSpawnAccount(session.sessionId, claudeAccount.id)
+
   recordWorkspace(options.workspacePath, basename(options.workspacePath))
   return {
     sessionId: session.sessionId,
@@ -230,6 +248,7 @@ export function registerPiSessionHandlers(): void {
   })
 
   handle('pi:disposeSession', async (_event, sessionId: string) => {
+    forgetSpawnAccount(sessionId)
     await registry.dispose(sessionId)
   })
 
@@ -280,6 +299,14 @@ export function registerPiSessionHandlers(): void {
       const claudeCli = stub
         ? false
         : usesClaudeCliProvider({}, (await readAgentSettings(workspacePath)).defaultProvider)
+      // A naming run bills a plan too, so it goes to the account the user
+      // pinned (or the first one) rather than to whatever the CLI's default
+      // keychain entry happens to hold. Only asked for on the Claude path:
+      // resolving it costs two `claude` spawns on an install that has never
+      // stored an account, and a title run is on the session-start path.
+      if (claudeCli) {
+        Object.assign(env, claudeAccountEnv(await primaryAccount().catch(() => null)))
+      }
       const started = Date.now()
       const { stdout, error } = await runPrintMode(
         binaryPath,

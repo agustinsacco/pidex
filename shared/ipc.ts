@@ -29,6 +29,8 @@ import type {
   AgentSettingsHealth,
   BranchInfo,
   CheckoutResult,
+  ClaudeAccountsResult,
+  ClaudeRoutingMode,
   ClaudeStatus,
   ClaudeUsageSnapshotResult,
   ConnectorAuthPush,
@@ -395,14 +397,54 @@ export interface IpcInvokeMap {
    * Resolves once the CLI is running; progress arrives on `claude:loginState`,
    * because the middle of it is a human in a browser. The CLI opens the browser
    * itself, so main deliberately does not.
+   *
+   * With no argument this adds a NEW account, in its own keychain entry. Pass
+   * an existing account id to re-authenticate that one in place.
    */
-  'claude:startLogin': { args: []; result: void }
+  'claude:startLogin': { args: [accountId?: string]; result: void }
   /** Hand the code copied from the authorization page to the waiting CLI. */
   'claude:submitCode': { args: [code: string]; result: void }
   /** Abort a `claude:startLogin` in progress. No-op if nothing is running. */
   'claude:cancelLogin': { args: []; result: void }
   /** `claude auth logout`. Credentials are the CLI's, so this is its subcommand. */
   'claude:logout': { args: []; result: void }
+
+  /**
+   * Every Claude login pidex knows about, in routing order, with each one's
+   * live auth state and cached usage.
+   *
+   * Multiple accounts are possible because `CLAUDE_SECURESTORAGE_CONFIG_DIR`
+   * moves the CLI's keychain entry without moving `~/.claude` with it. One
+   * `claude auth status` per account, in parallel; usage is only ever read
+   * from main's cache here, never fetched inline.
+   */
+  'claude:accounts': { args: []; result: ClaudeAccountsResult }
+  /** Sign an account out and drop it from the list. */
+  'claude:removeAccount': { args: [accountId: string]; result: void }
+  /** Persist the account order — `ordered` mode walks it top to bottom. */
+  'claude:reorderAccounts': { args: [ids: string[]]; result: void }
+  /** Set the routing rule, and which account `specific` points at. */
+  'claude:setRouting': {
+    args: [mode: ClaudeRoutingMode, pinnedId?: string]
+    result: void
+  }
+  /**
+   * Re-read `/usage` for every account and recompute cooldowns.
+   *
+   * One zero-quota CLI run per account. The routing path never waits on this;
+   * it is what the settings tab calls, and what a session start kicks off in
+   * the background so the NEXT session routes on fresh numbers.
+   */
+  'claude:refreshAccountUsage': { args: []; result: ClaudeAccountsResult }
+  /**
+   * Bind a session file to the account that spawned it.
+   *
+   * Called by the renderer once `get_state` reveals the path — main chooses the
+   * account at spawn time, but a brand-new session has no file yet. Without the
+   * binding, resuming a round-robin session could land on a different plan,
+   * which misses the entire prompt cache and splits the thread's cost in two.
+   */
+  'claude:bindSession': { args: [sessionPath: string, pidexSessionId: string]; result: void }
   /**
    * Live subscription usage — the numbers Claude Code's own `/usage` panel
    * shows (5-hour + weekly windows, with percents), read by spawning
@@ -411,7 +453,7 @@ export interface IpcInvokeMap {
    * API key, no org, no credential crosses into pidex. Cached ~60 s in main,
    * because the endpoint behind it rate-limits.
    */
-  'claude:usageSnapshot': { args: []; result: ClaudeUsageSnapshotResult }
+  'claude:usageSnapshot': { args: [accountId?: string]; result: ClaudeUsageSnapshotResult }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 

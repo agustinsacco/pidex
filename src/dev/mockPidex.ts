@@ -126,6 +126,86 @@ let mockClaudeAuth: { loggedIn: boolean; email?: string } = {
   loggedIn: true,
   email: 'dev@example.com',
 }
+/**
+ * Two accounts, so the harness renders the part that only exists with more
+ * than one: ordering arrows, the routing radios, and an account the ordered
+ * rule would skip. `credentialDir: null` on the first is the real shape — the
+ * default account is the CLI's own keychain entry.
+ */
+const mockClaudeAccounts: {
+  prefs: {
+    accounts: {
+      id: string
+      label: string
+      email: string
+      plan: string
+      credentialDir: string | null
+      addedAt: number
+    }[]
+    mode: 'specific' | 'ordered' | 'round-robin'
+    pinnedId?: string
+    cursor: number
+    cooldowns: Record<string, number>
+    bindings: Record<string, string>
+  }
+} = {
+  prefs: {
+    accounts: [
+      {
+        id: 'default',
+        label: 'dev@example.com',
+        email: 'dev@example.com',
+        plan: 'max',
+        credentialDir: null,
+        addedAt: Date.now() - 86_400_000,
+      },
+      {
+        id: 'work',
+        label: 'dev@work.example',
+        email: 'dev@work.example',
+        plan: 'team',
+        credentialDir: '/Users/dev/Library/Application Support/pidex/claude-accounts/work',
+        addedAt: Date.now() - 3_600_000,
+      },
+    ],
+    mode: 'ordered',
+    pinnedId: 'default',
+    cursor: 0,
+    cooldowns: {},
+    bindings: {},
+  },
+}
+
+/** Accounts plus the per-account facts the tab renders. */
+function mockAccountViews(): unknown {
+  return {
+    prefs: mockClaudeAccounts.prefs,
+    views: mockClaudeAccounts.prefs.accounts.map((account, index) => ({
+      account,
+      auth: {
+        ok: true,
+        loggedIn: true,
+        method: 'claude.ai',
+        email: account.email,
+        plan: account.plan,
+      },
+      usage: {
+        fetchedAt: Date.now(),
+        stale: false,
+        windows: [
+          {
+            label: 'Current session',
+            kind: 'five_hour',
+            percentUsed: index === 0 ? 100 : 26,
+            resetsAt: Date.now() + 2.2 * 3600_000,
+          },
+        ],
+        contributing: null,
+      },
+      cooldownUntil: index === 0 ? Date.now() + 2.2 * 3600_000 : null,
+    })),
+  }
+}
 const mockConnectorAuthListeners = new Set<(push: ConnectorAuthPush) => void>()
 const mockClaudeLoginListeners = new Set<(state: never) => void>()
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
@@ -947,6 +1027,31 @@ export function installMockPidex(): void {
           }, 900)
           return Promise.resolve(undefined as never)
         }
+        case 'claude:accounts':
+        case 'claude:refreshAccountUsage':
+          return Promise.resolve(mockAccountViews() as never)
+        case 'claude:removeAccount': {
+          const id = String(args[0] ?? '')
+          mockClaudeAccounts.prefs.accounts = mockClaudeAccounts.prefs.accounts.filter(
+            (a) => a.id !== id,
+          )
+          return Promise.resolve(undefined as never)
+        }
+        case 'claude:reorderAccounts': {
+          const ids = (args[0] ?? []) as string[]
+          const byId = new Map(mockClaudeAccounts.prefs.accounts.map((a) => [a.id, a]))
+          mockClaudeAccounts.prefs.accounts = ids.flatMap((id) => {
+            const account = byId.get(id)
+            return account ? [account] : []
+          })
+          return Promise.resolve(undefined as never)
+        }
+        case 'claude:setRouting':
+          mockClaudeAccounts.prefs.mode = args[0] as 'specific' | 'ordered' | 'round-robin'
+          if (args[1]) mockClaudeAccounts.prefs.pinnedId = String(args[1])
+          return Promise.resolve(undefined as never)
+        case 'claude:bindSession':
+          return Promise.resolve(undefined as never)
         case 'claude:cancelLogin':
           clearTimeout(mockClaudeLoginTimer)
           emitClaudeLoginState({ phase: 'cancelled' } as never)

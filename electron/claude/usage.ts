@@ -181,8 +181,31 @@ interface CacheEntry {
   snapshot: ClaudeUsageSnapshot
 }
 
-let cached: CacheEntry | null = null
-let inFlight: Promise<ClaudeUsageSnapshotResult> | null = null
+/**
+ * Keyed by account id, because every Claude account has its own quota and one
+ * shared slot would show whichever one asked last. The default key covers
+ * callers with no account context (the usage popover on a stock install).
+ */
+const DEFAULT_KEY = 'default'
+const cached = new Map<string, CacheEntry>()
+const inFlight = new Map<string, Promise<ClaudeUsageSnapshotResult>>()
+
+/**
+ * Whatever main already knows about an account, without spawning anything.
+ *
+ * The routing code reads usage this way on the session-start path: a
+ * `claude -p /usage` run is ~2s, and paying that per account before a session
+ * can start is not a trade worth making for a cooldown that is refreshed in
+ * the background anyway.
+ */
+export function cachedUsageSnapshot(
+  cacheKey: string,
+  nowMs: number = Date.now(),
+): ClaudeUsageSnapshot | null {
+  const entry = cached.get(cacheKey)
+  if (!entry || nowMs - entry.fetchedAt >= CACHE_TTL_MS) return null
+  return entry.snapshot
+}
 
 /**
  * Current usage snapshot, spawning `claude -p /usage` when the cache is older
@@ -194,33 +217,42 @@ export async function fetchUsageSnapshot(options?: {
   claudeOverride?: string
   nowMs?: number
   runner?: UsageRunner
+  /** Account id. Omitted means the CLI's default credential. */
+  cacheKey?: string
+  /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
+  extraEnv?: Record<string, string>
 }): Promise<ClaudeUsageSnapshotResult> {
   const nowMs = options?.nowMs ?? Date.now()
-  if (cached && nowMs - cached.fetchedAt < CACHE_TTL_MS) {
-    return { ok: true, snapshot: cached.snapshot }
+  const key = options?.cacheKey ?? DEFAULT_KEY
+  const hit = cached.get(key)
+  if (hit && nowMs - hit.fetchedAt < CACHE_TTL_MS) {
+    return { ok: true, snapshot: hit.snapshot }
   }
-  if (inFlight) return inFlight
+  const pending = inFlight.get(key)
+  if (pending) return pending
 
-  inFlight = (async (): Promise<ClaudeUsageSnapshotResult> => {
+  const run = (async (): Promise<ClaudeUsageSnapshotResult> => {
     const binaryPath = options?.claudeOverride ?? (await resolveBinary('claude'))
     if (!binaryPath) return { ok: false, error: 'claude-not-found' }
-    const env = await piProcessEnv()
+    const env = { ...(await piProcessEnv()), ...options?.extraEnv }
     const stdout = await (options?.runner ?? defaultRunner)(binaryPath, env)
     if (stdout === null) return { ok: false, error: 'run-failed' }
     const snapshot = parseUsageOutput(stdout, nowMs)
     if (!snapshot) return { ok: false, error: 'no-usage' }
-    cached = { fetchedAt: snapshot.fetchedAt, snapshot }
+    cached.set(key, { fetchedAt: snapshot.fetchedAt, snapshot })
     return { ok: true, snapshot }
   })()
+  inFlight.set(key, run)
 
   try {
-    return await inFlight
+    return await run
   } finally {
-    inFlight = null
+    inFlight.delete(key)
   }
 }
 
-/** Test seam: drop the cache so the next fetch spawns again. */
-export function clearUsageCache(): void {
-  cached = null
+/** Test seam, and the reset after a sign-in: drop one key, or all of them. */
+export function clearUsageCache(cacheKey?: string): void {
+  if (cacheKey === undefined) cached.clear()
+  else cached.delete(cacheKey)
 }

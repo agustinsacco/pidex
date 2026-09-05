@@ -457,6 +457,16 @@ export interface AppPrefs {
    */
   claudeAutocompact: string
   /**
+   * Claude Code logins, their order, and how sessions are routed to them.
+   *
+   * Optional because it is deliberately NOT part of what `app:getPrefs` hands
+   * the renderer: it carries credential directory paths and a session→account
+   * map that no renderer surface needs. The settings tab reads accounts over
+   * `claude:accounts`, which returns live auth state with them. The key is
+   * declared here only so main's electron-store stays typed.
+   */
+  claudeAccounts?: ClaudeAccountPrefs
+  /**
    * Unsent composer drafts, keyed by `session:<pidexId>` or
    * `home:<workspacePath>`.
    *
@@ -575,6 +585,14 @@ export const MAX_RECENT_MODELS = 8
 
 export const DEFAULT_MODEL_PICKS: ModelPicks = { starred: [], recent: [], groupMode: 'family' }
 
+export const DEFAULT_CLAUDE_ACCOUNT_PREFS: ClaudeAccountPrefs = {
+  accounts: [],
+  mode: 'specific',
+  cursor: 0,
+  cooldowns: {},
+  bindings: {},
+}
+
 export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'dark',
   recentWorkspaces: [],
@@ -589,6 +607,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   agentDirectivesByProject: {},
   worktrees: DEFAULT_WORKTREE_PREFS,
   claudeAutocompact: '',
+  claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }
 
@@ -677,6 +696,8 @@ export interface ClaudeAuthStatus {
   plan?: string
   /** `orgName` — present for team/enterprise logins, the giveaway for a wrong account. */
   organization?: string
+  /** `orgId`. Pinned back onto a session as `CLAUDE_CODE_ORGANIZATION_UUID`. */
+  orgId?: string
   error?: string
 }
 
@@ -713,6 +734,82 @@ export interface ClaudeUsageSnapshot {
   windows: ClaudeUsageWindow[]
   /** The "What's contributing to your limits usage?" block, verbatim, when present. */
   contributing: string | null
+}
+
+// ---------- Claude Code accounts ----------
+
+/**
+ * One Claude Code login pidex can route a session to.
+ *
+ * Multiple accounts are possible because the CLI derives its keychain service
+ * name from a config directory: `CLAUDE_SECURESTORAGE_CONFIG_DIR` appends a
+ * hash of that directory to `Claude Code-credentials`, giving each account its
+ * own credential while `~/.claude` (projects, settings, skills, plugins) stays
+ * shared. Verified against Claude Code 2.1.260; see
+ * docs/log/2026-09-04-claude-multi-account.md.
+ */
+export interface ClaudeAccount {
+  /** Stable id; also the folder name under the accounts directory. */
+  id: string
+  /** What the UI shows. Defaults to the email the CLI reported at sign-in. */
+  label: string
+  email?: string
+  /** `subscriptionType` at sign-in, e.g. `pro` / `max` / `team`. */
+  plan?: string
+  organization?: string
+  /**
+   * `orgId` at sign-in, passed back as `CLAUDE_CODE_ORGANIZATION_UUID`.
+   *
+   * `~/.claude.json`'s `oauthAccount` block is keyed by `CLAUDE_CONFIG_DIR`,
+   * NOT by the securestorage dir, so all accounts share it and the last one to
+   * sign in wins its org id. The CLI reads this env var ahead of that block,
+   * which is what keeps a session's org matched to its token.
+   */
+  orgId?: string
+  /**
+   * Credential directory, or null for the CLI's own default keychain entry —
+   * the one your terminal `claude` uses. The first account is seeded as null
+   * so nothing has to migrate.
+   */
+  credentialDir: string | null
+  addedAt: number
+}
+
+/** How a new session picks which account bills it. */
+export type ClaudeRoutingMode = 'specific' | 'ordered' | 'round-robin'
+
+/** Accounts, their order, and the routing rule over them. */
+export interface ClaudeAccountPrefs {
+  /** Ordered — `ordered` mode walks this top to bottom. */
+  accounts: ClaudeAccount[]
+  mode: ClaudeRoutingMode
+  /** Which account `specific` mode uses. Falls back to the first. */
+  pinnedId?: string
+  /** Next index `round-robin` hands out. */
+  cursor: number
+  /**
+   * Account id → epoch ms its 5-hour window resets, for accounts observed at
+   * 100%. `ordered` and `round-robin` skip an account until then.
+   */
+  cooldowns: Record<string, number>
+  /** Session file path → account id, so a resumed session keeps its billing. */
+  bindings: Record<string, string>
+}
+
+/** An account plus the live facts the settings tab needs to render it. */
+export interface ClaudeAccountView {
+  account: ClaudeAccount
+  auth: ClaudeAuthStatus
+  /** Cached usage, when main has a fresh enough snapshot. Never fetched inline. */
+  usage: ClaudeUsageSnapshot | null
+  /** Cooldown expiry from `ClaudeAccountPrefs.cooldowns`, when active. */
+  cooldownUntil: number | null
+}
+
+/** `claude:accounts` channel result. */
+export interface ClaudeAccountsResult {
+  prefs: ClaudeAccountPrefs
+  views: ClaudeAccountView[]
 }
 
 /** Why a `claude -p /usage` run produced no windows. */

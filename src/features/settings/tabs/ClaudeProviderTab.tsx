@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type {
+  ClaudeAccountsResult,
+  ClaudeAccountView,
   ClaudeLoginState,
+  ClaudeRoutingMode,
   ClaudeStatus,
   ClaudeUsageSnapshotResult,
   PiPackageEntry,
@@ -33,15 +36,18 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const [status, setStatus] = useState<ClaudeStatus | null>(null)
   const [cliLatest, setCliLatest] = useState<string | null>(null)
   const [login, setLogin] = useState<ClaudeLoginState | null>(null)
+  const [accounts, setAccounts] = useState<ClaudeAccountsResult | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
-    const [entries, claudeState] = await Promise.all([
+    const [entries, claudeState, accountState] = await Promise.all([
       window.pidex.invoke('packages:list'),
       window.pidex.invoke('packages:claudeStatus'),
+      window.pidex.invoke('claude:accounts'),
     ])
     const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
     setPkg(entry)
     setStatus(claudeState)
+    setAccounts(accountState)
     // Both version checks hit the network, so neither blocks the health rows.
     if (entry) {
       void window.pidex
@@ -138,13 +144,6 @@ export function ClaudeProviderTab(): React.JSX.Element {
             }
           />
         )}
-        <ClaudeAccountRow
-          status={status}
-          login={login}
-          disabled={!binaryOk}
-          onChanged={() => void refresh()}
-          onLoginState={setLogin}
-        />
       </div>
       {status?.binary.version && !status.binary.version.startsWith(`${TESTED_CLI_LINE}.`) && (
         <p className="text-warning mt-2 text-sm">
@@ -153,7 +152,16 @@ export function ClaudeProviderTab(): React.JSX.Element {
         </p>
       )}
 
-      <UsageSection binaryOk={binaryOk} />
+      <AccountsSection
+        accounts={accounts}
+        login={login}
+        disabled={!binaryOk}
+        onChanged={() => void refresh()}
+        onAccounts={setAccounts}
+        onLoginState={setLogin}
+      />
+
+      <UsageSection binaryOk={binaryOk} accountId={primaryAccountId(accounts)} />
 
       <ContextWindowSection />
 
@@ -205,7 +213,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
           updates — not when Claude Code does.
         </li>
         <li>
-          Logged out or expired: use <strong>Sign in</strong> above. It drives{' '}
+          Logged out or expired: use <strong>Sign in again</strong> on the account above. It drives{' '}
           <span className="font-mono">claude auth login</span> for you — no terminal needed.
         </li>
         <li>
@@ -217,39 +225,72 @@ export function ClaudeProviderTab(): React.JSX.Element {
   )
 }
 
+/** Which account the standalone usage panel and one-shot runs report on. */
+function primaryAccountId(accounts: ClaudeAccountsResult | null): string | undefined {
+  if (!accounts) return undefined
+  const pinned = accounts.prefs.pinnedId
+  if (pinned && accounts.prefs.accounts.some((a) => a.id === pinned)) return pinned
+  return accounts.prefs.accounts[0]?.id
+}
+
+const ROUTING_OPTIONS: { value: ClaudeRoutingMode; title: string; detail: string }[] = [
+  {
+    value: 'specific',
+    title: 'One account',
+    detail: 'Every session bills the account you pick below.',
+  },
+  {
+    value: 'ordered',
+    title: 'In order, top to bottom',
+    detail:
+      'A new session starts on the highest account that still has 5-hour quota. Reorder with the arrows.',
+  },
+  {
+    value: 'round-robin',
+    title: 'Round robin',
+    detail: 'Each new session takes the next account in the list, spreading load across plans.',
+  },
+]
+
 /**
- * The Claude account: who is signed in, and the whole sign-in/out flow.
+ * Claude logins, in routing order, and the rule that picks between them.
  *
- * This is the row that used to say “run `claude` in a terminal”. The credential
- * belongs to the `claude` binary, not to pidex or to pi, so switching accounts
- * is sign-out-then-sign-in — the CLI keeps exactly one, in the OS keychain, and
- * there is no way to hold two side by side. Saying so beats a user hunting for
- * an “Add account” button that cannot exist.
+ * This is the row that used to say “switching accounts is sign-out then
+ * sign-in”. It no longer is: the CLI scopes its keychain entry by
+ * `CLAUDE_SECURESTORAGE_CONFIG_DIR`, so pidex keeps one credential directory
+ * per account and hands the right one to each session's `pi` spawn.
+ *
+ * Two things the UI has to be honest about, because both surprise people:
+ * the account is fixed when a session STARTS (the CLI process is parked for
+ * the session's life, so there is no mid-conversation failover), and the
+ * “out of quota” marks come from a cached `/usage` reading, not a live one.
  */
-function ClaudeAccountRow({
-  status,
+function AccountsSection({
+  accounts,
   login,
   disabled,
   onChanged,
+  onAccounts,
   onLoginState,
 }: {
-  status: ClaudeStatus | null
+  accounts: ClaudeAccountsResult | null
   login: ClaudeLoginState | null
   disabled: boolean
   onChanged: () => void
+  onAccounts: (accounts: ClaudeAccountsResult) => void
   onLoginState: (state: ClaudeLoginState | null) => void
 }): React.JSX.Element {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const auth = status?.auth
-  const signedIn = auth?.loggedIn === true
   const inFlight = login !== null
+  const prefs = accounts?.prefs
+  const views = accounts?.views ?? []
 
-  const start = async (): Promise<void> => {
+  const start = async (accountId?: string): Promise<void> => {
     setCode('')
     onLoginState({ phase: 'starting' })
     try {
-      await window.pidex.invoke('claude:startLogin')
+      await window.pidex.invoke('claude:startLogin', accountId)
     } catch (caught) {
       onLoginState({
         phase: 'error',
@@ -271,96 +312,295 @@ function ClaudeAccountRow({
     }
   }
 
-  const signOut = async (): Promise<void> => {
+  const mutate = async (run: () => Promise<unknown>): Promise<void> => {
     setBusy(true)
     try {
-      await window.pidex.invoke('claude:logout')
+      await run()
     } finally {
       setBusy(false)
       onChanged()
     }
   }
 
-  const detail =
-    status === null
-      ? 'checking…'
-      : signedIn
-        ? [
-            auth?.email ?? 'logged in',
-            auth?.plan,
-            auth?.organization,
-            auth?.method !== 'claude.ai' ? auth?.method : undefined,
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        : auth?.ok
-          ? 'not signed in'
-          : (auth?.error ?? 'auth state unknown')
+  const move = (index: number, delta: number): void => {
+    const ids = views.map((v) => v.account.id)
+    const target = index + delta
+    if (target < 0 || target >= ids.length) return
+    const reordered = [...ids]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(target, 0, moved!)
+    void mutate(() => window.pidex.invoke('claude:reorderAccounts', reordered))
+  }
 
   return (
-    <div className="px-3.5 py-2.5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            className={clsx(
-              'h-2 w-2 shrink-0 rounded-full',
-              signedIn ? 'bg-success' : 'bg-warning',
-            )}
-            aria-hidden
-          />
-          <div className="min-w-0">
-            <div className="text-base font-medium">Claude account</div>
-            <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
-          </div>
-        </div>
+    <>
+      <h3 className="mt-6 text-lg font-semibold">Accounts</h3>
+      <p className="text-text-secondary mt-1 text-base">
+        Each account keeps its own credential, so they sit side by side rather than replacing one
+        another. The account is chosen when a session <strong>starts</strong> and stays fixed for
+        its whole life — a resumed session always bills the account it began on.
+      </p>
+      <p className="text-text-tertiary mt-1 text-sm">
+        Adding an account opens Claude&apos;s sign-in page. If your browser signs you straight back
+        into the account you already have, sign out at claude.ai first — signing in as an email that
+        is already listed re-authenticates that row instead of adding a second one.
+      </p>
 
-        <div className="flex shrink-0 items-center gap-3">
-          {inFlight ? (
-            <button
-              onClick={() => {
-                void window.pidex.invoke('claude:cancelLogin')
-                onLoginState(null)
-              }}
-              className="text-text-secondary hover:text-text text-base"
-            >
-              Cancel
-            </button>
-          ) : (
-            <>
-              {signedIn && (
-                <button
-                  onClick={() => void signOut()}
-                  disabled={busy}
-                  className="text-text-secondary hover:text-text text-base disabled:opacity-50"
-                >
-                  {busy ? 'Signing out…' : 'Sign out'}
-                </button>
-              )}
-              <Button variant="secondary" disabled={disabled || busy} onClick={() => void start()}>
-                {signedIn ? 'Switch account' : 'Sign in'}
-              </Button>
-            </>
-          )}
-        </div>
+      <div className="border-border mt-2 divide-y rounded-lg border">
+        {accounts === null ? (
+          <div className="text-text-secondary flex items-center gap-2 px-3.5 py-2.5 text-base">
+            <Spinner /> Reading your Claude logins…
+          </div>
+        ) : views.length === 0 ? (
+          <div className="text-text-secondary px-3.5 py-2.5 text-base">
+            No Claude account yet. Add one below — it drives{' '}
+            <span className="font-mono">claude auth login</span>, no terminal needed.
+          </div>
+        ) : (
+          views.map((view, index) => (
+            <AccountRow
+              key={view.account.id}
+              view={view}
+              index={index}
+              count={views.length}
+              pinned={prefs?.mode === 'specific' && primaryAccountId(accounts) === view.account.id}
+              selectable={prefs?.mode === 'specific'}
+              busy={busy || inFlight}
+              onMove={move}
+              onPin={() =>
+                void mutate(() =>
+                  window.pidex.invoke('claude:setRouting', 'specific', view.account.id),
+                )
+              }
+              onReauth={() => void start(view.account.id)}
+              onRemove={() =>
+                void mutate(() => window.pidex.invoke('claude:removeAccount', view.account.id))
+              }
+            />
+          ))
+        )}
       </div>
 
-      {login?.phase === 'starting' && (
+      <div className="mt-2.5 flex items-center gap-3">
+        {inFlight ? (
+          <button
+            onClick={() => {
+              void window.pidex.invoke('claude:cancelLogin')
+              onLoginState(null)
+            }}
+            className="text-text-secondary hover:text-text text-base"
+          >
+            Cancel sign-in
+          </button>
+        ) : (
+          <Button variant="secondary" disabled={disabled || busy} onClick={() => void start()}>
+            Add account
+          </Button>
+        )}
+        <button
+          onClick={() =>
+            void mutate(async () =>
+              onAccounts(await window.pidex.invoke('claude:refreshAccountUsage')),
+            )
+          }
+          disabled={disabled || busy || views.length === 0}
+          className="text-text-secondary hover:text-text text-base disabled:opacity-50"
+        >
+          Refresh usage
+        </button>
+      </div>
+
+      <LoginProgress code={code} login={login} onCode={setCode} onSubmit={() => void submit()} />
+
+      {views.length > 0 && (
+        <>
+          <h4 className="mt-5 text-base font-semibold">Route new sessions</h4>
+          <div className="border-border mt-2 divide-y rounded-lg border">
+            {ROUTING_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className="hover:bg-surface-raised flex cursor-pointer items-start gap-3 px-3.5 py-2.5"
+              >
+                <input
+                  type="radio"
+                  name="claude-routing"
+                  className="accent-accent mt-1"
+                  checked={prefs?.mode === option.value}
+                  disabled={busy}
+                  onChange={() =>
+                    void mutate(() =>
+                      window.pidex.invoke(
+                        'claude:setRouting',
+                        option.value,
+                        primaryAccountId(accounts),
+                      ),
+                    )
+                  }
+                />
+                <div className="min-w-0">
+                  <div className="text-base font-medium">{option.title}</div>
+                  <div className="text-text-tertiary text-sm">{option.detail}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+          {prefs?.mode !== 'specific' && (
+            <p className="text-text-tertiary mt-2 text-sm">
+              “Out of quota” is read from each account&apos;s cached{' '}
+              <span className="font-mono">/usage</span>, refreshed in the background after a session
+              starts. Press <strong>Refresh usage</strong> to make the next choice use live numbers.
+            </p>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+/** One account: identity, quota, order, and its two destructive-ish buttons. */
+function AccountRow({
+  view,
+  index,
+  count,
+  pinned,
+  selectable,
+  busy,
+  onMove,
+  onPin,
+  onReauth,
+  onRemove,
+}: {
+  view: ClaudeAccountView
+  index: number
+  count: number
+  pinned: boolean
+  selectable: boolean
+  busy: boolean
+  onMove: (index: number, delta: number) => void
+  onPin: () => void
+  onReauth: () => void
+  onRemove: () => void
+}): React.JSX.Element {
+  const { account, auth, usage, cooldownUntil } = view
+  const signedIn = auth.loggedIn === true
+  const fiveHour = usage?.windows.find((w) => w.kind === 'five_hour')
+  const detail = [
+    auth.email ?? account.email ?? (signedIn ? 'logged in' : 'signed out'),
+    auth.plan ?? account.plan,
+    auth.organization ?? account.organization,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <div className="flex items-start gap-3 px-3.5 py-2.5">
+      {selectable ? (
+        <input
+          type="radio"
+          name="claude-pinned-account"
+          aria-label={`Use ${account.label} for new sessions`}
+          className="accent-accent mt-1.5"
+          checked={pinned}
+          disabled={busy}
+          onChange={onPin}
+        />
+      ) : (
+        <span
+          className={clsx(
+            'mt-2 h-2 w-2 shrink-0 rounded-full',
+            signedIn ? 'bg-success' : 'bg-warning',
+          )}
+          aria-hidden
+        />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="text-base font-medium">
+          {account.label}
+          {!signedIn && <span className="text-warning ml-2 text-sm">needs sign-in</span>}
+        </div>
+        <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
+        {fiveHour && (
+          <div className={clsx('mt-0.5 font-mono text-sm', usageTextClass(fiveHour.percentUsed))}>
+            5-hour {Math.round(fiveHour.percentUsed)}% used
+            {windowResetLabel(fiveHour.resetsAt) ? ` · ${windowResetLabel(fiveHour.resetsAt)}` : ''}
+          </div>
+        )}
+        {cooldownUntil !== null && (
+          <div className="text-warning mt-0.5 text-sm">
+            Skipped by routing until this window resets.
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          onClick={() => onMove(index, -1)}
+          disabled={busy || index === 0}
+          aria-label={`Move ${account.label} up`}
+          className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
+        >
+          ↑
+        </button>
+        <button
+          onClick={() => onMove(index, 1)}
+          disabled={busy || index === count - 1}
+          aria-label={`Move ${account.label} down`}
+          className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
+        >
+          ↓
+        </button>
+        <button
+          onClick={onReauth}
+          disabled={busy}
+          className="text-text-secondary hover:text-text text-base disabled:opacity-50"
+        >
+          Sign in again
+        </button>
+        <button
+          onClick={onRemove}
+          disabled={busy}
+          className="text-danger text-base hover:underline disabled:opacity-50"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** The browser handoff: spinner, error, and the code the user pastes back. */
+function LoginProgress({
+  code,
+  login,
+  onCode,
+  onSubmit,
+}: {
+  code: string
+  login: ClaudeLoginState | null
+  onCode: (code: string) => void
+  onSubmit: () => void
+}): React.JSX.Element | null {
+  if (login === null) return null
+  return (
+    <div>
+      {login.phase === 'starting' && (
         <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
           <Spinner />
           Starting the Claude CLI’s sign-in…
         </div>
       )}
 
-      {login?.phase === 'finishing' && (
+      {login.phase === 'finishing' && (
         <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
           <Spinner />
           Finishing sign-in…
         </div>
       )}
 
-      {login?.phase === 'error' && <p className="text-danger mt-3 text-sm">{login.message}</p>}
+      {login.phase === 'error' && <p className="text-danger mt-3 text-sm">{login.message}</p>}
 
-      {login?.phase === 'awaiting-code' && (
+      {login.phase === 'awaiting-code' && (
         <div className="border-border bg-surface-raised mt-3 rounded-md border p-3">
           {login.invalidCode && (
             <p className="text-danger text-sm">
@@ -377,14 +617,14 @@ function ClaudeAccountRow({
             <TextInput
               autoFocus
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => onCode(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void submit()
+                if (event.key === 'Enter') onSubmit()
               }}
               placeholder="Paste code"
               className="min-w-0 flex-1 rounded-md font-mono"
             />
-            <Button variant="primary" disabled={!code.trim()} onClick={() => void submit()}>
+            <Button variant="primary" disabled={!code.trim()} onClick={onSubmit}>
               Continue
             </Button>
           </div>
@@ -468,12 +708,19 @@ function UpdateRow({
  * pidex touches — the CLI reads its own keychain login, so it needs nothing
  * from the user beyond being signed in to a subscription.
  */
-function UsageSection({ binaryOk }: { binaryOk: boolean | undefined }): React.JSX.Element {
+function UsageSection({
+  binaryOk,
+  accountId,
+}: {
+  binaryOk: boolean | undefined
+  /** Whose quota this panel reports. Undefined = the CLI's default credential. */
+  accountId: string | undefined
+}): React.JSX.Element {
   const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
-    setState(await window.pidex.invoke('claude:usageSnapshot'))
-  }, [])
+    setState(await window.pidex.invoke('claude:usageSnapshot', accountId))
+  }, [accountId])
 
   useEffect(() => {
     if (binaryOk) void refresh()

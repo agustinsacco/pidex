@@ -9,11 +9,13 @@ import {
 } from './prefs-utils'
 import {
   DEFAULT_APP_PREFS,
+  DEFAULT_CLAUDE_ACCOUNT_PREFS,
   DEFAULT_MODEL_PICKS,
   normalizeLanePrefs,
   type LanePrefs,
   type AgentDirectivePrefs,
   type AppPrefs,
+  type ClaudeAccountPrefs,
   type ComposerDraftRecord,
   type ThemePreference,
   type WorkspaceInfo,
@@ -115,6 +117,21 @@ export function clearDraft(key: string): string[] {
 /** Replace the whole map — used by the launch-time sweep. */
 export function setDrafts(drafts: Record<string, ComposerDraftRecord>): void {
   prefs().set('drafts', drafts)
+}
+
+/**
+ * Claude accounts and their routing rule.
+ *
+ * Read through a merge with the defaults, not returned raw: this pref is
+ * user-editable JSON that decides which credential a spawn runs under, and a
+ * hand-edited file missing `cooldowns` must not crash a session start.
+ */
+export function getClaudeAccountPrefs(): ClaudeAccountPrefs {
+  return { ...DEFAULT_CLAUDE_ACCOUNT_PREFS, ...prefs().get('claudeAccounts') }
+}
+
+export function setClaudeAccountPrefs(value: ClaudeAccountPrefs): void {
+  prefs().set('claudeAccounts', value)
 }
 
 /** See AppPrefs.claudeAutocompact — stored trimmed; '' means provider default. */
