@@ -2,17 +2,22 @@
 // Merge open PRs that nobody has commented on, whose CI is green, and that
 // have no conflicts. Everything else is left alone, with a printed reason.
 //
+// The driver is `.github/workflows/automerge.yml`, which runs this after CI
+// finishes. It is not a poller: a merge lands on main, main's CI runs, that
+// completion triggers the next evaluation, and the queue drains one PR at a
+// time. `--dry-run` locally prints the verdicts and touches nothing.
+//
 // The decision is a pure function (`decide`) over one `gh pr view --json`
-// object, so the rules are unit-tested without touching the network — see
-// `automerge-prs.test.ts`. Only `main()` talks to GitHub.
+// object plus a `behindBy` count, so the rules are unit-tested without
+// touching the network — see `automerge-prs.test.ts`. Only `main()` runs `gh`.
 //
 // Every gate fails CLOSED: an unknown value, a missing field, or a check
-// still running holds the PR. A held PR costs a ten-minute wait; a wrongly
-// merged one costs a revert on main.
+// still running holds the PR. A held PR costs one CI cycle; a wrongly merged
+// one costs a revert on main.
 //
 // Usage:
-//   scripts/automerge-prs.mjs              # merge what qualifies
-//   scripts/automerge-prs.mjs --dry-run    # print the verdicts, merge nothing
+//   scripts/automerge-prs.mjs              # merge/update what qualifies
+//   scripts/automerge-prs.mjs --dry-run    # print the verdicts, change nothing
 //   scripts/automerge-prs.mjs --pr 169     # consider one PR only
 
 import { execFile } from 'node:child_process'
@@ -26,7 +31,8 @@ const exec = promisify(execFile)
 export const PR_FIELDS = [
   'number',
   'title',
-  'url',
+  'baseRefName',
+  'headRefName',
   'isDraft',
   'mergeable',
   'mergeStateStatus',
@@ -46,11 +52,12 @@ function isBot(author) {
 const CHECK_OK = new Set(['SUCCESS', 'SKIPPED', 'NEUTRAL'])
 
 /**
- * @param {object} pr one PR, with at least PR_FIELDS populated
- * @returns {{ merge: boolean, reason: string }}
+ * @param {object} pr one PR from `gh pr view --json`, plus `behindBy`: how
+ *   many commits of the base branch its head is missing.
+ * @returns {{ action: 'merge' | 'update' | 'hold', reason: string }}
  */
 export function decide(pr) {
-  const hold = (reason) => ({ merge: false, reason })
+  const hold = (reason) => ({ action: 'hold', reason })
 
   if (pr.isDraft) return hold('draft')
 
@@ -60,7 +67,8 @@ export function decide(pr) {
   if (pr.isCrossRepository !== false) return hold('branch is on a fork')
 
   // MERGEABLE | CONFLICTING | UNKNOWN. UNKNOWN means GitHub is still computing
-  // the merge commit; the next run gets a real answer.
+  // the merge commit, which is normal for a few seconds after the base branch
+  // moves; the next run gets a real answer.
   if (pr.mergeable !== 'MERGEABLE') {
     return hold(
       pr.mergeable === 'CONFLICTING' ? 'conflicts with the base branch' : 'mergeability unknown',
@@ -68,8 +76,8 @@ export function decide(pr) {
   }
 
   // CLEAN is the only state that means "GitHub would let this merge right
-  // now". BLOCKED covers branch protection, BEHIND an out-of-date branch,
-  // UNSTABLE a failing or pending check.
+  // now". BLOCKED covers branch protection, UNSTABLE a failing or pending
+  // check, BEHIND an out-of-date branch that protection insists on.
   if (pr.mergeStateStatus !== 'CLEAN') {
     return hold(`merge state ${pr.mergeStateStatus || 'unknown'}`)
   }
@@ -108,7 +116,19 @@ export function decide(pr) {
     return hold(`CI failing: ${failed.map((c) => c.name || c.context).join(', ')}`)
   }
 
-  return { merge: true, reason: 'no comments, CI green, no conflicts' }
+  // Green, but green against an older main. This repo has no branch
+  // protection, so GitHub still calls it CLEAN and would happily merge a
+  // combination no CI run ever saw. Update the branch instead: that push
+  // reruns CI, and the completion brings us back here with behindBy 0.
+  //
+  // Checked LAST so a PR that is both behind and failing reports the failure,
+  // which is the thing a person needs to know.
+  if (pr.behindBy === undefined) return hold('base comparison unavailable')
+  if (pr.behindBy > 0) {
+    return { action: 'update', reason: `${pr.behindBy} commit(s) behind ${pr.baseRefName}` }
+  }
+
+  return { action: 'merge', reason: 'no comments, CI green, no conflicts, up to date' }
 }
 
 async function gh(args) {
@@ -116,10 +136,25 @@ async function gh(args) {
   return stdout
 }
 
+/** Commits of `base` that `head` is missing, or undefined if unknowable. */
+async function behindBy(repo, base, head) {
+  try {
+    const out = await gh(['api', `repos/${repo}/compare/${base}...${head}`, '--jq', '.behind_by'])
+    const value = Number(out.trim())
+    return Number.isFinite(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function main(argv) {
   const dryRun = argv.includes('--dry-run')
   const onlyIndex = argv.indexOf('--pr')
   const only = onlyIndex >= 0 ? argv[onlyIndex + 1] : null
+
+  const repo = (
+    await gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+  ).trim()
 
   const numbers = only
     ? [Number(only)]
@@ -132,34 +167,59 @@ async function main(argv) {
     return 0
   }
 
-  let merged = 0
+  let failures = 0
   for (const number of numbers) {
     // Per-PR, because `gh pr list` cannot return mergeStateStatus.
     const pr = JSON.parse(await gh(['pr', 'view', String(number), '--json', PR_FIELDS.join(',')]))
-    const { merge, reason } = decide(pr)
+    pr.behindBy = await behindBy(repo, pr.baseRefName, pr.headRefName)
 
-    if (!merge) {
-      console.log(`#${number} hold — ${reason}  (${pr.title})`)
+    const { action, reason } = decide(pr)
+    const label = `#${number}`
+
+    if (action === 'hold') {
+      console.log(`${label} hold — ${reason}  (${pr.title})`)
       continue
     }
     if (dryRun) {
-      console.log(`#${number} WOULD MERGE — ${reason}  (${pr.title})`)
+      console.log(`${label} WOULD ${action.toUpperCase()} — ${reason}  (${pr.title})`)
       continue
     }
 
     try {
-      await gh(['pr', 'merge', String(number), '--squash', '--delete-branch'])
-      console.log(`#${number} merged — ${reason}  (${pr.title})`)
-      merged += 1
+      if (action === 'update') {
+        await gh(['pr', 'update-branch', String(number)])
+        console.log(`${label} branch updated — ${reason}  (${pr.title})`)
+        continue
+      }
+
+      // The REST endpoint, not `gh pr merge`: that command also runs local
+      // git (checkout base, delete local branch), which fails in a worktree
+      // checkout and on a CI runner AFTER the merge already happened, so a
+      // success reports as a failure. This touches nothing local.
+      await gh([
+        'api',
+        '-X',
+        'PUT',
+        `repos/${repo}/pulls/${number}/merge`,
+        '-f',
+        'merge_method=squash',
+      ])
+      console.log(`${label} merged — ${reason}  (${pr.title})`)
+
+      // Best-effort tidy-up. A left-behind branch is not worth a red run.
+      await gh(['api', '-X', 'DELETE', `repos/${repo}/git/refs/heads/${pr.headRefName}`]).catch(
+        () => {},
+      )
     } catch (error) {
-      // A PR that became stale between the read and the merge is expected;
-      // report it and keep going rather than failing the whole run.
-      console.log(`#${number} merge failed — ${String(error.stderr || error.message).trim()}`)
+      // A PR that went stale between the read and the write is expected, but
+      // a token without merge rights looks identical here, so it must be
+      // loud: a non-zero exit turns the run red and GitHub emails about it.
+      console.log(`${label} ${action} failed — ${String(error.stderr || error.message).trim()}`)
+      failures += 1
     }
   }
 
-  if (merged > 0) console.log(`merged ${merged} PR(s)`)
-  return 0
+  return failures > 0 ? 1 : 0
 }
 
 const invokedDirectly =
