@@ -859,8 +859,8 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
   try {
     await openWorkspace(page)
     await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible({
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'MCP Connectors' })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -917,8 +917,8 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
   try {
     await openWorkspace(page)
     await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Connectors' })).toBeVisible({
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'MCP Connectors' })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -999,7 +999,7 @@ test('Connectors: signing in works with no session open', async () => {
     // Deliberately no session: the whole point is that Settings works on a
     // fresh launch, which is when someone goes looking for connectors.
     await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
 
     const linear = page.getByTestId('connector-linear')
     await expect(linear.getByRole('button', { name: 'Sign in' })).toBeEnabled({ timeout: 10_000 })

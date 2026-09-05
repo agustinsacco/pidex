@@ -12,6 +12,7 @@ import { WebAccessTab } from './tabs/WebAccessTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
 import { ConnectorsTab } from './tabs/ConnectorsTab'
+import { ComputerUseTab } from './tabs/ComputerUseTab'
 import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
 
@@ -20,7 +21,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'agent', label: 'Agent' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'extensions', label: 'Extensions' },
-  { id: 'connectors', label: 'Connectors' },
+  { id: 'connectors', label: 'MCP Connectors' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
@@ -35,6 +36,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
 const EXTENSION_TABS: Array<{ id: SettingsTab; label: string; packageMatch: string }> = [
   { id: 'claude-provider', label: 'Claude Code', packageMatch: 'pi-claude-cli' },
   { id: 'web-access', label: 'Web access', packageMatch: 'pi-web-access' },
+  { id: 'computer-use', label: 'Computer use', packageMatch: '@injaneity/pi-computer-use' },
 ]
 
 const isExtensionTab = (id: SettingsTab): boolean => EXTENSION_TABS.some((t) => t.id === id)
@@ -74,7 +76,7 @@ export function SettingsModal(): React.JSX.Element | null {
           <div className="text-text-tertiary px-2 pb-2 text-sm font-semibold font-mono uppercase tracking-wider">
             Settings
           </div>
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.id !== 'connectors').map((t) => (
             <Fragment key={t.id}>
               <button
                 onClick={() => useSettingsUiStore.getState().setTab(t.id)}
@@ -87,21 +89,36 @@ export function SettingsModal(): React.JSX.Element | null {
               >
                 {t.label}
               </button>
-              {t.id === 'extensions' &&
-                extensionTabs.map((et) => (
+              {t.id === 'extensions' && (
+                <>
+                  {extensionTabs.map((et) => (
+                    <button
+                      key={et.id}
+                      onClick={() => useSettingsUiStore.getState().setTab(et.id)}
+                      className={clsx(
+                        'mb-0.5 ml-4 flex w-[calc(100%-1rem)] items-center border-l border-border py-1 pl-3 text-left text-base transition-colors',
+                        effectiveTab === et.id
+                          ? 'text-text font-medium'
+                          : 'text-text-secondary hover:text-text',
+                      )}
+                    >
+                      {et.label}
+                    </button>
+                  ))}
                   <button
-                    key={et.id}
-                    onClick={() => useSettingsUiStore.getState().setTab(et.id)}
+                    key="connectors"
+                    onClick={() => useSettingsUiStore.getState().setTab('connectors')}
                     className={clsx(
                       'mb-0.5 ml-4 flex w-[calc(100%-1rem)] items-center border-l border-border py-1 pl-3 text-left text-base transition-colors',
-                      effectiveTab === et.id
+                      effectiveTab === 'connectors'
                         ? 'text-text font-medium'
                         : 'text-text-secondary hover:text-text',
                     )}
                   >
-                    {et.label}
+                    MCP Connectors
                   </button>
-                ))}
+                </>
+              )}
             </Fragment>
           ))}
         </aside>
@@ -120,6 +137,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
           {effectiveTab === 'web-access' && <WebAccessTab />}
           {effectiveTab === 'connectors' && <ConnectorsTab />}
+          {effectiveTab === 'computer-use' && <ComputerUseTab />}
           {effectiveTab === 'workspaces' && <WorkspacesTab />}
           {effectiveTab === 'advanced' && <AdvancedTab />}
           {effectiveTab === 'keybindings' && <KeybindingsTab />}
