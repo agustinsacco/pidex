@@ -1,5 +1,10 @@
 # 2026-09-05 — automerge was never running: no secret, and now a daytime poll
 
+> **Removed 2026-09-05.** Automerge no longer exists — the workflow, the
+> script and its tests were deleted. See
+> [2026-09-05-remove-automerge.md](2026-09-05-remove-automerge.md). This entry
+> is history only.
+
 Automerge had run four times and failed all four, each in under fifteen seconds
 ([run 33935905176](https://github.com/agustinsacco/pidex/actions/runs/33935905176)).
 The queue consequence was visible from the sidebar: two quiet, green PRs open
