@@ -27,7 +27,7 @@ export async function listDir(
       workspacePath,
       visible.map((e) => join(dirPath, e.name)),
     )
-    if (ignored) visible = visible.filter((e) => !ignored.has(join(dirPath, e.name)))
+    if (ignored) visible = visible.filter((e) => !ignored.has(gitPath(join(dirPath, e.name))))
   }
 
   const result: DirEntry[] = visible.map((entry) => ({
@@ -63,6 +63,22 @@ export async function listDir(
  * stdin must be written on the returned child handle or git waits forever and
  * every call dies on the timeout with filtering silently disabled.
  */
+/**
+ * One spelling for both sides of the ignored-set lookup.
+ *
+ * `join()` produces backslashes on Windows; git speaks forward slashes and
+ * ends its lines with CRLF there. Either difference alone makes every `has()`
+ * miss, so nothing is ever filtered and files the user ignored — `.env` and
+ * friends — show up in the explorer. Normalising the Set and the lookup the
+ * same way is correct whichever spelling git happens to echo back.
+ *
+ * `sep`-based rather than a blind `\` → `/` replace: on POSIX a backslash is
+ * a legal filename character, and there this is the identity.
+ */
+function gitPath(path: string): string {
+  return path.split(sep).join('/')
+}
+
 function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<string> | null> {
   return new Promise((resolve) => {
     const child = execFile(
@@ -70,7 +86,7 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
       ['check-ignore', '--stdin'],
       { cwd: workspacePath, timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout) => {
-        if (!error) return resolve(new Set(stdout.split('\n').filter(Boolean)))
+        if (!error) return resolve(new Set(stdout.split(/\r?\n/).filter(Boolean).map(gitPath)))
         if ((error as { code?: number }).code === 1) return resolve(new Set())
         resolve(null)
       },

@@ -125,7 +125,9 @@ describe('bundlePathFromExe', () => {
   })
 })
 
-describe('isTranslocated', () => {
+// Gatekeeper translocation exists only on macOS, and `isTranslocated` matches
+// a POSIX /private/var/… path. Nothing to assert elsewhere.
+describe.skipIf(process.platform !== 'darwin')('isTranslocated', () => {
   it('detects a Gatekeeper-translocated bundle', () => {
     expect(
       isTranslocated('/private/var/folders/ab/xyz/d/AppTranslocation/1234-ABCD/d/pidex.app'),

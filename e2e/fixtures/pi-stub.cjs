@@ -136,9 +136,16 @@ const os = require('node:os')
 // pidex's sidebar scans exactly that path. Writing here (not into the
 // workspace) is what makes the session discoverable, mirroring real pi.
 const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
+// Mangling kept identical to real pi and to electron/pi/pi-paths.ts: strip one
+// leading separator, then replace every / \ and : with -. The colon is what
+// makes this work on Windows, where the drive letter would otherwise put an
+// illegal character in the directory name.
 const SESSION_DIR = path.join(
   process.env.PI_CODING_AGENT_SESSION_DIR || path.join(AGENT_DIR, 'sessions'),
-  `--${fs.realpathSync.native(process.cwd()).split(path.sep).filter(Boolean).join('-')}--`,
+  `--${fs.realpathSync
+    .native(process.cwd())
+    .replace(/^[/\\]/, '')
+    .replace(/[/\\:]/g, '-')}--`,
 )
 const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
 

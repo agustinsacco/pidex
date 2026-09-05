@@ -10,7 +10,13 @@ const existsOnly =
   (path: string) =>
     paths.includes(path)
 
-describe('worktreeCounterpart', () => {
+// Skipped on Windows: every fixture below is a POSIX absolute path, and
+// `path.win32.isAbsolute('/home/u/…')` is true while `resolve()` then prefixes
+// the cwd's drive, so the comparisons test the fixtures rather than the guard.
+// The guard itself is separator-agnostic (isAbsolute/resolve/relative), but it
+// is UNVERIFIED on Windows — porting these fixtures is worth doing before a
+// Windows build ships.
+describe.skipIf(process.platform === 'win32')('worktreeCounterpart', () => {
   it('catches the observed leak: main-checkout path with a counterpart in the worktree', () => {
     const counterpart = worktreeCounterpart({
       cwd: CWD,
@@ -108,7 +114,7 @@ describe('worktreeCounterpart', () => {
   })
 })
 
-describe('createToolCallGuard', () => {
+describe.skipIf(process.platform === 'win32')('createToolCallGuard', () => {
   const LEAKED = `${MAIN}/src/lib/burnRate.ts`
   const CORRECT = `${CWD}/src/lib/burnRate.ts`
 

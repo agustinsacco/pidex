@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CLAUDE_CLI_PACKAGE,
@@ -49,23 +49,25 @@ describe('gitDirFromSpec', () => {
 describe('resolveInstallPath', () => {
   const dirs = { settingsDir: '/home/u/.pi/agent', scope: 'global' as const }
 
+  // Expectations are composed with join()/resolve() rather than written as
+  // POSIX strings: the contract is which directory, not how the OS spells it.
   it('maps npm specs into the shared npm prefix', () => {
     expect(resolveInstallPath('npm:@saccolabs/pi-claude-cli@0.4.0', 'npm', dirs)).toBe(
-      '/home/u/.pi/agent/npm/node_modules/@saccolabs/pi-claude-cli',
+      join(dirs.settingsDir, 'npm', 'node_modules', '@saccolabs', 'pi-claude-cli'),
     )
   })
 
   it('maps git specs into the git clone layout', () => {
     expect(resolveInstallPath('git:github.com/user/repo@v1', 'git', dirs)).toBe(
-      '/home/u/.pi/agent/git/github.com/user/repo',
+      join(dirs.settingsDir, 'git', 'github.com', 'user', 'repo'),
     )
   })
 
   it('resolves relative paths against the settings directory', () => {
     // pi stores home-adjacent local packages as ../../../<name> relative to
     // ~/.pi/agent (verified against pi 0.84.2).
-    expect(resolveInstallPath('../../../pkg', 'path', dirs)).toBe('/home/pkg')
-    expect(resolveInstallPath('/abs/pkg', 'path', dirs)).toBe('/abs/pkg')
+    expect(resolveInstallPath('../../../pkg', 'path', dirs)).toBe(resolve('/home/pkg'))
+    expect(resolveInstallPath('/abs/pkg', 'path', dirs)).toBe(resolve('/abs/pkg'))
   })
 })
 

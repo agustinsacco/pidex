@@ -29,6 +29,23 @@ describe('sessionDirNameForCwd (pi)', () => {
       '--home-dev-proj-.claude-worktrees-wt--',
     )
   })
+
+  // Asserted on every platform, because the rule belongs to pi's on-disk
+  // format rather than to the host: a Windows cwd reaching this on any OS must
+  // mangle the same way pi would.
+  it('replaces the drive colon, which is illegal in a Windows filename', () => {
+    // Both the colon AND the separator after it become dashes, so the drive
+    // letter is followed by two — `C--Users`, not `C-Users`. That is what pi's
+    // own single `[/\\:]` pass produces, and the name has to match it exactly.
+    expect(sessionDirNameForCwd('C:\\Users\\dev\\proj')).toBe('--C--Users-dev-proj--')
+  })
+
+  it('strips one leading separator only, matching pi', () => {
+    // pi's rule is `.replace(/^[/\\]/, '')` — a single leading separator, so a
+    // doubled one leaves an empty first segment rather than collapsing.
+    expect(sessionDirNameForCwd('/home/dev')).toBe('--home-dev--')
+    expect(sessionDirNameForCwd('//home/dev')).toBe('---home-dev--')
+  })
 })
 
 describe('claudeProjectDirName (Claude Code CLI)', () => {

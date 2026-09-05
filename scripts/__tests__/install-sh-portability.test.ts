@@ -19,7 +19,9 @@ const script = readFileSync(resolve(import.meta.dirname, '../install.sh'), 'utf8
  * Banning specific characters next to `$VAR` would miss the next variant, so
  * the rule is total: the installer stays pure ASCII.
  */
-describe('install.sh portability', () => {
+// install.sh is the macOS/Linux installer and is never run on Windows, where a
+// CRLF checkout would also put a \r on every line of this ASCII check.
+describe.skipIf(process.platform === 'win32')('install.sh portability', () => {
   it('is pure ASCII (bash 3.2 mangles multibyte chars after $VAR under UTF-8 locales)', () => {
     const offenders = script
       .split('\n')
