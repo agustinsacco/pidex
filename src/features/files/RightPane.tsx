@@ -70,7 +70,7 @@ function PaneSwitcher({
 }): React.JSX.Element {
   return (
     <div
-      className="border-border flex overflow-hidden rounded-lg border"
+      className="border-border flex shrink-0 overflow-hidden rounded-lg border"
       role="group"
       aria-label="Pane"
     >
@@ -85,8 +85,8 @@ function PaneSwitcher({
           aria-pressed={active === id}
           onClick={() => useLayoutStore.getState().setRightPane(id)}
           className={clsx(
-            'px-2.5 py-1 text-base font-medium transition-colors',
-            active === id ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
+            'min-h-8 px-2.5 py-1 text-base font-medium transition-colors focus-visible:-outline-offset-2',
+            active === id ? 'bg-bg-secondary text-text' : 'text-text-secondary hover:text-text',
           )}
         >
           {label}
