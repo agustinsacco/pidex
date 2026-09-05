@@ -180,10 +180,13 @@ export const TerminalView = memo(function TerminalView({
   // Refit + focus when this tab becomes visible.
   useEffect(() => {
     if (visible) {
-      setTimeout(() => {
+      const previousFocus = document.activeElement
+      const timer = setTimeout(() => {
         fitRef.current?.fit()
-        termRef.current?.focus()
+        // A late refit must not undo F6 or a user's click into another field.
+        if (document.activeElement === previousFocus) termRef.current?.focus()
       }, 30)
+      return () => clearTimeout(timer)
     }
   }, [visible])
 
